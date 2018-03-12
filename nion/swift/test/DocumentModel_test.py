@@ -73,7 +73,7 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_loading_document_with_duplicated_data_items_ignores_earlier_ones(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -85,7 +85,7 @@ class TestDocumentModelClass(unittest.TestCase):
         memory_persistent_storage_system.data[new_data_key] = copy.deepcopy(memory_persistent_storage_system.data[old_data_key])
         memory_persistent_storage_system.properties[new_properties_key] = copy.deepcopy(memory_persistent_storage_system.properties[old_properties_key])
         # reload and verify
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
             self.assertEqual(len(document_model.data_items), 1)

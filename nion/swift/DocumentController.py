@@ -851,8 +851,7 @@ class DocumentController(Window.Window):
             storage_cache = Cache.DbStorageCache(cache_path)
             file_persistent_storage_system = DocumentModel.FileStorageSystem([data_path])
             library_storage = DocumentModel.FilePersistentStorage(library_path)
-            document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_systems=[file_persistent_storage_system], storage_cache=storage_cache,
-                                                         ignore_older_files=True)
+            document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_system=file_persistent_storage_system, storage_cache=storage_cache, ignore_older_files=True)
 
             def import_complete(data_items):
                 document_model.close()

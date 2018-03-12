@@ -281,7 +281,7 @@ class Application:
         auto_migrations.append(DocumentModel.AutoMigration([os.path.join(workspace_dir, "Nion Swift Data 10")]))
         auto_migrations.append(DocumentModel.AutoMigration([os.path.join(workspace_dir, "Nion Swift Data 11")]))
         document_model = DocumentModel.DocumentModel(library_storage=library_storage,
-                                                     persistent_storage_systems=[file_persistent_storage_system],
+                                                     persistent_storage_system=file_persistent_storage_system,
                                                      storage_cache=storage_cache, ignore_older_files=ignore_older_files,
                                                      auto_migrations=auto_migrations)
         document_model.create_default_data_groups()

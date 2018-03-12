@@ -66,7 +66,7 @@ class TestConnectionClass(unittest.TestCase):
         # setup document
         library_storage = DocumentModel.FilePersistentStorage()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
         with contextlib.closing(document_model):
             data_item_3d = DataItem.DataItem(numpy.zeros((8, 8, 32), numpy.uint32))
             data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
@@ -79,7 +79,7 @@ class TestConnectionClass(unittest.TestCase):
             connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start", parent=data_item_1d)
             document_model.append_connection(connection)
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
         with contextlib.closing(document_model):
             # verify it read back
             data_item_3d = document_model.data_items[0]

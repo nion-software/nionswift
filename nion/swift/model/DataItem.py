@@ -139,6 +139,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, data=None):
         super().__init__()
         self.define_type("buffered-data-source")
+        self.persistent_storage = None
         data_shape = data.shape if data is not None else None
         data_dtype = data.dtype if data is not None else None
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
@@ -303,8 +304,8 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         return self.__data_and_metadata
 
     def __load_data(self):
-        if self.persistent_object_context:
-            return self.persistent_object_context.load_data(self)
+        if self.persistent_storage:
+            return self.persistent_storage.load_data()
         return None
 
     def __set_data_metadata_direct(self, data_and_metadata, data_modified=None):
@@ -346,8 +347,8 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
                 new_data_and_metadata = None
             self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
             if self.__data_and_metadata is not None:
-                if self.persistent_object_context:
-                    self.persistent_object_context.rewrite_data_item_data(self, self.__data_and_metadata.data)  # ouch, up reference to data item
+                if self.persistent_storage:
+                    self.persistent_storage.update_data(self.__data_and_metadata.data)
                     self.__data_and_metadata.unloadable = True
         finally:
             self.decrement_data_ref_count()
@@ -589,7 +590,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.__pending_write = True
         self.__write_delay_modified_count = 0
         self.persistent_object_context = None
-        self.persistent_storage = None
+        self.__persistent_storage = None
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
         # this is not my favorite solution since it limits library item creation to 1000/s but until I find a better solution, this is my compromise.
@@ -697,6 +698,17 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         else:
             container.remove_item(name, item)
 
+    @property
+    def persistent_storage(self):
+        return self.__persistent_storage
+
+    @persistent_storage.setter
+    def persistent_storage(self, persistent_storage):
+        self._set_persistent_storage(persistent_storage)
+
+    def _set_persistent_storage(self, persistent_storage):
+        self.__persistent_storage = persistent_storage
+
     def clone(self) -> "LibraryItem":
         library_item = self.__class__()
         library_item.uuid = self.uuid
@@ -767,11 +779,14 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
 
     def _finish_pending_write(self):
         if self.__pending_write:
-            self.persistent_object_context.write_data_item(self)
+            # write the uuid and version explicitly
+            self.persistent_object_context.property_changed(self, "uuid", str(self.uuid))
+            self.persistent_object_context.property_changed(self, "version", DataItem.writer_version)
+            self._finish_write()
             self.__pending_write = False
         else:
             if self.modified_count > self.__write_delay_modified_count:
-                self.persistent_object_context.rewrite_data_item_properties(self)
+                self.persistent_storage.update_properties()
             self._finish_pending_write_inner()
 
     def _transaction_state_entered(self):
@@ -1254,6 +1269,11 @@ class DataItem(LibraryItem):
             data_source.about_to_be_removed()
         super().about_to_be_removed()
 
+    def _set_persistent_storage(self, persistent_storage):
+        super()._set_persistent_storage(persistent_storage)
+        if self.data_source:
+            self.data_source.persistent_storage = persistent_storage
+
     def clone(self) -> "DataItem":
         data_item = super().clone()
         data_source = self.data_source
@@ -1298,7 +1318,7 @@ class DataItem(LibraryItem):
     def _finish_write(self):
         super()._finish_write()
         if self.data_source:
-            self.persistent_object_context.rewrite_data_item_data(self, self.data)
+            self.persistent_storage.update_data(self.data)
 
     def _enter_write_delay_state_inner(self):
         super()._enter_write_delay_state_inner()
@@ -1307,7 +1327,7 @@ class DataItem(LibraryItem):
     def _finish_pending_write_inner(self):
         super()._finish_pending_write_inner()
         if self.__write_delay_data_changed:
-            self.persistent_object_context.rewrite_data_item_data(self, self.data)
+            self.persistent_storage.update_data(self.data)
 
     @property
     def date_for_sorting(self):
@@ -1360,6 +1380,7 @@ class DataItem(LibraryItem):
             old_data_source.close()
 
         if data_source:
+            data_source.persistent_storage = self.persistent_storage
             data_source.timezone = self.timezone
             data_source.timezone_offset = self.timezone_offset
             self.__data_source_data_changed_event_listener = data_source.data_changed_event.listen(self.__handle_data_changed)
@@ -1384,6 +1405,7 @@ class DataItem(LibraryItem):
         # so unload data here to keep the books straight when the transaction state is exited.
         if self.in_transaction_state:
             data_source.decrement_data_ref_count()
+        data_source.persistent_storage = None
         # the document model watches for new data sources via observing.
         # send this message to make data_source observable.
         self.notify_clear_item("data_source")

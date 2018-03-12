@@ -694,7 +694,7 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_workspace_records_and_reloads_image_panel_contents(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         library_storage = DocumentModel.FilePersistentStorage()
-        document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_systems=[memory_persistent_storage_system])
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_system=memory_persistent_storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             workspace_1x1 = document_controller.document_model.workspaces[0]
@@ -702,7 +702,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
         # reload
-        document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_systems=[memory_persistent_storage_system])
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_system=memory_persistent_storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             workspace_1x1 = document_controller.document_model.workspaces[0]
