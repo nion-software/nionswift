@@ -782,7 +782,10 @@ class DocumentController(Window.Window):
                 container = self.__data_items_model.container
                 container = DataGroup.get_data_item_container(container, library_item)
                 if container and library_item in container.data_items:
-                    container.remove_data_item(library_item)
+                    kwargs = {}
+                    if isinstance(container, DocumentModel.DocumentModel):
+                        kwargs["safe"] = True
+                    container.remove_data_item(library_item, **kwargs)
                     # Note: periodic is here because the one in browser display panel is there.
                     # I could not get a test to fail without this statement; but regular use
                     # seems to fail during delete if this isn't here. Argh. Bad design.
@@ -1525,11 +1528,11 @@ class DocumentController(Window.Window):
             def delete():
                 selected_library_items = self.selected_library_items
                 if not library_item in selected_library_items:
-                    container.remove_data_item(library_item)
+                    container.remove_data_item(library_item, safe=True)
                 else:
                     for selected_library_item in selected_library_items:
                         if container and selected_library_item in container.data_items:
-                            container.remove_data_item(selected_library_item)
+                            container.remove_data_item(selected_library_item, safe=True)
 
             if data_item is not None:
 

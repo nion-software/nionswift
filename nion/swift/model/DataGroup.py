@@ -106,12 +106,12 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
 
-    def connect_data_items(self, data_items, lookup_data_item):
+    def connect_data_items(self, lookup_data_item):
         for data_group in self.data_groups:
-            data_group.connect_data_items(data_items, lookup_data_item)
+            data_group.connect_data_items(lookup_data_item)
         for data_item_uuid in self.data_item_uuids:
             data_item = lookup_data_item(data_item_uuid)
-            if data_item in data_items:
+            if data_item and data_item not in self.__data_items:
                 self.__data_items.append(data_item)
         self.__get_data_item_by_uuid = lookup_data_item
 

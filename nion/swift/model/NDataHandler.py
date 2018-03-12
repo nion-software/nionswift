@@ -11,6 +11,7 @@ import logging
 import json
 import numpy
 import os
+import pathlib
 import struct
 import threading
 import time
@@ -411,7 +412,11 @@ class NDataHandler:
 
     @classmethod
     def make(cls, file_path):
-        return cls(file_path + ".ndata")
+        return cls(cls.make_path(file_path))
+
+    @classmethod
+    def make_path(cls, file_path) -> str:
+        return str(pathlib.Path(file_path).with_suffix(cls.get_extension()))
 
     @classmethod
     def get_extension(self) -> str:

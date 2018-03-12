@@ -739,7 +739,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def data_items(self):
         return tuple()
 
-    def connect_data_items(self, data_items, lookup_data_item):
+    def connect_data_items(self, lookup_data_item):
         pass
 
     def set_storage_cache(self, storage_cache):
@@ -1163,11 +1163,13 @@ class CompositeLibraryItem(LibraryItem):
         self.__metadata = copy.deepcopy(metadata)
         self._set_persistent_property_value("metadata", self.__metadata)
 
-    def connect_data_items(self, data_items, lookup_data_item):
-        super().connect_data_items(data_items, lookup_data_item)
+    def connect_data_items(self, lookup_data_item):
+        super().connect_data_items(lookup_data_item)
         for data_item_uuid in self.data_item_uuids:
             data_item = lookup_data_item(data_item_uuid)
-            if data_item in data_items:
+            # check whether the data item is already in data items; this covers the case where data items are added
+            # to the composite library item before it is added to the document when it will be connected.
+            if data_item and not data_item in self.__data_items:
                 before_index = len(self.__data_items)
                 self.__data_items.append(data_item)
                 self.__data_item_about_to_be_removed_listeners.append(data_item.about_to_be_removed_event.listen(functools.partial(self.__data_item_about_to_be_removed, data_item)))

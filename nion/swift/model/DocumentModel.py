@@ -9,6 +9,7 @@ import json
 import logging
 import numbers
 import os.path
+import pathlib
 import shutil
 import threading
 import time
@@ -248,7 +249,8 @@ class DataItemPersistentStorage:
         remove()
     """
 
-    def __init__(self, storage_handler, data_item, properties):
+    def __init__(self, storage_system, storage_handler, data_item, properties):
+        self.__storage_system = storage_system
         self.__storage_handler = storage_handler
         self.__properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
         self.__properties_lock = threading.RLock()
@@ -352,8 +354,8 @@ class DataItemPersistentStorage:
             storage_dict.pop(name, None)
         self.update_properties()
 
-    def remove(self):
-        self.__storage_handler.remove()
+    def remove(self, safe: bool=False) -> None:
+        self.__storage_system.remove_storage_handler(self.__storage_handler, safe=safe)
 
 
 class MemoryStorageSystem:
@@ -361,6 +363,7 @@ class MemoryStorageSystem:
     def __init__(self):
         self.data = dict()
         self.properties = dict()
+        self.trash = dict()
         self._test_data_read_event = Event.Event()
 
     class MemoryStorageHandler:
@@ -393,10 +396,6 @@ class MemoryStorageSystem:
         def write_data(self, data, file_datetime):
             self.__data[self.__uuid] = data.copy()
 
-        def remove(self):
-            self.__data.pop(self.__uuid, None)
-            self.__properties.pop(self.__uuid, None)
-
     def find_data_items(self):
         storage_handlers = list()
         for key in sorted(self.properties):
@@ -405,8 +404,28 @@ class MemoryStorageSystem:
         return storage_handlers
 
     def make_storage_handler(self, data_item, file_handler=None):
-        uuid = str(data_item.uuid)
-        return MemoryStorageSystem.MemoryStorageHandler(uuid, self.properties, self.data, self._test_data_read_event)
+        data_item_uuid_str = str(data_item.uuid)
+        return MemoryStorageSystem.MemoryStorageHandler(data_item_uuid_str, self.properties, self.data, self._test_data_read_event)
+
+    def remove_storage_handler(self, storage_handler, *, safe: bool=False) -> None:
+        storage_handler_reference = storage_handler.reference
+        data = self.data.pop(storage_handler_reference, None)
+        properties = self.properties.pop(storage_handler_reference)
+        if safe:
+            assert storage_handler_reference not in self.trash
+            self.trash[storage_handler_reference] = {"data": data, "properties": properties}
+
+    def restore_storage_handler(self, data_item_uuid: uuid.UUID):
+        data_item_uuid_str = str(data_item_uuid)
+        trash_entry = self.trash.pop(data_item_uuid_str)
+        assert data_item_uuid_str not in self.properties
+        assert data_item_uuid_str not in self.data
+        self.properties[data_item_uuid_str] = trash_entry["properties"]
+        self.data[data_item_uuid_str] = trash_entry["data"]
+        return MemoryStorageSystem.MemoryStorageHandler(data_item_uuid_str, self.properties, self.data, self._test_data_read_event)
+
+    def purge_removed_storage_handlers(self):
+        self.trash = dict()
 
 
 from nion.swift.model import NDataHandler
@@ -421,11 +440,17 @@ class FileStorageSystem:
         self.__file_handlers = FileStorageSystem._file_handlers
 
     def find_data_items(self):
+        return self.__find_storage_handlers(self.__directories)
+
+    def __find_storage_handlers(self, directories, *, skip_trash=True):
         storage_handlers = list()
         absolute_file_paths = set()
-        for directory in self.__directories:
+        for directory in directories:
             for root, dirs, files in os.walk(directory):
-                absolute_file_paths.update([os.path.join(root, data_file) for data_file in files])
+                if not skip_trash or pathlib.Path(root).name != "trash":
+                    for data_file in files:
+                        if not data_file.startswith("."):
+                            absolute_file_paths.add(os.path.join(root, data_file))
         for file_handler in self.__file_handlers:
             for data_file in filter(file_handler.is_matching, absolute_file_paths):
                 try:
@@ -438,12 +463,12 @@ class FileStorageSystem:
                     raise
         return storage_handlers
 
-    def __get_default_path(self, data_item):
-        uuid_ = data_item.uuid
+    def __get_base_path(self, data_item):
+        data_item_uuid = data_item.uuid
         created_local = data_item.created_local
         session_id = data_item.session_id
-        # uuid_.bytes.encode('base64').rstrip('=\n').replace('/', '_')
-        # and back: uuid_ = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
+        # data_item_uuid.bytes.encode('base64').rstrip('=\n').replace('/', '_')
+        # and back: data_item_uuid = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
         # also:
         def encode(uuid_, alphabet):
             result = str()
@@ -452,11 +477,11 @@ class FileStorageSystem:
                 uuid_int, digit = divmod(uuid_int, len(alphabet))
                 result += alphabet[digit]
             return result
-        encoded_uuid_str = encode(uuid_, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
         path_components = created_local.strftime("%Y-%m-%d").split('-')
         session_id = session_id if session_id else created_local.strftime("%Y%m%d-000000")
         path_components.append(session_id)
-        path_components.append("data_" + encoded_uuid_str)
+        encoded_base_path = "data_" + encode(data_item_uuid, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
+        path_components.append(encoded_base_path)
         return os.path.join(*path_components)
 
     def get_file_handler_for_file(self, path):
@@ -470,7 +495,40 @@ class FileStorageSystem:
         # if there is only one handler, it is used in all cases
         large_format = hasattr(data_item, "large_format") and data_item.large_format
         file_handler = file_handler if file_handler else (self.__file_handlers[-1] if large_format else self.__file_handlers[0])
-        return file_handler.make(os.path.join(self.__directories[0], self.__get_default_path(data_item)))
+        return file_handler.make(os.path.join(self.__directories[0], self.__get_base_path(data_item)))
+
+    def remove_storage_handler(self, storage_handler, *, safe: bool=False) -> None:
+        file_path = storage_handler.reference
+        file_name = os.path.split(file_path)[1]
+        trash_dir = os.path.join(self.__directories[0], "trash")
+        new_file_path = os.path.join(trash_dir, file_name)
+        if safe and not os.path.exists(new_file_path):
+            os.makedirs(trash_dir, exist_ok=True)
+            shutil.move(file_path, new_file_path)
+        storage_handler.remove()
+
+    def restore_storage_handler(self, data_item_uuid: uuid.UUID):
+        data_item_uuid_str = str(data_item_uuid)
+        trash_dir = os.path.join(self.__directories[0], "trash")
+        storage_handlers = self.__find_storage_handlers([trash_dir], skip_trash=False)
+        for storage_handler in storage_handlers:
+            properties = storage_handler.read_properties()
+            if properties.get("uuid", None) == data_item_uuid_str:
+                data_item = DataItem.DataItem(item_uuid=data_item_uuid)
+                data_item.begin_reading()
+                data_item.read_from_dict(properties)
+                data_item.finish_reading()
+                old_file_path = storage_handler.reference
+                new_file_path = storage_handler.make_path(os.path.join(self.__directories[0], self.__get_base_path(data_item)))
+                if not os.path.exists(new_file_path):
+                    os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
+                    shutil.move(old_file_path, new_file_path)
+                self.make_storage_handler(data_item, file_handler=None)
+                return storage_handler.make(new_file_path)
+        return None
+
+    def purge_removed_storage_handlers(self):
+        self.trash = dict()
 
 
 def read_data_items_version_stats(persistent_storage_system):
@@ -533,7 +591,7 @@ def read_data_items(library_storage_properties, persistent_storage_system, ignor
                 data_item.begin_reading()
                 data_item.read_from_dict(properties)
                 # persistent storage facilitates writing properties and relationships to the storage handler
-                persistent_storage = DataItemPersistentStorage(storage_handler, data_item, properties)
+                persistent_storage = DataItemPersistentStorage(persistent_storage_system, storage_handler, data_item, properties)
                 data_item.persistent_storage = persistent_storage
                 if log_migrations and data_item.uuid in data_items_by_uuid:
                     logging.info("Warning: Duplicate data item %s", data_item.uuid)
@@ -581,7 +639,7 @@ def auto_migrate_data_item(reader_info, persistent_storage_system, migration_log
         new_data_item.begin_reading()
         new_data_item.read_from_dict(properties)
         # persistent storage facilitates writing properties and relationships to the storage handler
-        persistent_storage = DataItemPersistentStorage(target_storage_handler, new_data_item, properties)
+        persistent_storage = DataItemPersistentStorage(persistent_storage_system, target_storage_handler, new_data_item, properties)
         new_data_item.persistent_storage = persistent_storage
         migration_log.push("Copying data item {} to library.".format(data_item_uuid))
     else:
@@ -1168,7 +1226,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for data_item in data_items:
             self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
         for data_item in data_items:
-            data_item.connect_data_items(data_items, self.get_data_item_by_uuid)
+            data_item.connect_data_items(self.get_data_item_by_uuid)
         # this loop reestablishes dependencies now that everything is loaded.
         # the change listener for the computation will already have been established via the regular
         # loading mechanism; but because some data items may not have been loaded at the first time computation
@@ -1185,7 +1243,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, data_item))
         # all data items will already have a persistent_object_context
         for data_group in self.data_groups:
-            data_group.connect_data_items(data_items, self.get_data_item_by_uuid)
+            data_group.connect_data_items(self.get_data_item_by_uuid)
         # handle the reference variable assignments
         data_item_variables = self._get_persistent_property_value("data_item_variables")
         new_data_item_variables = dict()
@@ -1337,29 +1395,36 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         assert data_item not in self.__data_items
         assert before_index <= len(self.__data_items) and before_index >= 0
         assert data_item.uuid not in self.__data_item_uuids
+        # ensure the data item has a new persistent storage
+        assert not data_item.persistent_storage
+        storage_handler = self.__persistent_storage_system.make_storage_handler(data_item)
+        properties = data_item.write_to_dict()
+        do_write = True
+        # update the session
+        data_item.session_id = self.session_id
         # insert in internal list
+        self.__insert_data_item(before_index, data_item, storage_handler, properties, do_write)
+
+    def __insert_data_item(self, before_index, data_item, storage_handler, properties, do_write):
         data_item.about_to_be_inserted(self)
         self.__data_items.insert(before_index, data_item)
         self.__data_item_uuids.add(data_item.uuid)
         self.__uuid_to_data_item[data_item.uuid] = data_item
         data_item.set_storage_cache(self.storage_cache)
         data_item.persistent_object_context = self.persistent_object_context
-        # ensure the data item has a new persistent storage
-        assert not data_item.persistent_storage
-        storage_handler = self.__persistent_storage_system.make_storage_handler(data_item)
         # persistent storage facilitates writing properties and relationships to the storage handler
         # persistent object context tracks the persistent storage for each object in the system
-        persistent_storage = DataItemPersistentStorage(storage_handler, data_item, data_item.write_to_dict())
+        persistent_storage = DataItemPersistentStorage(self.__persistent_storage_system, storage_handler, data_item,
+                                                       properties)
         data_item.persistent_storage = persistent_storage
         data_item.persistent_object_context._set_persistent_storage_for_object(data_item, persistent_storage)
         data_item.persistent_object_context_changed()
-        # update the session
-        data_item.session_id = self.session_id
-        if persistent_storage and not persistent_storage.write_delayed:
+        if do_write and persistent_storage and not persistent_storage.write_delayed:
             # don't directly write data item, or else write_pending is not cleared on data item
             # call finish pending write instead
             data_item._finish_pending_write()  # initially write to disk
         self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
+        data_item.connect_data_items(self.get_data_item_by_uuid)
         data_item.set_session_manager(self)
         self.data_item_inserted_event.fire(self, data_item, before_index, False)
         self.notify_insert_item("data_items", data_item, before_index)
@@ -1376,7 +1441,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if computation.is_resolved:
                     computation.mark_update()
 
-    def remove_data_item(self, data_item):
+    def remove_data_item(self, data_item, *, safe: bool=False):
         """Remove data item from document model.
 
         Data item will have persistent_object_context cleared upon return.
@@ -1384,9 +1449,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         This method is NOT threadsafe.
         """
         # remove data item from any computations
-        self.__cascade_delete(data_item)
+        self.__cascade_delete(data_item, safe=safe)
 
-    def __remove_data_item(self, data_item):
+    def __remove_data_item(self, data_item, *, safe: bool=False) -> None:
         self.__transaction_manager._remove_item(data_item)
         assert data_item.uuid in self.__data_item_uuids
         library_computation = self.get_data_item_computation(data_item)
@@ -1422,7 +1487,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item.r_var = None
         # keep storage up-to-date
         persistent_storage = data_item.persistent_storage
-        persistent_storage.remove()
+        persistent_storage.remove(safe=safe)
         data_item.persistent_object_context = None
         data_item.__storage_cache = None
         # update data item count
@@ -1431,6 +1496,21 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.data_item_removed_event.fire(self, data_item, index, False)
         self.notify_remove_item("data_items", data_item, index)
         data_item.close()
+
+    def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int=None) -> DataItem.DataItem:
+        before_index = before_index if before_index is not None else len(self.data_items)
+        storage_handler = self.__persistent_storage_system.restore_storage_handler(data_item_uuid)
+        properties = storage_handler.read_properties()
+        if len(properties.get("data_item_uuids", list())) > 0:
+            data_item = DataItem.CompositeLibraryItem(item_uuid=data_item_uuid)
+        else:
+            large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
+            data_item = DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
+        data_item.begin_reading()
+        data_item.read_from_dict(properties)
+        # insert in internal list
+        self.__insert_data_item(before_index, data_item, storage_handler, properties, do_write=False)
+        return data_item
 
     def insert_model_item(self, container, name, before_index, item):
         container.insert_item(name, before_index, item)
@@ -1513,7 +1593,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if (source, item) not in dependencies:
                     dependencies.append((source, item))
 
-    def __cascade_delete(self, master_item, items=None, dependencies=None):
+    def __cascade_delete(self, master_item, items=None, dependencies=None, safe: bool=False):
         # print(f"cascade {item}")
         items = items if items else list()
         dependencies = dependencies if dependencies else list()
@@ -1555,7 +1635,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # print(container, name, item)
             if container is self and name == "data_items":
                 # call the version of __remove_data_item that doesn't cascade again
-                self.__remove_data_item(item)
+                self.__remove_data_item(item, safe=safe)
             else:
                 container.remove_item(name, item)
 

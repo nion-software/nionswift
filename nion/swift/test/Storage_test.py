@@ -702,6 +702,99 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_delete_and_undelete_from_memory_storage_system_restores_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16)))
+            document_model.append_data_item(data_item)
+            data_item_uuid = data_item.uuid
+            document_model.remove_data_item(data_item, safe=True)
+            self.assertEqual(0, len(document_model.data_items))
+            document_model.restore_data_item(data_item_uuid)
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
+
+    def test_delete_and_undelete_from_memory_storage_system_restores_data_item_after_reload(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16)))
+            document_model.append_data_item(data_item)
+            data_item_uuid = data_item.uuid
+            document_model.remove_data_item(data_item, safe=True)
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            self.assertEqual(0, len(document_model.data_items))
+            document_model.restore_data_item(data_item_uuid)
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
+
+    def test_delete_and_undelete_from_memory_storage_system_restores_composite_item_after_reload(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((4, 4)))
+            composite_item = DataItem.CompositeLibraryItem()
+            document_model.append_data_item(composite_item)
+            document_model.append_data_item(data_item)
+            composite_item.append_data_item(data_item)
+            data_item_uuid = composite_item.uuid
+            document_model.remove_data_item(composite_item, safe=True)
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            self.assertEqual(1, len(document_model.data_items))
+            document_model.restore_data_item(data_item_uuid, 0)
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
+            self.assertEqual(1, len(document_model.data_items[0].data_items))
+
+    def test_delete_and_undelete_from_file_storage_system_restores_data_item(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
+        try:
+            library_storage = DocumentModel.FilePersistentStorage(lib_name)
+            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16)))
+                document_model.append_data_item(data_item)
+                data_item_uuid = data_item.uuid
+                document_model.remove_data_item(data_item, safe=True)
+                self.assertEqual(0, len(document_model.data_items))
+                document_model.restore_data_item(data_item_uuid)
+                self.assertEqual(1, len(document_model.data_items))
+                self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
+        finally:
+            # logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
+    def test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
+        try:
+            library_storage = DocumentModel.FilePersistentStorage(lib_name)
+            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16)))
+                document_model.append_data_item(data_item)
+                data_item_uuid = data_item.uuid
+                document_model.remove_data_item(data_item, safe=True)
+            # read it back
+            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage, log_migrations=False)
+            with contextlib.closing(document_model):
+                self.assertEqual(0, len(document_model.data_items))
+                document_model.restore_data_item(data_item_uuid)
+                self.assertEqual(1, len(document_model.data_items))
+                self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
+        finally:
+            # logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def test_data_changes_update_large_format_file(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")

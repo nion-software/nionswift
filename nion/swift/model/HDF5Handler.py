@@ -5,6 +5,7 @@
 import io
 import json
 import os
+import pathlib
 import threading
 
 import h5py
@@ -54,7 +55,11 @@ class HDF5Handler:
 
     @classmethod
     def make(cls, file_path):
-        return cls(file_path + ".h5")
+        return cls(cls.make_path(file_path))
+
+    @classmethod
+    def make_path(cls, file_path) -> str:
+        return str(pathlib.Path(file_path).with_suffix(cls.get_extension()))
 
     @classmethod
     def get_extension(self) -> str:
