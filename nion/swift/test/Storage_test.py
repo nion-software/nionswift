@@ -790,7 +790,7 @@ class TestStorageClass(unittest.TestCase):
                 with document_model.item_transaction(data_item):
                     display_specifier.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                     # make sure data does NOT exist during the transaction
-                    handler = document_model.persistent_object_context._get_persistent_storage_for_object(data_item)._storage_handler
+                    handler = data_item.persistent_storage._storage_handler
                     self.assertIsNone(handler.read_data())
                 # make sure it DOES exist after the transaction
                 self.assertTrue(os.path.exists(data_file_path))

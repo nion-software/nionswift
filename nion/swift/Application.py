@@ -194,18 +194,16 @@ class Application:
             self.choose_library()
             return True
         self.workspace_dir = workspace_dir
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))])
         create_new_document = not os.path.exists(library_path)
         if create_new_document:
             if welcome_message_enabled:
                 logging.debug("Creating new document: %s", library_path)
-            library_storage = DocumentModel.FilePersistentStorage(library_path)
         else:
             if welcome_message_enabled:
                 logging.debug("Using existing document %s", library_path)
-            library_storage = DocumentModel.FilePersistentStorage(library_path)
-        persistent_object_context = DocumentModel.PersistentDataItemContext([file_persistent_storage_system], False, False)
-        counts = persistent_object_context.read_data_items_version_stats()
+        library_storage = DocumentModel.FilePersistentStorage(library_path)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem([os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))])
+        counts = DocumentModel.read_data_items_version_stats(file_persistent_storage_system)
         if counts[2] > 0:
 
             assert fixed_workspace_dir is None

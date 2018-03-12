@@ -589,6 +589,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.__pending_write = True
         self.__write_delay_modified_count = 0
         self.persistent_object_context = None
+        self.persistent_storage = None
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
         # this is not my favorite solution since it limits library item creation to 1000/s but until I find a better solution, this is my compromise.
@@ -646,10 +647,9 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
             display.close()
         # close the storage handler
         if self.persistent_object_context:
-            persistent_storage = self.persistent_object_context._get_persistent_storage_for_object(self)
-            if persistent_storage:
-                persistent_storage.close()
-            self.persistent_object_context._set_persistent_storage_for_object(self, None)
+            if self.persistent_storage:
+                self.persistent_storage.close()
+            self.persistent_storage = None
             self.persistent_object_context = None
         assert self._about_to_be_removed
         assert not self._closed
@@ -753,15 +753,13 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.__write_delay_modified_count = self.modified_count
         self._enter_write_delay_state_inner()
         if self.persistent_object_context:
-            persistent_storage = self.persistent_object_context._get_persistent_storage_for_object(self)
-            if persistent_storage:
-                persistent_storage.write_delayed = True
+            if self.persistent_storage:
+                self.persistent_storage.write_delayed = True
 
     def __exit_write_delay_state(self):
         if self.persistent_object_context:
-            persistent_storage = self.persistent_object_context._get_persistent_storage_for_object(self)
-            if persistent_storage:
-                persistent_storage.write_delayed = False
+            if self.persistent_storage:
+                self.persistent_storage.write_delayed = False
             self._finish_pending_write()
 
     def _finish_write(self):
@@ -827,9 +825,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
             unregistered()
 
     def _test_get_file_path(self):
-        if self.persistent_object_context:
-            return self.persistent_object_context._test_get_file_path(self)
-        return None
+        return self.persistent_storage._storage_handler.reference if self.persistent_storage else None
 
     # access properties
 
