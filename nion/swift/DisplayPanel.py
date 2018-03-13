@@ -1504,7 +1504,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def clear_selection(self):
         self.__display.graphic_selection.clear()
 
-    def add_and_select_region(self, region: Graphics.Graphic):
+    def add_and_select_region(self, region: Graphics.Graphic) -> Undo.UndoableCommand:
         self.__display.add_graphic(region)  # this will also make a drawn graphic
         # hack to select it. it will be the last item.
         self.__display.graphic_selection.set(len(self.__display.graphics) - 1)

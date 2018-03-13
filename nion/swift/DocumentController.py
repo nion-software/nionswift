@@ -776,21 +776,29 @@ class DocumentController(Window.Window):
         return DataItem.DisplaySpecifier.from_data_item(self.selected_display_panel.data_item if self.selected_display_panel else None)
 
     def delete_displays(self, displays: typing.Sequence[Display.Display]) -> None:
-        for display in displays:
-            library_item = DataItem.DisplaySpecifier.from_display(display).library_item
-            if library_item:
-                container = self.__data_items_model.container
-                container = DataGroup.get_data_item_container(container, library_item)
-                if container and library_item in container.data_items:
-                    if isinstance(container, DocumentModel.DocumentModel):
-                        container.remove_data_item(library_item, safe=True)
-                    else:
+        library_items = list()
+        container = self.__data_items_model.container
+        if container is self.document_model:
+            for display in displays:
+                library_item = DataItem.DisplaySpecifier.from_display(display).library_item
+                if library_item and library_item in self.document_model.data_items and library_item not in library_items:
+                    library_items.append(library_item)
+            if library_items:
+                command = self.create_remove_library_items_command(library_items)
+                self.push_undo_command(command)
+        else:
+            # TODO: undo
+            for display in displays:
+                library_item = DataItem.DisplaySpecifier.from_display(display).library_item
+                if library_item:
+                    container = DataGroup.get_data_item_container(container, library_item)
+                    if container and library_item in container.data_items:
                         container.remove_data_item(library_item)
-                    # Note: periodic is here because the one in browser display panel is there.
-                    # I could not get a test to fail without this statement; but regular use
-                    # seems to fail during delete if this isn't here. Argh. Bad design.
-                    # TODO: avoid calling periodic by reworking thread support in data panel
-                    self.periodic()  # keep the display items in data panel consistent.
+                        # Note: periodic is here because the one in browser display panel is there.
+                        # I could not get a test to fail without this statement; but regular use
+                        # seems to fail during delete if this isn't here. Argh. Bad design.
+                        # TODO: avoid calling periodic by reworking thread support in data panel
+                        self.periodic()  # keep the display items in data panel consistent.
 
     def register_display_panel(self, display_panel):
         pass
@@ -1164,6 +1172,16 @@ class DocumentController(Window.Window):
                 return True
         return False
 
+    def remove_selected_graphics(self) -> None:
+        display_specifier = self.selected_display_specifier
+        if display_specifier:
+            display = display_specifier.display
+            if display.graphic_selection.has_selection:
+                graphics = [display.graphics[index] for index in display.graphic_selection.indexes]
+                if graphics:
+                    command = self.create_remove_graphics_command(display, graphics)
+                    self.push_undo_command(command)
+
     class RemoveGraphicsCommand(Undo.UndoableCommand):
 
         def __init__(self, document_model, display, graphics):
@@ -1195,16 +1213,6 @@ class DocumentController(Window.Window):
         def _redo(self):
             self.perform()
 
-    def remove_selected_graphics(self) -> None:
-        display_specifier = self.selected_display_specifier
-        if display_specifier:
-            display = display_specifier.display
-            if display.graphic_selection.has_selection:
-                graphics = [display.graphics[index] for index in display.graphic_selection.indexes]
-                if graphics:
-                    command = self.create_remove_graphics_command(display, graphics)
-                    self.push_undo_command(command)
-
     def create_remove_graphics_command(self, display, graphics):
         command_change_workspace = Workspace.Workspace.ChangeContentsWorkspaceCommand(self.__workspace_controller)
         command_remove_graphics = DocumentController.RemoveGraphicsCommand(self.document_model, display, graphics)
@@ -1212,6 +1220,46 @@ class DocumentController(Window.Window):
         command_remove_graphics.commit()
         command_change_workspace.commit()
         command = Undo.AggregateUndoableCommand(_("Undo Remove Graphics"), [command_change_workspace, command_remove_graphics])
+        return command
+
+    class RemoveLibraryItemsCommand(Undo.UndoableCommand):
+
+        def __init__(self, document_model: DocumentModel.DocumentModel, library_items: typing.Sequence[DataItem.LibraryItem]):
+            super().__init__(_("Remove Library Items"))
+            self.__document_model = document_model
+            self.__library_item_indexes = [document_model.data_items.index(library_item) for library_item in library_items]
+            self.initialize()
+
+        def close(self):
+            super().close()
+
+        def perform(self):
+            self.__undelete_logs = list()
+            library_items = [self.__document_model.data_items[index] for index in self.__library_item_indexes]
+            for library_item in library_items:
+                if library_item in self.__document_model.data_items:
+                    self.__undelete_logs.append(self.__document_model.remove_data_item(library_item, safe=True))
+
+        def _get_modified_state(self):
+            return 0
+
+        def _set_modified_state(self, modified_state):
+            pass
+
+        def _undo(self):
+            for undelete_log in reversed(self.__undelete_logs):
+                self.__document_model.undelete_all(undelete_log)
+
+        def _redo(self):
+            self.perform()
+
+    def create_remove_library_items_command(self, library_items: typing.Sequence[DataItem.LibraryItem]) -> Undo.UndoableCommand:
+        command_change_workspace = Workspace.Workspace.ChangeContentsWorkspaceCommand(self.__workspace_controller)
+        command_remove_library_items = DocumentController.RemoveLibraryItemsCommand(self.document_model, library_items)
+        command_remove_library_items.perform()
+        command_remove_library_items.commit()
+        command_change_workspace.commit()
+        command = Undo.AggregateUndoableCommand(_("Undo Remove Library Items"), [command_change_workspace, command_remove_library_items])
         return command
 
     def add_data_element(self, data_element, source_data_item=None):
@@ -1567,11 +1615,15 @@ class DocumentController(Window.Window):
             def delete():
                 selected_library_items = self.selected_library_items
                 if not library_item in selected_library_items:
-                    container.remove_data_item(library_item, safe=True)
+                    if isinstance(container, DocumentModel.DocumentModel):
+                        command = self.create_remove_library_items_command([library_item])
+                        self.push_undo_command(command)
+                    else:
+                        # TODO: undo
+                        container.remove_data_item(library_item)
                 else:
-                    for selected_library_item in selected_library_items:
-                        if container and selected_library_item in container.data_items:
-                            container.remove_data_item(selected_library_item, safe=True)
+                    command = self.create_remove_library_items_command(selected_library_items)
+                    self.push_undo_command(command)
 
             if data_item is not None:
 

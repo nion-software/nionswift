@@ -1789,6 +1789,39 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(0, len(data_item.displays[0].graphics))
             self.assertEqual(None, display_panel.data_item)
 
+    def test_remove_data_item_with_dependent_data_item_display_undo_redo_cycle(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.random.randn(4, 4))
+            document_model.append_data_item(data_item)
+            line_plot_data_item = document_model.get_line_profile_new(data_item)
+            document_model.recompute_all()
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(line_plot_data_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 1000))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
+            document_controller.periodic()
+            # verify setup
+            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertEqual(line_plot_data_item, display_panel.data_item)
+            # do the delete
+            command = document_controller.create_remove_library_items_command([line_plot_data_item])
+            document_controller.push_undo_command(command)
+            self.assertEqual(0, len(data_item.displays[0].graphics))
+            self.assertEqual(None, display_panel.data_item)
+            # do the undo and verify
+            document_controller.handle_undo()
+            line_plot_data_item = document_model.data_items[1]
+            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertEqual(line_plot_data_item, display_panel.data_item)
+            # do the redo and verify
+            document_controller.handle_redo()
+            self.assertEqual(0, len(data_item.displays[0].graphics))
+            self.assertEqual(None, display_panel.data_item)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
