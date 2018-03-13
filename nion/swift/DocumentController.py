@@ -324,7 +324,7 @@ class DocumentController(Window.Window):
         self._processing_menu.add_menu_item(_("Slice Sum"), functools.partial(self.__processing_new, self.document_model.get_slice_sum_new))
         self._processing_menu.add_menu_item(_("Pick"), functools.partial(self.__processing_new, self.document_model.get_pick_new))
         self._processing_menu.add_menu_item(_("Pick Region"), functools.partial(self.__processing_new, self.document_model.get_pick_region_new))
-        self._processing_menu.add_menu_item(_("Projection"), self.processing_projection)
+        self._processing_menu.add_menu_item(_("Projection"), functools.partial(self.__processing_new, self.document_model.get_projection_new))
         self._processing_menu.add_separator()
 
         self._processing_menu.add_menu_item(_("Add"), functools.partial(self.__processing_new2, self.document_model.get_add_new))
@@ -886,6 +886,7 @@ class DocumentController(Window.Window):
             self.app.switch_library(workspace_dir)
 
     def import_file(self):
+        # TODO: undo
         # present a loadfile dialog to the user
         readers = ImportExportManager.ImportExportManager().get_readers()
         all_extensions = []
@@ -983,6 +984,7 @@ class DocumentController(Window.Window):
             self.__dialogs.append(weakref.ref(interactive_dialog))
 
     def new_recorder_dialog(self, data_item=None):
+        # TODO: undo
         if not data_item:
             data_item = self.selected_display_specifier.data_item
         if data_item:
@@ -1044,6 +1046,7 @@ class DocumentController(Window.Window):
         self.remove_selected_graphics()
 
     def add_group(self):
+        # TODO: undo
         data_group = DataGroup.DataGroup()
         data_group.title = _("Untitled Group")
         self.document_model.insert_data_group(0, data_group)
@@ -1061,7 +1064,9 @@ class DocumentController(Window.Window):
             graphic = Graphics.LineGraphic()
             graphic.start = (0.2, 0.2)
             graphic.end = (0.8, 0.8)
-            display.add_graphic(graphic)
+            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command.perform()
+            self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
@@ -1072,7 +1077,9 @@ class DocumentController(Window.Window):
             display = display_specifier.display
             graphic = Graphics.RectangleGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
-            display.add_graphic(graphic)
+            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command.perform()
+            self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
@@ -1083,7 +1090,9 @@ class DocumentController(Window.Window):
             display = display_specifier.display
             graphic = Graphics.EllipseGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
-            display.add_graphic(graphic)
+            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command.perform()
+            self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
@@ -1094,7 +1103,9 @@ class DocumentController(Window.Window):
             display = display_specifier.display
             graphic = Graphics.PointGraphic()
             graphic.position = (0.5,0.5)
-            display.add_graphic(graphic)
+            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command.perform()
+            self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
@@ -1106,7 +1117,9 @@ class DocumentController(Window.Window):
             graphic = Graphics.IntervalGraphic()
             graphic.start = 0.25
             graphic.end = 0.75
-            display.add_graphic(graphic)
+            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command.perform()
+            self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
@@ -1117,7 +1130,9 @@ class DocumentController(Window.Window):
             display = display_specifier.display
             graphic = Graphics.ChannelGraphic()
             graphic.position = 0.5
-            display.add_graphic(graphic)
+            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command.perform()
+            self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
@@ -1128,7 +1143,9 @@ class DocumentController(Window.Window):
             display = display_specifier.display
             graphic = Graphics.SpotGraphic()
             graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
-            display.add_graphic(graphic)
+            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command.perform()
+            self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
@@ -1140,7 +1157,9 @@ class DocumentController(Window.Window):
             graphic = Graphics.WedgeGraphic()
             graphic.start_angle = 0
             graphic.end_angle = (3/4) * math.pi
-            display.add_graphic(graphic)
+            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command.perform()
+            self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
@@ -1152,7 +1171,9 @@ class DocumentController(Window.Window):
             graphic = Graphics.RingGraphic()
             graphic.radius_1 = 0.15
             graphic.radius_2 = 0.25
-            display.add_graphic(graphic)
+            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command.perform()
+            self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
@@ -1340,6 +1361,7 @@ class DocumentController(Window.Window):
         return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_invert_new))
 
     def processing_duplicate(self):
+        # TODO: undo
         data_item = self.selected_display_specifier.data_item
         if data_item:
             new_data_item = self.document_model.copy_data_item(data_item)
@@ -1356,6 +1378,7 @@ class DocumentController(Window.Window):
         return DataItem.DisplaySpecifier()
 
     def processing_snapshot(self):
+        # TODO: undo
         data_item = self.selected_display_specifier.data_item
         if data_item:
             data_item_copy = self.document_model.get_snapshot_new(data_item)
@@ -1443,6 +1466,7 @@ class DocumentController(Window.Window):
         return None
 
     def __processing_new2(self, fn):
+        # TODO: undo
         data_sources = self._get_two_data_sources()
         if data_sources:
             (data_item1, crop_graphic1), (data_item2, crop_graphic2) = data_sources
@@ -1454,9 +1478,11 @@ class DocumentController(Window.Window):
         return None
 
     def processing_cross_correlate_new(self):
+        # TODO: undo
         return self.__processing_new2(self.document_model.get_cross_correlate_new)
 
     def processing_fourier_filter_new(self):
+        # TODO: undo
         display_specifier = self.selected_display_specifier
         data_item = self.document_model.get_fourier_filter_new(display_specifier.data_item, None)
         if data_item:
@@ -1466,6 +1492,7 @@ class DocumentController(Window.Window):
         return None
 
     def __processing_new(self, fn):
+        # TODO: undo
         display_specifier = self.selected_display_specifier
         crop_graphic = self.__get_crop_graphic(display_specifier)
         data_item = fn(display_specifier.data_item, crop_graphic)
@@ -1528,6 +1555,7 @@ class DocumentController(Window.Window):
             return
 
     def create_empty_data_item(self):
+        # TODO: undo
         new_data_item = DataItem.DataItem()
         new_data_item.title = _("Untitled")
         self.document_model.append_data_item(new_data_item)

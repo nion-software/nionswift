@@ -1479,6 +1479,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.show_context_menu(menu, gx, gy)
 
     def perform_action(self, fn, *args, **keywords):
+        # TODO: undo
         display_canvas_item = self.display_canvas_item
         target = display_canvas_item
         if hasattr(target, fn):
