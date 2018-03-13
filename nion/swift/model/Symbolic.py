@@ -447,11 +447,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         else:
             container.insert_item(name, before_index, item)
 
-    def remove_model_item(self, container, name, item):
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         if self.__container_weak_ref:
-            self.container.remove_model_item(container, name, item)
+            return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
+            return None
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)

@@ -833,11 +833,12 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         else:
             container.insert_item(name, before_index, item)
 
-    def remove_model_item(self, container, name, item):
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         if self.__container_weak_ref:
-            self.container.remove_model_item(container, name, item)
+            return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
+            return None
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
@@ -1441,7 +1442,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if computation.is_resolved:
                     computation.mark_update()
 
-    def remove_data_item(self, data_item, *, safe: bool=False):
+    def remove_data_item(self, library_item: DataItem.LibraryItem, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         """Remove data item from document model.
 
         Data item will have persistent_object_context cleared upon return.
@@ -1449,7 +1450,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         This method is NOT threadsafe.
         """
         # remove data item from any computations
-        self.__cascade_delete(data_item, safe=safe)
+        return self.__cascade_delete(library_item, safe=safe)
 
     def __remove_data_item(self, data_item, *, safe: bool=False) -> None:
         self.__transaction_manager._remove_item(data_item)
@@ -1519,8 +1520,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # there may be a better place for this
             self.__rebind_computations()  # rebind any unresolved that may now be resolved
 
-    def remove_model_item(self, container, name, item):
-        self.__cascade_delete(item)
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+        return self.__cascade_delete(item, safe=safe)
 
     def assign_variable_to_library_item(self, library_item: DataItem.LibraryItem) -> str:
         if not library_item.r_var:
@@ -1593,8 +1594,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if (source, item) not in dependencies:
                     dependencies.append((source, item))
 
-    def __cascade_delete(self, master_item, items=None, dependencies=None, safe: bool=False):
+    def __cascade_delete(self, master_item, items=None, dependencies=None, safe: bool=False) -> typing.Optional[typing.Sequence]:
         # print(f"cascade {item}")
+        undelete_log = list()
         items = items if items else list()
         dependencies = dependencies if dependencies else list()
         self.__build_cascade(master_item, items, dependencies)
@@ -1635,9 +1637,52 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # print(container, name, item)
             if container is self and name == "data_items":
                 # call the version of __remove_data_item that doesn't cascade again
+                index = getattr(container, name).index(item)
+                item_dict = item.write_to_dict()
+                undelete_log.append({"type": name, "index": index, "properties": item_dict})
                 self.__remove_data_item(item, safe=safe)
             else:
+                container_ref = str(container.uuid)
+                index = getattr(container, name).index(item)
+                item_dict = item.write_to_dict()
+                undelete_log.append({"type": name, "container": container_ref, "index": index, "properties": item_dict})
                 container.remove_item(name, item)
+        return undelete_log
+
+    def undelete_all(self, undelete_log):
+        for entry in reversed(undelete_log):
+            index = entry["index"]
+            name = entry["type"]
+            properties = entry["properties"]
+            if name == "data_items":
+                self.restore_data_item(properties["uuid"], index)
+            elif name == "computations":
+                item = Symbolic.Computation()
+                item.begin_reading()
+                item.read_from_dict(properties)
+                item.finish_reading()
+                item.bind(self)
+                self.insert_computation(index, item)
+            elif name == "graphics":
+                item = Graphics.factory(properties.get)
+                item.begin_reading()
+                item.read_from_dict(properties)
+                item.finish_reading()
+                self.get_display_by_uuid(uuid.UUID(entry["container"])).insert_graphic(index, item)
+            elif name == "connections":
+                item = Connection.connection_factory(properties.get)
+                item.begin_reading()
+                item.read_from_dict(properties)
+                item.finish_reading()
+                self.insert_connection(index, item)
+            elif name == "data_structures":
+                item = data_structure_factory(properties.get)
+                item.begin_reading()
+                item.read_from_dict(properties)
+                item.finish_reading()
+                self.insert_data_structure(index, item)
+            else:
+                assert False
 
     def __remove_dependency(self, source_item, target_item):
         # print(f"remove dependency {source_item} {target_item}")
@@ -2079,6 +2124,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def get_object_specifier(self, object, object_type: str=None) -> typing.Optional[typing.Dict]:
         return get_object_specifier(object, object_type)
+
+    def get_display_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Display.Display]:
+        for data_item in self.data_items:
+            for display in data_item.displays:
+                if display.uuid == object_uuid:
+                    return display
+        return None
 
     def get_graphic_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Graphics.Graphic]:
         for data_item in self.data_items:
@@ -2683,8 +2735,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.insert_item("data_structures", before_index, data_structure)
         self.notify_insert_item("data_structures", data_structure, before_index)
 
-    def remove_data_structure(self, data_structure):
-        self.__cascade_delete(data_structure)
+    def remove_data_structure(self, data_structure: DataStructure) -> typing.Optional[typing.Sequence]:
+        return self.__cascade_delete(data_structure)
 
     def __inserted_data_structure(self, name, before_index, data_structure):
         data_structure.about_to_be_inserted(self)
@@ -2745,8 +2797,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.insert_item("computations", before_index, computation)
         self.notify_insert_item("computations", computation, before_index)
 
-    def remove_computation(self, computation):
-        self.__cascade_delete(computation)
+    def remove_computation(self, computation: Symbolic.Computation, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+        return self.__cascade_delete(computation, safe=safe)
 
     def __computation_changed(self, computation):
         # when the computation is mutated, this function is called. it calls the handle computation

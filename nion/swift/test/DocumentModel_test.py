@@ -1458,6 +1458,214 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(computation.error_text.startswith("Missing computation"))
 
+    def test_undelete_data_structure(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_structure = document_model.create_data_structure()
+            data_structure.set_property_value("amount", 1)
+            document_model.append_data_structure(data_structure)
+            data_structure = document_model.create_data_structure()
+            data_structure.set_property_value("amount", 2)
+            document_model.append_data_structure(data_structure)
+            data_structure = document_model.create_data_structure()
+            data_structure.set_property_value("amount", 3)
+            document_model.append_data_structure(data_structure)
+            undelete_log = document_model.remove_data_structure(document_model.data_structures[1])
+            self.assertEqual(2, len(document_model.data_structures))
+            document_model.undelete_all(undelete_log)
+            # required to handle is_reading?
+            self.assertEqual(3, len(document_model.data_structures))
+            self.assertEqual(2, document_model.data_structures[1].amount)
+
+    class Negate:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src_xdata):
+            self.__new_data = -src_xdata.data
+
+        def commit(self):
+            self.computation.set_referenced_data("dst", self.__new_data)
+
+    def test_undelete_computation(self):
+        Symbolic.register_computation_type("negate", self.Negate)
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            # create the data items
+            data_item = DataItem.DataItem(numpy.ones((4, 4)))
+            document_model.append_data_item(data_item)
+            data_item2 = DataItem.DataItem()
+            document_model.append_data_item(data_item2)
+            # create the computation
+            computation = document_model.create_computation()
+            computation.source = data_item
+            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "xdata"))
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "negate"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            # check results
+            self.assertTrue(numpy.array_equal(numpy.full((4, 4), -1), data_item2.data))
+            # remove computation and verify it was removed along with dst data item
+            undelete_log = document_model.remove_computation(computation, safe=True)
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(0, len(document_model.computations))
+            # start a recompute, but it won't do anything now
+            data_item.set_data(numpy.full((4, 4), 2))
+            document_model.recompute_all()
+            # undelete
+            document_model.undelete_all(undelete_log)
+            # verify state of document
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.computations))
+            self.assertEqual(1, len(document_model.get_dependent_items(document_model.data_items[0])))
+            self.assertEqual(document_model.data_items[1], document_model.get_dependent_items(document_model.data_items[0])[0])
+            self.assertEqual(1, len(document_model.get_source_items(document_model.data_items[1])))
+            self.assertEqual(document_model.data_items[0], document_model.get_source_items(document_model.data_items[1])[0])
+            # recompute, should use the previously started one
+            self.assertTrue(numpy.array_equal(numpy.full((4, 4), -1), document_model.data_items[1].data))
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(numpy.full((4, 4), -2), document_model.data_items[1].data))
+            # update data, ensure everything connected again
+            data_item.set_data(numpy.full((4, 4), 3))
+            self.assertTrue(numpy.array_equal(numpy.full((4, 4), -2), document_model.data_items[1].data))
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(numpy.full((4, 4), -3), document_model.data_items[1].data))
+
+    def test_undelete_connection(self):
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            # create the data items
+            data_item = DataItem.DataItem(numpy.ones((4, 4, 100)))
+            document_model.append_data_item(data_item)
+            pick_data_item = document_model.get_pick_new(data_item)
+            self.assertEqual(1, len(document_model.connections))
+            self.assertEqual(1, len(document_model.computations))
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
+            # only even width intervals aligned to pixels are represented exactly by slices
+            pick_data_item.displays[0].graphics[0].interval = (12/100, 16/100)
+            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
+            # delete the pick and verify
+            undelete_log = document_model.remove_data_item(pick_data_item, safe=True)
+            self.assertEqual(0, len(document_model.connections))
+            self.assertEqual(0, len(document_model.computations))
+            self.assertEqual(1, len(document_model.data_items))
+            # undelete and verify
+            document_model.undelete_all(undelete_log)
+            pick_data_item = document_model.data_items[1]
+            self.assertEqual(1, len(document_model.connections))
+            self.assertEqual(1, len(document_model.computations))
+            self.assertEqual(2, len(document_model.data_items))
+            # ensure connection works
+            pick_data_item.displays[0].graphics[0].interval = (56/100, 64/100)
+            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
+
+    def test_undeleted_connection_is_properly_restored_into_persistent_object_context(self):
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            # create the data items
+            data_item = DataItem.DataItem(numpy.ones((4, 4, 100)))
+            document_model.append_data_item(data_item)
+            pick_data_item = document_model.get_pick_new(data_item)
+            # only even width intervals aligned to pixels are represented exactly by slices
+            pick_data_item.displays[0].graphics[0].interval = (12/100, 16/100)
+            # delete the pick and verify
+            undelete_log = document_model.remove_data_item(pick_data_item, safe=True)
+            # undelete and verify
+            document_model.undelete_all(undelete_log)
+            pick_data_item = document_model.data_items[1]
+            # delete again
+            pick_data_item.displays[0].graphics[0].interval = (56/100, 64/100)
+            document_model.remove_data_item(pick_data_item, safe=True)
+
+    def test_undelete_graphic(self):
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            # create the data items
+            data_item = DataItem.DataItem(numpy.ones((8, 8)))
+            document_model.append_data_item(data_item)
+            line_profile_data_item = document_model.get_line_profile_new(data_item)
+            self.assertEqual(1, len(document_model.connections))
+            self.assertEqual(1, len(document_model.computations))
+            self.assertEqual(2, len(document_model.data_items))
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(numpy.ones((5, )), line_profile_data_item.data))
+            # delete the line profile and verify
+            undelete_log = data_item.displays[0].remove_graphic(data_item.displays[0].graphics[0], safe=True)
+            self.assertEqual(0, len(document_model.connections))
+            self.assertEqual(0, len(document_model.computations))
+            self.assertEqual(1, len(document_model.data_items))
+            # undelete and verify
+            document_model.undelete_all(undelete_log)
+            line_profile_data_item = document_model.data_items[1]
+            self.assertEqual(1, len(document_model.connections))
+            self.assertEqual(1, len(document_model.computations))
+            self.assertEqual(2, len(document_model.data_items))
+            # ensure computation works
+            self.assertTrue(numpy.array_equal(numpy.ones((5, )), line_profile_data_item.data))
+            data_item.set_data(numpy.zeros((8, 8)))
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(numpy.zeros((5, )), line_profile_data_item.data))
+
+    def test_undeleted_graphic_is_properly_restored_into_persistent_object_context(self):
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            # create the data items
+            data_item = DataItem.DataItem(numpy.ones((8, 8)))
+            document_model.append_data_item(data_item)
+            line_profile_data_item = document_model.get_line_profile_new(data_item)
+            # delete the graphic and verify
+            undelete_log = data_item.displays[0].remove_graphic(data_item.displays[0].graphics[0], safe=True)
+            # undelete and verify
+            document_model.undelete_all(undelete_log)
+            # delete again
+            data_item.displays[0].remove_graphic(data_item.displays[0].graphics[0], safe=True)
+
+    def test_undelete_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            # create the data items
+            data_item = DataItem.DataItem(numpy.ones((8, 8)))
+            document_model.append_data_item(data_item)
+            self.assertEqual(1, len(document_model.data_items))
+            # delete the data item and verify
+            undelete_log = document_model.remove_data_item(data_item, safe=True)
+            self.assertEqual(0, len(document_model.data_items))
+            # undelete and verify
+            document_model.undelete_all(undelete_log)
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertTrue(numpy.array_equal(numpy.ones((8, 8)), document_model.data_items[0].data))
+
+    def test_undelete_composite_item(self):
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            # create the data items
+            data_item1 = DataItem.DataItem(numpy.ones((8, 8)))
+            data_item2 = DataItem.DataItem(numpy.ones((8, 8)))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            composite_item = DataItem.CompositeLibraryItem()
+            document_model.append_data_item(composite_item)
+            composite_item.append_data_item(data_item1)
+            composite_item.append_data_item(data_item2)
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.data_items[2].data_items))
+            # delete the data item and verify
+            undelete_log = document_model.remove_data_item(composite_item, safe=True)
+            self.assertEqual(2, len(document_model.data_items))
+            # undelete and verify
+            document_model.undelete_all(undelete_log)
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.data_items[2].data_items))
+
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)

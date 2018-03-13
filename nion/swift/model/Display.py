@@ -595,11 +595,12 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         else:
             container.insert_item(name, before_index, item)
 
-    def remove_model_item(self, container, name, item):
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         if self.__container_weak_ref:
-            self.container.remove_model_item(container, name, item)
+            return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
+            return None
 
     def clone(self) -> "Display":
         display = Display()
@@ -968,9 +969,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         """Append a graphic, but do it through the container, so dependencies can be tracked."""
         self.insert_model_item(self, "graphics", self.item_count("graphics"), graphic)
 
-    def remove_graphic(self, graphic):
+    def remove_graphic(self, graphic: Graphics.Graphic, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         """Remove a graphic, but do it through the container, so dependencies can be tracked."""
-        self.remove_model_item(self, "graphics", graphic)
+        return self.remove_model_item(self, "graphics", graphic, safe=safe)
 
     def get_graphic_by_uuid(self, graphic_uuid: uuid.UUID) -> Graphics.Graphic:
         return self.__graphics_map.get(graphic_uuid)

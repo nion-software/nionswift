@@ -687,16 +687,17 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         else:
             container.insert_item(name, before_index, item)
 
-    def remove_model_item(self, container, name, item):
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
 
         Passing responsibility to this item's container allows the library to easily track dependencies.
         However, if this item isn't yet in the library hierarchy, then do the operation directly.
         """
         if self.__container_weak_ref:
-            self.container.remove_model_item(container, name, item)
+            return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
+            return None
 
     @property
     def persistent_storage(self):
@@ -882,11 +883,11 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         if self.__display_ref_count > 0:
             display._become_master()
 
-    def remove_display(self, display):
+    def remove_display(self, display: Display.Display) -> typing.Optional[typing.Sequence]:
         """Remove display, but do it through the container, so dependencies can be tracked."""
         if self.__display_ref_count > 0:
             display._relinquish_master()
-        self.remove_model_item(self, "displays", display)
+        return self.remove_model_item(self, "displays", display)
 
     @property
     def primary_display_specifier(self):
