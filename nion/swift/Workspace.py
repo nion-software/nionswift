@@ -22,10 +22,10 @@ from nion.ui import CanvasItem
 _ = gettext.gettext
 
 
-def create_image():
+def create_image_desc():
     return {"type": "image", "identifier": "".join([random.choice(string.ascii_uppercase) for _ in range(2)]), "uuid": str(uuid.uuid4())}
 
-def create_splitter(orientation: str, splits, children):
+def create_splitter_desc(orientation: str, splits, children):
     return {"type": "splitter", "orientation": orientation, "splits": copy.copy(splits), "children": children}
 
 
@@ -212,6 +212,36 @@ class Workspace:
             return container, selected_display_panel
         return item, selected_display_panel
 
+    def deconstruct(self) -> dict:
+        return self._deconstruct(self.__canvas_item.canvas_items[0])
+
+    def reconstruct(self, d) -> DisplayPanel.DisplayPanel:
+        return self._reconstruct(d, self.__canvas_item.canvas_items[0])
+
+    def _reconstruct(self, d, canvas_item):
+        selected_display_panel = None
+        type = d["type"]
+        container = None
+        if type == "container":
+            assert isinstance(canvas_item, CanvasItem.CanvasItemComposition)
+            container = canvas_item
+        elif type == "splitter":
+            assert isinstance(canvas_item, CanvasItem.SplitterCanvasItem)
+            container = canvas_item
+        elif type == "image":
+            assert isinstance(canvas_item, DisplayPanel.DisplayPanel)
+            display_panel = canvas_item
+            display_panel.change_display_panel_content(d)
+            if d.get("selected", False):
+                selected_display_panel = display_panel
+        if container:
+            children = d.get("children", list())
+            for child_desc, child_canvas_item in zip(children, container.canvas_items):
+                child_selected_display_panel = self._reconstruct(child_desc, child_canvas_item)
+                selected_display_panel = child_selected_display_panel if child_selected_display_panel else selected_display_panel
+            return selected_display_panel
+        return selected_display_panel
+
     def __get_display_panel_by_canvas_item(self, canvas_item):
         for display_panel in self.display_panels:
             if display_panel == canvas_item:
@@ -221,14 +251,15 @@ class Workspace:
     def _deconstruct(self, canvas_item):
         if isinstance(canvas_item, CanvasItem.SplitterCanvasItem):
             children = [self._deconstruct(child_canvas_item) for child_canvas_item in canvas_item.canvas_items]
-            return create_splitter(canvas_item.orientation, canvas_item.splits, children)
+            d = create_splitter_desc(canvas_item.orientation, canvas_item.splits, children)
+            return d
         if isinstance(canvas_item, DisplayPanel.DisplayPanel):
             display_panel = canvas_item
-            desc = create_image()
+            d = create_image_desc()
             if display_panel._is_selected():
-                desc["selected"] = True
-            desc.update(display_panel.save_contents())
-            return desc
+                d["selected"] = True
+            d.update(display_panel.save_contents())
+            return d
         return None
 
     @property
@@ -279,7 +310,7 @@ class Workspace:
             traceback.print_exc()
             traceback.print_stack()
         if self.__workspace == None:  # handle error condition by creating known simple workspace and replacing bad one
-            d = create_image()
+            d = create_image_desc()
             d["selected"] = True
             workspace.layout = d
             display_panels = list()  # to be populated by _construct
@@ -322,7 +353,7 @@ class Workspace:
         """ Create a new workspace, insert into document_model, and return it. """
         workspace = WorkspaceLayout.WorkspaceLayout()
         self.document_model.insert_workspace(index if index is not None else len(self.document_model.workspaces), workspace)
-        d = create_image()
+        d = create_image_desc()
         d["selected"] = True
         workspace.layout = layout if layout is not None else d
         workspace.name = name if name is not None else _("Workspace")
@@ -354,7 +385,7 @@ class Workspace:
             return self.__workspace_controller.document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-         self.__workspace_controller.document_model.modified_state = modified_state
+            self.__workspace_controller.document_model.modified_state = modified_state
 
         def perform(self) -> None:
             new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
@@ -382,7 +413,7 @@ class Workspace:
             return self.__workspace_controller.document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-         self.__workspace_controller.document_model.modified_state = modified_state
+            self.__workspace_controller.document_model.modified_state = modified_state
 
         def perform(self) -> None:
             old_workspace = self.__workspace_controller._workspace
@@ -408,7 +439,7 @@ class Workspace:
             return self.__workspace_controller.document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-         self.__workspace_controller.document_model.modified_state = modified_state
+            self.__workspace_controller.document_model.modified_state = modified_state
 
         def perform(self) -> None:
             self.__workspace_controller._workspace.name = self.__new_name
@@ -431,7 +462,7 @@ class Workspace:
             return self.__workspace_controller.document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-         self.__workspace_controller.document_model.modified_state = modified_state
+            self.__workspace_controller.document_model.modified_state = modified_state
 
         def perform(self) -> None:
             self.__workspace_controller._change_workspace(self.__new_workspace)
@@ -441,6 +472,28 @@ class Workspace:
 
         def _redo(self) -> None:
             self.perform()
+
+    class ChangeContentsWorkspaceCommand(Undo.UndoableCommand):
+        def __init__(self, workspace_controller: "Workspace"):
+            super().__init__("Change Workspace Contents")
+            self.__workspace_controller = workspace_controller
+            self.__workspace = workspace_controller._workspace
+            self.__old_workspace_layout = workspace_controller.deconstruct()
+            self.__new_workspace_layout = None
+            self.initialize()
+
+        def _get_modified_state(self):
+            return self.__workspace_controller.document_model.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__workspace_controller.document_model.modified_state = modified_state
+
+        def _undo(self) -> None:
+            self.__new_workspace_layout = self.__workspace_controller.deconstruct()
+            self.__workspace_controller.reconstruct(self.__old_workspace_layout)
+
+        def _redo(self) -> None:
+            self.__workspace_controller.reconstruct(self.__new_workspace_layout)
 
     def create_workspace(self) -> None:
         """ Pose a dialog to name and create a workspace. """
@@ -677,7 +730,7 @@ class Workspace:
             return self.__workspace_x.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-         self.__workspace_x.modified_state = modified_state
+            self.__workspace_x.modified_state = modified_state
 
         @property
         def _new_display_panel(self):
@@ -716,7 +769,7 @@ class Workspace:
             return self.__workspace_x.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-         self.__workspace_x.modified_state = modified_state
+            self.__workspace_x.modified_state = modified_state
 
         @property
         def _d(self):

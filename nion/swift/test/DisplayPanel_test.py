@@ -12,9 +12,9 @@ from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
+from nion.swift import Facade
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
-from nion.swift import Panel
 from nion.swift import Thumbnails
 from nion.swift.model import DataItem
 from nion.swift.model import Display
@@ -24,6 +24,9 @@ from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import TestUI
 from nion.utils import Geometry
+
+
+Facade.initialize()
 
 
 class TestGraphicSelectionClass(unittest.TestCase):
@@ -1717,6 +1720,74 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(0, document_controller._undo_stack._undo_count)
             self.assertEqual(y_min, data_item.displays[0].y_min)
             self.assertEqual(y_max, data_item.displays[0].y_max)
+
+    def test_remove_graphics_undo_redo_cycle(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item)
+            interval_graphic1 = Graphics.IntervalGraphic()
+            interval_graphic1.start = 0.1
+            interval_graphic1.end = 0.4
+            interval_graphic2 = Graphics.IntervalGraphic()
+            interval_graphic2.start = 0.6
+            interval_graphic2.end = 0.9
+            data_item.displays[0].add_graphic(interval_graphic1)
+            data_item.displays[0].add_graphic(interval_graphic2)
+            data_item.displays[0].graphic_selection.set(0)
+            data_item.displays[0].graphic_selection.add(1)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(data_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 1000))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
+            document_controller.periodic()
+            # verify setup
+            self.assertEqual(2, len(data_item.displays[0].graphics))
+            # do the delete
+            document_controller.remove_selected_graphics()
+            self.assertEqual(0, len(data_item.displays[0].graphics))
+            # do the undo and verify
+            document_controller.handle_undo()
+            self.assertEqual(2, len(data_item.displays[0].graphics))
+            # do the redo and verify
+            document_controller.handle_redo()
+            self.assertEqual(0, len(data_item.displays[0].graphics))
+
+    def test_remove_graphics_with_dependent_data_item_display_undo_redo_cycle(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.random.randn(4, 4))
+            document_model.append_data_item(data_item)
+            line_plot_data_item = document_model.get_line_profile_new(data_item)
+            document_model.recompute_all()
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(line_plot_data_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 1000))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
+            document_controller.periodic()
+            # verify setup
+            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertEqual(line_plot_data_item, display_panel.data_item)
+            # do the delete
+            command = document_controller.create_remove_graphics_command(data_item.displays[0], data_item.displays[0].graphics)
+            document_controller.push_undo_command(command)
+            self.assertEqual(0, len(data_item.displays[0].graphics))
+            self.assertEqual(None, display_panel.data_item)
+            # do the undo and verify
+            document_controller.handle_undo()
+            line_plot_data_item = document_model.data_items[1]
+            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertEqual(line_plot_data_item, display_panel.data_item)
+            # do the redo and verify
+            document_controller.handle_redo()
+            self.assertEqual(0, len(data_item.displays[0].graphics))
+            self.assertEqual(None, display_panel.data_item)
 
 
 if __name__ == '__main__':

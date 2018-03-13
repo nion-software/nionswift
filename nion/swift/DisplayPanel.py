@@ -829,25 +829,6 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
         return isinstance(command, ChangeGraphicsCommand) and self.command_id and self.command_id == command.command_id and self.__display == command.__display and self.__graphic_indexes == command.__graphic_indexes
 
 
-class RemoveGraphicsCommand(Undo.UndoableCommand):
-
-    def __init__(self, display, graphics):
-        super().__init__(_("Remove Graphics"))
-        self.initialize()
-
-    def close(self):
-        super().close()
-
-    def _get_modified_state(self):
-        return 0
-
-    def _set_modified_state(self, modified_state):
-        pass
-
-    def _undo(self):
-        pass
-
-
 class ReplaceDisplayPanelCommand(Undo.UndoableCommand):
     def __init__(self, display_panel):
         super().__init__("Replace Display Panel")
@@ -1568,13 +1549,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             self.__document_controller.push_undo_command(undo_command)
 
     def delete_key_pressed(self):
-        all_graphics = self.__display.graphics
-        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display.graphic_selection.contains(graphic_index)]
-        command = RemoveGraphicsCommand(self.__display, graphics)
-        if self.__document_controller.remove_selected_graphics():
-            self.__document_controller.push_undo_command(command)
-        else:
-            command.close()
+        self.__document_controller.remove_selected_graphics()
 
     def enter_key_pressed(self):
         command = ChangeDisplayCommand(self.__display)

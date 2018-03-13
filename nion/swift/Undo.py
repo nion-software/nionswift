@@ -43,6 +43,10 @@ class UndoableCommand(abc.ABC):
     def initialize(self, modified_state=None):
         self.__old_modified_state = modified_state if modified_state else self._get_modified_state()
 
+    @property
+    def _old_modified_state(self):
+        return self.__old_modified_state
+
     def commit(self):
         self.__new_modified_state = self._get_modified_state()
 
@@ -86,10 +90,12 @@ class AggregateUndoableCommand(UndoableCommand):
     def __init__(self, title: str, children: typing.Sequence[UndoableCommand]=None):
         super().__init__(title)
         self.__commands = copy.copy(children)
+        self.initialize(self.__commands[-1]._old_modified_state)
 
     def close(self):
         while len(self.__commands) > 0:
             self.__commands.pop().close()
+        super().close()
 
     @property
     def is_redo_valid(self) -> bool:
@@ -97,13 +103,13 @@ class AggregateUndoableCommand(UndoableCommand):
 
     @property
     def is_undo_valid(self) -> bool:
-        return self.__commands[-1].is_redo_valid if self.__commands else False
+        return self.__commands[-1].is_undo_valid if self.__commands else False
 
     def _get_modified_state(self):
         return self.__commands[-1]._get_modified_state()
 
     def _set_modified_state(self, modified_state) -> None:
-        pass
+        self.__commands[-1]._set_modified_state(modified_state)
 
     def _undo(self) -> None:
         for command in reversed(self.__commands):

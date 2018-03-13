@@ -782,10 +782,10 @@ class DocumentController(Window.Window):
                 container = self.__data_items_model.container
                 container = DataGroup.get_data_item_container(container, library_item)
                 if container and library_item in container.data_items:
-                    kwargs = {}
                     if isinstance(container, DocumentModel.DocumentModel):
-                        kwargs["safe"] = True
-                    container.remove_data_item(library_item, **kwargs)
+                        container.remove_data_item(library_item, safe=True)
+                    else:
+                        container.remove_data_item(library_item)
                     # Note: periodic is here because the one in browser display panel is there.
                     # I could not get a test to fail without this statement; but regular use
                     # seems to fail during delete if this isn't here. Argh. Bad design.
@@ -1164,16 +1164,55 @@ class DocumentController(Window.Window):
                 return True
         return False
 
-    def remove_selected_graphics(self):
+    class RemoveGraphicsCommand(Undo.UndoableCommand):
+
+        def __init__(self, document_model, display, graphics):
+            super().__init__(_("Remove Graphics"))
+            self.__document_model = document_model
+            self.__display = display
+            self.__graphic_indexes = [display.graphics.index(graphic) for graphic in graphics]
+            self.initialize()
+
+        def close(self):
+            super().close()
+
+        def perform(self):
+            self.__undelete_logs = list()
+            graphics = [self.__display.graphics[index] for index in self.__graphic_indexes]
+            for graphic in graphics:
+                self.__undelete_logs.append(self.__display.remove_graphic(graphic, safe=True))
+
+        def _get_modified_state(self):
+            return self.__display.modified_state
+
+        def _set_modified_state(self, modified_state):
+            self.__display.modified_state = modified_state
+
+        def _undo(self):
+            for undelete_log in reversed(self.__undelete_logs):
+                self.__document_model.undelete_all(undelete_log)
+
+        def _redo(self):
+            self.perform()
+
+    def remove_selected_graphics(self) -> None:
         display_specifier = self.selected_display_specifier
         if display_specifier:
             display = display_specifier.display
             if display.graphic_selection.has_selection:
                 graphics = [display.graphics[index] for index in display.graphic_selection.indexes]
-                for graphic in graphics:
-                    display.remove_graphic(graphic)
-                return True
-        return False
+                if graphics:
+                    command = self.create_remove_graphics_command(display, graphics)
+                    self.push_undo_command(command)
+
+    def create_remove_graphics_command(self, display, graphics):
+        command_change_workspace = Workspace.Workspace.ChangeContentsWorkspaceCommand(self.__workspace_controller)
+        command_remove_graphics = DocumentController.RemoveGraphicsCommand(self.document_model, display, graphics)
+        command_remove_graphics.perform()
+        command_remove_graphics.commit()
+        command_change_workspace.commit()
+        command = Undo.AggregateUndoableCommand(_("Undo Remove Graphics"), [command_change_workspace, command_remove_graphics])
+        return command
 
     def add_data_element(self, data_element, source_data_item=None):
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
