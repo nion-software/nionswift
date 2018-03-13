@@ -1029,9 +1029,11 @@ class DocumentController(Window.Window):
                     graphic = Graphics.factory(lambda t: graphic_dict["type"])
                     graphic.read_from_mime_data(graphic_dict, is_same_source)
                     if graphic:
-                        display.add_graphic(graphic)
                         graphics.append(graphic)
                 display.graphic_selection.clear()
+                command = DisplayPanel.InsertGraphicsCommand(display, graphics)
+                command.perform()
+                self.push_undo_command(command)
                 for graphic in graphics:
                     display.graphic_selection.add(display.graphics.index(graphic))
                 return True

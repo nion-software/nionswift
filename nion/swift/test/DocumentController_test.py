@@ -660,6 +660,42 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_controller.set_filter("none")
             document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
 
+    def test_cut_paste_undo_redo(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            display = data_item.displays[0]
+            display.add_graphic(Graphics.RectangleGraphic())
+            display.add_graphic(Graphics.EllipseGraphic())
+            self.assertEqual(2, len(display.graphics))
+            self.assertIsInstance(display.graphics[0], Graphics.RectangleGraphic)
+            self.assertIsInstance(display.graphics[1], Graphics.EllipseGraphic)
+            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+            display.graphic_selection.set(0)
+            display.graphic_selection.add(1)
+            # handle cut, undo, redo
+            document_controller.handle_cut()
+            self.assertEqual(0, len(display.graphics))
+            document_controller.handle_undo()
+            self.assertEqual(2, len(display.graphics))
+            self.assertIsInstance(display.graphics[0], Graphics.RectangleGraphic)
+            self.assertIsInstance(display.graphics[1], Graphics.EllipseGraphic)
+            document_controller.handle_redo()
+            self.assertEqual(0, len(display.graphics))
+            # handle paste, undo, redo
+            document_controller.handle_paste()
+            self.assertEqual(2, len(display.graphics))
+            self.assertIsInstance(display.graphics[0], Graphics.RectangleGraphic)
+            self.assertIsInstance(display.graphics[1], Graphics.EllipseGraphic)
+            document_controller.handle_undo()
+            self.assertEqual(0, len(display.graphics))
+            document_controller.handle_redo()
+            self.assertEqual(2, len(display.graphics))
+            self.assertIsInstance(display.graphics[0], Graphics.RectangleGraphic)
+            self.assertIsInstance(display.graphics[1], Graphics.EllipseGraphic)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

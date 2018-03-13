@@ -725,20 +725,24 @@ class DisplayTracker:
         self.__display_canvas_item = value
 
 
-class InsertGraphicCommand(Undo.UndoableCommand):
+class InsertGraphicsCommand(Undo.UndoableCommand):
 
-    def __init__(self, display: Display.Display, graphic: Graphics.Graphic):
-        super().__init__(_("Insert Graphic"))
-        self.__properties = None
+    def __init__(self, display: Display.Display, graphics: typing.Sequence[Graphics.Graphic]):
+        super().__init__(_("Insert Graphics"))
+        self.__graphics_properties = None
         self.__display = display
-        self.__graphic = graphic
+        self.__graphics = graphics
         self.initialize()
 
     def close(self):
-        self.__properties = None
+        self.__graphics_properties = None
         self.__display = None
-        self.__graphic = None
+        self.__graphics = None
         super().close()
+
+    def perform(self):
+        for graphic in self.__graphics:
+            self.__display.add_graphic(graphic)
 
     def _get_modified_state(self):
         return self.__display.modified_state
@@ -747,13 +751,17 @@ class InsertGraphicCommand(Undo.UndoableCommand):
         self.__display.modified_state = modified_state
 
     def _redo(self):
-        self.__graphic = Graphics.factory(self.__properties.get)
-        self.__graphic.read_from_dict(self.__properties)
-        self.__display.add_graphic(self.__graphic)
+        self.__graphics = list()
+        for graphic_properties in self.__graphics_properties:
+            graphic = Graphics.factory(graphic_properties.get)
+            graphic.read_from_dict(graphic_properties)
+            self.__display.add_graphic(graphic)
+            self.__graphics.append(graphic)
 
     def _undo(self):
-        self.__properties = self.__graphic.write_to_dict()
-        self.__display.remove_graphic(self.__graphic)
+        self.__graphics_properties = [graphic.write_to_dict() for graphic in self.__graphics]
+        for graphic in self.__graphics:
+            self.__display.remove_graphic(graphic)
 
 
 class ChangeDisplayCommand(Undo.UndoableCommand):
@@ -1508,7 +1516,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__display.add_graphic(region)  # this will also make a drawn graphic
         # hack to select it. it will be the last item.
         self.__display.graphic_selection.set(len(self.__display.graphics) - 1)
-        return InsertGraphicCommand(self.__display, region)
+        return InsertGraphicsCommand(self.__display, [region])
 
     def nudge_selected_graphics(self, mapping, delta):
         all_graphics = self.__display.graphics
@@ -1591,8 +1599,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         for key, value in iter(display_properties.items()):
             setattr(self.__display, key, value)
 
-    def create_insert_graphic_command(self, graphic: Graphics.Graphic) -> InsertGraphicCommand:
-        return InsertGraphicCommand(self.__display, graphic)
+    def create_insert_graphics_command(self, graphics: typing.Sequence[Graphics.Graphic]) -> InsertGraphicsCommand:
+        return InsertGraphicsCommand(self.__display, graphics)
 
     def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> ChangeDisplayCommand:
         return ChangeDisplayCommand(self.__display, command_id=command_id, is_mergeable=is_mergeable)

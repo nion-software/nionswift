@@ -50,6 +50,9 @@ class UndoableCommand(abc.ABC):
     def commit(self):
         self.__new_modified_state = self._get_modified_state()
 
+    def perform(self):
+        self._perform()
+
     def undo(self):
         self._undo()
         self._set_modified_state(self.__old_modified_state)
@@ -75,6 +78,9 @@ class UndoableCommand(abc.ABC):
 
     @abc.abstractmethod
     def _set_modified_state(self, modified_state) -> None:
+        pass
+
+    def _perform(self) -> None:
         pass
 
     @abc.abstractmethod
@@ -110,6 +116,10 @@ class AggregateUndoableCommand(UndoableCommand):
 
     def _set_modified_state(self, modified_state) -> None:
         self.__commands[-1]._set_modified_state(modified_state)
+
+    def _perform(self) -> None:
+        for command in self.__commands:
+            command.perform()
 
     def _undo(self) -> None:
         for command in reversed(self.__commands):

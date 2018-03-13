@@ -270,7 +270,7 @@ class ImageCanvasItemDelegate:
 
     def update_display_properties(self, display_properties: typing.Mapping) -> None: ...
 
-    def create_insert_graphic_command(self, graphic: Graphics.Graphic) -> Undo.UndoableCommand: ...
+    def create_insert_graphics_command(self, graphics: typing.Sequence[Graphics.Graphic]) -> Undo.UndoableCommand: ...
 
     def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> Undo.UndoableCommand: ...
 
@@ -735,7 +735,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
+                self.__undo_command = self.delegate.create_insert_graphics_command([graphic])
         elif self.delegate.tool_mode == "rectangle":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -757,7 +757,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
+                self.__undo_command = self.delegate.create_insert_graphics_command([graphic])
         elif self.delegate.tool_mode == "ellipse":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -779,7 +779,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
+                self.__undo_command = self.delegate.create_insert_graphics_command([graphic])
         elif self.delegate.tool_mode == "point":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -801,7 +801,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
+                self.__undo_command = self.delegate.create_insert_graphics_command([graphic])
         elif self.delegate.tool_mode == "line-profile":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -823,7 +823,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
+                self.__undo_command = self.delegate.create_insert_graphics_command([graphic])
         elif self.delegate.tool_mode == "spot":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -845,7 +845,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
+                self.__undo_command = self.delegate.create_insert_graphics_command([graphic])
         elif self.delegate.tool_mode == "wedge":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -868,7 +868,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
+                self.__undo_command = self.delegate.create_insert_graphics_command([graphic])
         elif self.delegate.tool_mode == "ring":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -891,7 +891,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
+                self.__undo_command = self.delegate.create_insert_graphics_command([graphic])
         elif self.delegate.tool_mode == "hand":
             self.__start_drag_pos = (y, x)
             self.__last_drag_pos = (y, x)
