@@ -698,9 +698,10 @@ class DataGroupModelController:
     controller and responds by updating the item model controller associated with the data group tree view widget. it
     also handles drag and drop and keeps the current selection synchronized with the image panel. """
 
-    def __init__(self, ui, document_model):
+    def __init__(self, ui, document_controller):
         self.ui = ui
-        self.__document_model = document_model
+        self.__document_controller = document_controller
+        self.__document_model = document_controller.document_model
         self.item_model_controller = self.ui.create_item_model_controller(["display", "edit"])
         self.item_model_controller.on_item_set_data = self.item_set_data
         self.item_model_controller.on_can_drop_mime_data = self.can_drop_mime_data
@@ -709,8 +710,8 @@ class DataGroupModelController:
         self.item_model_controller.on_remove_rows = self.remove_rows
         self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
         self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid", "text/data_group_uuid"]
-        self.__document_model_item_inserted_listener = document_model.item_inserted_event.listen(functools.partial(self.item_inserted, document_model))
-        self.__document_model_item_removed_listener = document_model.item_removed_event.listen(functools.partial(self.item_removed, document_model))
+        self.__document_model_item_inserted_listener = self.__document_model.item_inserted_event.listen(functools.partial(self.item_inserted, self.__document_model))
+        self.__document_model_item_removed_listener = self.__document_model.item_removed_event.listen(functools.partial(self.item_removed, self.__document_model))
         self.__mapping = { self.__document_model: self.item_model_controller.root }
         self.on_receive_files = None
         self.on_item_count_changed = None
@@ -845,7 +846,9 @@ class DataGroupModelController:
     def item_set_data(self, data, index, parent_row, parent_id):
         data_group = self.item_model_controller.item_value("data_group", index, parent_id)
         if data_group:
-            data_group.title = data
+            command = self.__document_controller.create_rename_data_group_command(data_group, title=data)
+            command.perform()
+            self.__document_controller.push_undo_command(command)
             return True
         return False
 
@@ -912,7 +915,9 @@ class DataGroupModelController:
             data_item_uuid = library_item_uuid if library_item_uuid else uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = self.__document_model.get_data_item_by_key(data_item_uuid)
             if data_item:
-                data_group.append_data_item(data_item)
+                command = self.__document_controller.create_insert_data_group_library_item_command(data_group, len(data_group.data_items), data_item)
+                command.perform()
+                self.__document_controller.push_undo_command(command)
                 return action
             return self.item_model_controller.NONE
         if mime_data.has_format("text/data_group_uuid"):
@@ -920,10 +925,10 @@ class DataGroupModelController:
             data_group = self.__document_model.get_data_group_by_uuid(data_group_uuid)
             if data_group:
                 data_group_copy = copy.deepcopy(data_group)
-                if row >= 0:
-                    container.insert_data_group(row, data_group_copy)
-                else:
-                    container.append_data_group(data_group_copy)
+                row = row if row >= 0 else len(container.data_groups)
+                command = self.__document_controller.create_insert_data_group_command(container, row, data_group_copy)
+                command.perform()
+                self.__document_controller.push_undo_command(command)
                 return action
         return self.item_model_controller.NONE
 
@@ -999,7 +1004,7 @@ class DataPanel(Panel.Panel):
         self.library_model_controller = LibraryModelController(ui, self.__item_controllers)
         self.library_model_controller.on_receive_files = self.library_model_receive_files
 
-        self.data_group_model_controller = DataGroupModelController(ui, document_controller.document_model)
+        self.data_group_model_controller = DataGroupModelController(ui, document_controller)
         self.data_group_model_controller.on_receive_files = lambda file_paths, data_group, index: self.data_group_model_receive_files(file_paths, data_group, index)
 
         self.__blocked1 = False

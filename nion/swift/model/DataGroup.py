@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import collections
 import gettext
@@ -74,15 +71,17 @@ _ = gettext.gettext
     """
 
 
+class UuidsToStringsConverter:
+    def convert(self, value):
+        return [str(uuid_) for uuid_ in value]
+    def convert_back(self, value):
+        return [uuid.UUID(uuid_str) for uuid_str in value]
+
+
 class DataGroup(Observable.Observable, Persistence.PersistentObject):
 
     def __init__(self):
-        super(DataGroup, self).__init__()
-        class UuidsToStringsConverter(object):
-            def convert(self, value):
-                return [str(uuid_) for uuid_ in value]
-            def convert_back(self, value):
-                return [uuid.UUID(uuid_str) for uuid_str in value]
+        super().__init__()
         self.define_type("data_group")
         self.define_property("title", _("Untitled"), validate=self.__validate_title, changed=self.__property_changed)
         self.define_property("data_item_uuids", list(), validate=self.__validate_data_item_uuids, converter=UuidsToStringsConverter(), changed=self.__property_changed)
@@ -90,7 +89,6 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         self.__get_data_item_by_uuid = None
         self.__data_items = list()
         self.__counted_data_items = collections.Counter()
-        self.__moving = False  # ugh
         self.data_item_inserted_event = Event.Event()
         self.data_item_removed_event = Event.Event()
 
@@ -127,7 +125,7 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         assert data_item not in self.__data_items
         assert data_item.uuid not in self.data_item_uuids
         self.__data_items.insert(before_index, data_item)
-        self.data_item_inserted_event.fire(self, data_item, before_index, self.__moving)
+        self.data_item_inserted_event.fire(self, data_item, before_index, False)
         self.notify_insert_item("data_items", data_item, before_index)
         self.update_counted_data_items(collections.Counter([data_item]))
         data_item_uuids = self.data_item_uuids
@@ -139,7 +137,7 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         index = self.__data_items.index(data_item)
         self.__data_items.remove(data_item)
         self.subtract_counted_data_items(collections.Counter([data_item]))
-        self.data_item_removed_event.fire(self, data_item, index, self.__moving)
+        self.data_item_removed_event.fire(self, data_item, index, False)
         self.notify_remove_item("data_items", data_item, index)
         data_item_uuids = self.data_item_uuids
         data_item_uuids.remove(data_item.uuid)
@@ -183,16 +181,6 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
     def subtract_counted_data_items(self, counted_data_items):
         self.__counted_data_items.subtract(counted_data_items)
         self.__counted_data_items += collections.Counter()  # strip empty items
-
-    def move_data_item(self, data_item, before_index):
-        index = self.data_items.index(data_item)
-        if index != before_index:
-            self.__moving = True
-            self.remove_data_item(data_item)
-            if index < before_index:
-                before_index -= 1
-            self.insert_data_item(before_index, data_item)
-            self.__moving = False
 
 
 # return a generator for all data groups and child data groups in container

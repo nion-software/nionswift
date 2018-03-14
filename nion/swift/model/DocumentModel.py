@@ -1452,7 +1452,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # remove data item from any computations
         return self.__cascade_delete(library_item, safe=safe)
 
-    def __remove_data_item(self, data_item, *, safe: bool=False) -> None:
+    def __remove_data_item(self, data_item, *, safe: bool=False) -> typing.Sequence:
+        undelete_log = list()
         self.__transaction_manager._remove_item(data_item)
         assert data_item.uuid in self.__data_item_uuids
         library_computation = self.get_data_item_computation(data_item)
@@ -1469,6 +1470,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # remove the data item from any groups
         for data_group in self.get_flat_data_group_generator():
             if data_item in data_group.data_items:
+                undelete_log.append({"type": "data_group_entry", "data_group_uuid": data_group.uuid, "properties": None, "index": data_group.data_items.index(data_item), "data_item_uuid": data_item.uuid})
                 data_group.remove_data_item(data_item)
         # tell the data item it is about to be removed
         data_item.about_to_be_removed()
@@ -1497,6 +1499,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.data_item_removed_event.fire(self, data_item, index, False)
         self.notify_remove_item("data_items", data_item, index)
         data_item.close()
+        return undelete_log
 
     def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int=None) -> DataItem.DataItem:
         before_index = before_index if before_index is not None else len(self.data_items)
@@ -1639,8 +1642,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 # call the version of __remove_data_item that doesn't cascade again
                 index = getattr(container, name).index(item)
                 item_dict = item.write_to_dict()
+                undelete_log.extend(self.__remove_data_item(item, safe=safe))
                 undelete_log.append({"type": name, "index": index, "properties": item_dict})
-                self.__remove_data_item(item, safe=safe)
             else:
                 container_ref = str(container.uuid)
                 index = getattr(container, name).index(item)
@@ -1681,6 +1684,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 item.read_from_dict(properties)
                 item.finish_reading()
                 self.insert_data_structure(index, item)
+            elif name == "data_group_entry":
+                data_group = self.get_data_group_by_uuid(entry["data_group_uuid"])
+                data_item = self.get_data_item_by_uuid(entry["data_item_uuid"])
+                data_group.insert_data_item(index, data_item)
             else:
                 assert False
 

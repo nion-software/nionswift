@@ -793,19 +793,15 @@ class DocumentController(Window.Window):
                 command = self.create_remove_library_items_command(library_items)
                 command.perform()
                 self.push_undo_command(command)
-        else:
-            # TODO: undo
+        elif isinstance(container, DataGroup.DataGroup):
             for display in displays:
                 library_item = DataItem.DisplaySpecifier.from_display(display).library_item
-                if library_item:
-                    container = DataGroup.get_data_item_container(container, library_item)
-                    if container and library_item in container.data_items:
-                        container.remove_data_item(library_item)
-                        # Note: periodic is here because the one in browser display panel is there.
-                        # I could not get a test to fail without this statement; but regular use
-                        # seems to fail during delete if this isn't here. Argh. Bad design.
-                        # TODO: avoid calling periodic by reworking thread support in data panel
-                        self.periodic()  # keep the display items in data panel consistent.
+                if library_item and library_item in container.data_items and library_item not in library_items:
+                    library_items.append(library_item)
+            if library_items:
+                command = DocumentController.RemoveDataGroupLibraryItemsCommand(self.document_model, container, library_items)
+                command.perform()
+                self.push_undo_command(command)
 
     def register_display_panel(self, display_panel):
         pass
@@ -1052,17 +1048,172 @@ class DocumentController(Window.Window):
         # delete key gets handled by key handlers, but this method gets called by menu items
         self.remove_selected_graphics()
 
+    class InsertDataGroupLibraryItemCommand(Undo.UndoableCommand):
+        def __init__(self, document_model, data_group: DataGroup.DataGroup, before_index: int, data_item: DataItem.DataItem):
+            super().__init__("Insert Library Item")
+            self.__document_model = document_model
+            self.__data_group = data_group
+            self.__before_index = before_index
+            self.__data_item_uuid = data_item.uuid
+            self.initialize()
+
+        def _get_modified_state(self):
+            return self.__data_group.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__data_group.modified_state = modified_state
+
+        def perform(self) -> None:
+            data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+            self.__data_group.insert_data_item(self.__before_index, data_item)
+
+        def _undo(self) -> None:
+            self.__data_group.remove_data_item(self.__data_group.data_items[self.__before_index])
+
+        def _redo(self) -> None:
+            self.perform()
+
+    def create_insert_data_group_library_item_command(self, data_group: DataGroup.DataGroup, before_index: int, data_item: DataItem) -> InsertDataGroupLibraryItemCommand:
+        return DocumentController.InsertDataGroupLibraryItemCommand(self.document_model, data_group, before_index, data_item)
+
+    class RemoveDataGroupLibraryItemsCommand(Undo.UndoableCommand):
+        def __init__(self, document_model, data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem]):
+            super().__init__("Remove Library Item")
+            self.__document_model = document_model
+            self.__data_group = data_group
+            combined = [(data_group.data_items.index(data_item), data_item.uuid) for data_item in data_items]
+            combined = sorted(combined, key=operator.itemgetter(0), reverse=True)
+            self.__data_item_indexes = list(map(operator.itemgetter(0), combined))
+            self.__data_item_uuids = list(map(operator.itemgetter(1), combined))
+            self.initialize()
+
+        def _get_modified_state(self):
+            return self.__data_group.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__data_group.modified_state = modified_state
+
+        def perform(self) -> None:
+            data_items = [self.__data_group.data_items[index] for index in self.__data_item_indexes]
+            for data_item in data_items:
+                if data_item in self.__data_group.data_items:
+                    self.__data_group.remove_data_item(data_item)
+
+        def _undo(self) -> None:
+            data_items = [self.__document_model.get_data_item_by_uuid(data_item_uuid) for data_item_uuid in self.__data_item_uuids]
+            for index, data_item in zip(self.__data_item_indexes, data_items):
+                self.__data_group.insert_data_item(index, data_item)
+
+        def _redo(self) -> None:
+            self.perform()
+
+    class RenameDataGroupCommand(Undo.UndoableCommand):
+        def __init__(self, document_model, data_group: DataGroup.DataGroup, title: str):
+            super().__init__("Rename Data Group")
+            self.__document_model = document_model
+            self.__data_group_uuid = data_group.uuid
+            self.__title = title
+            self.__new_title = None
+            self.initialize()
+
+        def _get_modified_state(self):
+            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            return data_group.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group.modified_state = modified_state
+
+        def perform(self) -> None:
+            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            self.__new_title = data_group.title
+            data_group.title = self.__title
+
+        def _undo(self) -> None:
+            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group.title = self.__new_title
+
+        def _redo(self) -> None:
+            self.perform()
+
+    def create_rename_data_group_command(self, data_group: DataGroup.DataGroup, title: str) -> RenameDataGroupCommand:
+        return DocumentController.RenameDataGroupCommand(self.document_model, data_group, title)
+
+    class InsertDataGroupCommand(Undo.UndoableCommand):
+        def __init__(self, document_model, container: typing.Union[DataGroup.DataGroup, DocumentModel.DocumentModel], before_index: int, data_group: DataGroup.DataGroup):
+            super().__init__("Insert Data Group")
+            self.__document_model = document_model
+            self.__container = container
+            self.__before_index = before_index
+            self.__data_group_properties = data_group.write_to_dict()
+            self.__data_group_uuid = data_group.uuid
+            self.initialize()
+
+        def _get_modified_state(self):
+            return self.__container.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__container.modified_state = modified_state
+
+        def perform(self) -> None:
+            data_group = DataGroup.DataGroup()
+            data_group.read_from_dict(self.__data_group_properties)
+            self.__container.insert_data_group(self.__before_index, data_group)
+
+        def _undo(self) -> None:
+            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            self.__container.remove_data_group(data_group)
+
+        def _redo(self) -> None:
+            self.perform()
+
+    def create_insert_data_group_command(self, container: typing.Union[DataGroup.DataGroup, DocumentModel.DocumentModel], before_index: int, data_group: DataGroup.DataGroup) -> InsertDataGroupCommand:
+        return DocumentController.InsertDataGroupCommand(self.document_model, container, before_index, data_group)
+
+    class RemoveDataGroupCommand(Undo.UndoableCommand):
+        def __init__(self, document_model, container: typing.Union[DataGroup.DataGroup, DocumentModel.DocumentModel], data_group: DataGroup.DataGroup):
+            super().__init__("Remove Data Group")
+            self.__document_model = document_model
+            self.__container = container
+            self.__data_group_uuid = data_group.uuid
+            self.__data_group_properties = None
+            self.__data_group_index = None
+            self.initialize()
+
+        def _get_modified_state(self):
+            return self.__container.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__container.modified_state = modified_state
+
+        def perform(self) -> None:
+            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            self.__data_group_properties = data_group.write_to_dict()
+            self.__data_group_index = self.__container.data_groups.index(data_group)
+            self.__container.remove_data_group(data_group)
+
+        def _undo(self) -> None:
+            data_group = DataGroup.DataGroup()
+            data_group.read_from_dict(self.__data_group_properties)
+            self.__container.insert_data_group(self.__data_group_index, data_group)
+
+        def _redo(self) -> None:
+            self.perform()
+
     def add_group(self):
-        # TODO: undo
         data_group = DataGroup.DataGroup()
         data_group.title = _("Untitled Group")
-        self.document_model.insert_data_group(0, data_group)
+        command = DocumentController.InsertDataGroupCommand(self.document_model, self.document_model, 0, data_group)
+        command.perform()
+        self.push_undo_command(command)
 
     def remove_data_group_from_container(self, data_group, container):
         data_group_empty = len(data_group.data_items) == 0 and len(data_group.data_groups) == 0
         if data_group_empty:
             assert data_group in container.data_groups
-            container.remove_data_group(data_group)
+            command = DocumentController.RemoveDataGroupCommand(self.document_model, container, data_group)
+            command.perform()
+            self.push_undo_command(command)
 
     def add_line_graphic(self):
         display_specifier = self.selected_display_specifier
@@ -1750,9 +1901,10 @@ class DocumentController(Window.Window):
                         command = self.create_remove_library_items_command([library_item])
                         command.perform()
                         self.push_undo_command(command)
-                    else:
-                        # TODO: undo
-                        container.remove_data_item(library_item)
+                    elif isinstance(container, DataGroup.DataGroup):
+                        command = DocumentController.RemoveDataGroupLibraryItemsCommand(self.document_model, container, [library_item])
+                        command.perform()
+                        self.push_undo_command(command)
                 else:
                     command = self.create_remove_library_items_command(selected_library_items)
                     command.perform()
