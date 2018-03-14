@@ -146,11 +146,12 @@ class TestDocumentControllerClass(unittest.TestCase):
 
     def test_flat_data_groups(self):
         document_controller = construct_test_document(self.app)
-        self.assertEqual(len(list(document_controller.document_model.get_flat_data_group_generator())), 7)
-        self.assertEqual(len(list(document_controller.document_model.get_flat_data_item_generator())), 3)
-        self.assertEqual(document_controller.document_model.get_data_item_by_key(0), document_controller.document_model.data_groups[0].data_items[0])
-        self.assertEqual(document_controller.document_model.get_data_item_by_key(1), document_controller.document_model.data_groups[0].data_items[1])
-        self.assertEqual(document_controller.document_model.get_data_item_by_key(2), document_controller.document_model.data_groups[1].data_groups[1].data_groups[0].data_items[0])
+        with contextlib.closing(document_controller):
+            self.assertEqual(len(list(document_controller.document_model.get_flat_data_group_generator())), 7)
+            self.assertEqual(len(list(document_controller.document_model.get_flat_data_item_generator())), 3)
+            self.assertEqual(document_controller.document_model.get_data_item_by_key(0), document_controller.document_model.data_groups[0].data_items[0])
+            self.assertEqual(document_controller.document_model.get_data_item_by_key(1), document_controller.document_model.data_groups[0].data_items[1])
+            self.assertEqual(document_controller.document_model.get_data_item_by_key(2), document_controller.document_model.data_groups[1].data_groups[1].data_groups[0].data_items[0])
 
     def test_receive_files_should_put_files_into_document_model_at_end(self):
         document_model = DocumentModel.DocumentModel()
@@ -573,7 +574,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             data_item = document_model.get_invert_new(source_data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
-            data_item_dup = document_controller.processing_duplicate().data_item
+            document_controller.processing_duplicate()
+            data_item_dup = document_model.data_items[-1]
             self.assertIsNotNone(document_model.get_data_item_computation(data_item_dup))
             self.assertNotEqual(document_model.get_data_item_computation(data_item_dup), document_model.get_data_item_computation(data_item))
             self.assertNotEqual(document_model.get_data_item_computation(data_item_dup).variables[0], document_model.get_data_item_computation(data_item).variables[0])
@@ -695,6 +697,41 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(2, len(display.graphics))
             self.assertIsInstance(display.graphics[0], Graphics.RectangleGraphic)
             self.assertIsInstance(display.graphics[1], Graphics.EllipseGraphic)
+
+    def test_snapshot_undo_redo_cycle(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            # verify initial conditions
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(None, display_panel.library_item)
+            # do the snapshot and verify
+            document_controller._perform_snapshot(data_item)
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(document_model.data_items[1], display_panel.library_item)
+            snapshot_uuid = document_model.data_items[1].uuid
+            # undo and verify
+            document_controller.handle_undo()
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(None, display_panel.library_item)
+            # redo and verify
+            document_controller.handle_redo()
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(snapshot_uuid, document_model.data_items[1].uuid)
+            self.assertEqual(document_model.data_items[1], display_panel.library_item)
+            # undo again and verify
+            document_controller.handle_undo()
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(None, display_panel.library_item)
+            # redo again and verify
+            document_controller.handle_redo()
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(snapshot_uuid, document_model.data_items[1].uuid)
+            self.assertEqual(document_model.data_items[1], display_panel.library_item)
 
 
 if __name__ == '__main__':

@@ -477,7 +477,6 @@ class Workspace:
         def __init__(self, workspace_controller: "Workspace"):
             super().__init__("Change Workspace Contents")
             self.__workspace_controller = workspace_controller
-            self.__workspace = workspace_controller._workspace
             self.__old_workspace_layout = workspace_controller.deconstruct()
             self.__new_workspace_layout = None
             self.initialize()
