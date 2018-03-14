@@ -369,17 +369,23 @@ class DocumentController(Window.Window):
         def fit_to_view():
             if self.selected_display_panel is not None:
                 self.selected_display_panel.perform_action("set_fit_mode")
+
         self._fit_view_action = self._view_menu.add_menu_item(_("Fit to View"), fit_to_view, key_sequence="0")
+
         def fill_view():
             if self.selected_display_panel is not None:
                 self.selected_display_panel.perform_action("set_fill_mode")
+
         self._fill_view_action = self._view_menu.add_menu_item(_("Fill View"), fill_view, key_sequence="Shift+0")
+
         def one_to_one_view():
             if self.selected_display_panel is not None:
                 self.selected_display_panel.perform_action("set_one_to_one_mode")
+
         def two_to_one_view():
             if self.selected_display_panel is not None:
                 self.selected_display_panel.perform_action("set_two_to_one_mode")
+
         self._one_to_one_view_action = self._view_menu.add_menu_item(_("1:1 View"), one_to_one_view, key_sequence="1")
         self._two_to_one_view_action = self._view_menu.add_menu_item(_("2:1 View"), two_to_one_view, key_sequence="2")
         self._view_menu.add_separator()
@@ -1034,7 +1040,7 @@ class DocumentController(Window.Window):
                     if graphic:
                         graphics.append(graphic)
                 display.graphic_selection.clear()
-                command = DisplayPanel.InsertGraphicsCommand(display, graphics)
+                command = DisplayPanel.InsertGraphicsCommand(self, display, graphics)
                 command.perform()
                 self.push_undo_command(command)
                 for graphic in graphics:
@@ -1065,7 +1071,7 @@ class DocumentController(Window.Window):
             graphic = Graphics.LineGraphic()
             graphic.start = (0.2, 0.2)
             graphic.end = (0.8, 0.8)
-            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
             command.perform()
             self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
@@ -1078,7 +1084,7 @@ class DocumentController(Window.Window):
             display = display_specifier.display
             graphic = Graphics.RectangleGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
-            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
             command.perform()
             self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
@@ -1091,7 +1097,7 @@ class DocumentController(Window.Window):
             display = display_specifier.display
             graphic = Graphics.EllipseGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
-            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
             command.perform()
             self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
@@ -1104,7 +1110,7 @@ class DocumentController(Window.Window):
             display = display_specifier.display
             graphic = Graphics.PointGraphic()
             graphic.position = (0.5,0.5)
-            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
             command.perform()
             self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
@@ -1118,7 +1124,7 @@ class DocumentController(Window.Window):
             graphic = Graphics.IntervalGraphic()
             graphic.start = 0.25
             graphic.end = 0.75
-            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
             command.perform()
             self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
@@ -1131,7 +1137,7 @@ class DocumentController(Window.Window):
             display = display_specifier.display
             graphic = Graphics.ChannelGraphic()
             graphic.position = 0.5
-            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
             command.perform()
             self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
@@ -1144,7 +1150,7 @@ class DocumentController(Window.Window):
             display = display_specifier.display
             graphic = Graphics.SpotGraphic()
             graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
-            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
             command.perform()
             self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
@@ -1158,7 +1164,7 @@ class DocumentController(Window.Window):
             graphic = Graphics.WedgeGraphic()
             graphic.start_angle = 0
             graphic.end_angle = (3/4) * math.pi
-            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
             command.perform()
             self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
@@ -1172,7 +1178,7 @@ class DocumentController(Window.Window):
             graphic = Graphics.RingGraphic()
             graphic.radius_1 = 0.15
             graphic.radius_2 = 0.25
-            command = DisplayPanel.InsertGraphicsCommand(display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
             command.perform()
             self.push_undo_command(command)
             display.graphic_selection.set(display.graphics.index(graphic))
@@ -1394,6 +1400,10 @@ class DocumentController(Window.Window):
         def perform(self):
             self.__library_item = self.__library_item_fn()
 
+        @property
+        def library_item(self):
+            return self.__library_item
+
         def _get_modified_state(self):
             return self.__document_controller.workspace_controller.document_model.modified_state
 
@@ -1529,41 +1539,61 @@ class DocumentController(Window.Window):
             return (data_item1, crop_graphic1), (data_item2, crop_graphic2)
         return None
 
+    def _perform_processing2(self, data_item1: DataItem.DataItem, data_item2: DataItem.DataItem, crop_graphic1: typing.Optional[Graphics.Graphic], crop_graphic2: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
+        def process() -> DataItem.LibraryItem:
+            new_data_item = fn(data_item1, data_item2, crop_graphic1, crop_graphic2)
+            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
+            self.display_data_item(new_display_specifier)
+            return new_data_item
+        command = self.create_insert_library_item_command(process)
+        command.perform()
+        assert isinstance(command, DocumentController.InsertLibraryItemCommand)
+        if command.library_item:
+            self.push_undo_command(command)
+            return command.library_item
+        else:
+            command.close()
+        return None
+
     def __processing_new2(self, fn):
-        # TODO: undo
         data_sources = self._get_two_data_sources()
         if data_sources:
             (data_item1, crop_graphic1), (data_item2, crop_graphic2) = data_sources
-            data_item = fn(data_item1, data_item2, crop_graphic1, crop_graphic2)
-            if data_item:
-                new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-                self.display_data_item(new_display_specifier)
-                return data_item
+            return self._perform_processing2(data_item1, data_item2, crop_graphic1, crop_graphic2, fn)
         return None
 
     def processing_cross_correlate_new(self):
-        # TODO: undo
         return self.__processing_new2(self.document_model.get_cross_correlate_new)
 
-    def processing_fourier_filter_new(self):
-        # TODO: undo
-        display_specifier = self.selected_display_specifier
-        data_item = self.document_model.get_fourier_filter_new(display_specifier.data_item, None)
-        if data_item:
-            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+    def _perform_processing(self, data_item: DataItem.DataItem, crop_graphic: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
+        def process() -> DataItem.LibraryItem:
+            new_data_item = fn(data_item, crop_graphic)
+            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
             self.display_data_item(new_display_specifier)
-            return data_item
+            return new_data_item
+        command = self.create_insert_library_item_command(process)
+        command.perform()
+        assert isinstance(command, DocumentController.InsertLibraryItemCommand)
+        if command.library_item:
+            self.push_undo_command(command)
+            return command.library_item
+        else:
+            command.close()
         return None
 
-    def __processing_new(self, fn):
-        # TODO: undo
+    def __processing_new(self, fn) -> typing.Optional[DataItem.DataItem]:
         display_specifier = self.selected_display_specifier
+        data_item = display_specifier.data_item
         crop_graphic = self.__get_crop_graphic(display_specifier)
-        data_item = fn(display_specifier.data_item, crop_graphic)
         if data_item:
-            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.display_data_item(new_display_specifier)
-            return data_item
+            return self._perform_processing(data_item, crop_graphic, fn)
+        return None
+
+    def processing_fourier_filter_new(self):
+        display_specifier = self.selected_display_specifier
+        data_item = display_specifier.data_item
+        if data_item:
+            return self._perform_processing(data_item, None, self.document_model.get_fourier_filter_new)
         return None
 
     def __change_to_previous_workspace(self):

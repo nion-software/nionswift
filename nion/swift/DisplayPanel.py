@@ -727,17 +727,25 @@ class DisplayTracker:
 
 class InsertGraphicsCommand(Undo.UndoableCommand):
 
-    def __init__(self, display: Display.Display, graphics: typing.Sequence[Graphics.Graphic]):
+    def __init__(self, document_controller, display: Display.Display, graphics: typing.Sequence[Graphics.Graphic]):
         super().__init__(_("Insert Graphics"))
+        self.__document_controller = document_controller
+        self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+        self.__new_workspace_layout = None
         self.__graphics_properties = None
         self.__display = display
         self.__graphics = graphics
+        self.__undelete_logs = None
         self.initialize()
 
     def close(self):
+        self.__undelete_logs = None
         self.__graphics_properties = None
         self.__display = None
         self.__graphics = None
+        self.__document_controller = None
+        self.__old_workspace_layout = None
+        self.__new_workspace_layout = None
         super().close()
 
     def perform(self):
@@ -745,23 +753,23 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
             self.__display.add_graphic(graphic)
 
     def _get_modified_state(self):
-        return self.__display.modified_state
+        return self.__display.modified_state, self.__document_controller.workspace_controller.document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        self.__display.modified_state = modified_state
+        self.__display.modified_state, self.__document_controller.workspace_controller.document_model.modified_state = modified_state
 
     def _redo(self):
-        self.__graphics = list()
-        for graphic_properties in self.__graphics_properties:
-            graphic = Graphics.factory(graphic_properties.get)
-            graphic.read_from_dict(graphic_properties)
-            self.__display.add_graphic(graphic)
-            self.__graphics.append(graphic)
+        for undelete_log in reversed(self.__undelete_logs):
+            self.__document_controller.document_model.undelete_all(undelete_log)
+        self.__graphics = self.__display.graphics[-len(self.__graphics):]
+        self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
     def _undo(self):
-        self.__graphics_properties = [graphic.write_to_dict() for graphic in self.__graphics]
+        self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+        self.__undelete_logs = list()
         for graphic in self.__graphics:
-            self.__display.remove_graphic(graphic)
+            self.__undelete_logs.append(self.__display.remove_graphic(graphic, safe=True))
+        self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
 
 class ChangeDisplayCommand(Undo.UndoableCommand):
@@ -1479,7 +1487,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.show_context_menu(menu, gx, gy)
 
     def perform_action(self, fn, *args, **keywords):
-        # TODO: undo
         display_canvas_item = self.display_canvas_item
         target = display_canvas_item
         if hasattr(target, fn):
@@ -1517,7 +1524,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__display.add_graphic(region)  # this will also make a drawn graphic
         # hack to select it. it will be the last item.
         self.__display.graphic_selection.set(len(self.__display.graphics) - 1)
-        return InsertGraphicsCommand(self.__display, [region])
+        return InsertGraphicsCommand(self.__document_controller, self.__display, [region])
 
     def nudge_selected_graphics(self, mapping, delta):
         all_graphics = self.__display.graphics
@@ -1601,7 +1608,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             setattr(self.__display, key, value)
 
     def create_insert_graphics_command(self, graphics: typing.Sequence[Graphics.Graphic]) -> InsertGraphicsCommand:
-        return InsertGraphicsCommand(self.__display, graphics)
+        return InsertGraphicsCommand(self.__document_controller, self.__display, graphics)
 
     def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> ChangeDisplayCommand:
         return ChangeDisplayCommand(self.__display, command_id=command_id, is_mergeable=is_mergeable)
