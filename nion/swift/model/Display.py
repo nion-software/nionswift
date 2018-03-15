@@ -537,7 +537,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.collection_index,
             self.slice_center,
             self.slice_interval,
-            self.display_type
+            self.display_type,
+            self.display_script
         )
 
     def restore_properties(self, properties: typing.Tuple) -> None:
@@ -559,6 +560,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.slice_center = properties[15]
         self.slice_interval = properties[16]
         self.display_type = properties[17]
+        self.display_script = properties[18]
 
     @property
     def container(self):

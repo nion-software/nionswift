@@ -5,6 +5,7 @@ import gettext
 # None
 
 # local libraries
+from nion.swift import DisplayPanel
 from nion.ui import Dialog
 from nion.utils import Geometry
 
@@ -51,13 +52,10 @@ class DisplayEditorDialog(Dialog.ActionDialog):
         button_row.add_spacing(8)
 
         def update_pressed():
-            if text_edit.text:
-                self.__display.display_script = text_edit.text
-            else:
-                self.__display.display_script = None
-
-        def clear():
-            text_edit.text = None
+            display_script = text_edit.text if text_edit.text else None
+            command = DisplayPanel.ChangeDisplayCommand(self.__display, title=_("Change Display Script"), display_script=display_script)
+            command.perform()
+            document_controller.push_undo_command(command)
 
         update_button.on_clicked = update_pressed
 
