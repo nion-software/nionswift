@@ -1104,9 +1104,11 @@ class PointTypeGraphic(Graphic):
                     pos = part[1][0], part[1][1] + delta_h
             else:
                 pos = part[1][0] + delta_v, part[1][1] + delta_h
-            if "bounds" in self._constraints:
+            constraints = self._constraints
+            if "bounds" in constraints:
                 pos = min(max(pos[0], 0.0), 1.0), min(max(pos[1], 0.0), 1.0)
-            self.position = pos
+            if "position" not in constraints:
+                self.position = pos
 
     def nudge(self, mapping, delta):
         pos_image = mapping.map_point_image_norm_to_image(self.position)
