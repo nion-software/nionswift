@@ -48,6 +48,7 @@ items from the library are displayed in the current workspace.
     * Sessions
     * Metadata Editor
     * Tools
+* :ref:`data-management`
 * Data Management
     * Importing/Exporting
     * Recorder
