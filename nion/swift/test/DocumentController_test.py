@@ -156,69 +156,56 @@ class TestDocumentControllerClass(unittest.TestCase):
     def test_receive_files_should_put_files_into_document_model_at_end(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        data_item1.title = "data_item1"
-        document_model.append_data_item(data_item1)
-        data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        data_item2.title = "data_item2"
-        document_model.append_data_item(data_item2)
-        data_item3 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        data_item3.title = "data_item3"
-        document_model.append_data_item(data_item3)
-        new_data_items = document_controller.receive_files(document_model, [":/app/scroll_gem.png"], threaded=False)
-        self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item1.title = "data_item1"
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item2.title = "data_item2"
+            document_model.append_data_item(data_item2)
+            data_item3 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item3.title = "data_item3"
+            document_model.append_data_item(data_item3)
+            new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], threaded=False)
+            self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
 
     def test_receive_files_should_put_files_into_document_model_at_index(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        data_item1.title = "data_item1"
-        document_model.append_data_item(data_item1)
-        data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        data_item2.title = "data_item2"
-        document_model.append_data_item(data_item2)
-        data_item3 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        data_item3.title = "data_item3"
-        document_model.append_data_item(data_item3)
-        new_data_items = document_controller.receive_files(document_model, [":/app/scroll_gem.png"], index=2, threaded=False)
-        self.assertEqual(document_model.data_items.index(new_data_items[0]), 2)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item1.title = "data_item1"
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item2.title = "data_item2"
+            document_model.append_data_item(data_item2)
+            data_item3 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item3.title = "data_item3"
+            document_model.append_data_item(data_item3)
+            new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], index=2, threaded=False)
+            self.assertEqual(document_model.data_items.index(new_data_items[0]), 2)
 
     def test_receive_files_should_put_files_into_data_group_at_index(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_group = DataGroup.DataGroup()
-        document_model.append_data_group(data_group)
-        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        data_item1.title = "data_item1"
-        document_model.append_data_item(data_item1)
-        data_group.append_data_item(data_item1)
-        data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        data_item2.title = "data_item2"
-        document_model.append_data_item(data_item2)
-        data_group.append_data_item(data_item2)
-        data_item3 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        data_item3.title = "data_item3"
-        document_model.append_data_item(data_item3)
-        data_group.append_data_item(data_item3)
-        new_data_items = document_controller.receive_files(document_model, [":/app/scroll_gem.png"], data_group=data_group, index=2, threaded=False)
-        self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
-        self.assertEqual(data_group.data_items.index(new_data_items[0]), 2)
-        document_controller.close()
-
-    def test_safe_insert_with_existing_uuid_ignores_insert(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with contextlib.closing(document_controller):
             data_group = DataGroup.DataGroup()
             document_model.append_data_group(data_group)
-            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 8))))
-            data_item_clone = data_item.clone()
-            self.assertEqual(data_item.uuid, data_item_clone.uuid)  # must be True for this test to work
-            index_ref = [0]
-            document_model.safe_insert_data_item(None, data_item, index_ref, logging=False)
-            document_model.safe_insert_data_item(None, data_item, index_ref, logging=False)
-            self.assertEqual(len(document_model.data_items), 1)
+            data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item1.title = "data_item1"
+            document_model.append_data_item(data_item1)
+            data_group.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item2.title = "data_item2"
+            document_model.append_data_item(data_item2)
+            data_group.append_data_item(data_item2)
+            data_item3 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item3.title = "data_item3"
+            document_model.append_data_item(data_item3)
+            data_group.append_data_item(data_item3)
+            new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], data_group=data_group, index=2, threaded=False)
+            self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
+            self.assertEqual(data_group.data_items.index(new_data_items[0]), 2)
 
     def test_remove_graphic_removes_it_from_data_item(self):
         document_model = DocumentModel.DocumentModel()

@@ -692,7 +692,7 @@ class Workspace:
                 if len(received_data_items) > 0:
                     self.document_controller.queue_task(update_displayed_data_item)
             index = len(document_model.data_items)
-            self.document_controller.receive_files(document_model, mime_data.file_paths, None, index, threaded=True, completion_fn=receive_files_complete)
+            self.document_controller.receive_files(mime_data.file_paths, None, index, threaded=True, completion_fn=receive_files_complete)
             return "copy"
         return "ignore"
 

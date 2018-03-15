@@ -1123,7 +1123,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__dependency_tree_source_to_target_map = dict()
         self.__dependency_tree_target_to_source_map = dict()
         self.__data_items = list()
-        self.__data_item_uuids = set()
         self.__uuid_to_data_item = dict()
         self.__computation_changed_listeners = dict()
         self.__computation_output_changed_listeners = dict()
@@ -1207,10 +1206,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __finish_read_partial(self, data_items: typing.List[DataItem.DataItem]) -> None:
         for index, data_item in enumerate(data_items):
-            if data_item.uuid not in self.__data_item_uuids:
+            if data_item.uuid not in self.__uuid_to_data_item:
                 data_item.about_to_be_inserted(self)
                 self.__data_items.insert(index, data_item)
-                self.__data_item_uuids.add(data_item.uuid)
                 self.__uuid_to_data_item[data_item.uuid] = data_item
                 data_item.set_storage_cache(self.storage_cache)
                 data_item.set_session_manager(self)
@@ -1250,7 +1248,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         new_data_item_variables = dict()
         for r_var, data_item_uuid_str in data_item_variables.items():
             data_item_uuid = uuid.UUID(data_item_uuid_str)
-            if data_item_uuid in self.__data_item_uuids:
+            if data_item_uuid in self.__uuid_to_data_item:
                 new_data_item_variables[r_var] = data_item_uuid_str
                 data_item = self.__uuid_to_data_item[data_item_uuid]
                 data_item.set_r_value(r_var, notify_changed=False)
@@ -1395,7 +1393,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         assert data_item is not None
         assert data_item not in self.__data_items
         assert before_index <= len(self.__data_items) and before_index >= 0
-        assert data_item.uuid not in self.__data_item_uuids
+        assert data_item.uuid not in self.__uuid_to_data_item
         # ensure the data item has a new persistent storage
         assert not data_item.persistent_storage
         storage_handler = self.__persistent_storage_system.make_storage_handler(data_item)
@@ -1409,7 +1407,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __insert_data_item(self, before_index, data_item, storage_handler, properties, do_write):
         data_item.about_to_be_inserted(self)
         self.__data_items.insert(before_index, data_item)
-        self.__data_item_uuids.add(data_item.uuid)
         self.__uuid_to_data_item[data_item.uuid] = data_item
         data_item.set_storage_cache(self.storage_cache)
         data_item.persistent_object_context = self.persistent_object_context
@@ -1455,7 +1452,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __remove_data_item(self, data_item, *, safe: bool=False) -> typing.Sequence:
         undelete_log = list()
         self.__transaction_manager._remove_item(data_item)
-        assert data_item.uuid in self.__data_item_uuids
+        assert data_item.uuid in self.__uuid_to_data_item
         library_computation = self.get_data_item_computation(data_item)
         with self.__computation_queue_lock:
             computation_pending_queue = self.__computation_pending_queue
@@ -1480,9 +1477,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         index = self.__data_items.index(data_item)
         # do actual removal
         del self.__data_items[index]
-        self.__data_item_uuids.remove(data_item.uuid)
         self._set_persistent_property_value("data_item_deletions", self._get_persistent_property_value("data_item_deletions") + [str(data_item.uuid)])
-        del self.__uuid_to_data_item[data_item.uuid]
+        self.__uuid_to_data_item.pop(data_item.uuid, None)
         if data_item.r_var:
             data_item_variables = self._get_persistent_property_value("data_item_variables")
             del data_item_variables[data_item.r_var]
@@ -1978,24 +1974,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             lena_data_item = DataItem.DataItem(scipy.misc.lena())
             lena_data_item.title = "Lena"
             self.append_data_item(lena_data_item)
-
-    def safe_insert_data_item(self, data_group, data_item, index_ref, logging=True):
-        if data_group and isinstance(data_group, DataGroup.DataGroup):
-            if not data_item.uuid in self.__data_item_uuids:
-                self.append_data_item(data_item)
-            if index_ref[0] >= 0:
-                data_group.insert_data_item(index_ref[0], data_item)
-                index_ref[0] += 1
-            else:
-                data_group.append_data_item(data_item)
-        elif not data_item.uuid in self.__data_item_uuids:
-            if index_ref[0] >= 0:
-                self.insert_data_item(index_ref[0], data_item)
-                index_ref[0] += 1
-            else:
-                self.append_data_item(data_item)
-
-    # TODO: what about thread safety for these classes?
 
     # Return a generator over all data items
     def get_flat_data_item_generator(self):

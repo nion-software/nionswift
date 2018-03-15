@@ -853,40 +853,19 @@ class DocumentController(Window.Window):
 
     def __import_folder(self):
         documents_dir = self.ui.get_document_location()
-        workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Library Folder"), documents_dir)
-        library_filename = "Nion Swift Workspace.nslib"
-        cache_filename = "Nion Swift Cache {version}.nscache".format(version=DataItem.DataItem.writer_version)
-        library_path = os.path.join(workspace_dir, library_filename)
-        cache_path = os.path.join(workspace_dir, cache_filename)
-        data_path = os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
-        if not os.path.exists(library_path):
-            with open(library_path, "w") as fp:
-                json.dump({}, fp)
-            storage_cache = Cache.DbStorageCache(cache_path)
-            file_persistent_storage_system = DocumentModel.FileStorageSystem([data_path])
-            library_storage = DocumentModel.FilePersistentStorage(library_path)
-            document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_system=file_persistent_storage_system, storage_cache=storage_cache, ignore_older_files=True)
-
-            def import_complete(data_items):
-                document_model.close()
-                self.app.switch_library(workspace_dir)
-
-            absolute_file_paths = set()
-            for root, dirs, files in os.walk(workspace_dir):
-                absolute_file_paths.update([os.path.join(root, data_file) for data_file in files])
-
-            readable_file_paths = list()
-            readers = ImportExportManager.ImportExportManager().get_readers()
-            for file_path in absolute_file_paths:
-                root, extension = os.path.splitext(file_path)
-                for reader in readers:
-                    if extension[1:] in reader.extensions:
-                        readable_file_paths.append(file_path)
-                        break  # skip other readers
-
-            self.receive_files(document_model, readable_file_paths, completion_fn=lambda data_items: self.queue_task(functools.partial(import_complete, data_items)))
-        else:
-            self.app.switch_library(workspace_dir)
+        workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Image Folder"), documents_dir)
+        absolute_file_paths = set()
+        for root, dirs, files in os.walk(workspace_dir):
+            absolute_file_paths.update([os.path.join(root, data_file) for data_file in files])
+        readable_file_paths = list()
+        readers = ImportExportManager.ImportExportManager().get_readers()
+        for file_path in absolute_file_paths:
+            root, extension = os.path.splitext(file_path)
+            for reader in readers:
+                if extension[1:] in reader.extensions:
+                    readable_file_paths.append(file_path)
+                    break  # skip other readers
+        self.receive_files(readable_file_paths)
 
     def import_file(self):
         # TODO: undo
@@ -912,7 +891,7 @@ class DocumentController(Window.Window):
                     result_display_panel.request_focus()
         def import_complete_on_thread(data_items):
             self.queue_task(functools.partial(import_complete, data_items))
-        self.receive_files(self.document_model, paths, completion_fn=import_complete_on_thread)
+        self.receive_files(paths, completion_fn=import_complete_on_thread)
 
     def export_file(self, data_item) -> None:
         # present a loadfile dialog to the user
@@ -1819,7 +1798,8 @@ class DocumentController(Window.Window):
     # position in the document model (the end) and at the group at the position
     # specified by the index. if the data group is not specified, the item is added
     # at the index within the document model.
-    def receive_files(self, document_model, file_paths, data_group=None, index=-1, threaded=True, completion_fn=None):
+    def receive_files(self, file_paths, data_group=None, index=-1, threaded=True, completion_fn=None):
+        assert index is not None
 
         # this function will be called on a thread to receive files in the background.
         def receive_files_on_thread(file_paths, data_group, index, completion_fn):
@@ -1830,8 +1810,6 @@ class DocumentController(Window.Window):
                 task.update_progress(_("Starting import."), (0, len(file_paths)))
                 task_data = {"headers": ["Number", "File"]}
 
-                index_ref = [index]
-
                 for file_index, file_path in enumerate(file_paths):
                     data = task_data.setdefault("data", list())
                     root_path, file_name = os.path.split(file_path)
@@ -1840,32 +1818,8 @@ class DocumentController(Window.Window):
                     task.update_progress(_("Importing item {}.").format(file_index + 1), (file_index + 1, len(file_paths)), task_data)
                     try:
                         data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path)
-                        if data_items is not None:
-                            # grab a data ref and initialize the data save events
-                            data_item_save_event = dict()
-                            for data_item in data_items:
-                                data_item_save_event[data_item] = threading.Event()
-
-                            def safe_insert_data_items(_data_group, _data_items, index_ref):
-                                for data_item in _data_items:
-                                    document_model.safe_insert_data_item(_data_group, data_item, index_ref)
-                                    data_item_save_event[data_item].set()
-
-                            # notice that a lambda function is used to snapshot the first three arguments, but the
-                            # index_ref argument is shared with all calls so that the items get inserted in order.
-                            self.queue_task(functools.partial(safe_insert_data_items, data_group, data_items, index_ref))
-
-                            # wait for the save event to occur, then release the data ref.
-                            for data_item in data_items:
-                                if threaded:
-                                    data_item_save_event[data_item].wait()
-                                else:
-                                    self.periodic()  # make sure periodic gets called at least once
-                                    while not data_item_save_event[data_item].wait(0.05):
-                                        self.periodic()
-
+                        if data_items:
                             received_data_items.extend(data_items)
-
                     except Exception as e:
                         logging.debug("Could not read image %s / %s", file_path, str(e))
                         traceback.print_exc()
@@ -1878,11 +1832,33 @@ class DocumentController(Window.Window):
 
                 return received_data_items
 
+        def receive_files_complete(index, data_items):
+            for data_item in data_items:
+                if data_group and isinstance(data_group, DataGroup.DataGroup):
+                    if not self.document_model.get_data_item_by_uuid(data_item.uuid):
+                        self.document_model.append_data_item(data_item)
+                    if index >= 0:
+                        data_group.insert_data_item(index, data_item)
+                        index += 1
+                    else:
+                        data_group.append_data_item(data_item)
+                elif not self.document_model.get_data_item_by_uuid(data_item.uuid):
+                    if index >= 0:
+                        self.document_model.insert_data_item(index, data_item)
+                        index += 1
+                    else:
+                        self.document_model.append_data_item(data_item)
+            if callable(completion_fn):
+                completion_fn(data_items)
+
         if threaded:
-            threading.Thread(target=receive_files_on_thread, args=(file_paths, data_group, index, completion_fn)).start()
+            def threaded_receive_files_complete(index, data_items):
+                self.queue_task(functools.partial(receive_files_complete, index, data_items))
+
+            threading.Thread(target=receive_files_on_thread, args=(file_paths, data_group, index, functools.partial(threaded_receive_files_complete, index))).start()
             return None
         else:
-            return receive_files_on_thread(file_paths, data_group, index, completion_fn)
+            return receive_files_on_thread(file_paths, data_group, index, functools.partial(receive_files_complete, index))
 
     def create_context_menu_for_display(self, display: Display.Display, container=None):
         menu = self.create_context_menu()

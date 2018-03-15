@@ -652,9 +652,10 @@ class LibraryModelController:
         """
         self.ui = ui
         self.item_model_controller = self.ui.create_item_model_controller(["display"])
-        self.item_model_controller.on_item_drop_mime_data = lambda mime_data, action, row, parent_row, parent_id: self.item_drop_mime_data(mime_data, action, row, parent_row, parent_id)
+        self.item_model_controller.on_can_drop_mime_data = self.can_drop_mime_data
+        self.item_model_controller.on_item_drop_mime_data = self.item_drop_mime_data
         self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
-        self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/library_item_uuid", "text/data_item_uuid"]
+        self.item_model_controller.mime_types_for_drop = ["text/uri-list"]
         self.on_receive_files = None
         self.__item_controllers = list()
         self.__item_count = 0
@@ -684,12 +685,18 @@ class LibraryModelController:
         self.__item_controllers.append(item_controller)
         self.__item_count += 1
 
+    def can_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
+        if mime_data.has_file_paths:
+            return row < 0  # only accept drops ONTO items, not BETWEEN items
+        return False
+
     def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
         if mime_data.has_file_paths:
             if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                 return self.item_model_controller.NONE
-            if self.on_receive_files and self.on_receive_files(mime_data.file_paths):
-                return self.item_model_controller.COPY
+            if callable(self.on_receive_files):
+                if self.on_receive_files(mime_data.file_paths):
+                    return self.item_model_controller.COPY
         return self.item_model_controller.NONE
 
 
@@ -903,8 +910,9 @@ class DataGroupModelController:
         if data_group and mime_data.has_file_paths:
             if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                 return self.item_model_controller.NONE
-            if self.on_receive_files and self.on_receive_files(mime_data.file_paths, data_group, len(data_group.data_items)):
-                return self.item_model_controller.COPY
+            if callable(self.on_receive_files):
+                if self.on_receive_files(mime_data.file_paths, data_group, len(data_group.data_items)):
+                    return self.item_model_controller.COPY
         if data_group and (mime_data.has_format("text/data_item_uuid") or mime_data.has_format("text/library_item_uuid")):
             if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                 return self.item_model_controller.NONE
@@ -1261,9 +1269,7 @@ class DataPanel(Panel.Panel):
             if len(received_data_items) > 0:
                 self.queue_task(select_library_all)
 
-        document_model = self.document_controller.document_model
-        index = len(document_model.data_items)
-        self.document_controller.receive_files(document_model, file_paths, None, index, threaded, receive_files_complete)
+        self.document_controller.receive_files(file_paths, None, -1, threaded, receive_files_complete)
         return True
 
     # receive files dropped into the data group.
@@ -1279,6 +1285,5 @@ class DataPanel(Panel.Panel):
                 else:
                     select_data_group_and_data_item()
 
-        document_model = self.document_controller.document_model
-        self.document_controller.receive_files(document_model, file_paths, data_group, index, threaded, receive_files_complete)
+        self.document_controller.receive_files(file_paths, data_group, index, threaded, receive_files_complete)
         return True
