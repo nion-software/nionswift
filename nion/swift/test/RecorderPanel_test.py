@@ -7,6 +7,7 @@ import numpy
 
 # local libraries
 from nion.swift import Application
+from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift import RecorderPanel
 from nion.swift.model import DataItem
@@ -25,11 +26,13 @@ class TestRecorderPanelClass(unittest.TestCase):
         pass
 
     def test_recorder_records_live_data(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
         document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
-            recorder = RecorderPanel.Recorder(document_model, data_item)
+            recorder = RecorderPanel.Recorder(document_controller, data_item)
             with contextlib.closing(recorder):
                 with document_model.data_item_live(data_item):
                     count = 4
@@ -44,11 +47,13 @@ class TestRecorderPanelClass(unittest.TestCase):
             self.assertEqual((4, 8, 8), recorded_data_item.xdata.dimensional_shape)
 
     def test_recorder_puts_recorded_data_item_under_transaction(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
         document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
-            recorder = RecorderPanel.Recorder(document_model, data_item)
+            recorder = RecorderPanel.Recorder(document_controller, data_item)
             with contextlib.closing(recorder):
                 with document_model.data_item_live(data_item):
                     count = 4
@@ -63,13 +68,15 @@ class TestRecorderPanelClass(unittest.TestCase):
             self.assertFalse(document_model.data_items[1].in_transaction_state)
 
     def test_recorder_state_is_reported_properly(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
         document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
             recorder_state_ref = ["unknown"]
             def recorder_state_changed(recorder_state): recorder_state_ref[0] = recorder_state
-            recorder = RecorderPanel.Recorder(document_model, data_item)
+            recorder = RecorderPanel.Recorder(document_controller, data_item)
             recorder.on_recording_state_changed = recorder_state_changed
             with contextlib.closing(recorder):
                 with document_model.data_item_live(data_item):

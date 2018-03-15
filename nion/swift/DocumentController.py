@@ -28,7 +28,6 @@ from nion.swift import ScriptsDialog
 from nion.swift import Task
 from nion.swift import Undo
 from nion.swift import Workspace
-from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import Display
@@ -957,7 +956,6 @@ class DocumentController(Window.Window):
             self.__dialogs.append(weakref.ref(interactive_dialog))
 
     def new_recorder_dialog(self, data_item=None):
-        # TODO: undo
         if not data_item:
             data_item = self.selected_display_specifier.data_item
         if data_item:

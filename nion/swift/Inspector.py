@@ -265,7 +265,7 @@ class ChangeDisplayPropertyBinding(Binding.PropertyBinding):
 
         def set_value(value):
             if value != getattr(display, property_name):
-                command = DisplayPanel.ChangeDisplayCommand(display, title=_("Change Display Type"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
+                command = DisplayPanel.ChangeDisplayCommand(display, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
 

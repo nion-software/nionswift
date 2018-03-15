@@ -2,6 +2,7 @@
 import gettext
 import numpy
 import time
+import typing
 
 # third party libraries
 # None
@@ -9,6 +10,7 @@ import time
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
+from nion.swift import Undo
 from nion.ui import Dialog
 from nion.utils import Binding
 from nion.utils import Converter
@@ -22,8 +24,9 @@ _ = gettext.gettext
 
 class Recorder:
 
-    def __init__(self, document_model, data_item):
-        self.__document_model = document_model
+    def __init__(self, document_controller, data_item):
+        self.__document_controller = document_controller
+        self.__document_model = document_controller.document_model
         self.__data_item = data_item
 
         self.on_live_state_changed = None
@@ -87,6 +90,53 @@ class Recorder:
     def recording_state(self) -> str:
         return self.__recording_state
 
+    class RecorderInsertLibraryItemCommandCommand(Undo.UndoableCommand):
+
+        def __init__(self, document_controller, recorder: "Recorder", library_item_fn: typing.Callable[[], DataItem.LibraryItem]):
+            super().__init__(_("Record Library Item"))
+            self.__document_controller = document_controller
+            self.__recorder = recorder
+            self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+            self.__new_workspace_layout = None
+            self.__library_item = None
+            self.__library_item_fn = library_item_fn
+            self.__library_item_index = None
+            self.initialize()
+
+        def close(self):
+            self.__document_controller = None
+            self.__library_item = None
+            self.__library_item_fn = None
+            self.__library_item_index = None
+            self.__old_workspace_layout = None
+            self.__new_workspace_layout = None
+            super().close()
+
+        def perform(self):
+            self.__library_item = self.__library_item_fn()
+
+        @property
+        def library_item(self):
+            return self.__library_item
+
+        def _get_modified_state(self):
+            return self.__document_controller.document_model.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__document_controller.document_model.modified_state = modified_state
+
+        def _redo(self):
+            self.__document_controller.document_model.undelete_all(self.__undelete_log)
+            self.__library_item = self.__document_controller.document_model.data_items[self.__library_item_index]
+            self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+
+        def _undo(self):
+            self.__recorder.stop_recording()
+            self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+            self.__library_item_index = self.__document_controller.document_model.data_items.index(self.__library_item)
+            self.__undelete_log = self.__document_controller.document_model.remove_data_item(self.__library_item, safe=True)
+            self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+
     def continue_recording(self, current_time: float) -> None:
         if self.__recording_state == "recording":
             if (current_time - self.__recording_start) // self.__recording_interval > self.__recording_index - 1:
@@ -96,7 +146,16 @@ class Recorder:
                     data_item = DataItem.DataItem(large_format=True)
                     data_item.ensure_data_source()
                     data_item.title = _("Recording of ") + self.__data_item.title
-                    self.__document_model.append_data_item(data_item)
+
+                    def process():
+                        self.__document_model.append_data_item(data_item)
+                        self.__document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+                        return data_item
+
+                    command = Recorder.RecorderInsertLibraryItemCommandCommand(self.__document_controller, self, process)
+                    command.perform()
+                    self.__document_controller.push_undo_command(command)
+
                     self.__recording_data_item = data_item
                 # next grab the current data and stop if it is a sequence (can't record sequences)
                 current_xdata = self.__last_complete_xdata
@@ -109,8 +168,7 @@ class Recorder:
                 # now record the new data. it may or may not be a new frame at this point.
                 last_xdata = self.__recording_data_item.xdata
                 self.__recording_index += 1
-                if current_xdata and last_xdata and current_xdata.data_shape == self.__recording_data_item.data_shape[
-                                                                                1:]:
+                if current_xdata and last_xdata and current_xdata.data_shape == self.__recording_data_item.data_shape[1:]:
                     # continue, append the new data to existing data and update existing data item
                     intensity_calibration = last_xdata.intensity_calibration
                     dimensional_calibrations = last_xdata.dimensional_calibrations
@@ -176,7 +234,7 @@ class RecorderDialog(Dialog.ActionDialog):
         ui = document_controller.ui
         super().__init__(ui, _("Recorder"), app=document_controller.app, parent_window=document_controller, persistent_id="Recorder" + str(data_item.uuid))
 
-        self.__recorder = Recorder(document_controller.document_model, data_item)
+        self.__recorder = Recorder(document_controller, data_item)
 
         self.ui = ui
         self.document_controller = document_controller
