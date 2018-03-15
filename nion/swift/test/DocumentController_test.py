@@ -720,6 +720,33 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(snapshot_uuid, document_model.data_items[1].uuid)
             self.assertEqual(document_model.data_items[1], display_panel.library_item)
 
+    def test_insert_library_items_undo_redo_cycle(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item3 = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item4 = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item_uuids = [data_item1.uuid, data_item2.uuid, data_item3.uuid, data_item4.uuid]
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item4)
+            # insert the new data items
+            command = DocumentController.DocumentController.InsertLibraryItemsCommand(document_controller, [data_item2, data_item3], 1)
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual(4, len(document_model.data_items))
+            self.assertListEqual([data_item1, data_item2, data_item3, data_item4], list(document_model.data_items))
+            # undo and check
+            document_controller.handle_undo()
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertListEqual([data_item1, data_item4], list(document_model.data_items))
+            # redo and check
+            document_controller.handle_redo()
+            self.assertEqual(4, len(document_model.data_items))
+            self.assertListEqual(data_item_uuids, [data_item.uuid for data_item in document_model.data_items])
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

@@ -357,5 +357,49 @@ class TestDataGroupClass(unittest.TestCase):
             self.assertEqual(document_model.data_items[0], data_group.data_items[0])
             self.assertEqual(document_model.data_items[1], data_group.data_items[1])
 
+    def test_inserting_items_data_group_undo_redo(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            # setup three data items and put in a group
+            data_item1 = DataItem.DataItem(numpy.random.randn(4, 4))
+            data_item2 = DataItem.DataItem(numpy.random.randn(4, 4))
+            data_item3 = DataItem.DataItem(numpy.random.randn(4, 4))
+            data_item4 = DataItem.DataItem(numpy.random.randn(4, 4))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item3)
+            document_model.append_data_item(data_item4)
+            data_group = DataGroup.DataGroup()
+            data_group.append_data_item(data_item1)
+            data_group.append_data_item(data_item3)
+            document_model.append_data_group(data_group)
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(2, len(data_group.data_items))
+            self.assertListEqual([data_item1, data_item3, data_item4], list(document_model.data_items))
+            self.assertListEqual([data_item1, data_item3], list(data_group.data_items))
+            # insert new items
+            command = DocumentController.DocumentController.InsertDataGroupLibraryItemsCommand(document_controller, data_group, [data_item2, data_item4], 1)
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual(4, len(document_model.data_items))
+            self.assertEqual(4, len(data_group.data_items))
+            self.assertListEqual([data_item1, data_item3, data_item4, data_item2], list(document_model.data_items))
+            self.assertListEqual([data_item1, data_item2, data_item4, data_item3], list(data_group.data_items))
+            # undo and check
+            document_controller.handle_undo()
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(2, len(data_group.data_items))
+            self.assertListEqual([data_item1, data_item3, data_item4], list(document_model.data_items))
+            self.assertListEqual([data_item1, data_item3], list(data_group.data_items))
+            # redo and check
+            document_controller.handle_redo()
+            data_item2 = document_model.data_items[3]
+            self.assertEqual(4, len(document_model.data_items))
+            self.assertEqual(4, len(data_group.data_items))
+            self.assertListEqual([data_item1, data_item3, data_item4, data_item2], list(document_model.data_items))
+            self.assertListEqual([data_item1, data_item2, data_item4, data_item3], list(data_group.data_items))
+
+
 if __name__ == '__main__':
     unittest.main()

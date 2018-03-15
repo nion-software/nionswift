@@ -685,14 +685,8 @@ class Workspace:
                     self.document_controller.push_undo_command(command)
                 return "copy"
         if mime_data.has_format("text/uri-list"):
-            def receive_files_complete(received_data_items):
-                def update_displayed_data_item():
-                    command = self.__replace_displayed_data_item(display_panel, received_data_items[0])
-                    self.document_controller.push_undo_command(command)
-                if len(received_data_items) > 0:
-                    self.document_controller.queue_task(update_displayed_data_item)
             index = len(document_model.data_items)
-            self.document_controller.receive_files(mime_data.file_paths, None, index, threaded=True, completion_fn=receive_files_complete)
+            self.document_controller.receive_files(mime_data.file_paths, None, index, threaded=True, display_panel=display_panel)
             return "copy"
         return "ignore"
 

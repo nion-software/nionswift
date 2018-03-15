@@ -868,7 +868,6 @@ class DocumentController(Window.Window):
         self.receive_files(readable_file_paths)
 
     def import_file(self):
-        # TODO: undo
         # present a loadfile dialog to the user
         readers = ImportExportManager.ImportExportManager().get_readers()
         all_extensions = []
@@ -883,15 +882,7 @@ class DocumentController(Window.Window):
         import_dir = self.ui.get_persistent_string("import_directory", "")
         paths, selected_filter, selected_directory = self.get_file_paths_dialog(_("Import File(s)"), import_dir, filter)
         self.ui.set_persistent_string("import_directory", selected_directory)
-        def import_complete(data_items):
-            if len(data_items) > 0:
-                result_display_panel = self.next_result_display_panel()
-                if result_display_panel:
-                    result_display_panel.set_display_panel_data_item(data_items[-1])
-                    result_display_panel.request_focus()
-        def import_complete_on_thread(data_items):
-            self.queue_task(functools.partial(import_complete, data_items))
-        self.receive_files(paths, completion_fn=import_complete_on_thread)
+        self.receive_files(paths, display_panel=self.next_result_display_panel())
 
     def export_file(self, data_item) -> None:
         # present a loadfile dialog to the user
@@ -1054,6 +1045,71 @@ class DocumentController(Window.Window):
 
     def create_insert_data_group_library_item_command(self, data_group: DataGroup.DataGroup, before_index: int, data_item: DataItem) -> InsertDataGroupLibraryItemCommand:
         return DocumentController.InsertDataGroupLibraryItemCommand(self.document_model, data_group, before_index, data_item)
+
+    class InsertDataGroupLibraryItemsCommand(Undo.UndoableCommand):
+        def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, library_items: typing.Sequence[DataItem.LibraryItem], index: int):
+            super().__init__("Insert Library Items")
+            self.__document_controller = document_controller
+            self.__data_group = data_group
+            self.__data_group_indexes = list()
+            self.__data_group_uuids = list()
+            self.__library_items = library_items
+            self.__library_item_index = index
+            self.__library_item_indexes = list()
+            self.__undelete_logs = None
+            self.initialize()
+
+        def close(self):
+            self.__document_controller = None
+            self.__data_group = None
+            self.__data_group_indexes = None
+            self.__data_group_uuids = None
+            self.__library_items = None
+            self.__library_item_index = None
+            self.__undelete_logs = None
+            super().close()
+
+        def _get_modified_state(self):
+            return self.__document_controller.document_model.modified_state, self.__data_group.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__document_controller.document_model.modified_state, self.__data_group.modified_state = modified_state
+
+        def perform(self):
+            document_model = self.__document_controller.document_model
+            index = self.__library_item_index
+            for library_item in self.__library_items:
+                if not document_model.get_data_item_by_uuid(library_item.uuid):
+                    self.__library_item_indexes.append(len(document_model.data_items))
+                    document_model.append_data_item(library_item)
+            for library_item in self.__library_items:
+                if not library_item in self.__data_group.data_items:
+                    self.__data_group.insert_data_item(index, library_item)
+                    self.__data_group_indexes.append(index)
+                    self.__data_group_uuids.append(library_item.uuid)
+                    index += 1
+
+        def _undo(self) -> None:
+            self.__undelete_logs = list()
+            document_model = self.__document_controller.document_model
+            library_items = [self.__data_group.data_items[index] for index in self.__data_group_indexes]
+            for library_item in library_items:
+                if library_item in self.__data_group.data_items:
+                    self.__data_group.remove_data_item(library_item)
+            library_items = [document_model.data_items[index] for index in self.__library_item_indexes]
+            for library_item in library_items:
+                if library_item in document_model.data_items:
+                    self.__undelete_logs.append(document_model.remove_data_item(library_item, safe=True))
+
+        def _redo(self) -> None:
+            document_model = self.__document_controller.document_model
+            for undelete_log in reversed(self.__undelete_logs):
+                self.__document_controller.document_model.undelete_all(undelete_log)
+            index = self.__library_item_index
+            library_items = [document_model.get_data_item_by_uuid(library_item_uuid) for library_item_uuid in reversed(self.__data_group_uuids)]
+            for library_item in library_items:
+                if not library_item in self.__data_group.data_items:
+                    self.__data_group.insert_data_item(index, library_item)
 
     class RemoveDataGroupLibraryItemsCommand(Undo.UndoableCommand):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem]):
@@ -1535,10 +1591,10 @@ class DocumentController(Window.Window):
             return self.__library_item
 
         def _get_modified_state(self):
-            return self.__document_controller.workspace_controller.document_model.modified_state
+            return self.__document_controller.document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            self.__document_controller.workspace_controller.document_model.modified_state = modified_state
+            self.__document_controller.document_model.modified_state = modified_state
 
         def _redo(self):
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
@@ -1793,12 +1849,68 @@ class DocumentController(Window.Window):
     def create_empty_data_item(self):
         self._perform_create_empty_data_item()
 
+    class InsertLibraryItemsCommand(Undo.UndoableCommand):
+
+        def __init__(self, document_controller: "DocumentController", library_items: typing.Sequence[DataItem.LibraryItem], index: int, display_panel: DisplayPanel.DisplayPanel=None):
+            super().__init__(_("Insert Library Items"))
+            self.__document_controller = document_controller
+            self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+            self.__new_workspace_layout = None
+            self.__library_items = library_items
+            self.__library_item_index = index
+            self.__library_item_indexes = list()
+            self.__display_panel = display_panel
+            self.__undelete_logs = None
+            self.initialize()
+
+        def close(self):
+            self.__document_controller = None
+            self.__old_workspace_layout = None
+            self.__new_workspace_layout = None
+            self.__library_items = None
+            self.__library_item_index = None
+            self.__undelete_logs = None
+            super().close()
+
+        def perform(self):
+            document_model = self.__document_controller.document_model
+            index = self.__library_item_index
+            for library_item in self.__library_items:
+                if not document_model.get_data_item_by_uuid(library_item.uuid):
+                    document_model.insert_data_item(index, library_item)
+                    self.__library_item_indexes.append(index)
+                    index += 1
+            if self.__display_panel and self.__library_items:
+                self.__display_panel.set_display_panel_data_item(self.__library_items[-1])
+                self.__display_panel.request_focus()
+
+        def _get_modified_state(self):
+            return self.__document_controller.document_model.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__document_controller.document_model.modified_state = modified_state
+
+        def _redo(self):
+            for undelete_log in reversed(self.__undelete_logs):
+                self.__document_controller.document_model.undelete_all(undelete_log)
+            self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+
+        def _undo(self):
+            self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+            self.__undelete_logs = list()
+            document_model = self.__document_controller.document_model
+            library_items = [document_model.data_items[index] for index in self.__library_item_indexes]
+            for library_item in library_items:
+                if library_item in document_model.data_items:
+                    self.__undelete_logs.append(document_model.remove_data_item(library_item, safe=True))
+            self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+
     # receive files into the document model. data_group and index can optionally
     # be specified. if data_group is specified, the item is added to an arbitrary
     # position in the document model (the end) and at the group at the position
     # specified by the index. if the data group is not specified, the item is added
     # at the index within the document model.
-    def receive_files(self, file_paths, data_group=None, index=-1, threaded=True, completion_fn=None):
+    def receive_files(self, file_paths, data_group=None, index=-1, threaded=True, completion_fn=None, display_panel: DisplayPanel.DisplayPanel=None):
         assert index is not None
 
         # this function will be called on a thread to receive files in the background.
@@ -1833,21 +1945,15 @@ class DocumentController(Window.Window):
                 return received_data_items
 
         def receive_files_complete(index, data_items):
-            for data_item in data_items:
-                if data_group and isinstance(data_group, DataGroup.DataGroup):
-                    if not self.document_model.get_data_item_by_uuid(data_item.uuid):
-                        self.document_model.append_data_item(data_item)
-                    if index >= 0:
-                        data_group.insert_data_item(index, data_item)
-                        index += 1
-                    else:
-                        data_group.append_data_item(data_item)
-                elif not self.document_model.get_data_item_by_uuid(data_item.uuid):
-                    if index >= 0:
-                        self.document_model.insert_data_item(index, data_item)
-                        index += 1
-                    else:
-                        self.document_model.append_data_item(data_item)
+            if data_group and isinstance(data_group, DataGroup.DataGroup):
+                command = DocumentController.InsertDataGroupLibraryItemsCommand(self, data_group, data_items, index)
+                command.perform()
+                self.push_undo_command(command)
+            else:
+                index = index if index >= 0 else len(self.document_model.data_items)
+                command = DocumentController.InsertLibraryItemsCommand(self, data_items, index, display_panel)
+                command.perform()
+                self.push_undo_command(command)
             if callable(completion_fn):
                 completion_fn(data_items)
 
