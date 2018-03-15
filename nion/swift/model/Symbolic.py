@@ -494,10 +494,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.computation_mutated_event.fire()
 
     def add_variable(self, variable: ComputationVariable) -> None:
-        count = self.item_count("variables")
-        self.append_item("variables", variable)
+        self.insert_variable(len(self.variables), variable)
+
+    def insert_variable(self, index: int, variable: ComputationVariable) -> None:
+        self.insert_item("variables", index, variable)
         self.__bind_variable(variable)
-        self.variable_inserted_event.fire(count, variable)
+        self.variable_inserted_event.fire(index, variable)
         self.computation_mutated_event.fire()
         self.needs_update = True
 

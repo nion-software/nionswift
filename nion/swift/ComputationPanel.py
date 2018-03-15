@@ -14,6 +14,7 @@ import weakref
 
 # local libraries
 from nion.swift import DataItemThumbnailWidget
+from nion.swift import Undo
 from nion.swift.model import DataItem
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
@@ -70,19 +71,215 @@ class ComputationModel:
             return self.document_controller.document_model.get_data_item_computation(self.__display_specifier.data_item)
         return None
 
+    @property
+    def computation(self):
+        return self.__computation
+
     def set_data_item(self, data_item):
         self.__set_display_specifier(DataItem.DisplaySpecifier.from_data_item(data_item))
 
-    def add_variable(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None) -> Symbolic.ComputationVariable:
+    class AddVariableCommand(Undo.UndoableCommand):
+
+        def __init__(self, computation: Symbolic.Computation, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None):
+            super().__init__(_("Add Computation Variable"))
+            self.__computation = computation
+            self.__name = name
+            self.__value_type = value_type
+            self.__value = value
+            self.__value_default = value_default
+            self.__value_min = value_min
+            self.__value_max = value_max
+            self.__control_type = control_type
+            self.__specifier = specifier
+            self.__label = label
+            self.__variable_index = None
+            self.initialize()
+
+        def close(self):
+            self.__computation = None
+            self.__name = None
+            self.__value_type = None
+            self.__value = None
+            self.__value_default = None
+            self.__value_min = None
+            self.__value_max = None
+            self.__control_type = None
+            self.__specifier = None
+            self.__label = None
+            self.__variable = None
+            super().close()
+
+        def perform(self):
+            variable = self.__computation.create_variable(self.__name, self.__value_type, self.__value, self.__value_default, self.__value_min, self.__value_max, self.__control_type, self.__specifier, self.__label)
+            self.__variable_index = self.__computation.variables.index(variable)
+
+        def _get_modified_state(self):
+            return self.__computation.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__computation.modified_state = modified_state
+
+        def _undo(self):
+            variable = self.__computation.variables[self.__variable_index]
+            self.__computation.remove_variable(variable)
+
+        def _redo(self):
+            self.perform()
+
+    class RemoveVariableCommand(Undo.UndoableCommand):
+
+        def __init__(self, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
+            super().__init__(_("Remove Computation Variable"))
+            self.__computation = computation
+            self.__variable_index = self.__computation.variables.index(variable)
+            self.__variable_dict = variable.write_to_dict()
+            self.initialize()
+
+        def close(self):
+            self.__computation = None
+            self.__variable_index = None
+            self.__variable_dict = None
+            super().close()
+
+        def perform(self):
+            variable = self.__computation.variables[self.__variable_index]
+            self.__computation.remove_variable(variable)
+
+        def _get_modified_state(self):
+            return self.__computation.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__computation.modified_state = modified_state
+
+        def _undo(self):
+            variable = Symbolic.ComputationVariable()
+            variable.read_from_dict(self.__variable_dict)
+            self.__computation.insert_variable(self.__variable_index, variable)
+
+        def _redo(self):
+            self.__computation.remove_variable(self.__computation.variables[self.__variable_index])
+
+    class CreateComputationCommand(Undo.UndoableCommand):
+
+        def __init__(self, document_model, data_item):
+            super().__init__(_("Create Computation"))
+            self.__document_model = document_model
+            self.__data_item_uuid = data_item.uuid
+            self.__computation_uuid = None
+
+        def close(self):
+            self.__document_model = None
+            self.__data_item_uuid = None
+            self.__computation_uuid = None
+            super().close()
+
+        @property
+        def _computation(self) -> Symbolic.Computation:
+            return self.__document_model.create_computation()
+
+        def perform(self):
+            data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+            computation = self.__document_model.create_computation()
+            self.__document_model.set_data_item_computation(data_item, computation)
+            self.__computation_uuid = computation.uuid
+
+        def _get_modified_state(self):
+            return self.__document_model.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__document_model.modified_state = modified_state
+
+        def _undo(self):
+            data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+            self.__document_model.set_data_item_computation(data_item, None)
+
+    class ChangeComputationCommand(Undo.UndoableCommand):
+
+        def __init__(self, computation: Symbolic.Computation, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+            super().__init__(title if title else _("Change Computation"), command_id=command_id, is_mergeable=is_mergeable)
+            self.__computation = computation
+            self.__properties = {key: getattr(computation, key) for key in kwargs.keys()}
+            self.__value_dict = kwargs
+            self.initialize()
+
+        def close(self):
+            self.__properties = None
+            self.__computation = None
+            self.__properties = None
+            self.__value_dict = None
+            super().close()
+
+        def perform(self):
+            for key, value in self.__value_dict.items():
+                setattr(self.__computation, key, value)
+
+        def _get_modified_state(self):
+            return self.__computation.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__computation.modified_state = modified_state
+
+        def _undo(self):
+            properties = self.__properties
+            self.__properties = self.__computation.write_to_dict()
+            self.__computation.read_from_dict(properties)
+
+        def can_merge(self, command: Undo.UndoableCommand) -> bool:
+            return isinstance(command, ComputationModel.ChangeComputationCommand) and self.command_id and self.command_id == command.command_id and self.__computation == command.__computation
+
+    class ChangeVariableCommand(Undo.UndoableCommand):
+
+        def __init__(self, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+            super().__init__(title if title else _("Change Computation Variable"), command_id=command_id, is_mergeable=is_mergeable)
+            self.__computation = computation
+            self.__variable_index = self.__computation.variables.index(variable)
+            self.__property_keys = kwargs.keys()
+            self.__properties = copy.deepcopy(kwargs)
+            self.initialize()
+
+        def close(self):
+            self.__properties = None
+            self.__computation = None
+            self.__properties = None
+            self.__property_keys = None
+            super().close()
+
+        def perform(self):
+            variable = self.__computation.variables[self.__variable_index]
+            properties = self.__properties
+            self.__properties = {key: getattr(variable, key) for key in self.__property_keys}
+            for key, value in properties.items():
+                setattr(variable, key, value)
+
+        def _get_modified_state(self):
+            return self.__computation.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__computation.modified_state = modified_state
+
+        def _undo(self):
+            variable = self.__computation.variables[self.__variable_index]
+            properties = self.__properties
+            self.__properties = {key: getattr(variable, key) for key in self.__property_keys}
+            for key, value in properties.items():
+                setattr(variable, key, value)
+
+        def can_merge(self, command: Undo.UndoableCommand) -> bool:
+            return isinstance(command, ComputationModel.ChangeVariableCommand) and self.command_id and self.command_id == command.command_id and self.__computation == command.__computation and self.__variable_index == command.__variable_index
+
+    def add_variable(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None) -> None:
         computation = self.__computation
         if computation:
-            return computation.create_variable(name, value_type, value, value_default, value_min, value_max, control_type, specifier)
-        return None
+            command = ComputationModel.AddVariableCommand(computation, name, value_type, value, value_default, value_min, value_max, control_type, specifier, label)
+            command.perform()
+            self.document_controller.push_undo_command(command)
 
     def remove_variable(self, variable: Symbolic.ComputationVariable) -> None:
         computation = self.__computation
         if computation:
-            computation.remove_variable(variable)
+            command = ComputationModel.RemoveVariableCommand(computation, variable)
+            command.perform()
+            self.document_controller.push_undo_command(command)
 
     @property
     def computation_label(self):
@@ -94,9 +291,13 @@ class ComputationModel:
         if data_item:
             computation = self.document_controller.document_model.get_data_item_computation(data_item)
             if not computation:
-                computation = self.document_controller.document_model.create_computation()
-            computation.label = label
-            self.document_controller.document_model.set_data_item_computation(data_item, computation)
+                command = ComputationModel.CreateComputationCommand(self.document_controller.document_model, data_item)
+                command.perform()
+                self.document_controller.push_undo_command(command)
+                computation = command._computation
+            command = ComputationModel.ChangeComputationCommand(computation, command_id="computation_change_label", is_mergeable=True, label=label)
+            command.perform()
+            self.document_controller.push_undo_command(command)
 
     @property
     def computation_text(self):
@@ -108,9 +309,13 @@ class ComputationModel:
         if data_item:
             computation = self.document_controller.document_model.get_data_item_computation(data_item)
             if not computation:
-                computation = self.document_controller.document_model.create_computation()
-            computation.expression = computation_text
-            self.document_controller.document_model.set_data_item_computation(data_item, computation)
+                command = ComputationModel.CreateComputationCommand(self.document_controller.document_model, data_item)
+                command.perform()
+                self.document_controller.push_undo_command(command)
+                computation = command._computation
+            command = ComputationModel.ChangeComputationCommand(computation, command_id="computation_change_label", is_mergeable=True, expression=computation_text)
+            command.perform()
+            self.document_controller.push_undo_command(command)
 
     @property
     def error_text(self):
@@ -194,9 +399,26 @@ class ComputationModel:
                     self.__variable_inserted(index, variable)
 
 
+class ChangeVariableBinding(Binding.PropertyBinding):
+    def __init__(self, document_controller, computation, variable, property_name: str, converter=None, fallback=None):
+        super().__init__(variable, property_name, converter=converter, fallback=fallback)
+        self.__property_name = property_name
+        self.__old_source_setter = self.source_setter
+
+        def set_value(value):
+            if value != getattr(variable, property_name):
+                command = ComputationModel.ChangeVariableCommand(computation, self.source, **{self.__property_name: value})
+                command.perform()
+                document_controller.push_undo_command(command)
+
+        self.source_setter = set_value
+
+
 class ComputationPanelSection:
 
-    def __init__(self, ui, variable, on_remove, queue_task_fn):
+    def __init__(self, document_controller, computation, variable, on_remove, queue_task_fn):
+        ui = document_controller.ui
+
         self.variable = variable
 
         section_widget = ui.create_column_widget()
@@ -223,7 +445,7 @@ class ComputationPanelSection:
 
         def make_name_type_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
             name_text_edit = ui.create_line_edit_widget()
-            name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
+            name_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "name"))
 
             type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("data_item", _("Data Item")), ("region", _("Region"))]
             type_combo_box = ui.create_combo_box_widget(items=type_items, item_getter=operator.itemgetter(1))
@@ -257,7 +479,7 @@ class ComputationPanelSection:
             value_row.add_stretch()
 
             label_text_edit = ui.create_line_edit_widget()
-            label_text_edit.bind_text(Binding.PropertyBinding(variable, "label"))
+            label_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "label"))
 
             display_row = ui.create_row_widget()
             display_row.add_spacing(8)
@@ -272,7 +494,7 @@ class ComputationPanelSection:
             column.add(value_row)
             column.add(display_row)
 
-            value_check_box.bind_checked(Binding.PropertyBinding(variable, "value"))
+            value_check_box.bind_checked(ChangeVariableBinding(document_controller, computation, variable, "value"))
 
             return column
 
@@ -299,7 +521,7 @@ class ComputationPanelSection:
             value_row.add_stretch()
 
             label_text_edit = ui.create_line_edit_widget()
-            label_text_edit.bind_text(Binding.PropertyBinding(variable, "label"))
+            label_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "label"))
 
             display_items = [("field", _("Field")), ("slider", _("Slider"))]
             display_combo_box = ui.create_combo_box_widget(items=display_items, item_getter=operator.itemgetter(1))
@@ -307,8 +529,8 @@ class ComputationPanelSection:
             display_row = ui.create_row_widget()
             display_row.add_spacing(8)
             display_row.add(label_text_edit)
-            display_row.add_spacing(4)
-            display_row.add(display_combo_box)
+            # display_row.add_spacing(4)
+            # display_row.add(display_combo_box)
             display_row.add_stretch()
 
             column = ui.create_column_widget()
@@ -319,11 +541,13 @@ class ComputationPanelSection:
             column.add(make_label_row(ui, _("Label / Display Type")))
             column.add(display_row)
 
-            value_text_edit.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
-            value_default_text_edit.bind_text(Binding.PropertyBinding(variable, "value_default", converter=converter))
-            value_min_text_edit.bind_text(Binding.PropertyBinding(variable, "value_min", converter=converter))
-            value_max_text_edit.bind_text(Binding.PropertyBinding(variable, "value_max", converter=converter))
-            display_combo_box.current_item = display_items[1]
+            value_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "value", converter=converter))
+            value_default_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "value_default", converter=converter))
+            value_min_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "value_min", converter=converter))
+            value_max_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "value_max", converter=converter))
+
+            # display_combo_box.on_current_item_changed ... handle undo
+            # display_combo_box.current_item = display_items[1]
 
             return column
 
@@ -340,11 +564,11 @@ class ComputationPanelSection:
                 uuid_row.add_spacing(8)
                 uuid_row.add(uuid_text_edit)
                 uuid_row.add_spacing(8)
-                uuid_text_edit.bind_text(Binding.PropertyBinding(variable, binding_identifier))
+                uuid_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, binding_identifier))
                 return uuid_row
 
             label_text_edit = ui.create_line_edit_widget()
-            label_text_edit.bind_text(Binding.PropertyBinding(variable, "label"))
+            label_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "label"))
 
             display_row = ui.create_row_widget()
             display_row.add_spacing(8)
@@ -381,7 +605,9 @@ class ComputationPanelSection:
         twist_down_canvas_item.on_button_clicked = toggle
 
         def change_type(variable_type):
-            variable.variable_type = variable_type
+            command = ComputationModel.ChangeVariableCommand(computation, variable, title=_("Remove Input Data Item"), variable_type=variable_type)
+            command.perform()
+            document_controller.push_undo_command(command)
 
         def select_stack(stack, variable, specifier):
             stack.remove_all()
@@ -415,7 +641,9 @@ class ComputationPanelSection:
         self.__variable_type_changed_event_listener = None
 
 
-def make_image_chooser(ui, document_model, variable, drag_fn):
+def make_image_chooser(document_controller, computation, variable, drag_fn):
+    ui = document_controller.ui
+    document_model = document_controller.document_model
     # drag_fn is necessary because it is unsafe to start a drag on the column containing the thumbnail
     # since dragging onto itself may delete the column during the drag.
     column = ui.create_column_widget(properties={"width": 80})
@@ -443,23 +671,27 @@ def make_image_chooser(ui, document_model, variable, drag_fn):
                 graphic = document_model.get_graphic_by_uuid(graphic_uuid)
                 if graphic:
                     secondary_specifier = document_model.get_object_specifier(graphic)
-            variable.variable_type = "data_item"
-            variable.secondary_specifier = secondary_specifier
-            variable.specifier = variable_specifier
+            properties = {"variable_type": "data_item", "secondary_specifier": secondary_specifier, "specifier": variable_specifier}
+            command = ComputationModel.ChangeVariableCommand(computation, variable, title=_("Remove Input Data Item"), **properties)
+            command.perform()
+            document_controller.push_undo_command(command)
             return "copy"
         if mime_data.has_format("text/data_item_uuid"):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = document_model.get_data_item_by_key(data_item_uuid)
             variable_specifier = document_model.get_object_specifier(data_item)
-            variable.variable_type = "data_item"
-            variable.secondary_specifier = None
-            variable.specifier = variable_specifier
+            properties = {"variable_type": "data_item", "secondary_specifier": dict(), "specifier": variable_specifier}
+            command = ComputationModel.ChangeVariableCommand(computation, variable, title=_("Remove Input Data Item"), **properties)
+            command.perform()
+            document_controller.push_undo_command(command)
             return "copy"
         return None
 
     def data_item_delete():
         variable_specifier = {"type": variable.variable_type, "version": 1, "uuid": str(uuid.uuid4())}
-        variable.specifier = variable_specifier
+        command = ComputationModel.ChangeVariableCommand(computation, variable, title=_("Remove Input Data Item"), specifier=variable_specifier)
+        command.perform()
+        document_controller.push_undo_command(command)
 
     data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, data_item=data_item)
     data_item_chooser_widget = DataItemThumbnailWidget.ThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(80, 80))
@@ -580,9 +812,6 @@ class EditComputationDialog(Dialog.ActionDialog):
             else:
                 self.__computation_model.clear()
 
-        def clear():
-            text_edit.text = None
-
         new_button.on_clicked = new_pressed
         update_button.on_clicked = update_pressed
         def editing_finished(text):
@@ -617,8 +846,8 @@ class EditComputationDialog(Dialog.ActionDialog):
             self.__data_item_row.add_spacing(8)
             for section in self.__sections:
                 variable = section.variable
-                if variable.variable_type in ("data_item"):
-                    widget, listeners = make_image_chooser(ui, document_controller.document_model, variable, self.content.drag)
+                if variable.variable_type in ("data_item", ):
+                    widget, listeners = make_image_chooser(document_controller, self.__computation_model.computation, variable, self.content.drag)
                     self.__listeners.extend(listeners)
                     self.__data_item_row.add(widget)
                     self.__data_item_row.add_spacing(8)
@@ -642,7 +871,7 @@ class EditComputationDialog(Dialog.ActionDialog):
         def variable_inserted(index: int, variable: Symbolic.ComputationVariable) -> None:
             def remove_variable():
                 self.__computation_model.remove_variable(variable)
-            section = ComputationPanelSection(ui, variable, remove_variable, self.document_controller.queue_task)
+            section = ComputationPanelSection(document_controller, self.__computation_model.computation, variable, remove_variable, self.document_controller.queue_task)
             self.__variable_column.insert(section.widget, index)
             self.__sections.insert(index, section)
             rebuild_data_item_row()

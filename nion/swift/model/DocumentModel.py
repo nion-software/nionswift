@@ -2131,6 +2131,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 return data_structure
         return None
 
+    def get_computation_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Symbolic.Computation]:
+        for computation in self.computations:
+            if computation.uuid == object_uuid:
+                return computation
+        return None
+
     def resolve_object_specifier(self, specifier: dict, secondary_specifier: dict=None, property_name: str=None):
         document_model = self
         if specifier.get("version") == 1:
