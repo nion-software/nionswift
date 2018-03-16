@@ -1990,6 +1990,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 return data_group
         return None
 
+    def get_data_group_or_document_model_by_uuid(self, uuid) -> typing.Optional[typing.Union["DocumentModel", DataGroup.DataGroup]]:
+        if self.uuid == uuid:
+            return self
+        for data_group in DataGroup.get_flat_data_group_generator_in_container(self):
+            if data_group.uuid == uuid:
+                return data_group
+        return None
+
     def get_data_item_count(self):
         return len(list(self.get_flat_data_item_generator()))
 

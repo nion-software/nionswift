@@ -53,7 +53,7 @@ class DisplayEditorDialog(Dialog.ActionDialog):
 
         def update_pressed():
             display_script = text_edit.text if text_edit.text else None
-            command = DisplayPanel.ChangeDisplayCommand(self.__display, title=_("Change Display Script"), display_script=display_script)
+            command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, self.__display, title=_("Change Display Script"), display_script=display_script)
             command.perform()
             document_controller.push_undo_command(command)
 

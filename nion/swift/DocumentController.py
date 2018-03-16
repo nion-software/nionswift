@@ -1020,23 +1020,34 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, before_index: int, data_item: DataItem.DataItem):
             super().__init__("Insert Library Item")
             self.__document_model = document_model
-            self.__data_group = data_group
+            self.__data_group_uuid = data_group.uuid
             self.__before_index = before_index
             self.__data_item_uuid = data_item.uuid
             self.initialize()
 
+        def close(self):
+            self.__document_model = None
+            self.__data_group_uuid = None
+            self.__before_index = None
+            self.__data_item_uuid = None
+            super().close()
+
         def _get_modified_state(self):
-            return self.__data_group.modified_state
+            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            return data_group.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            self.__data_group.modified_state = modified_state
+            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group.modified_state = modified_state
 
         def perform(self) -> None:
+            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
             data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
-            self.__data_group.insert_data_item(self.__before_index, data_item)
+            data_group.insert_data_item(self.__before_index, data_item)
 
         def _undo(self) -> None:
-            self.__data_group.remove_data_item(self.__data_group.data_items[self.__before_index])
+            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group.remove_data_item(data_group.data_items[self.__before_index])
 
         def _redo(self) -> None:
             self.perform()
@@ -1048,10 +1059,10 @@ class DocumentController(Window.Window):
         def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, library_items: typing.Sequence[DataItem.LibraryItem], index: int):
             super().__init__("Insert Library Items")
             self.__document_controller = document_controller
-            self.__data_group = data_group
+            self.__data_group_uuid = data_group.uuid
             self.__data_group_indexes = list()
             self.__data_group_uuids = list()
-            self.__library_items = library_items
+            self.__library_items = library_items  # only in perform
             self.__library_item_index = index
             self.__library_item_indexes = list()
             self.__undelete_logs = None
@@ -1059,7 +1070,7 @@ class DocumentController(Window.Window):
 
         def close(self):
             self.__document_controller = None
-            self.__data_group = None
+            self.__data_group_uuid = None
             self.__data_group_indexes = None
             self.__data_group_uuids = None
             self.__library_items = None
@@ -1068,32 +1079,37 @@ class DocumentController(Window.Window):
             super().close()
 
         def _get_modified_state(self):
-            return self.__document_controller.document_model.modified_state, self.__data_group.modified_state
+            data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            return self.__document_controller.document_model.modified_state, data_group.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            self.__document_controller.document_model.modified_state, self.__data_group.modified_state = modified_state
+            data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            self.__document_controller.document_model.modified_state, data_group.modified_state = modified_state
 
         def perform(self):
             document_model = self.__document_controller.document_model
+            data_group = document_model.get_data_group_by_uuid(self.__data_group_uuid)
             index = self.__library_item_index
             for library_item in self.__library_items:
                 if not document_model.get_data_item_by_uuid(library_item.uuid):
                     self.__library_item_indexes.append(len(document_model.data_items))
                     document_model.append_data_item(library_item)
             for library_item in self.__library_items:
-                if not library_item in self.__data_group.data_items:
-                    self.__data_group.insert_data_item(index, library_item)
+                if not library_item in data_group.data_items:
+                    data_group.insert_data_item(index, library_item)
                     self.__data_group_indexes.append(index)
                     self.__data_group_uuids.append(library_item.uuid)
                     index += 1
+            self.__library_items = None
 
         def _undo(self) -> None:
-            self.__undelete_logs = list()
             document_model = self.__document_controller.document_model
-            library_items = [self.__data_group.data_items[index] for index in self.__data_group_indexes]
+            data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            self.__undelete_logs = list()
+            library_items = [data_group.data_items[index] for index in self.__data_group_indexes]
             for library_item in library_items:
-                if library_item in self.__data_group.data_items:
-                    self.__data_group.remove_data_item(library_item)
+                if library_item in data_group.data_items:
+                    data_group.remove_data_item(library_item)
             library_items = [document_model.data_items[index] for index in self.__library_item_indexes]
             for library_item in library_items:
                 if library_item in document_model.data_items:
@@ -1101,19 +1117,20 @@ class DocumentController(Window.Window):
 
         def _redo(self) -> None:
             document_model = self.__document_controller.document_model
+            data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
             index = self.__library_item_index
             library_items = [document_model.get_data_item_by_uuid(library_item_uuid) for library_item_uuid in reversed(self.__data_group_uuids)]
             for library_item in library_items:
-                if not library_item in self.__data_group.data_items:
-                    self.__data_group.insert_data_item(index, library_item)
+                if not library_item in data_group.data_items:
+                    data_group.insert_data_item(index, library_item)
 
     class RemoveDataGroupLibraryItemsCommand(Undo.UndoableCommand):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem]):
             super().__init__("Remove Library Item")
             self.__document_model = document_model
-            self.__data_group = data_group
+            self.__data_group_uuid = data_group.uuid
             combined = [(data_group.data_items.index(data_item), data_item.uuid) for data_item in data_items]
             combined = sorted(combined, key=operator.itemgetter(0), reverse=True)
             self.__data_item_indexes = list(map(operator.itemgetter(0), combined))
@@ -1121,21 +1138,25 @@ class DocumentController(Window.Window):
             self.initialize()
 
         def _get_modified_state(self):
-            return self.__data_group.modified_state
+            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            return data_group.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            self.__data_group.modified_state = modified_state
+            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group.modified_state = modified_state
 
         def perform(self) -> None:
-            data_items = [self.__data_group.data_items[index] for index in self.__data_item_indexes]
+            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_items = [data_group.data_items[index] for index in self.__data_item_indexes]
             for data_item in data_items:
-                if data_item in self.__data_group.data_items:
-                    self.__data_group.remove_data_item(data_item)
+                if data_item in data_group.data_items:
+                    data_group.remove_data_item(data_item)
 
         def _undo(self) -> None:
+            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
             data_items = [self.__document_model.get_data_item_by_uuid(data_item_uuid) for data_item_uuid in self.__data_item_uuids]
             for index, data_item in zip(self.__data_item_indexes, data_items):
-                self.__data_group.insert_data_item(index, data_item)
+                data_group.insert_data_item(index, data_item)
 
         def _redo(self) -> None:
             self.perform()
@@ -1176,26 +1197,30 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, container: typing.Union[DataGroup.DataGroup, DocumentModel.DocumentModel], before_index: int, data_group: DataGroup.DataGroup):
             super().__init__("Insert Data Group")
             self.__document_model = document_model
-            self.__container = container
+            self.__container_uuid = container.uuid
             self.__before_index = before_index
             self.__data_group_properties = data_group.write_to_dict()
             self.__data_group_uuid = data_group.uuid
             self.initialize()
 
         def _get_modified_state(self):
-            return self.__container.modified_state
+            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            return container.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            self.__container.modified_state = modified_state
+            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            container.modified_state = modified_state
 
         def perform(self) -> None:
+            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
             data_group = DataGroup.DataGroup()
             data_group.read_from_dict(self.__data_group_properties)
-            self.__container.insert_data_group(self.__before_index, data_group)
+            container.insert_data_group(self.__before_index, data_group)
 
         def _undo(self) -> None:
+            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            self.__container.remove_data_group(data_group)
+            container.remove_data_group(data_group)
 
         def _redo(self) -> None:
             self.perform()
@@ -1207,28 +1232,32 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, container: typing.Union[DataGroup.DataGroup, DocumentModel.DocumentModel], data_group: DataGroup.DataGroup):
             super().__init__("Remove Data Group")
             self.__document_model = document_model
-            self.__container = container
+            self.__container_uuid = container.uuid
             self.__data_group_uuid = data_group.uuid
             self.__data_group_properties = None
             self.__data_group_index = None
             self.initialize()
 
         def _get_modified_state(self):
-            return self.__container.modified_state
+            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            return container.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            self.__container.modified_state = modified_state
+            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            container.modified_state = modified_state
 
         def perform(self) -> None:
+            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
             self.__data_group_properties = data_group.write_to_dict()
-            self.__data_group_index = self.__container.data_groups.index(data_group)
-            self.__container.remove_data_group(data_group)
+            self.__data_group_index = container.data_groups.index(data_group)
+            container.remove_data_group(data_group)
 
         def _undo(self) -> None:
+            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
             data_group = DataGroup.DataGroup()
             data_group.read_from_dict(self.__data_group_properties)
-            self.__container.insert_data_group(self.__data_group_index, data_group)
+            container.insert_data_group(self.__data_group_index, data_group)
 
         def _redo(self) -> None:
             self.perform()
@@ -1402,31 +1431,34 @@ class DocumentController(Window.Window):
         def __init__(self, document_controller: "DocumentController", display: Display.Display, graphics: typing.Sequence[Graphics.Graphic]):
             super().__init__(_("Remove Graphics"))
             self.__document_controller = document_controller
+            self.__display_uuid = display.uuid
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
-            self.__display = display
             self.__graphic_indexes = [display.graphics.index(graphic) for graphic in graphics]
             self.initialize()
 
         def close(self):
             self.__document_controller = None
+            self.__display_uuid = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
-            self.__display = None
             self.__graphic_indexes = None
             super().close()
 
         def perform(self):
+            display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
             self.__undelete_logs = list()
-            graphics = [self.__display.graphics[index] for index in self.__graphic_indexes]
+            graphics = [display.graphics[index] for index in self.__graphic_indexes]
             for graphic in graphics:
-                self.__undelete_logs.append(self.__display.remove_graphic(graphic, safe=True))
+                self.__undelete_logs.append(display.remove_graphic(graphic, safe=True))
 
         def _get_modified_state(self):
-            return self.__display.modified_state, self.__document_controller.document_model.modified_state
+            display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
+            return display.modified_state, self.__document_controller.document_model.modified_state
 
         def _set_modified_state(self, modified_state):
-            self.__display.modified_state, self.__document_controller.document_model.modified_state = modified_state
+            display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
+            display.modified_state, self.__document_controller.document_model.modified_state = modified_state
 
         def _undo(self):
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
@@ -1567,14 +1599,14 @@ class DocumentController(Window.Window):
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
-            self.__library_item = None
+            self.__library_item_uuid = None
             self.__library_item_fn = library_item_fn
             self.__library_item_index = None
             self.initialize()
 
         def close(self):
             self.__document_controller = None
-            self.__library_item = None
+            self.__library_item_uuid = None
             self.__library_item_fn = None
             self.__library_item_index = None
             self.__old_workspace_layout = None
@@ -1582,11 +1614,11 @@ class DocumentController(Window.Window):
             super().close()
 
         def perform(self):
-            self.__library_item = self.__library_item_fn()
+            self.__library_item_uuid = self.__library_item_fn().uuid
 
         @property
         def library_item(self):
-            return self.__library_item
+            return self.__document_controller.document_model.get_data_item_by_uuid(self.__library_item_uuid)
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -1596,13 +1628,14 @@ class DocumentController(Window.Window):
 
         def _redo(self):
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
-            self.__library_item = self.__document_controller.document_model.data_items[self.__library_item_index]
+            self.__library_item_uuid = self.__document_controller.document_model.data_items[self.__library_item_index].uuid
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
         def _undo(self):
+            library_item = self.__document_controller.document_model.get_data_item_by_uuid(self.__library_item_uuid)
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__library_item_index = self.__document_controller.document_model.data_items.index(self.__library_item)
-            self.__undelete_log = self.__document_controller.document_model.remove_data_item(self.__library_item, safe=True)
+            self.__library_item_index = self.__document_controller.document_model.data_items.index(library_item)
+            self.__undelete_log = self.__document_controller.document_model.remove_data_item(library_item, safe=True)
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def create_insert_library_item_command(self, library_item_fn: typing.Callable[[], DataItem.LibraryItem]) -> Undo.UndoableCommand:
@@ -1854,10 +1887,10 @@ class DocumentController(Window.Window):
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
-            self.__library_items = library_items
+            self.__library_items = library_items  # only used in perform
             self.__library_item_index = index
             self.__library_item_indexes = list()
-            self.__display_panel = display_panel
+            self.__display_panel = display_panel  # only used in perform
             self.__undelete_logs = None
             self.initialize()
 

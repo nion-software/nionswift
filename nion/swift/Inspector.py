@@ -214,32 +214,45 @@ class InspectorSection(Widgets.CompositeWidgetBase):
 
 
 class ChangePropertyCommand(Undo.UndoableCommand):
-    def __init__(self, library_item: DataItem.LibraryItem, property_name: str, value):
+    def __init__(self, document_model, library_item: DataItem.LibraryItem, property_name: str, value):
         super().__init__(_("Change Library Item Info"), command_id="change_property_" + property_name, is_mergeable=True)
-        self.__library_item = library_item
+        self.__document_model = document_model
+        self.__library_item_uuid = library_item.uuid
         self.__property_name = property_name
         self.__new_value = value
         self.__old_value = getattr(library_item, property_name)
         self.initialize()
 
+    def close(self):
+        self.__document_model = None
+        self.__library_item_uuid = None
+        self.__property_name = None
+        self.__new_value = None
+        self.__old_value = None
+        super().close()
+
     def perform(self):
-        setattr(self.__library_item, self.__property_name, self.__new_value)
+        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
+        setattr(library_item, self.__property_name, self.__new_value)
 
     def _get_modified_state(self):
-        return self.__library_item.modified_state
+        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
+        return library_item.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        self.__library_item.modified_state = modified_state
+        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
+        library_item.modified_state = modified_state
 
     def _undo(self) -> None:
-        self.__new_value = getattr(self.__library_item, self.__property_name)
-        setattr(self.__library_item, self.__property_name, self.__old_value)
+        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
+        self.__new_value = getattr(library_item, self.__property_name)
+        setattr(library_item, self.__property_name, self.__old_value)
 
     def _redo(self) -> None:
         self.perform()
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__library_item == command.__library_item
+        return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__library_item_uuid == command.__library_item_uuid
 
 
 class ChangePropertyBinding(Binding.PropertyBinding):
@@ -250,7 +263,7 @@ class ChangePropertyBinding(Binding.PropertyBinding):
 
         def set_value(value):
             if value != getattr(library_item, property_name):
-                command = ChangePropertyCommand(self.source, self.__property_name, value)
+                command = ChangePropertyCommand(document_controller.document_model, self.source, self.__property_name, value)
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -265,7 +278,7 @@ class ChangeDisplayPropertyBinding(Binding.PropertyBinding):
 
         def set_value(value):
             if value != getattr(display, property_name):
-                command = DisplayPanel.ChangeDisplayCommand(display, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
+                command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -280,7 +293,7 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
 
         def set_value(value):
             if value != getattr(graphic, property_name):
-                command = DisplayPanel.ChangeGraphicsCommand(display, [graphic], title=_("Change Display Type"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
+                command = DisplayPanel.ChangeGraphicsCommand(document_controller.document_model, display, [graphic], title=_("Change Display Type"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -294,7 +307,7 @@ class DisplayPropertyCommandModel(Model.PropertyModel):
 
         def property_changed_from_user(value):
             if value != getattr(display, property_name):
-                command = DisplayPanel.ChangeDisplayCommand(display, title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
+                command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display, title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -319,7 +332,7 @@ class GraphicPropertyCommandModel(Model.PropertyModel):
 
         def property_changed_from_user(value):
             if value != getattr(graphic, property_name):
-                command = DisplayPanel.ChangeGraphicsCommand(display, [graphic], title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
+                command = DisplayPanel.ChangeGraphicsCommand(document_controller.document_model, display, [graphic], title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -392,7 +405,7 @@ class InfoInspectorSection(InspectorSection):
             self.caption_static_text.bind_text(caption_binding)
             self.caption_edit_stack.current_index = 0
         def save_caption_edit():
-            command = ChangePropertyCommand(data_item, "caption", self.caption_editable_text.text)
+            command = ChangePropertyCommand(document_controller.document_model, data_item, "caption", self.caption_editable_text.text)
             command.perform()
             document_controller.push_undo_command(command)
             end_caption_edit()
@@ -489,7 +502,7 @@ class SessionInspectorSection(InspectorSection):
         def line_edit_changed(line_edit_widget, field_id, text):
             session_metadata = data_item.session_metadata
             session_metadata[field_id] = str(text)
-            command = ChangePropertyCommand(data_item, "session_metadata", session_metadata)
+            command = ChangePropertyCommand(document_controller.document_model, data_item, "session_metadata", session_metadata)
             command.perform()
             document_controller.push_undo_command(command)
             line_edit_widget.request_refocus()
@@ -532,59 +545,76 @@ class SessionInspectorSection(InspectorSection):
 
 
 class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
-    def __init__(self, library_item: DataItem.LibraryItem, intensity_calibration: Calibration.Calibration):
+    def __init__(self, document_model, library_item: DataItem.LibraryItem, intensity_calibration: Calibration.Calibration):
         super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
-        self.__library_item = library_item
+        self.__document_model = document_model
+        self.__library_item_uuid = library_item.uuid
         self.__new_intensity_calibration = intensity_calibration
         self.__old_intensity_calibration = library_item.intensity_calibration
         self.initialize()
 
+    def close(self):
+        self.__document_model = None
+        self.__library_item_uuid = None
+        self.__new_intensity_calibration = None
+        self.__old_intensity_calibration = None
+        super().close()
+
     def perform(self):
-        self.__library_item.set_intensity_calibration(self.__new_intensity_calibration)
+        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
+        library_item.set_intensity_calibration(self.__new_intensity_calibration)
 
     def _get_modified_state(self):
-        return self.__library_item.modified_state
+        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
+        return library_item.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        self.__library_item.modified_state = modified_state
+        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
+        library_item.modified_state = modified_state
 
     def _undo(self) -> None:
-        self.__new_intensity_calibration = self.__library_item.intensity_calibration
-        self.__library_item.set_intensity_calibration(self.__old_intensity_calibration)
+        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
+        self.__new_intensity_calibration = library_item.intensity_calibration
+        library_item.set_intensity_calibration(self.__old_intensity_calibration)
 
     def _redo(self) -> None:
         self.perform()
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__library_item == command.__library_item
+        return isinstance(command, ChangeIntensityCalibrationCommand) and self.command_id and self.command_id == command.command_id and self.__library_item_uuid == command.__library_item_uuid
 
 
 class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
-    def __init__(self, library_item: DataItem.LibraryItem, dimensional_calibrations: typing.List[Calibration.Calibration]):
+    def __init__(self, document_model, library_item: DataItem.LibraryItem, dimensional_calibrations: typing.List[Calibration.Calibration]):
         super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
-        self.__library_item = library_item
+        self.__document_model = document_model
+        self.__library_item_uuid = library_item.uuid
         self.__new_dimensional_calibrations = dimensional_calibrations
         self.__old_dimensional_calibrations = library_item.dimensional_calibrations
         self.initialize()
 
     def perform(self):
-        self.__library_item.set_dimensional_calibrations(self.__new_dimensional_calibrations)
+        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
+        library_item.set_dimensional_calibrations(self.__new_dimensional_calibrations)
 
     def _get_modified_state(self):
-        return self.__library_item.modified_state
+        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
+        return library_item.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        self.__library_item.modified_state = modified_state
+        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
+        library_item.modified_state = modified_state
 
     def _undo(self) -> None:
-        self.__new_dimensional_calibrations = self.__library_item.dimensional_calibrations
-        self.__library_item.set_dimensional_calibrations(self.__old_dimensional_calibrations)
+        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
+        self.__new_dimensional_calibrations = library_item.dimensional_calibrations
+        library_item.set_dimensional_calibrations(self.__old_dimensional_calibrations)
 
     def _redo(self) -> None:
         self.perform()
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__library_item == command.__library_item
+        return isinstance(command, ChangeDimensionalCalibrationsCommand) and self.command_id and self.command_id == command.command_id and self.__library_item_uuid == command.__library_item_uuid
 
 
 class CalibrationToObservable(Observable.Observable):
@@ -725,7 +755,7 @@ class CalibrationsInspectorSection(InspectorSection):
         intensity_calibration = self.__data_item.intensity_calibration or Calibration.Calibration()
 
         def change_intensity_calibration(intensity_calibration):
-            command = ChangeIntensityCalibrationCommand(self.__data_item, intensity_calibration)
+            command = ChangeIntensityCalibrationCommand(document_controller.document_model, self.__data_item, intensity_calibration)
             command.perform()
             document_controller.push_undo_command(command)
 
@@ -775,7 +805,7 @@ class CalibrationsInspectorSection(InspectorSection):
             def change_dimensional_calibration(index, dimensional_calibration):
                 dimensional_calibrations = self.__data_item.dimensional_calibrations
                 dimensional_calibrations[index] = dimensional_calibration
-                command = ChangeDimensionalCalibrationsCommand(self.__data_item, dimensional_calibrations)
+                command = ChangeDimensionalCalibrationsCommand(self.__document_controller.document_model, self.__data_item, dimensional_calibrations)
                 command.perform()
                 self.__document_controller.push_undo_command(command)
 
@@ -842,7 +872,7 @@ def make_display_type_chooser(document_controller, display: Display.Display):
 
     def change_display_type(item):
         if display.display_type != item[1]:
-            command = DisplayPanel.ChangeDisplayCommand(display, display_type=item[1], title=_("Change Display Type"), command_id="change_display_type", is_mergeable=True)
+            command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display, display_type=item[1], title=_("Change Display Type"), command_id="change_display_type", is_mergeable=True)
             command.perform()
             document_controller.push_undo_command(command)
 
@@ -869,7 +899,7 @@ def make_color_map_chooser(document_controller, display):
 
     def change_color_map(item):
         if display.color_map_id != item[1]:
-            command = DisplayPanel.ChangeDisplayCommand(display, color_map_id=item[1], title=_("Change Color Map"), command_id="change_color_map", is_mergeable=True)
+            command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display, color_map_id=item[1], title=_("Change Color Map"), command_id="change_color_map", is_mergeable=True)
             command.perform()
             document_controller.push_undo_command(command)
 
@@ -1824,37 +1854,48 @@ class GraphicsInspectorSection(InspectorSection):
 
 class ChangeComputationVariableCommand(Undo.UndoableCommand):
 
-    def __init__(self, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+    def __init__(self, document_model, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Change Computation Variable"), command_id=command_id, is_mergeable=is_mergeable)
-        self.__computation = computation
-        self.__variable = variable
-        self.__properties = self.__variable.save_properties()
+        self.__document_model = document_model
+        self.__computation_uuid = computation.uuid
+        self.__variable_index = computation.variables.index(variable)
+        self.__properties = variable.save_properties()
         self.__value_dict = kwargs
         self.initialize()
 
     def close(self):
-        self.__properties = None
+        self.__document_model = None
         self.__computation = None
-        self.__variable = None
+        self.__variable_index = None
+        self.__properties = None
+        self.__value_dict = None
         super().close()
 
     def perform(self):
+        computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+        variable = computation.variables[self.__variable_index]
         for key, value in self.__value_dict.items():
-            setattr(self.__variable, key, value)
+            setattr(variable, key, value)
 
     def _get_modified_state(self):
-        return self.__variable.modified_state
+        computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+        variable = computation.variables[self.__variable_index]
+        return variable.modified_state
 
     def _set_modified_state(self, modified_state):
-        self.__variable.modified_state = modified_state
+        computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+        variable = computation.variables[self.__variable_index]
+        variable.modified_state = modified_state
 
     def _undo(self):
+        computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+        variable = computation.variables[self.__variable_index]
         properties = self.__properties
-        self.__properties = self.__variable.save_properties()
-        self.__variable.restore_properties(properties)
+        self.__properties = variable.save_properties()
+        variable.restore_properties(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeComputationVariableCommand) and self.command_id and self.command_id == command.command_id and self.__computation == command.__computation and self.__variable == command.__variable
+        return isinstance(command, ChangeComputationVariableCommand) and self.command_id and self.command_id == command.command_id and self.__computation_uuid == command.__computation_uuid and self.__variable_index == command.__variable_index
 
 
 class ChangeComputationVariablePropertyBinding(Binding.PropertyBinding):
@@ -1865,7 +1906,7 @@ class ChangeComputationVariablePropertyBinding(Binding.PropertyBinding):
 
         def set_value(value):
             if value != getattr(variable, property_name):
-                command = ChangeComputationVariableCommand(computation, variable, title=_("Change Computation"), command_id="change_computation_" + property_name, is_mergeable=True, **{self.__property_name: value})
+                command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Change Computation"), command_id="change_computation_" + property_name, is_mergeable=True, **{self.__property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -1971,7 +2012,7 @@ def make_image_chooser(document_controller, computation, variable):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = document_model.get_data_item_by_key(data_item_uuid)
             variable_specifier = document_model.get_object_specifier(data_item)
-            command = ChangeComputationVariableCommand(computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
+            command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
             command.perform()
             document_controller.push_undo_command(command)
             return "copy"
@@ -1979,7 +2020,7 @@ def make_image_chooser(document_controller, computation, variable):
 
     def data_item_delete():
         variable_specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
-        command = ChangeComputationVariableCommand(computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
+        command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
         command.perform()
         document_controller.push_undo_command(command)
 

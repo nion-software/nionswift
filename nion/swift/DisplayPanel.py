@@ -730,142 +730,167 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
     def __init__(self, document_controller, display: Display.Display, graphics: typing.Sequence[Graphics.Graphic]):
         super().__init__(_("Insert Graphics"))
         self.__document_controller = document_controller
+        self.__display_uuid = display.uuid
+        self.__graphics = graphics  # only used for perform
         self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
         self.__new_workspace_layout = None
         self.__graphics_properties = None
-        self.__display = display
-        self.__graphics = graphics
+        self.__graphic_uuids = [graphic.uuid for graphic in graphics]
         self.__undelete_logs = None
         self.initialize()
 
     def close(self):
         self.__undelete_logs = None
         self.__graphics_properties = None
-        self.__display = None
-        self.__graphics = None
+        self.__display_uuid = None
+        self.__graphic_uuids = None
         self.__document_controller = None
         self.__old_workspace_layout = None
         self.__new_workspace_layout = None
         super().close()
 
     def perform(self):
-        for graphic in self.__graphics:
-            self.__display.add_graphic(graphic)
+        display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
+        graphics = self.__graphics
+        for graphic in graphics:
+            display.add_graphic(graphic)
+        self.__graphic_uuids = [graphic.uuid for graphic in graphics]
+        self.__graphics = None
 
     def _get_modified_state(self):
-        return self.__display.modified_state, self.__document_controller.workspace_controller.document_model.modified_state
+        display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
+        return display.modified_state, self.__document_controller.workspace_controller.document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        self.__display.modified_state, self.__document_controller.workspace_controller.document_model.modified_state = modified_state
+        display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
+        display.modified_state, self.__document_controller.workspace_controller.document_model.modified_state = modified_state
 
     def _redo(self):
+        display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
         for undelete_log in reversed(self.__undelete_logs):
             self.__document_controller.document_model.undelete_all(undelete_log)
-        self.__graphics = self.__display.graphics[-len(self.__graphics):]
+        self.__graphic_uuids = [graphic.uuid for graphic in display.graphics[-len(self.__graphic_uuids):]]
         self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
     def _undo(self):
+        display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
+        graphics = [self.__document_controller.document_model.get_graphic_by_uuid(graphic_uuid) for graphic_uuid in self.__graphic_uuids]
         self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
         self.__undelete_logs = list()
-        for graphic in self.__graphics:
-            self.__undelete_logs.append(self.__display.remove_graphic(graphic, safe=True))
+        for graphic in graphics:
+            self.__undelete_logs.append(display.remove_graphic(graphic, safe=True))
         self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
 
 class ChangeDisplayCommand(Undo.UndoableCommand):
 
-    def __init__(self, display: Display.Display, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+    def __init__(self, document_model, display: Display.Display, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Change Display"), command_id=command_id, is_mergeable=is_mergeable)
-        self.__display = display
-        self.__properties = self.__display.save_properties()
+        self.__document_model = document_model
+        self.__display_uuid = display.uuid
+        self.__properties = display.save_properties()
         self.__value_dict = kwargs
         self.initialize()
 
     def close(self):
+        self.__document_model = None
+        self.__display_uuid = None
         self.__properties = None
-        self.__display = None
         super().close()
 
     def perform(self):
+        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
         for key, value in self.__value_dict.items():
-            setattr(self.__display, key, value)
+            setattr(display, key, value)
 
     def _get_modified_state(self):
-        return self.__display.modified_state
+        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
+        return display.modified_state
 
     def _set_modified_state(self, modified_state):
-        self.__display.modified_state = modified_state
+        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
+        display.modified_state = modified_state
 
     def _undo(self):
+        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
         properties = self.__properties
-        self.__properties = self.__display.save_properties()
-        self.__display.restore_properties(properties)
+        self.__properties = display.save_properties()
+        display.restore_properties(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDisplayCommand) and self.command_id and self.command_id == command.command_id and self.__display == command.__display
-
+        return isinstance(command, ChangeDisplayCommand) and self.command_id and self.command_id == command.command_id and self.__display_uuid == command.__display_uuid
 
 
 class ChangeGraphicsCommand(Undo.UndoableCommand):
 
-    def __init__(self, display, graphics, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+    def __init__(self, document_model, display, graphics, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Change Graphics"), command_id=command_id, is_mergeable=is_mergeable)
-        self.__display = display
+        self.__document_model = document_model
+        self.__display_uuid = display.uuid
         self.__graphic_indexes = [display.graphics.index(graphic) for graphic in graphics]
         self.__properties = [graphic.write_to_dict() for graphic in graphics]
         self.__value_dict = kwargs
         self.initialize()
 
     def close(self):
+        self.__document_model = None
         self.__properties = None
-        self.__display = None
+        self.__display_uuid = None
         self.__graphic_indexes = None
         super().close()
 
     def perform(self):
-        graphics = [self.__display.graphics[index] for index in self.__graphic_indexes]
+        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
+        graphics = [display.graphics[index] for index in self.__graphic_indexes]
         for key, value in self.__value_dict.items():
             for graphic in graphics:
                 setattr(graphic, key, value)
 
     def _get_modified_state(self):
-        return self.__display.modified_state
+        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
+        return display.modified_state
 
     def _set_modified_state(self, modified_state):
-        self.__display.modified_state = modified_state
+        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
+        display.modified_state = modified_state
 
     def _undo(self):
+        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
         properties = self.__properties
-        graphics = [self.__display.graphics[index] for index in self.__graphic_indexes]
+        graphics = [display.graphics[index] for index in self.__graphic_indexes]
         self.__properties = [graphic.write_to_dict() for graphic in graphics]
         for graphic, properties in zip(graphics, properties):
             graphic.read_from_dict(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeGraphicsCommand) and self.command_id and self.command_id == command.command_id and self.__display == command.__display and self.__graphic_indexes == command.__graphic_indexes
+        return isinstance(command, ChangeGraphicsCommand) and self.command_id and self.command_id == command.command_id and self.__display_uuid == command.__display_uuid and self.__graphic_indexes == command.__graphic_indexes
 
 
 class ReplaceDisplayPanelCommand(Undo.UndoableCommand):
-    def __init__(self, display_panel):
+
+    def __init__(self, workspace_controller: "Workspace", old_workspace_layout=None):
         super().__init__("Replace Display Panel")
-        self.__display_panel = display_panel
-        self.__old_d = display_panel.save_contents()
-        self.__new_d = None
+        self.__workspace_controller = workspace_controller
+        self.__old_workspace_layout = old_workspace_layout if old_workspace_layout else workspace_controller.deconstruct()
+        self.__new_workspace_layout = None
         self.initialize()
 
+    @property
+    def _old_workspace_layout(self):
+        return self.__old_workspace_layout
+
     def _get_modified_state(self):
-        return 0
+        return self.__workspace_controller.document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-     pass
+        self.__workspace_controller.document_model.modified_state = modified_state
 
     def _undo(self) -> None:
-        self.__new_d = self.__display_panel.save_contents()
-        self.__display_panel.change_display_panel_content(self.__old_d)
+        self.__new_workspace_layout = self.__workspace_controller.deconstruct()
+        self.__workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def _redo(self) -> None:
-        self.__old_d = self.__display_panel.save_contents()
-        self.__display_panel.change_display_panel_content(self.__new_d)
+        self.__workspace_controller.reconstruct(self.__new_workspace_layout)
 
 
 class DisplayPanel(CanvasItem.CanvasItemComposition):
@@ -1232,14 +1257,12 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def _drag_finished(self, document_controller, action):
         if action == "move" and document_controller.replaced_display_panel_content is not None:
             d = document_controller.replaced_display_panel_content
-            command = ReplaceDisplayPanelCommand(self)
             self.__change_display_panel_content(document_controller, d)
             last_command = document_controller.last_undo_command
             if isinstance(last_command, ReplaceDisplayPanelCommand):
-                command.commit()
+                command = ReplaceDisplayPanelCommand(document_controller.workspace_controller, last_command._old_workspace_layout)
                 document_controller.pop_undo_command()
-                command = Undo.AggregateUndoableCommand(last_command.title, [last_command, command])
-            document_controller.push_undo_command(command)
+                document_controller.push_undo_command(command)
             document_controller.replaced_display_panel_content = None
 
     def image_clicked(self, image_position, modifiers):
@@ -1530,7 +1553,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         all_graphics = self.__display.graphics
         graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display.graphic_selection.contains(graphic_index)]
         if graphics:
-            command = ChangeGraphicsCommand(self.__display, graphics)
+            command = ChangeGraphicsCommand(self.__document_controller.document_model, self.__display, graphics)
             for graphic in graphics:
                 graphic.nudge(mapping, delta)
             self.__document_controller.push_undo_command(command)
@@ -1568,7 +1591,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__document_controller.remove_selected_graphics()
 
     def enter_key_pressed(self):
-        command = ChangeDisplayCommand(self.__display)
+        command = ChangeDisplayCommand(self.__document_controller.document_model, self.__display)
         result = self.display_canvas_item.handle_auto_display(self.__display)
         if result:
             self.__document_controller.push_undo_command(command)
@@ -1611,12 +1634,12 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return InsertGraphicsCommand(self.__document_controller, self.__display, graphics)
 
     def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> ChangeDisplayCommand:
-        return ChangeDisplayCommand(self.__display, command_id=command_id, is_mergeable=is_mergeable)
+        return ChangeDisplayCommand(self.__document_controller.document_model, self.__display, command_id=command_id, is_mergeable=is_mergeable)
 
     def create_change_graphics_command(self) -> ChangeGraphicsCommand:
         all_graphics = self.__display.graphics
         graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display.graphic_selection.contains(graphic_index)]
-        return ChangeGraphicsCommand(self.__display, graphics)
+        return ChangeGraphicsCommand(self.__document_controller.document_model, self.__display, graphics)
 
     def push_undo_command(self, command: Undo.UndoableCommand) -> None:
         self.__document_controller.push_undo_command(command)
@@ -1767,7 +1790,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         d = {"type": "image", "display-panel-type": display_panel_type}
         if data_item and display_panel_type != "empty-display-panel":
             d["data_item_uuid"] = str(data_item.uuid)
-        command = ReplaceDisplayPanelCommand(display_panel)
+        command = ReplaceDisplayPanelCommand(document_controller.workspace_controller)
         display_panel.change_display_panel_content(d)
         document_controller.push_undo_command(command)
 

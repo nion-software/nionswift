@@ -364,7 +364,7 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
                     upper_display_limit = data_min + display_limits[1] * (data_max - data_min)
                     new_display_limits = (lower_display_limit, upper_display_limit)
 
-                command = DisplayPanel.ChangeDisplayCommand(display, display_limits=new_display_limits, title=_("Change Display Limits"))
+                command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display, display_limits=new_display_limits, title=_("Change Display Limits"))
                 command.perform()
                 document_controller.push_undo_command(command)
 

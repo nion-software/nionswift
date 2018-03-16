@@ -26,7 +26,7 @@ from nion.utils import Observable
 Facade.initialize()
 
 
-class TestInspectrorClass(unittest.TestCase):
+class TestInspectorClass(unittest.TestCase):
 
     def setUp(self):
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
@@ -895,7 +895,7 @@ class TestInspectrorClass(unittest.TestCase):
             computation = document_model.get_data_item_computation(new_data_item)
             self.assertEqual(data_item, list(computation._get_variable("src").bound_item.base_objects)[0])
             specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
-            command = Inspector.ChangeComputationVariableCommand(computation, computation._get_variable("src"), specifier=specifier)
+            command = Inspector.ChangeComputationVariableCommand(document_model, computation, computation._get_variable("src"), specifier=specifier)
             command.perform()
             document_controller.push_undo_command(command)
             self.assertIsNone(computation._get_variable("src").bound_item)
@@ -918,17 +918,17 @@ class TestInspectrorClass(unittest.TestCase):
             data_item.session_metadata = session_metadata
             session_metadata = data_item.session_metadata
             session_metadata["site"] = "SS"
-            command = Inspector.ChangePropertyCommand(data_item, "session_metadata", session_metadata)
+            command = Inspector.ChangePropertyCommand(document_model, data_item, "session_metadata", session_metadata)
             command.perform()
             document_controller.push_undo_command(command)
             session_metadata = data_item.session_metadata
             session_metadata["instrument"] = "II"
-            command = Inspector.ChangePropertyCommand(data_item, "session_metadata", session_metadata)
+            command = Inspector.ChangePropertyCommand(document_model, data_item, "session_metadata", session_metadata)
             command.perform()
             document_controller.push_undo_command(command)
             session_metadata = data_item.session_metadata
             session_metadata["task"] = "TT"
-            command = Inspector.ChangePropertyCommand(data_item, "session_metadata", session_metadata)
+            command = Inspector.ChangePropertyCommand(document_model, data_item, "session_metadata", session_metadata)
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(1, document_controller._undo_stack._undo_count)
@@ -946,10 +946,10 @@ class TestInspectrorClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             document_model.append_data_item(data_item)
-            command = Inspector.ChangePropertyCommand(data_item, "title", "T")
+            command = Inspector.ChangePropertyCommand(document_model, data_item, "title", "T")
             command.perform()
             document_controller.push_undo_command(command)
-            command = Inspector.ChangePropertyCommand(data_item, "caption", "C")
+            command = Inspector.ChangePropertyCommand(document_model, data_item, "caption", "C")
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(2, document_controller._undo_stack._undo_count)
@@ -964,7 +964,7 @@ class TestInspectrorClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             document_model.append_data_item(data_item)
-            command = Inspector.ChangeIntensityCalibrationCommand(data_item, Calibration.Calibration(scale=3))
+            command = Inspector.ChangeIntensityCalibrationCommand(document_model, data_item, Calibration.Calibration(scale=3))
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(Calibration.Calibration(scale=3), data_item.intensity_calibration)
@@ -979,7 +979,7 @@ class TestInspectrorClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             document_model.append_data_item(data_item)
-            command = Inspector.ChangeDimensionalCalibrationsCommand(data_item, [Calibration.Calibration(scale=2), Calibration.Calibration(scale=3)])
+            command = Inspector.ChangeDimensionalCalibrationsCommand(document_model, data_item, [Calibration.Calibration(scale=2), Calibration.Calibration(scale=3)])
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual([Calibration.Calibration(scale=2), Calibration.Calibration(scale=3)], data_item.dimensional_calibrations)
