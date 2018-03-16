@@ -56,6 +56,7 @@ class UndoableCommand(abc.ABC):
     def undo(self):
         self._undo()
         self._set_modified_state(self.__old_modified_state)
+        self.__is_mergeable = False
 
     def redo(self):
         self._redo()
