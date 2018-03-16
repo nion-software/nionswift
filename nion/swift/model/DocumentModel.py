@@ -1510,6 +1510,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.read_from_dict(properties)
         # insert in internal list
         self.__insert_data_item(before_index, data_item, storage_handler, properties, do_write=False)
+        data_item.finish_reading()
         return data_item
 
     def insert_model_item(self, container, name, before_index, item):

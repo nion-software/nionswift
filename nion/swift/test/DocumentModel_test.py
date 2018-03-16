@@ -1533,6 +1533,52 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(numpy.full((4, 4), -3), document_model.data_items[1].data))
 
+    def test_undelete_data_item_with_double_computation(self):
+        Symbolic.register_computation_type("negate", self.Negate)
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            # create the data items
+            data_item = DataItem.DataItem(numpy.ones((4, 4)))
+            document_model.append_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
+            data_item.displays[0].add_graphic(crop_region)
+            data_item2 = document_model.get_crop_new(data_item, crop_region)
+            data_item3 = DataItem.DataItem()
+            document_model.append_data_item(data_item3)
+            # create the computation
+            computation = document_model.create_computation()
+            computation.source = data_item
+            computation.create_object("src_xdata", document_model.get_object_specifier(data_item2, "xdata"))
+            computation.create_result("dst", document_model.get_object_specifier(data_item3, "data_item"))
+            computation.processing_id = "negate"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            # check results
+            self.assertTrue(numpy.array_equal(numpy.full((2, 2), 1), data_item2.data))
+            self.assertTrue(numpy.array_equal(numpy.full((2, 2), -1), data_item3.data))
+            # remove computation and verify it was removed along with dst data item
+            undelete_log = document_model.remove_data_item(data_item, safe=True)
+            self.assertEqual(0, len(document_model.data_items))
+            self.assertEqual(0, len(document_model.computations))
+            # undelete
+            document_model.undelete_all(undelete_log)
+            document_model.recompute_all()
+            # verify state of document
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.computations))
+            self.assertEqual(1, len(document_model.get_dependent_items(document_model.data_items[0])))
+            self.assertEqual(document_model.data_items[1], document_model.get_dependent_items(document_model.data_items[0])[0])
+            self.assertEqual(1, len(document_model.get_dependent_items(document_model.data_items[1])))
+            self.assertEqual(document_model.data_items[2], document_model.get_dependent_items(document_model.data_items[1])[0])
+            # now update source data and observe the fun
+            document_model.data_items[0].set_data(numpy.full((4, 4), 2))
+            document_model.recompute_all()
+            # update data, ensure everything connected again
+            self.assertTrue(numpy.array_equal(numpy.full((2, 2), 2), document_model.data_items[1].data))
+            self.assertTrue(numpy.array_equal(numpy.full((2, 2), -2), document_model.data_items[2].data))
+
     def test_undelete_connection(self):
         document_model = DocumentModel.DocumentModel()
         self.app._set_document_model(document_model)  # required to allow API to find document model
