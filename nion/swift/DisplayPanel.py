@@ -1553,7 +1553,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         all_graphics = self.__display.graphics
         graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display.graphic_selection.contains(graphic_index)]
         if graphics:
-            command = ChangeGraphicsCommand(self.__document_controller.document_model, self.__display, graphics)
+            command = ChangeGraphicsCommand(self.__document_controller.document_model, self.__display, graphics, command_id="nudge", is_mergeable=True)
             for graphic in graphics:
                 graphic.nudge(mapping, delta)
             self.__document_controller.push_undo_command(command)
