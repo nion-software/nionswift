@@ -2216,15 +2216,7 @@ class Library(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        data_shape_and_dtype = Image.dimensional_shape_from_data(data), data.dtype
-        intensity_calibration = CalibrationModule.Calibration()
-        dimensional_calibrations = list()
-        for _ in data_shape_and_dtype[0]:
-            dimensional_calibrations.append(CalibrationModule.Calibration())
-        metadata = dict()
-        timestamp = datetime.datetime.utcnow()
-        data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
-        return self.create_data_item_from_data_and_metadata(data_and_metadata, title)
+        return self.create_data_item_from_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data), title)
 
     def create_data_item_from_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, title: str=None) -> DataItem:
         """Create a data item in the library from a data and metadata object.

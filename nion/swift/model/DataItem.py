@@ -1778,7 +1778,7 @@ def sort_by_date_key(data_item):
 
 
 def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> DataItem:
-    data_item = DataItem()
+    data_item = DataItem(large_format=data_and_metadata and len(data_and_metadata.dimensional_shape) > 2)
     data_item.ensure_data_source()
     data_item.set_xdata(data_and_metadata)
     return data_item
