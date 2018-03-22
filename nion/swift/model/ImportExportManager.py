@@ -5,11 +5,9 @@ import io
 import json
 import os
 import pathlib
+import typing
 import uuid
 import zipfile
-
-# types
-from typing import List
 
 # third party libraries
 import numpy
@@ -27,7 +25,7 @@ class ImportExportIncompatibleDataError(Exception):
     pass
 
 
-class ImportExportHandler(object):
+class ImportExportHandler:
 
     """
         A base class for implementing import/export handlers.
@@ -46,24 +44,29 @@ class ImportExportHandler(object):
         return True
 
     # return data items
-    def read_data_items(self, ui, extension, file_path):
+    def read_data_items(self, ui, extension, file_path) -> typing.Sequence[DataItem.LibraryItem]:
         data_items = list()
         if os.path.exists(file_path) or file_path.startswith(":"):  # check for colon is for testing
-            data_elements = self.read_data_elements(ui, extension, file_path)
-            for data_element in data_elements:
-                if "data" in data_element:
-                    if not "title" in data_element:
-                        root, filename = os.path.split(file_path)
-                        title, _ = os.path.splitext(filename)
-                        data_element["title"] = title
-                    data_element["filepath"] = file_path
-                    data_item = create_data_item_from_data_element(data_element, file_path)
-                    data_items.append(data_item)
+            data_items.extend(self._read_data_items(ui, extension, file_path))
+        return data_items
+
+    def _read_data_items(self, ui, extension, file_path) -> typing.Sequence[DataItem.LibraryItem]:
+        data_items = list()
+        data_elements = self.read_data_elements(ui, extension, file_path)
+        for data_element in data_elements:
+            if "data" in data_element:
+                if not "title" in data_element:
+                    root, filename = os.path.split(file_path)
+                    title, _ = os.path.splitext(filename)
+                    data_element["title"] = title
+                data_element["filepath"] = file_path
+                data_item = create_data_item_from_data_element(data_element, file_path)
+                data_items.append(data_item)
         return data_items
 
     # return data
     def read_data_elements(self, ui, extension, file_path):
-        return None
+        return list()
 
     def can_write(self, x_data, extension):
         return False
@@ -175,7 +178,8 @@ class ImportExportManager(metaclass=Utility.Singleton):
 def create_data_item_from_data_element(data_element, data_file_path=None):
     uuid_str = data_element.get("uuid")
     uuid_ = uuid.UUID(uuid_str) if uuid_str else None
-    data_item = DataItem.DataItem(item_uuid=uuid_)
+    large_format = data_element.get("large_format", False)
+    data_item = DataItem.DataItem(item_uuid=uuid_, large_format=large_format)
     update_data_item_from_data_element(data_item, data_element, data_file_path)
     return data_item
 
@@ -403,6 +407,7 @@ def create_data_element_from_extended_data(xdata: DataAndMetadata.DataAndMetadat
     data_element["version"] = 1
     data_element["reader_version"] = 1
     data_element["data"] = xdata.data
+    data_element["large_format"] = len(xdata.dimensional_shape) > 2
     dimensional_calibrations = xdata.dimensional_calibrations
     calibrations_element = list()
     for calibration in dimensional_calibrations:
@@ -569,7 +574,7 @@ class NumPyImportExportHandler(ImportExportHandler):
     def __init__(self, io_handler_id, name, extensions):
         super().__init__(io_handler_id, name, extensions)
 
-    def read_data_elements(self, ui, extension: str, path_str: str) -> List[dict]:
+    def read_data_elements(self, ui, extension: str, path_str: str) -> typing.List[dict]:
         path = pathlib.Path(path_str)
         data = numpy.load(str(path))
         metadata_path = path.with_suffix(".json")
