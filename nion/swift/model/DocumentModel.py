@@ -710,7 +710,7 @@ class ComputationQueueItem:
         self.data_item = data_item
         self.valid = True
 
-    def recompute(self) -> typing.Optional[typing.Callable[[], None]]:
+    def recompute(self) -> typing.Optional[typing.Tuple[Symbolic.Computation, typing.Callable[[], None]]]:
         # evaluate the computation in a thread safe manner
         # returns a list of functions that must be called on the main thread to finish the recompute action
         # threadsafe
@@ -740,7 +740,6 @@ class ComputationQueueItem:
                     data_item_data_modified = data_item.data_modified or datetime.datetime.min
                     data_item_clone_recorder = Recorder.Recorder(data_item_clone)
                     api_data_item = api._new_api_object(data_item_clone)
-                    error_text = computation.error_text
                     error_text = computation.evaluate_with_target(api, api_data_item)
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))

@@ -42,6 +42,7 @@ class ComputationModel:
         self.__computation_changed_or_mutated_event_listener = None
         self.__computation_variable_inserted_event_listener = None
         self.__computation_variable_removed_event_listener = None
+        self.__computation_property_changed_event_listener = None
         self.__computation_label = None
         self.__computation_text = None
         self.__error_text = None
@@ -400,6 +401,9 @@ class ComputationModel:
             if self.__computation_variable_removed_event_listener:
                 self.__computation_variable_removed_event_listener.close()
                 self.__computation_variable_removed_event_listener = None
+            if self.__computation_property_changed_event_listener:
+                self.__computation_property_changed_event_listener.close()
+                self.__computation_property_changed_event_listener = None
             computation = self.__computation
             if computation:
                 for index, variable in enumerate(computation.variables):
@@ -411,9 +415,13 @@ class ComputationModel:
                 def computation_updated(data_item, computation):
                     if data_item == self.__display_specifier.data_item:
                         self.__update_computation_display()
+                def property_changed(property):
+                    if property == "error_text":
+                        self.__update_computation_display()
                 self.__computation_changed_or_mutated_event_listener = document_model.computation_updated_event.listen(computation_updated)
                 self.__computation_variable_inserted_event_listener = computation.variable_inserted_event.listen(self.__variable_inserted)
                 self.__computation_variable_removed_event_listener = computation.variable_removed_event.listen(self.__variable_removed)
+                self.__computation_property_changed_event_listener = computation.property_changed_event.listen(property_changed)
             self.__update_computation_display()
             if computation:
                 for index, variable in enumerate(computation.variables):
