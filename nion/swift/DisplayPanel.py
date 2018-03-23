@@ -1263,7 +1263,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 command = ReplaceDisplayPanelCommand(document_controller.workspace_controller, last_command._old_workspace_layout)
                 document_controller.pop_undo_command()
                 document_controller.push_undo_command(command)
-            document_controller.replaced_display_panel_content = None
+        document_controller.replaced_display_panel_content = None
 
     def image_clicked(self, image_position, modifiers):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
