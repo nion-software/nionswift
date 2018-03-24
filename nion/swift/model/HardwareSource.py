@@ -675,6 +675,11 @@ class HardwareSource:
         pass
 
     # data_elements is a list of data_elements; may be an empty list
+    # data_elements optionally include 'channel_id', 'state', and 'sub_area'.
+    # the 'channel_id' will be used to determine channel index if applicable. default will be None / channel 0.
+    # the 'state' may be 'partial', 'complete', or 'marked' (requested stop at end of frame). default is 'complete'.
+    # the 'sub_area' will be used to determine valid sub-area if applicable.
+    # beyond these three items, the data element will be converted to xdata using convert_data_element_to_data_and_metadata.
     # thread safe
     def __data_elements_changed(self, task, data_elements, view_id, is_complete, is_stopping):
         xdatas = list()
