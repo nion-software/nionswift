@@ -1504,12 +1504,20 @@ class RecordTask:
 
         self.__data_and_metadata_list = None
 
+        # synchronize start of thread; if this sync doesn't occur, the task can be closed before the acquisition
+        # is started. in that case a deadlock occurs because the abort doesn't apply and the thread is waiting
+        # for the acquisition.
+        self.__recording_started = threading.Event()
+
         def record_thread():
             self.__hardware_source.start_recording()
+            self.__recording_started.set()
             self.__data_and_metadata_list = self.__hardware_source.get_next_xdatas_to_finish()
 
         self.__thread = threading.Thread(target=record_thread)
         self.__thread.start()
+
+        self.__recording_started.wait()
 
     def close(self) -> None:
         """Close the task.
@@ -1519,7 +1527,9 @@ class RecordTask:
 
         This method must be called when the task is no longer needed.
         """
-        self.__thread.join()
+        if self.__thread.is_alive():
+            self.__hardware_source.abort_recording()
+            self.__thread.join()
         self.__data_and_metadata_list = None
 
     @property
