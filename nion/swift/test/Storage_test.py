@@ -770,7 +770,9 @@ class TestStorageClass(unittest.TestCase):
             # logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
-    def test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload(self):
+    def disabled_test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload(self):
+        # this test is disabled for now; launching the application empties the trash until a user interface
+        # is established for restoring items in the trash.
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(workspace_dir)

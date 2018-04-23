@@ -427,6 +427,9 @@ class MemoryStorageSystem:
     def purge_removed_storage_handlers(self):
         self.trash = dict()
 
+    def prune(self):
+        pass
+
 
 from nion.swift.model import NDataHandler
 from nion.swift.model import HDF5Handler
@@ -530,6 +533,17 @@ class FileStorageSystem:
     def purge_removed_storage_handlers(self):
         self.trash = dict()
 
+    def prune(self):
+        trash_dir = os.path.join(self.__directories[0], "trash")
+        for root, dirs, files in os.walk(trash_dir):
+            if pathlib.Path(root).name == "trash":
+                for file in files:
+                    # the date is not a reliable way of determining the age since a user may trash an old file. for now,
+                    # we just delete anything in the trash at startup. future version may have an index file for
+                    # tracking items in the trash. when items are again retained in the trash, update the disabled
+                    # test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload
+                    file_path = pathlib.Path(root) / pathlib.Path(file)
+                    file_path.unlink()
 
 def read_data_items_version_stats(persistent_storage_system):
     storage_handlers = list()  # storage_handler
@@ -1142,6 +1156,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.define_property("data_item_deletions", list(), hidden=True)  # list of deleted uuids. usefor for migration.
         self.session_id = None
         self.start_new_session()
+        self.__prune()
         self.__read()
         self.__library_storage.set_property(self, "uuid", str(self.uuid))
         self.__library_storage.set_property(self, "version", 0)
@@ -1170,6 +1185,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         for hardware_source in HardwareSource.HardwareSourceManager().hardware_sources:
             self.__hardware_source_added(hardware_source)
+
+    def __prune(self):
+        self.__persistent_storage_system.prune()
 
     def __read(self):
         # first read the library (for deletions) and the library items from the primary storage systems
