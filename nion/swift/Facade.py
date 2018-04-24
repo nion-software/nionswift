@@ -2983,11 +2983,13 @@ class API_1:
 
             def _stop_acquisition(self) -> None:
                 hardware_source_delegate.stop_acquisition()
+                super()._stop_acquisition()
 
         class FacadeHardwareSource(HardwareSourceModule.HardwareSource):
 
             def __init__(self):
                 super().__init__(hardware_source_delegate.hardware_source_id, hardware_source_delegate.hardware_source_name)
+                self.features["is_video"] = True
                 self.add_data_channel()
 
             def _create_acquisition_view_task(self) -> FacadeAcquisitionTask:
