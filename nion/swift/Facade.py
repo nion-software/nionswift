@@ -2645,7 +2645,7 @@ class DocumentWindow(metaclass=SharedInstance):
 
 class Application(metaclass=SharedInstance):
 
-    release = ["library", "document_controllers", "document_windows"]
+    release = ["library", "document_controllers", "document_windows", "data_location", "document_location", "configuration_location"]
 
     def __init__(self, application):
         self.__application = application
@@ -2689,6 +2689,18 @@ class Application(metaclass=SharedInstance):
         Scriptable: Yes
         """
         return [DocumentWindow(document_controller) for document_controller in self.__application.document_controllers]
+
+    @property
+    def data_location(self):
+        return self.__application.ui.get_data_location()
+
+    @property
+    def document_location(self):
+        return self.__application.ui.get_document_location()
+
+    @property
+    def configuration_location(self):
+        return self.__application.ui.get_configuration_location()
 
 
 class DataAndMetadataIOHandlerInterface:
