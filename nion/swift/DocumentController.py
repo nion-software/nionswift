@@ -36,6 +36,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Symbolic
 from nion.ui import Dialog
+from nion.ui import PreferencesDialog
 from nion.ui import Window
 from nion.ui import UserInterface
 from nion.utils import Event
@@ -279,8 +280,8 @@ class DocumentController(Window.Window):
         self._script_action = self._edit_menu.add_menu_item(_("Script"), self.prepare_data_item_script, key_sequence="Ctrl+Shift+K")
         self._copy_uuid_action = self._edit_menu.add_menu_item(_("Copy Item UUID"), self.copy_uuid, key_sequence="Ctrl+Shift+U")
         self._empty_data_item_action = self._edit_menu.add_menu_item(_("Create New Data Item"), self.create_empty_data_item)
-        #self._edit_menu.add_separator()
-        #self.properties_action = self._edit_menu.add_menu_item(_("Properties..."), self.no_operation, role="preferences")
+        self._edit_menu.add_separator()
+        self.properties_action = self._edit_menu.add_menu_item(_("Preferences..."), self.open_preferences, role="preferences")
 
         # these are temporary menu items, so don't need to assign them to variables, for now
         self._processing_menu.add_menu_item(_("Add Line Graphic"), self.add_line_graphic)
@@ -928,6 +929,21 @@ class DocumentController(Window.Window):
         task_context_manager = Task.TaskContextManager(self, task, logging)
         self.task_created_event.fire(task)
         return task_context_manager
+
+    def open_preferences(self):
+        for dialog_weakref in self.__dialogs:
+            if isinstance(dialog_weakref(), PreferencesDialog.PreferencesDialog):
+                return
+
+        preferences_dialog = PreferencesDialog.PreferencesDialog(self.ui, self.app)
+        preferences_dialog.show()
+
+        def close_preferences():
+            self.__dialogs.remove(weakref.ref(preferences_dialog))
+
+        preferences_dialog.on_close = close_preferences
+
+        self.__dialogs.append(weakref.ref(preferences_dialog))
 
     def new_interactive_script_dialog(self):
         interactive_dialog = ScriptsDialog.RunScriptDialog(self)
