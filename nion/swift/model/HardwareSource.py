@@ -553,8 +553,8 @@ class HardwareSource:
 
     def __init__(self, hardware_source_id, display_name):
         super().__init__()
-        self.hardware_source_id = hardware_source_id
-        self.display_name = display_name
+        self.__hardware_source_id = hardware_source_id
+        self.__display_name = display_name
         self.__data_channels = list()  # type: typing.List[DataChannel]
         self.features = dict()
         self.data_channel_states_updated = Event.Event()
@@ -562,6 +562,7 @@ class HardwareSource:
         self.abort_event = Event.Event()
         self.acquisition_state_changed_event = Event.Event()
         self.data_item_states_changed_event = Event.Event()
+        self.property_changed_event = Event.Event()
         self.call_soon_event = Event.Event()
         self.__break_for_closing = False
         self.__acquire_thread_trigger = threading.Event()
@@ -577,6 +578,24 @@ class HardwareSource:
 
     def close(self):
         self.close_thread()
+
+    @property
+    def hardware_source_id(self):
+        return self.__hardware_source_id
+
+    @hardware_source_id.setter
+    def hardware_source_id(self, value):
+        self.__hardware_source_id = value
+        self.property_changed_event.fire("hardware_source_id")
+
+    @property
+    def display_name(self):
+        return self.__display_name
+
+    @display_name.setter
+    def display_name(self, value):
+        self.__display_name = value
+        self.property_changed_event.fire("display_name")
 
     def close_thread(self):
         if self.__acquire_thread:
@@ -744,6 +763,7 @@ class HardwareSource:
         self.__start_event_listeners[task_id] = task.start_event.listen(self.__start)
         self.__stop_event_listeners[task_id] = task.stop_event.listen(self.__stop)
         self.__tasks[task_id] = task
+        # TODO: sync the thread start by waiting for an event on the task which gets set when the acquire thread starts executing the task
         self.__acquire_thread_trigger.set()
         self.acquisition_state_changed_event.fire(True)
 
