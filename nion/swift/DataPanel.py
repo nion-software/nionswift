@@ -1207,13 +1207,6 @@ class DataPanel(Panel.Panel):
     def close(self):
         # data items model should not be closed since it isn't created in this object
         self.splitter.save_state("window/v1/data_panel_splitter")
-        # close the models
-        self.data_group_model_controller.close()
-        self.data_group_model_controller = None
-        for item_controller in self.__item_controllers:
-            item_controller.close()
-        self.library_model_controller.close()
-        self.library_model_controller = None
         # close the widget to stop repainting the widgets before closing the controllers.
         super().close()
         # finish closing
@@ -1221,6 +1214,14 @@ class DataPanel(Panel.Panel):
         self.data_list_controller = None
         self.data_grid_controller.close()
         self.data_grid_controller = None
+        # close the item models
+        self.data_group_model_controller.close()
+        self.data_group_model_controller = None
+        for item_controller in self.__item_controllers:
+            item_controller.close()
+        self.library_model_controller.close()
+        self.library_model_controller = None
+        # and the listeners
         self.__filter_changed_event_listener.close()
         self.__filter_changed_event_listener = None
         self.__filtered_display_items_model.close()
