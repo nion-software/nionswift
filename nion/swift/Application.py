@@ -49,6 +49,8 @@ class Application:
     def __init__(self, ui, set_global=True, resources_path=None):
         global app
 
+        ui.set_application_info("Nion Swift", "Nion", "nion.com")
+
         self.ui = ui
         self.ui.persistence_root = "3"  # sets of preferences
         self.__resources_path = resources_path
@@ -123,6 +125,10 @@ class Application:
         self.__event_loop.close()
         self.__event_loop = None
         self.ui.close()
+
+    def run(self):
+        """Alternate start which allows ui to control event loop."""
+        self.ui.run(self)
 
     def exit(self):
         # close all document windows
