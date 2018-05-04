@@ -1307,7 +1307,7 @@ class CalibratedSizeFloatToStringConverter:
 
 class CalibratedBinding(Binding.Binding):
     def __init__(self, data_item, display, value_binding, converter):
-        super().__init__(None, converter)
+        super().__init__(None, converter=converter)
         self.__value_binding = value_binding
         def update_target(value):
             self.update_target_direct(self.get_target_value())
@@ -1357,7 +1357,7 @@ class CalibratedWidthBinding(CalibratedBinding):
 
 class CalibratedLengthBinding(Binding.Binding):
     def __init__(self, data_item, display, start_binding, end_binding):
-        super().__init__(None, None)
+        super().__init__(None)
         self.__x_converter = CalibratedValueFloatToStringConverter(data_item, display, 1)
         self.__y_converter = CalibratedValueFloatToStringConverter(data_item, display, 0)
         self.__size_converter = CalibratedSizeFloatToStringConverter(data_item, display, 0)
