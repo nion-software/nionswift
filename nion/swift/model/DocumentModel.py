@@ -505,6 +505,8 @@ class FileStorageSystem:
         file_name = os.path.split(file_path)[1]
         trash_dir = os.path.join(self.__directories[0], "trash")
         new_file_path = os.path.join(trash_dir, file_name)
+        storage_handler.close()  # moving files in the storage handler requires it to be closed.
+        # TODO: move this functionality to the storage handler.
         if safe and not os.path.exists(new_file_path):
             os.makedirs(trash_dir, exist_ok=True)
             shutil.move(file_path, new_file_path)
