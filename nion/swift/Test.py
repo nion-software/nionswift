@@ -35,7 +35,7 @@ def load_tests(packages):
             if os.path.isdir(test_dir):
                 for file in os.listdir(test_dir):
                     if file.endswith("_test.py"):
-                        module_name = f"{package}.test.{file.replace('.py', '')}"
+                        module_name = package + ".test." + file.replace('.py', '')
                         module = importlib.import_module(module_name)
                         for maybe_a_class in inspect.getmembers(module):
                             if inspect.isclass(maybe_a_class[1]) and maybe_a_class[0].startswith("Test"):
