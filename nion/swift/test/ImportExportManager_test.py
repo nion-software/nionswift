@@ -102,7 +102,8 @@ class TestImportExportManagerClass(unittest.TestCase):
         self.assertIsNotNone(data_item.created)
         self.assertEqual(data_item.metadata["description"]["time_zone"]["tz"], "+0300")
         self.assertEqual(data_item.metadata["description"]["time_zone"]["dst"], "+60")
-        match = datetime.datetime(year=2015, month=6, day=10, hour=9, minute=31, second=52, microsecond=780511)
+        local_offset_seconds = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds()))
+        match = datetime.datetime(year=2015, month=6, day=10, hour=19 - 3, minute=31, second=52, microsecond=780511) + datetime.timedelta(seconds=local_offset_seconds)
         self.assertEqual(data_item.created_local, match)
 
     def test_data_element_with_uuid_assigns_uuid_to_data_item(self):
