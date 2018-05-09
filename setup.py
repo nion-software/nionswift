@@ -13,5 +13,10 @@ setuptools.setup(
         "Development Status :: 2 - Pre-Alpha"
     ],
     include_package_data=True,
-    test_suite="nion.swift.test"
+    test_suite="nion.swift.test",
+    entry_points={
+        'console_scripts': [
+            'nionswift=nion.swift.command:main',
+            ],
+        },
 )
