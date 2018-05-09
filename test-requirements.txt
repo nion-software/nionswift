@@ -1,0 +1,15 @@
+# This file allows installation of test requirements.
+#
+# Use it like this:
+#   pip install -r test-requirements.txt
+
+-e git://github.com/nion-software/nionutils.git#egg=nionutils
+-e git://github.com/nion-software/nionui.git#egg=nionui
+-e git://github.com/nion-software/niondata.git#egg=niondata
+
+scipy
+numpy
+h5py
+pytz
+tzlocal
+pillow
