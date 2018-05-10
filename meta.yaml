@@ -1,0 +1,52 @@
+# build with `conda build -c defaults -c conda-forge .`
+
+package:
+  name: 'nionswift'
+  version: '0.13.0'
+
+source:
+  git_rev: 0.13.0
+  git_url: https://github.com/nion-software/nionswift.git
+
+build:
+  noarch: python
+  number: 0
+  script: python -m pip install --no-deps --ignore-installed .
+  include_recipe: False
+
+requirements:
+  host:
+    - python
+    - setuptools
+  run:
+    - python >=3.5
+    - nionutils >=0.3.10
+    - niondata >=0.13.0
+    - nionui >=0.3.10
+    - nionswift-io >=0.13.0
+    - scipy
+    - numpy
+    - h5py
+    - pytz
+    - tzlocal
+    - pillow
+
+test:
+  imports:
+    - nion.swift
+    - nion.swift.model
+    - nion.swift.test
+    - nionui_app.nionswift
+    - nionswift_plugin.none
+    - nionlib
+    - nion.typeshed
+
+about:
+  home: https://github.com/nion-software/nionswift
+  license: GPL-3.0
+  summary: Nion Swift image and data processing application.
+  description: "An application for image and data processing."
+
+extra:
+  recipe-maintainers:
+    cmeyer

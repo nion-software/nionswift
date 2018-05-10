@@ -3,6 +3,15 @@
 Release Notes
 =============
 
+Version 0.13.0, May 10, 2018
+----------------------------
+* (2018-05-03) Add support for launching using pyqt backend (simpler install).
+* (2018-03-26) Add support for preference panels in internal packages (video capture).
+* (2018-03-21) Add undo capability for most operations (early version, proceed with caution).
+* (2018-03-09) Fix issues with live computations not displaying error messages consistently.
+* (2018-03-09) Clean up issues with source and dependent data thumbnails on displays.
+* (2018-03-08) Fix histogram update issues.
+
 Version 0.12.0, March 6, 2018
 -----------------------------
 * (2018-03-05) Improve About Box to give additional Python and important package version info.
