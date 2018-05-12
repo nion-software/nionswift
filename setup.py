@@ -5,7 +5,7 @@ import os
 
 setuptools.setup(
     name="nionswift",
-    version="0.13.0",
+    version="0.13.1",
     packages=["nion.swift", "nion.swift.model", "nion.swift.test", "nionui_app.nionswift", "nionswift_plugin.none", "nionlib", "nion.typeshed"],
     package_data={"nion.swift": ["resources/*"]},
     install_requires=['scipy', 'numpy', 'h5py', 'pytz', 'tzlocal', 'pillow', 'nionutils', 'niondata', 'nionui', 'nionswift-io'],
