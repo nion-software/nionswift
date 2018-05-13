@@ -10,9 +10,11 @@ source:
 
 build:
   noarch: python
-  number: 0
+  number: 1
   script: python -m pip install --no-deps --ignore-installed .
   include_recipe: False
+  entry_points:
+    - nionswift = nion.swift.command:main
 
 requirements:
   host:
