@@ -38,11 +38,17 @@ Windows
 -------
 Nion Swift for Windows requires Windows 7 or later, although we recommend Windows 10 for best compatibility.
 
-Install Nion Swift using the command:
+If you have just installed conda or wish to create a new Nion Swift specific environment::
 
-    $ \path\to\python\Scripts\conda install -c defaults -c conda-forge -c nion nionswift
+    $ C:\path\to\python\Scripts\activate root
+    $ conda create -n nionswift -c nion nionswift nionswift-tool
+    $ conda activate nionswift
 
-Launch Nion Swift from your conda command line environment using:
+If you already have a conda environment, install Nion Swift using the command::
+
+    $ conda install -c nion nionswift nionswift-tool
+
+Launch Nion Swift from your conda command line environment using::
 
     $ nionswift
 
@@ -50,11 +56,17 @@ MacOS
 -----
 Nion Swift for macOS requires macOS 10.11 or later. We recommend using the latest version of macOS.
 
-Install Nion Swift using the command:
+If you have just installed conda or wish to create a new Nion Swift specific environment::
 
-    $ /path/to/python/Scripts/conda install -c defaults -c conda-forge -c nion nionswift
+    $ source /path/to/python/Scripts/activate root
+    $ conda create -n nionswift -c nion nionswift nionswift-tool
+    $ conda activate nionswift
 
-Launch Nion Swift from your conda command line environment using:
+If you already have a conda environment, install Nion Swift using the command::
+
+    $ conda install -c nion nionswift nionswift-tool
+
+Launch Nion Swift from your conda command line environment using::
 
     $ nionswift
 
@@ -65,24 +77,43 @@ Nion Swift for Linux requires Qt 5.5 or later (qt5-default), Python 3.5 or later
 Swift has been tested with Ubuntu 16.04, 17.04, 17.10, Debian 9, Fedora 26. It is not compatible with Debian 8 (Qt 5.3)
 but please contact us if you need to run on Debian 8 as there may be workarounds.
 
-Install Nion Swift using the Terminal command:
+If you have just installed conda or wish to create a new Nion Swift specific environment::
 
-    $ /path/to/python/Scripts/conda install -c defaults -c conda-forge -c nion nionswift
+    $ source /path/to/python/Scripts/activate root
+    $ conda create -n nionswift -c nion nionswift nionswift-tool
+    $ conda activate nionswift
 
-Launch Nion Swift from your Terminal conda environment using:
+If you already have a conda environment, install Nion Swift using the command::
+
+    $ conda install -c nion nionswift
+
+Launch Nion Swift from your Terminal conda environment using::
 
     $ nionswift
 
 Installing Nion Swift Extensions
 --------------------------------
-Extensions for Nion Swift can be installed in your Python environment using the ``pip`` installation tool.
+Extensions for Nion Swift can be installed in your Python environment using the ``conda`` (preferred) or ``pip``
+installation tools.
 
-For example, you can install the Nion STEM microscope simulator using the either of the following commands ::
+For example, you can install the Nion STEM microscope simulator using the either of the following commands::
+
+    $ conda -c nion install nionswift-usim
+
+or ::
 
     $ pip install nionswift-usim
 
-or
-
-    $ conda -c defaults -c conda-forge -c nion install nionswift-usim
-
 After restarting Nion Swift, the microscope simulator would be available within Nion Swift.
+
+Here are several extensions that may prove useful:
+
+=======================  =====  ===  =================================================================
+Project Name             Conda  Pip  Description
+=======================  =====  ===  =================================================================
+nionswift-usim           Yes    Yes  A STEM microscope simulator for development
+nionswift-eels-analysis  Yes    Yes  Tools for EELS analysis
+nionswift-video-capture  Yes    No   Capture video from your computer's camera or a web stream.
+                                     Requires conda opencv.
+nionswift-experimental   Yes    Yes  Experimental tools (see project home page for details).
+=======================  =====  ===  =================================================================
