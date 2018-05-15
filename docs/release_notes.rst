@@ -3,6 +3,10 @@
 Release Notes
 =============
 
+Version 0.13.2, May 16, 2018
+----------------------------
+* (2018-05-15) Add support for scaling on high DPI displays (Windows).
+
 Version 0.13.0, May 10, 2018
 ----------------------------
 * (2018-05-03) Add support for launching using pyqt backend (simpler install).
