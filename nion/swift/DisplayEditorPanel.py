@@ -30,15 +30,15 @@ class DisplayEditorDialog(Dialog.ActionDialog):
         # if both are done on the text edit widget itself, which would be preferred, Qt seems
         # to give up on layout when the scroll bar appears for too many lines.
 
-        text_edit_row = ui.create_row_widget(properties={"stylesheet": "min-height: 180"})
+        text_edit_row = ui.create_row_widget(properties={"min-height": 180})
         text_edit = ui.create_text_edit_widget()
         text_edit.placeholder_text = _("No Display Script")
         text_edit_row.add_spacing(8)
         text_edit_row.add(text_edit)
         text_edit_row.add_spacing(8)
 
-        error_row = ui.create_row_widget(properties={"stylesheet": "min-width: 320"})  # the stylesheet allows it to shrink. guh.
-        error_label = ui.create_label_widget("\n", properties={"stylesheet": "color: red; min-width: 120"})
+        error_row = ui.create_row_widget(properties={"min-width": 320})  # the stylesheet allows it to shrink. guh.
+        error_label = ui.create_label_widget("\n", properties={"stylesheet": "color: red", "min-width": 120})
         error_label.word_wrap = True
         error_row.add_spacing(8)
         error_row.add(error_label)

@@ -163,7 +163,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
 
     @property
     def header_height(self):
-        return self.__metrics.get_font_metrics(self.__font, "abc").height + 3 + self.__text_offset * self.__metrics.display_scaling
+        return self.__metrics.get_font_metrics(self.__font, "abc").height + 3 + self.__text_offset
 
     @property
     def title(self):
@@ -225,7 +225,11 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         canvas_size = self.canvas_size
         select_ok = self.__mouse_pressed_position is not None
         if self.__display_close_control:
-            if x > canvas_size.width - 20 + 4 and x < canvas_size.width - 20 + 18 and y > 2 and y < canvas_size.height - 2:
+            close_box_left = canvas_size.width - (20 - 4)
+            close_box_right = canvas_size.width - (20 - 18)
+            close_box_top = 2
+            close_box_bottom = canvas_size.height - 2
+            if x > close_box_left and x < close_box_right and y > close_box_top and y < close_box_bottom:
                 on_close_clicked = self.on_close_clicked
                 if callable(on_close_clicked):
                     on_close_clicked()
@@ -280,19 +284,23 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
                 drawing_context.begin_path()
                 # line is adjust 1/2 pixel down to align to pixel boundary
                 drawing_context.move_to(0.5, 1.5)
-                drawing_context.line_to(0.5, canvas_size.height-0.5)
+                drawing_context.line_to(0.5, canvas_size.height - 0.5)
                 drawing_context.move_to(canvas_size.width - 0.5, 1.5)
-                drawing_context.line_to(canvas_size.width - 0.5, canvas_size.height-0.5)
+                drawing_context.line_to(canvas_size.width - 0.5, canvas_size.height - 0.5)
                 drawing_context.stroke_style = self.__side_stroke_style
                 drawing_context.stroke()
 
         if self.__display_close_control:
             with drawing_context.saver():
                 drawing_context.begin_path()
-                drawing_context.move_to(canvas_size.width - 20 + 7, canvas_size.height//2 - 3)
-                drawing_context.line_to(canvas_size.width - 20 + 13, canvas_size.height//2 + 3)
-                drawing_context.move_to(canvas_size.width - 20 + 7, canvas_size.height//2 + 3)
-                drawing_context.line_to(canvas_size.width - 20 + 13, canvas_size.height//2 - 3)
+                close_box_left = canvas_size.width - (20 - 7)
+                close_box_right = canvas_size.width - (20 - 13)
+                close_box_top = canvas_size.height // 2 - 3
+                close_box_bottom = canvas_size.height // 2 + 3
+                drawing_context.move_to(close_box_left, close_box_top)
+                drawing_context.line_to(close_box_right, close_box_bottom)
+                drawing_context.move_to(close_box_left, close_box_bottom)
+                drawing_context.line_to(close_box_right, close_box_top)
                 drawing_context.line_width = 1.5
                 drawing_context.line_cap = "round"
                 drawing_context.stroke_style = self.__control_style
@@ -303,11 +311,11 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
             drawing_context.text_align = 'left'
             drawing_context.text_baseline = 'bottom'
             drawing_context.fill_style = '#888'
-            drawing_context.fill_text(self.label, 8, canvas_size.height - self.__text_offset * self.__metrics.display_scaling)
+            drawing_context.fill_text(self.label, 8, canvas_size.height - self.__text_offset)
 
         with drawing_context.saver():
             drawing_context.font = self.__font
             drawing_context.text_align = 'center'
             drawing_context.text_baseline = 'bottom'
             drawing_context.fill_style = '#000'
-            drawing_context.fill_text(self.title, canvas_size.width // 2, canvas_size.height - self.__text_offset * self.__metrics.display_scaling)
+            drawing_context.fill_text(self.title, canvas_size.width // 2, canvas_size.height - self.__text_offset)
