@@ -34,6 +34,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Utility
+from nion.ui import Application as UIApplication
 from nion.ui import Dialog
 from nion.ui import Widgets
 from nion.utils import Selection
@@ -44,14 +45,15 @@ app = None
 
 
 # facilitate bootstrapping the application
-class Application:
+class Application(UIApplication.Application):
 
     def __init__(self, ui, set_global=True, resources_path=None):
+        super().__init__(ui)
+
         global app
 
         ui.set_application_info("Nion Swift", "Nion", "nion.com")
 
-        self.ui = ui
         self.ui.persistence_root = "3"  # sets of preferences
         self.__resources_path = resources_path
         self.version_str = "0.13.0"
@@ -63,10 +65,6 @@ class Application:
             app = self  # hack to get the single instance set. hmm. better way?
 
         self.__document_model = None
-
-        logger = logging.getLogger()
-        logger.setLevel(logging.DEBUG)
-        logger.addHandler(logging.StreamHandler())
 
         # a list of document controllers in the application.
         self.__document_controllers = []
@@ -87,7 +85,7 @@ class Application:
         workspace_manager.register_panel(InfoPanel.InfoPanel, "info-panel", _("Info"), ["left", "right"], "right", {"min-width": 320, "height": 60})
         workspace_manager.register_panel(Inspector.InspectorPanel, "inspector-panel", _("Inspector"), ["left", "right"], "right", {"min-width": 320})
         workspace_manager.register_panel(Task.TaskPanel, "task-panel", _("Task Panel"), ["left", "right"], "right", {"min-width": 320})
-        workspace_manager.register_panel(Panel.OutputPanel, "output-panel", _("Output"), ["bottom"], "bottom")
+        workspace_manager.register_panel(Panel.OutputPanel, "output-panel", _("Output"), ["bottom"], "bottom", {"min-width": 480, "min-height": 200})
         workspace_manager.register_panel(ToolbarPanel.ToolbarPanel, "toolbar-panel", _("Toolbar"), ["top"], "top", {"height": 30})
         workspace_manager.register_panel(MetadataPanel.MetadataPanel, "metadata-panel", _("Metadata"), ["left", "right"], "right", {"width": 320, "height": 8})
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
@@ -164,7 +162,7 @@ class Application:
         if not os.path.exists(library_path_12):
             if os.path.exists(library_path_11):
                 if welcome_message_enabled:
-                    logging.debug("Migrating from library 11 to 12: %s -> %s", library_path_11, library_path_12)
+                    logging.info("Migrating from library 11 to 12: %s -> %s", library_path_11, library_path_12)
                 shutil.copyfile(library_path_11, library_path_12)
         return library_path_12
 
@@ -203,10 +201,10 @@ class Application:
         create_new_document = not os.path.exists(library_path)
         if create_new_document:
             if welcome_message_enabled:
-                logging.debug("Creating new document: %s", library_path)
+                logging.info("Creating new document: %s", library_path)
         else:
             if welcome_message_enabled:
-                logging.debug("Using existing document %s", library_path)
+                logging.info("Using existing document %s", library_path)
         library_storage = DocumentModel.FilePersistentStorage(library_path)
         file_persistent_storage_system = DocumentModel.FileStorageSystem([os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))])
         counts = DocumentModel.read_data_items_version_stats(file_persistent_storage_system)

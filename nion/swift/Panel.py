@@ -10,6 +10,7 @@ import weakref
 # None
 
 # local libraries
+from nion.ui import Application
 from nion.ui import CanvasItem
 from nion.utils import Geometry
 from nion.utils import Process
@@ -79,15 +80,22 @@ class OutputPanel(Panel):
     def __init__(self, document_controller, panel_id, properties):
         super().__init__(document_controller, panel_id, "Output")
         properties["min-height"] = 180
-        properties["stylesheet"] = "background: white; font-family: Monaco, Courier, monospace"
+        # TODO: move font-size into launcher
+        font_size = int(12 * document_controller.display_scaling)
+        properties["stylesheet"] = "background: white; font-family: Monaco, Courier, monospace; font-size: " + str(font_size) + "pt"
         self.widget = self.ui.create_text_edit_widget(properties)
         output_widget = self.widget  # no access to OutputPanel.self inside OutputPanelHandler
+
         class OutputPanelHandler(logging.Handler):
-            def __init__(self, ui):
+
+            def __init__(self, ui, records):
                 super().__init__()
                 self.ui = ui
                 self.__lock = threading.RLock()
                 self.__q = collections.deque()
+                for record in records:
+                    self.emit(record)
+
             def emit(self, record):
                 if record.levelno >= logging.INFO:
                     def safe_emit():
@@ -101,7 +109,8 @@ class OutputPanel(Panel):
                         safe_emit()
                     else:
                         document_controller.queue_task(safe_emit)
-        self.__output_panel_handler = OutputPanelHandler(document_controller.ui)
+
+        self.__output_panel_handler = OutputPanelHandler(document_controller.ui, Application.logging_handler.take_records())
         logging.getLogger().addHandler(self.__output_panel_handler)
 
     def close(self):
