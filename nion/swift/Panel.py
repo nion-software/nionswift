@@ -80,40 +80,61 @@ class OutputPanel(Panel):
     def __init__(self, document_controller, panel_id, properties):
         super().__init__(document_controller, panel_id, "Output")
         properties["min-height"] = 180
-        # TODO: move font-size into launcher
-        font_size = int(12 * document_controller.display_scaling)
-        properties["stylesheet"] = "background: white; font-family: Monaco, Courier, monospace; font-size: " + str(font_size) + "pt"
+        if sys.platform != "win32":
+            properties["font-size"] = 12
+        properties["stylesheet"] = "background: white; font-family: Monaco, Courier, monospace"
         self.widget = self.ui.create_text_edit_widget(properties)
         output_widget = self.widget  # no access to OutputPanel.self inside OutputPanelHandler
+        self.__lock = threading.RLock()
+        self.__q = collections.deque()
+
+        def safe_emit():
+            with self.__lock:
+                while len(self.__q) > 0:
+                    output_widget.move_cursor_position("end")
+                    output_widget.append_text(self.__q.popleft())
+
+        def queue_message(message):
+            with self.__lock:
+                self.__q.append(message.strip())
+            if threading.current_thread().getName() == "MainThread":
+                safe_emit()
+            else:
+                document_controller.queue_task(safe_emit)
 
         class OutputPanelHandler(logging.Handler):
 
-            def __init__(self, ui, records):
+            def __init__(self, queue_message_fn, records):
                 super().__init__()
-                self.ui = ui
-                self.__lock = threading.RLock()
-                self.__q = collections.deque()
+                self.queue_message_fn = queue_message_fn
                 for record in records:
                     self.emit(record)
 
             def emit(self, record):
                 if record.levelno >= logging.INFO:
-                    def safe_emit():
-                        with self.__lock:
-                            while len(self.__q) > 0:
-                                output_widget.move_cursor_position("end")
-                                output_widget.append_text(self.__q.popleft())
-                    with self.__lock:
-                        self.__q.append(record.getMessage().strip())
-                    if threading.current_thread().getName() == "MainThread":
-                        safe_emit()
-                    else:
-                        document_controller.queue_task(safe_emit)
+                    self.queue_message_fn(record.getMessage())
 
-        self.__output_panel_handler = OutputPanelHandler(document_controller.ui, Application.logging_handler.take_records())
+        self.__output_panel_handler = OutputPanelHandler(queue_message, Application.logging_handler.take_records())
+
         logging.getLogger().addHandler(self.__output_panel_handler)
 
+        self.__old_stdout = sys.stdout
+        self.__old_stderr = sys.stderr
+
+        class StdoutCatcher:
+            def __init__(self):
+                pass
+            def write(self, stuff):
+                queue_message(stuff)
+            def flush(self):
+                pass
+
+        sys.stdout = StdoutCatcher()
+        sys.stderr = sys.stdout
+
     def close(self):
+        sys.stdout = self.__old_stdout
+        sys.stderr = self.__old_stderr
         logging.getLogger().removeHandler(self.__output_panel_handler)
         super().close()
 
