@@ -365,7 +365,7 @@ def convert_data_element_to_data_and_metadata_1(data_element) -> DataAndMetadata
     timestamp = utc_datetime
     metadata.setdefault("description", dict())["time_zone"] = time_zone
 
-    return DataAndMetadata.new_data_and_metadata(data, intensity_calibration, dimensional_calibrations, metadata=metadata, timestamp=timestamp, data_descriptor=data_descriptor)
+    return DataAndMetadata.new_data_and_metadata(data, intensity_calibration=intensity_calibration, dimensional_calibrations=dimensional_calibrations, metadata=metadata, timestamp=timestamp, data_descriptor=data_descriptor)
 
 
 def create_data_element_from_data_item(data_item, include_data=True):

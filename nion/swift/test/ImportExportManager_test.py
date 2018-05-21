@@ -150,7 +150,7 @@ class TestImportExportManagerClass(unittest.TestCase):
         metadata = {"hardware_source": {"one": 1, "two": "b"}}
         timestamp = datetime.datetime.now()
         data_descriptor = DataAndMetadata.DataDescriptor(is_sequence=False, collection_dimension_count=1, datum_dimension_count=1)
-        xdata = DataAndMetadata.new_data_and_metadata(data, intensity_calibration, dimensional_calibrations, metadata, timestamp, data_descriptor)
+        xdata = DataAndMetadata.new_data_and_metadata(data, intensity_calibration=intensity_calibration, dimensional_calibrations=dimensional_calibrations, metadata=metadata, timestamp=timestamp, data_descriptor=data_descriptor)
         data_element = ImportExportManager.create_data_element_from_extended_data(xdata)
         new_xdata = ImportExportManager.convert_data_element_to_data_and_metadata(data_element)
         self.assertTrue(numpy.array_equal(data, new_xdata.data))
