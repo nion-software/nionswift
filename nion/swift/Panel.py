@@ -107,7 +107,7 @@ class OutputPanel(Panel):
             def __init__(self, queue_message_fn, records):
                 super().__init__()
                 self.queue_message_fn = queue_message_fn
-                for record in records:
+                for record in records or list():
                     self.emit(record)
 
             def emit(self, record):
