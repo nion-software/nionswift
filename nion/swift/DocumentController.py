@@ -346,6 +346,7 @@ class DocumentController(Window.Window):
         self._processing_reduce_menu.add_menu_item(_("Slice Sum"), functools.partial(self.__processing_new, self.document_model.get_slice_sum_new))
         self._processing_reduce_menu.add_menu_item(_("Pick"), functools.partial(self.__processing_new, self.document_model.get_pick_new))
         self._processing_reduce_menu.add_menu_item(_("Pick Region (Sum)"), functools.partial(self.__processing_new, self.document_model.get_pick_region_new))
+        self._processing_reduce_menu.add_menu_item(_("Pick Region (Average)"), functools.partial(self.__processing_new, self.document_model.get_pick_region_average_new))
         self._processing_reduce_menu.add_menu_item(_("Projection (Sum)"), functools.partial(self.__processing_new, self.document_model.get_projection_new))
 
         self._processing_arithmetic_menu = self.create_sub_menu()
@@ -356,6 +357,8 @@ class DocumentController(Window.Window):
         self._processing_arithmetic_menu.add_menu_item(_("Multiply"), functools.partial(self.__processing_new2, self.document_model.get_multiply_new))
         self._processing_arithmetic_menu.add_menu_item(_("Divide"), functools.partial(self.__processing_new2, self.document_model.get_divide_new))
         self._processing_arithmetic_menu.add_menu_item(_("Negate"), functools.partial(self.__processing_new, self.document_model.get_invert_new))
+        self._processing_arithmetic_menu.add_separator()
+        self._processing_arithmetic_menu.add_menu_item(_("Subtract Region Average"), functools.partial(self.__processing_new, self.document_model.get_subtract_region_average_new))
 
         self._processing_sequence_menu = self.create_sub_menu()
         self._processing_menu.add_sub_menu(_("Sequence"), self._processing_sequence_menu)

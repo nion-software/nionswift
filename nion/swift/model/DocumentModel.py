@@ -3220,6 +3220,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             vs["pick-mask-sum"] = {"title": _("Pick Sum"), "expression": "xd.sum_region({src}, region.mask_xdata_with_shape({src}.data_shape[0:2]))",
                 "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
                 "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}
+            vs["pick-mask-average"] = {"title": _("Pick Average"), "expression": "xd.average_region({src}, region.mask_xdata_with_shape({src}.data_shape[0:2]))",
+                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
+                "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}
+            vs["subtract-mask-average"] = {"title": _("Subtract Average"), "expression": "{src} - xd.average_region({src}, region.mask_xdata_with_shape({src}.data_shape[0:2]))",
+                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
+                "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}
             line_profile_in_region = {"name": "line_region", "type": "line", "params": {"label": _("Line Profile")}}
             line_profile_connection = {"type": "interval_list", "src": "data_source", "dst": "line_region"}
             vs["line-profile"] = {"title": _("Line Profile"), "expression": "xd.line_profile({src}, line_region.vector, line_region.line_width)",
@@ -3329,6 +3335,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def get_pick_region_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
         return self.__make_computation("pick-mask-sum", [(data_item, crop_region)], {"src": [pick_region]})
+
+    def get_pick_region_average_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
+        return self.__make_computation("pick-mask-average", [(data_item, crop_region)], {"src": [pick_region]})
+
+    def get_subtract_region_average_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
+        return self.__make_computation("subtract-mask-average", [(data_item, crop_region)], {"src": [pick_region]})
 
     def get_line_profile_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, line_region: Graphics.LineTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("line-profile", [(data_item, crop_region)], {"src": [line_region]})

@@ -3,6 +3,15 @@
 Release Notes
 =============
 
+Version 0.13.4, UNRELEASED
+--------------------------
+* (2018-05-22) Add pick region (average) and subtract region average processing menu items.
+* (2018-05-22) Make the processing menu more compact using sub-menus.
+
+Version 0.13.3, May 18, 2018
+----------------------------
+* (2018-05-15) Consolidate output mechanisms to output window.
+
 Version 0.13.2, May 16, 2018
 ----------------------------
 * (2018-05-15) Add support for scaling on high DPI displays (Windows).

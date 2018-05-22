@@ -126,6 +126,8 @@ class TestProcessingClass(unittest.TestCase):
         processing_list.append((data_item_real, self.document_model.get_slice_sum_new, {}))
         processing_list.append((data_item_real, self.document_model.get_pick_new, {}))
         processing_list.append((data_item_real, self.document_model.get_pick_region_new, {}))
+        processing_list.append((data_item_real, self.document_model.get_pick_region_average_new, {}))
+        processing_list.append((data_item_real, self.document_model.get_subtract_region_average_new, {}))
 
         for source_data_item, fn, params in processing_list:
             data_item = fn(source_data_item)
@@ -357,6 +359,7 @@ class TestProcessingClass(unittest.TestCase):
             processing_list.append((data_item, self.document_model.get_slice_sum_new, {}))
             processing_list.append((data_item, self.document_model.get_pick_new, {}))
             processing_list.append((data_item, self.document_model.get_pick_region_new, {}))
+            processing_list.append((data_item, self.document_model.get_pick_region_average_new, {}))
             processing_list.append((data_item, self.document_model.get_resample_new, {"width": 128, "height": 128}))
             processing_list.append((data_item, self.document_model.get_histogram_new, {}))
             processing_list.append((data_item, self.document_model.get_line_profile_new, {}))
@@ -398,6 +401,8 @@ class TestProcessingClass(unittest.TestCase):
         processing_list.append((data_item, self.document_model.get_slice_sum_new, {}))
         processing_list.append((data_item, self.document_model.get_pick_new, {}))
         processing_list.append((data_item, self.document_model.get_pick_region_new, {}))
+        processing_list.append((data_item, self.document_model.get_pick_region_average_new, {}))
+        processing_list.append((data_item, self.document_model.get_subtract_region_average_new, {}))
         processing_list.append((data_item, self.document_model.get_resample_new, {"width": 128, "height": 128}))
         processing_list.append((data_item, self.document_model.get_histogram_new, {}))
         processing_list.append((data_item, self.document_model.get_line_profile_new, {}))

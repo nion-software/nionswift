@@ -23,7 +23,7 @@ requirements:
   run:
     - python >=3.5
     - nionutils >=0.3.10
-    - niondata >=0.13.0
+    - niondata >=0.13.2
     - nionui >=0.3.13
     - nionswift-io >=0.13.0
     - scipy
