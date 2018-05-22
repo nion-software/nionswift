@@ -164,6 +164,12 @@ class DocumentController(Window.Window):
         self._window_menu = None
         self._help_menu = None
         self._library_menu = None
+        self._processing_arithmetic_menu = None
+        self._processing_reduce_menu = None
+        self._processing_transform_menu = None
+        self._processing_filter_menu = None
+        self._processing_fourier_menu = None
+        self._processing_graphics_menu = None
         self._processing_sequence_menu = None
         self._display_type_menu = None
 
@@ -284,16 +290,16 @@ class DocumentController(Window.Window):
         self.properties_action = self._edit_menu.add_menu_item(_("Preferences..."), self.open_preferences, role="preferences")
 
         # these are temporary menu items, so don't need to assign them to variables, for now
-        self._processing_menu.add_menu_item(_("Add Line Graphic"), self.add_line_graphic)
-        self._processing_menu.add_menu_item(_("Add Ellipse Graphic"), self.add_ellipse_graphic)
-        self._processing_menu.add_menu_item(_("Add Rectangle Graphic"), self.add_rectangle_graphic)
-        self._processing_menu.add_menu_item(_("Add Point Graphic"), self.add_point_graphic)
-        self._processing_menu.add_menu_item(_("Add Interval Graphic"), self.add_interval_graphic)
-        self._processing_menu.add_menu_item(_("Add Channel Graphic"), self.add_channel_graphic)
-        self._processing_menu.add_menu_item(_("Add Spot Mask"), self.add_spot_graphic)
-        self._processing_menu.add_menu_item(_("Add Angle Mask"), self.add_angle_graphic)
-        self._processing_menu.add_menu_item(_("Add Band Pass Mask"), self.add_band_pass_graphic)
+        self._processing_graphics_menu = self.create_sub_menu()
+        self._processing_menu.add_sub_menu(_("Graphics"), self._processing_graphics_menu)
         self._processing_menu.add_separator()
+
+        self._processing_graphics_menu.add_menu_item(_("Add Line Graphic"), self.add_line_graphic)
+        self._processing_graphics_menu.add_menu_item(_("Add Ellipse Graphic"), self.add_ellipse_graphic)
+        self._processing_graphics_menu.add_menu_item(_("Add Rectangle Graphic"), self.add_rectangle_graphic)
+        self._processing_graphics_menu.add_menu_item(_("Add Point Graphic"), self.add_point_graphic)
+        self._processing_graphics_menu.add_menu_item(_("Add Interval Graphic"), self.add_interval_graphic)
+        self._processing_graphics_menu.add_menu_item(_("Add Channel Graphic"), self.add_channel_graphic)
 
         self._processing_menu.add_menu_item(_("Snapshot"), self.processing_snapshot, key_sequence="Ctrl+S")
         self._processing_menu.add_menu_item(_("Duplicate"), self.processing_duplicate, key_sequence="Ctrl+D")
@@ -303,40 +309,56 @@ class DocumentController(Window.Window):
         self._processing_menu.add_menu_item(_("Edit Display Script"), self.new_display_editor_dialog, key_sequence="Ctrl+Shift+D")
         self._processing_menu.add_separator()
 
-        self._processing_menu.add_menu_item(_("FFT"), functools.partial(self.__processing_new, self.document_model.get_fft_new), key_sequence="Ctrl+F")
-        self._processing_menu.add_menu_item(_("Inverse FFT"), functools.partial(self.__processing_new, self.document_model.get_ifft_new), key_sequence="Ctrl+Shift+F")
-        self._processing_menu.add_menu_item(_("Auto Correlate"), functools.partial(self.__processing_new, self.document_model.get_auto_correlate_new))
-        self._processing_menu.add_menu_item(_("Cross Correlate"), self.processing_cross_correlate_new)
-        self._processing_menu.add_menu_item(_("Fourier Filter"), self.processing_fourier_filter_new)
-        self._processing_menu.add_separator()
+        self._processing_fourier_menu = self.create_sub_menu()
+        self._processing_menu.add_sub_menu(_("Fourier"), self._processing_fourier_menu)
 
-        self._processing_menu.add_menu_item(_("Sobel Filter"), functools.partial(self.__processing_new, self.document_model.get_sobel_new))
-        self._processing_menu.add_menu_item(_("Laplace Filter"), functools.partial(self.__processing_new, self.document_model.get_laplace_new))
-        self._processing_menu.add_menu_item(_("Gaussian Blur"), functools.partial(self.__processing_new, self.document_model.get_gaussian_blur_new))
-        self._processing_menu.add_menu_item(_("Median Filter"), functools.partial(self.__processing_new, self.document_model.get_median_filter_new))
-        self._processing_menu.add_menu_item(_("Uniform Filter"), functools.partial(self.__processing_new, self.document_model.get_uniform_filter_new))
-        self._processing_menu.add_separator()
+        self._processing_fourier_menu.add_menu_item(_("FFT"), functools.partial(self.__processing_new, self.document_model.get_fft_new), key_sequence="Ctrl+F")
+        self._processing_fourier_menu.add_menu_item(_("Inverse FFT"), functools.partial(self.__processing_new, self.document_model.get_ifft_new), key_sequence="Ctrl+Shift+F")
+        self._processing_fourier_menu.add_menu_item(_("Auto Correlate"), functools.partial(self.__processing_new, self.document_model.get_auto_correlate_new))
+        self._processing_fourier_menu.add_menu_item(_("Cross Correlate"), self.processing_cross_correlate_new)
+        self._processing_fourier_menu.add_menu_item(_("Fourier Filter"), self.processing_fourier_filter_new)
+        self._processing_fourier_menu.add_separator()
+        self._processing_fourier_menu.add_menu_item(_("Add Spot Mask"), self.add_spot_graphic)
+        self._processing_fourier_menu.add_menu_item(_("Add Angle Mask"), self.add_angle_graphic)
+        self._processing_fourier_menu.add_menu_item(_("Add Band Pass Mask"), self.add_band_pass_graphic)
 
-        self._processing_menu.add_menu_item(_("Transpose and Flip"), functools.partial(self.__processing_new, self.document_model.get_transpose_flip_new))
-        self._processing_menu.add_menu_item(_("Resample"), functools.partial(self.__processing_new, self.document_model.get_resample_new))
-        self._processing_menu.add_menu_item(_("Crop"), functools.partial(self.__processing_new, self.document_model.get_crop_new))
-        self._processing_menu.add_menu_item(_("Resize"), functools.partial(self.__processing_new, self.document_model.get_resize_new))
-        self._processing_menu.add_menu_item(_("Slice Sum"), functools.partial(self.__processing_new, self.document_model.get_slice_sum_new))
-        self._processing_menu.add_menu_item(_("Pick"), functools.partial(self.__processing_new, self.document_model.get_pick_new))
-        self._processing_menu.add_menu_item(_("Pick Region"), functools.partial(self.__processing_new, self.document_model.get_pick_region_new))
-        self._processing_menu.add_menu_item(_("Projection"), functools.partial(self.__processing_new, self.document_model.get_projection_new))
-        self._processing_menu.add_separator()
+        self._processing_filter_menu = self.create_sub_menu()
+        self._processing_menu.add_sub_menu(_("Filter"), self._processing_filter_menu)
 
-        self._processing_menu.add_menu_item(_("Add"), functools.partial(self.__processing_new2, self.document_model.get_add_new))
-        self._processing_menu.add_menu_item(_("Subtract"), functools.partial(self.__processing_new2, self.document_model.get_subtract_new))
-        self._processing_menu.add_menu_item(_("Multiply"), functools.partial(self.__processing_new2, self.document_model.get_multiply_new))
-        self._processing_menu.add_menu_item(_("Divide"), functools.partial(self.__processing_new2, self.document_model.get_divide_new))
-        self._processing_menu.add_menu_item(_("Negate"), functools.partial(self.__processing_new, self.document_model.get_invert_new))
-        self._processing_menu.add_separator()
+        self._processing_filter_menu.add_menu_item(_("Sobel Filter"), functools.partial(self.__processing_new, self.document_model.get_sobel_new))
+        self._processing_filter_menu.add_menu_item(_("Laplace Filter"), functools.partial(self.__processing_new, self.document_model.get_laplace_new))
+        self._processing_filter_menu.add_menu_item(_("Gaussian Blur"), functools.partial(self.__processing_new, self.document_model.get_gaussian_blur_new))
+        self._processing_filter_menu.add_menu_item(_("Median Filter"), functools.partial(self.__processing_new, self.document_model.get_median_filter_new))
+        self._processing_filter_menu.add_menu_item(_("Uniform Filter"), functools.partial(self.__processing_new, self.document_model.get_uniform_filter_new))
+
+        self._processing_transform_menu = self.create_sub_menu()
+        self._processing_menu.add_sub_menu(_("Transform"), self._processing_transform_menu)
+
+        self._processing_transform_menu.add_menu_item(_("Transpose and Flip"), functools.partial(self.__processing_new, self.document_model.get_transpose_flip_new))
+        self._processing_transform_menu.add_menu_item(_("Resample"), functools.partial(self.__processing_new, self.document_model.get_resample_new))
+        self._processing_transform_menu.add_menu_item(_("Crop"), functools.partial(self.__processing_new, self.document_model.get_crop_new))
+        self._processing_transform_menu.add_menu_item(_("Resize"), functools.partial(self.__processing_new, self.document_model.get_resize_new))
+        self._processing_transform_menu.add_menu_item(_("Convert to Scalar"), functools.partial(self.__processing_new, self.document_model.get_convert_to_scalar_new))
+
+        self._processing_reduce_menu = self.create_sub_menu()
+        self._processing_menu.add_sub_menu(_("Reduce"), self._processing_reduce_menu)
+
+        self._processing_reduce_menu.add_menu_item(_("Slice Sum"), functools.partial(self.__processing_new, self.document_model.get_slice_sum_new))
+        self._processing_reduce_menu.add_menu_item(_("Pick"), functools.partial(self.__processing_new, self.document_model.get_pick_new))
+        self._processing_reduce_menu.add_menu_item(_("Pick Region (Sum)"), functools.partial(self.__processing_new, self.document_model.get_pick_region_new))
+        self._processing_reduce_menu.add_menu_item(_("Projection (Sum)"), functools.partial(self.__processing_new, self.document_model.get_projection_new))
+
+        self._processing_arithmetic_menu = self.create_sub_menu()
+        self._processing_menu.add_sub_menu(_("Arithmetic"), self._processing_arithmetic_menu)
+
+        self._processing_arithmetic_menu.add_menu_item(_("Add"), functools.partial(self.__processing_new2, self.document_model.get_add_new))
+        self._processing_arithmetic_menu.add_menu_item(_("Subtract"), functools.partial(self.__processing_new2, self.document_model.get_subtract_new))
+        self._processing_arithmetic_menu.add_menu_item(_("Multiply"), functools.partial(self.__processing_new2, self.document_model.get_multiply_new))
+        self._processing_arithmetic_menu.add_menu_item(_("Divide"), functools.partial(self.__processing_new2, self.document_model.get_divide_new))
+        self._processing_arithmetic_menu.add_menu_item(_("Negate"), functools.partial(self.__processing_new, self.document_model.get_invert_new))
 
         self._processing_sequence_menu = self.create_sub_menu()
         self._processing_menu.add_sub_menu(_("Sequence"), self._processing_sequence_menu)
-        self._processing_menu.add_separator()
 
         self._processing_sequence_menu.add_menu_item(_("Measure Shifts"), functools.partial(self.__processing_new, self.document_model.get_sequence_measure_shifts_new))
         self._processing_sequence_menu.add_menu_item(_("Align"), functools.partial(self.__processing_new, self.document_model.get_sequence_align_new))
@@ -346,7 +368,6 @@ class DocumentController(Window.Window):
 
         self._processing_menu.add_menu_item(_("Line Profile"), functools.partial(self.__processing_new, self.document_model.get_line_profile_new))
         self._processing_menu.add_menu_item(_("Histogram"), functools.partial(self.__processing_new, self.document_model.get_histogram_new))
-        self._processing_menu.add_menu_item(_("Convert to Scalar"), functools.partial(self.__processing_new, self.document_model.get_convert_to_scalar_new))
         self._processing_menu.add_separator()
 
         self.__dynamic_live_actions = []
