@@ -122,15 +122,16 @@ class OutputPanel(Panel):
         self.__old_stderr = sys.stderr
 
         class StdoutCatcher:
-            def __init__(self):
-                pass
+            def __init__(self, out):
+                self.__out = out
             def write(self, stuff):
                 queue_message(stuff)
+                self.__out.write(stuff)
             def flush(self):
-                pass
+                self.__out.flush()
 
-        sys.stdout = StdoutCatcher()
-        sys.stderr = sys.stdout
+        sys.stdout = StdoutCatcher(self.__old_stdout)
+        sys.stderr = StdoutCatcher(self.__old_stderr)
 
     def close(self):
         sys.stdout = self.__old_stdout
