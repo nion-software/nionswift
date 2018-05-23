@@ -52,6 +52,12 @@ Launch Nion Swift from your conda command line environment using::
 
     $ nionswift
 
+If you have `nionswift-tool` installed, you can create an alias to Nion Swift on your Desktop using the command::
+
+    $ nionswift --alias
+
+The alias will launch the version of Nion Swift in the Python environment from which it was run.
+
 MacOS
 -----
 Nion Swift for macOS requires macOS 10.11 or later. We recommend using the latest version of macOS.

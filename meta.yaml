@@ -2,10 +2,10 @@
 
 package:
   name: 'nionswift'
-  version: '0.13.3'
+  version: '0.13.4'
 
 source:
-  git_rev: 0.13.3
+  git_rev: 0.13.4
   git_url: https://github.com/nion-software/nionswift.git
 
 build:
