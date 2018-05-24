@@ -620,6 +620,7 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace_controller.insert_display_panel(display_panel, "bottom").close()
             # save info
             self.assertEqual(1, len(document_model.workspaces))
+            old_workspace_uuid = document_controller.workspace_controller._workspace.uuid
             old_workspace_layout = workspace_controller._workspace_layout
             # perform create command
             command = Workspace.Workspace.CreateWorkspaceCommand(workspace_controller, "NEW")
@@ -634,10 +635,13 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
+            self.assertEqual(1, len(document_model.workspaces))
+            self.assertEqual(old_workspace_uuid, document_controller.workspace_controller._workspace.uuid)
             # redo
             document_controller.handle_redo()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
+            self.assertEqual(2, len(document_model.workspaces))
 
     def test_rename_workspace_undo_and_redo_works_cleanly(self):
         library_storage = DocumentModel.MemoryPersistentStorage()
@@ -690,6 +694,43 @@ class TestWorkspaceClass(unittest.TestCase):
             # redo
             document_controller.handle_redo()
             self.assertEqual(0, len(document_model.workspaces))
+
+    def test_clone_workspace_undo_and_redo_works_cleanly(self):
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.insert_display_panel(display_panel, "bottom").close()
+            # save info
+            self.assertEqual(1, len(document_model.workspaces))
+            old_workspace_uuid = document_controller.workspace_controller._workspace.uuid
+            old_workspace_layout = workspace_controller._workspace_layout
+            # perform create command
+            command = Workspace.Workspace.CloneWorkspaceCommand(workspace_controller, "NEW")
+            command.perform()
+            document_controller.push_undo_command(command)
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # check things
+            self.assertEqual(2, len(document_model.workspaces))
+            # TODO: why is splitter incorrect? check children.
+            self.assertEqual(old_workspace_layout["children"], workspace_controller._workspace_layout["children"])
+            new_workspace_layout = workspace_controller._workspace_layout
+            # undo
+            document_controller.handle_undo()
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
+            self.assertEqual(1, len(document_model.workspaces))
+            self.assertEqual(old_workspace_uuid, document_controller.workspace_controller._workspace.uuid)
+            # redo
+            document_controller.handle_redo()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
+            self.assertEqual(2, len(document_model.workspaces))
 
     def test_workspace_records_and_reloads_image_panel_contents(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()

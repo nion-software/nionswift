@@ -408,10 +408,12 @@ class Workspace:
             self.__workspace_controller._change_workspace(new_workspace)
 
         def _undo(self) -> None:
+            new_workspace = self.__workspace_controller._workspace
             workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
             self.__new_layout = self.__workspace_controller._workspace.layout
             self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
             self.__workspace_controller._change_workspace(workspace_layout)
+            self.__workspace_controller.document_model.remove_workspace(new_workspace)
 
         def _redo(self) -> None:
             self.perform()
@@ -463,6 +465,37 @@ class Workspace:
 
         def _undo(self) -> None:
             self.__workspace_controller._workspace.name = self.__old_name
+
+        def _redo(self) -> None:
+            self.perform()
+
+    class CloneWorkspaceCommand(Undo.UndoableCommand):
+        def __init__(self, workspace_controller: "Workspace", name: str):
+            super().__init__("Clone Workspace")
+            self.__workspace_controller = workspace_controller
+            self.__workspace_layout_uuid = workspace_controller._workspace.uuid
+            self.__new_name = name
+            self.__new_layout = workspace_controller._workspace.layout
+            self.__new_workspace_id = None
+            self.initialize()
+
+        def _get_modified_state(self):
+            return self.__workspace_controller.document_model.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__workspace_controller.document_model.modified_state = modified_state
+
+        def perform(self) -> None:
+            new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
+            self.__workspace_controller._change_workspace(new_workspace)
+
+        def _undo(self) -> None:
+            new_workspace = self.__workspace_controller._workspace
+            workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
+            self.__new_layout = self.__workspace_controller._workspace.layout
+            self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
+            self.__workspace_controller._change_workspace(workspace_layout)
+            self.__workspace_controller.document_model.remove_workspace(new_workspace)
 
         def _redo(self) -> None:
             self.perform()
@@ -550,6 +583,19 @@ class Workspace:
         caption = _("Remove workspace named '{0}'?").format(self.__workspace.name)
         self.pose_confirmation_message_box(caption, confirm_clicked, accepted_text=_("Remove Workspace"),
                                            message_box_id="remove_workspace")
+
+    def clone_workspace(self) -> None:
+        """ Pose a dialog to name and clone a workspace. """
+
+        def clone_clicked(text):
+            if text:
+                command = Workspace.CloneWorkspaceCommand(self, text)
+                command.perform()
+                self.document_controller.push_undo_command(command)
+
+        self.pose_get_string_message_box(caption=_("Enter a name for the workspace"), text=self.__workspace.name,
+                                         accepted_fn=clone_clicked, accepted_text=_("Clone"),
+                                         message_box_id="clone_workspace")
 
     def pose_get_string_message_box(self, caption, text, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, message_box_id=None):
         message_box_id = message_box_id if message_box_id else str(uuid.uuid4())

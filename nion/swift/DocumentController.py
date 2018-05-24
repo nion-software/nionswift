@@ -421,6 +421,7 @@ class DocumentController(Window.Window):
         self._view_menu.add_menu_item(_("New Workspace"), self.__create_workspace, key_sequence="Ctrl+Alt+L")
         self._view_menu.add_menu_item(_("Rename Workspace"), self.__rename_workspace)
         self._view_menu.add_menu_item(_("Remove Workspace"), self.__remove_workspace)
+        self._view_menu.add_menu_item(_("Clone Workspace"), self.__clone_workspace)
         self._view_menu.add_separator()
         self._view_menu.add_sub_menu(_("Display Panel Type"), self._display_type_menu)
         self._view_menu.add_separator()
@@ -1872,6 +1873,10 @@ class DocumentController(Window.Window):
     def __remove_workspace(self):
         if self.workspace_controller:
             self.workspace_controller.remove_workspace()
+
+    def __clone_workspace(self):
+        if self.workspace_controller:
+            self.workspace_controller.clone_workspace()
 
     def toggle_filter(self):
         if self.workspace_controller.filter_row.visible:
