@@ -424,7 +424,11 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                     # check whether there is common units between the data and the display
                     if not displayed_dimensional_calibration.units and self.__dimensional_calibration and scalar_dimensional_calibrations[-1].units == self.__dimensional_calibration.units:
                         scalar_dimensional_calibrations = scalar_dimensional_calibrations[0:-1] + [Calibration.Calibration(scale=self.__data_scale)]
-                    if displayed_dimensional_calibration.units == scalar_dimensional_calibrations[-1].units:
+                    if displayed_dimensional_calibration.units == scalar_dimensional_calibrations[-1].units and intensity_calibration.units == scalar_intensity_calibration.units:
+                        # the data needs to have an intensity scale matching intensity_calibration. convert the data to use the common scale.
+                        scale = scalar_intensity_calibration.scale / intensity_calibration.scale
+                        offset = (scalar_intensity_calibration.offset - intensity_calibration.offset) / intensity_calibration.scale
+                        scalar_data = scalar_data * scale + offset
                         scalar_xdata_list.append(DataAndMetadata.new_data_and_metadata(scalar_data, scalar_intensity_calibration, scalar_dimensional_calibrations))
                 else:
                     scalar_xdata_list.append(None)

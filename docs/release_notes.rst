@@ -5,6 +5,7 @@ Release Notes
 
 Version 0.13.4, UNRELEASED
 --------------------------
+* (2018-05-25) Fix scaling of composite line plot to scale to common intensity.
 * (2018-05-22) Add pick region (average) and subtract region average processing menu items.
 * (2018-05-22) Make the processing menu more compact using sub-menus.
 
