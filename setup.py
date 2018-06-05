@@ -7,7 +7,7 @@ setuptools.setup(
     name="nionswift",
     version="0.13.4",
     packages=["nion.swift", "nion.swift.model", "nion.swift.test", "nionui_app.nionswift", "nionswift_plugin.none", "nionlib", "nion.typeshed"],
-    package_data={"nion.swift": ["resources/*"]},
+    package_data={"nion.swift": ["resources/*"], "nion.swift.model": ["resources/color_maps/*"]},
     install_requires=['scipy', 'numpy', 'h5py', 'pytz', 'tzlocal', 'pillow', 'nionutils', 'niondata>=0.13.2', 'nionui', 'nionswift-io'],
     classifiers=[
         "Development Status :: 2 - Pre-Alpha"

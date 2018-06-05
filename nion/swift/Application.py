@@ -7,6 +7,7 @@ import gettext
 import json
 import logging
 import os
+import pathlib
 import shutil
 import sys
 import typing
@@ -29,6 +30,7 @@ from nion.swift import Test
 from nion.swift import ToolbarPanel
 from nion.swift import Workspace
 from nion.swift.model import Cache
+from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
@@ -100,6 +102,12 @@ class Application(UIApplication.Application):
         # load plug-ins
         if load_plug_ins:
             PlugInManager.load_plug_ins(self, get_root_dir() if use_root_dir else None)
+            color_maps_dir = self.ui.get_configuration_location() / pathlib.Path("Color Maps")
+            if color_maps_dir.exists():
+                logging.info("Loading color maps from " + str(color_maps_dir))
+                ColorMaps.load_color_maps(color_maps_dir)
+            else:
+                logging.info("NOT Loading color maps from " + str(color_maps_dir) + " (missing)")
 
     def deinitialize(self):
         # shut down hardware source manager, unload plug-ins, and really exit ui

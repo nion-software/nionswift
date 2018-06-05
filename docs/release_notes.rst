@@ -5,9 +5,12 @@ Release Notes
 
 Version 0.13.4, UNRELEASED
 --------------------------
+* (2018-06-04) Extend color map choices with 'black body' and 'kindlmann'.
 * (2018-05-25) Fix scaling of composite line plot to scale to common intensity.
 * (2018-05-22) Add pick region (average) and subtract region average processing menu items.
 * (2018-05-22) Make the processing menu more compact using sub-menus.
+
+See http://www.kennethmoreland.com/color-advice/ for advice on color maps.
 
 Version 0.13.3, May 18, 2018
 ----------------------------

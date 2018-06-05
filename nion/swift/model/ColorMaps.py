@@ -1,9 +1,25 @@
+"""
+See color maps:
+    https://sciviscolor.org/
+    http://www.kennethmoreland.com/color-advice/
+    https://datascience.lanl.gov/colormaps.html
+"""
+
+import collections
 import colorsys
+import gettext
+import json
 import numpy
 import math
+import os
+import re
 import typing
+import xml.etree.ElementTree as ET
 
-def interpolate_colors(array: typing.List[int], x: int) -> typing.List[int]:
+_ = gettext.gettext
+
+
+def interpolate_colors(array: numpy.ndarray, x: int) -> numpy.ndarray:
     """
     Creates a color map for values in array
     :param array: color map to interpolate
@@ -23,6 +39,40 @@ def interpolate_colors(array: typing.List[int], x: int) -> typing.List[int]:
             out_array.append(interp_color)
     out_array[-1] = array[-1]
     return numpy.array(out_array).astype(numpy.uint8)
+
+
+def generate_lookup_array_from_points(points: typing.List[typing.Dict], n: int) -> numpy.ndarray:
+    assert points[0]["x"] == 0.0
+    assert points[-1]["x"] == 1.0
+    out_array = []
+    last_ix = None
+    last_rgb = None
+    for point in points:
+        if "rgb" in point:
+            r, g, b = point["rgb"]
+        else:
+            r = round(point["r"] * 255)
+            g = round(point["g"] * 255)
+            b = round(point["b"] * 255)
+        x = point["x"]
+        assert 0 <= r <= 255
+        assert 0 <= g <= 255
+        assert 0 <= b <= 255
+        assert 0 <= x <= 1
+        rgb = numpy.array([b, g, r])
+        ix = int(math.floor(x * (n - 1)))
+        if last_ix is None:
+            out_array.append(numpy.copy(rgb))
+        elif ix > last_ix:
+            amount = (rgb - last_rgb) / (ix - last_ix)
+            for x in range(ix - last_ix):
+                out_array.append(numpy.rint(last_rgb + amount * (x + 1)))
+        else:
+            assert ix >= last_ix
+        last_ix = ix
+        last_rgb = numpy.copy(rgb)
+    return numpy.array(out_array).astype(numpy.uint8)
+
 
 def generate_lookup_array_grayscale():
     out_list = []
@@ -63,10 +113,66 @@ def generate_lookup_array_hsv() -> numpy.array:
         result_array.append(color_values)
     return numpy.array(result_array).astype(int)
 
-color_maps = {}
-color_maps['magma'] = generate_lookup_array('magma')
-color_maps['ice'] = generate_lookup_array('ice')
-color_maps['plasma'] = generate_lookup_array('plasma')
-color_maps['viridis'] = generate_lookup_array('viridis')
-color_maps['hsv'] = generate_lookup_array_hsv()
-color_maps['grayscale'] = generate_lookup_array_grayscale()
+ColorMap = collections.namedtuple("ColorMap", ["name", "data"])
+
+color_maps = dict()
+
+color_maps["grayscale"] = ColorMap(_("Grayscale"), generate_lookup_array_grayscale())
+color_maps["magma"] = ColorMap(_("Magma"), generate_lookup_array('magma'))
+color_maps["hsv"] = ColorMap(_("HSV"), generate_lookup_array_hsv())
+color_maps["viridis"] = ColorMap(_("Viridis"), generate_lookup_array('viridis'))
+color_maps["plasma"] = ColorMap(_("Plasma"), generate_lookup_array('plasma'))
+color_maps["ice"] = ColorMap(_("Ice"), generate_lookup_array('ice'))
+
+def load_color_maps(color_maps_dir) -> None:
+    for root, dirs, files in os.walk(color_maps_dir):
+        for file in files:
+            if not file.startswith("."):
+                try:
+                    if file.endswith(".json"):
+                        with open(os.path.join(root, file), "r") as f:
+                            color_map_json = json.load(f)
+                            color_maps[color_map_json["id"]] = ColorMap(color_map_json["name"], generate_lookup_array_from_points(color_map_json["points"], 256))
+                    elif file.endswith(".xml"):
+                        tree = ET.parse(os.path.join(root, file))
+                        assert tree.getroot().tag == "ColorMaps"
+                        color_map_tree = list(tree.getroot())[0]
+                        assert color_map_tree.tag == "ColorMap"
+                        raw_points = [point_tree.attrib for point_tree in color_map_tree]
+                        points = list()
+                        for raw_point in raw_points:
+                            if "x" in raw_point:
+                                points.append({"x": float(raw_point['x']), "r": float(raw_point['r']), "g": float(raw_point['g']), "b": float(raw_point['b'])})
+                        name = file[:-4]
+                        color_map_id = name.lower()
+                        color_map_id = re.sub(r"[^\w\s]", '', color_map_id)
+                        color_map_id = re.sub(r"\s+", '-', color_map_id)
+                        color_maps[color_map_id] = ColorMap(name, generate_lookup_array_from_points(points, 256))
+                        """
+                        # this section can be used to generate .json from .xml color tables
+                        points2 = [{"x": point['x'], "rgb": [round(point['r'] * 255), round(point['g'] * 255), round(point['b'] * 255)]} for point in points]
+                        s = ""
+                        s += '{' + '\n'
+                        s += f'  "id": "{color_map_id}",' + '\n'
+                        s += f'  "name": "{name}",' + '\n'
+                        s += '  "points": [' + '\n'
+                        bro = '{'
+                        brc = '}'
+                        for point2 in points2[:-1]:
+                            s += f'    {bro}"x": {point2["x"]}, "rgb": [{point2["rgb"][0]}, {point2["rgb"][1]}, {point2["rgb"][2]}]{brc},' + '\n'
+                        point2 = points2[-1]
+                        s += f'    {bro}"x": {point2["x"]}, "rgb": [{point2["rgb"][0]}, {point2["rgb"][1]}, {point2["rgb"][2]}]{brc}' + '\n'
+                        s += '  ]' + '\n'
+                        s += '}' + '\n'
+                        print(s)
+                        # d = {"id": color_map_id, "name": name, "points": points2}
+                        # print(json.dumps(d, indent=2))
+                        """
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+
+load_color_maps(os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources/color_maps"))
+
+def get_color_map_data_by_id(color_map_id: str) -> numpy.ndarray:
+    return color_maps.get(color_map_id, color_maps["grayscale"]).data

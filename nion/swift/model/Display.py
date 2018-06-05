@@ -842,8 +842,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def __color_map_id_changed(self, property_name, value):
         self.__property_changed(property_name, value)
         if value:
-            lookup_table_options = ColorMaps.color_maps
-            self.__color_map_data = lookup_table_options.get(value)
+            self.__color_map_data = ColorMaps.get_color_map_data_by_id(value)
         else:
             self.__color_map_data = None
         self.__property_changed("color_map_data", self.__color_map_data)
@@ -854,7 +853,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if self.preview_2d_shape is None:  # is there display data?
             return None
         else:
-            return self.__color_map_data if self.__color_map_data is not None else ColorMaps.color_maps.get("grayscale")
+            return self.__color_map_data if self.__color_map_data is not None else ColorMaps.get_color_map_data_by_id("grayscale")
 
     def __property_changed(self, property_name, value):
         # when one of the defined properties changes, this gets called

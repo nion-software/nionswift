@@ -17,6 +17,7 @@ from nion.swift import DataItemThumbnailWidget
 from nion.swift import DisplayPanel
 from nion.swift import Panel
 from nion.swift import Undo
+from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
 from nion.swift.model import Display
 from nion.swift.model import Graphics
@@ -887,8 +888,10 @@ def make_display_type_chooser(document_controller, display: Display.Display):
 def make_color_map_chooser(document_controller, display):
     ui = document_controller.ui
     color_map_row = ui.create_row_widget()
-    color_map_options = ((_("Default"), None), (_("Grayscale"), "grayscale"), (_("Magma"), "magma"), (_("HSV"), "hsv"), (_("Viridis"), "viridis"), (_("Plasma"), "plasma"), (_("Ice"), "ice"))
-    color_map_reverse_map = {None: 0, "grayscale": 1, "magma": 2, "hsv": 3, "viridis": 4, "plasma": 5, "ice": 6}
+    color_map_options = [(_("Default"), None)]
+    for color_map_key, color_map in ColorMaps.color_maps.items():
+        color_map_options.append((color_map.name, color_map_key))
+    color_map_reverse_map = {p[1]: i for i, p in enumerate(color_map_options)}
     color_map_chooser = ui.create_combo_box_widget(items=color_map_options, item_getter=operator.itemgetter(0))
 
     def property_changed(name):
