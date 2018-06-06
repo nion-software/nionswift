@@ -7,6 +7,7 @@ Version 0.13.5, June 6, 2018
 ----------------------------
 * (2018-06-04) Extend color map choices with 'black body' and 'kindlmann'.
 * (2018-05-25) Fix scaling of composite line plot to scale to common intensity.
+* (2018-05-23) Add a clone workspace command.
 
 See http://www.kennethmoreland.com/color-advice/ for advice on color maps.
 
