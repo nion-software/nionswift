@@ -457,11 +457,11 @@ class TestDisplayPanelClass(unittest.TestCase):
         # select it
         self.display_specifier.display.graphic_selection.set(0)
         # drag top left corner
-        self.display_panel.display_canvas_item.simulate_drag((500,250), (800,250), CanvasItem.KeyboardModifiers(alt=True))
+        self.display_panel.display_canvas_item.simulate_drag((500,250), (800,250), CanvasItem.KeyboardModifiers(alt=False))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.graphics[0].bounds[0]), (8, 2.5))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.graphics[0].bounds[1]), (4, 5))
         # drag with shift key
-        self.display_panel.display_canvas_item.simulate_drag((800,250), (900,250), CanvasItem.KeyboardModifiers(shift=True, alt=True))
+        self.display_panel.display_canvas_item.simulate_drag((800,250), (900,250), CanvasItem.KeyboardModifiers(shift=True, alt=False))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.graphics[0].bounds[0]), (9, 4))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.graphics[0].bounds[1]), (2, 2))
 
@@ -1104,10 +1104,10 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(self.display_specifier.display.graphics), 1)
         region = self.display_specifier.display.graphics[0]
         self.assertEqual(region.type, "ellipse-graphic")
-        self.assertAlmostEqual(region.bounds[0][0], 0.1)
-        self.assertAlmostEqual(region.bounds[0][1], 0.125)
-        self.assertAlmostEqual(region.bounds[1][0], 0.15)
-        self.assertAlmostEqual(region.bounds[1][1], 0.075)
+        self.assertAlmostEqual(region.bounds[0][0], 0.1 - 0.30 / 2)
+        self.assertAlmostEqual(region.bounds[0][1], 0.125 - 0.15 / 2)
+        self.assertAlmostEqual(region.bounds[1][0], 0.30)
+        self.assertAlmostEqual(region.bounds[1][1], 0.15)
 
     def test_dragging_to_add_line_makes_desired_line(self):
         self.document_controller.tool_mode = "line"

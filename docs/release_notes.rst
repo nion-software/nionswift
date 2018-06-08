@@ -3,6 +3,10 @@
 Release Notes
 =============
 
+UNRELEASED
+----------
+* (2018-06-08) Add rotation property to rectangles and ellipses.
+
 Version 0.13.5, June 6, 2018
 ----------------------------
 * (2018-06-04) Extend color map choices with 'black body' and 'kindlmann'.

@@ -1,12 +1,9 @@
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import collections
 import contextlib
 import copy
 import logging
+import math
 import unittest
 
 # third party libraries
@@ -234,10 +231,13 @@ class TestGraphicsClass(unittest.TestCase):
                 if h:
                     value = map_string(value, mapping_h1, mapping_h2)
                 return value
+            elif isinstance(value, float):
+                return value
             raise Exception("Unknown value type %s", type(value))
             return None
 
         def reflect(d, v, h):
+            d = copy.deepcopy(d)
             mapping_v1 = {"top": "was_top", "bottom": "was_bottom"}
             mapping_v2 = {"was_top": "bottom", "was_bottom": "top"}
             mapping_h1 = {"left": "was_left", "right": "was_right"}
@@ -281,7 +281,7 @@ class TestGraphicsClass(unittest.TestCase):
             d["output"]["properties"] = new_output
             return d
 
-        def do_drag_test(d):
+        def do_drag_test(d, e=0.00001):
             # logging.debug("test %s", d["name"])
             region = Graphics.factory(lambda t: d["input"]["type"])
             for property, initial_value in d["input"]["properties"].items():
@@ -305,28 +305,39 @@ class TestGraphicsClass(unittest.TestCase):
                 # logging.debug("%s: %s == %s ?", property, actual_value, expected_value)
                 if isinstance(expected_value, str):
                     if isinstance(actual_value, Geometry.FloatRect):
-                        self.assertAlmostEqualRect(actual_value, initial_values[expected_value])
+                        self.assertAlmostEqualRect(actual_value, initial_values[expected_value], e)
                     elif isinstance(actual_value, Geometry.FloatPoint):
-                        self.assertAlmostEqualPoint(actual_value, initial_values[expected_value])
+                        self.assertAlmostEqualPoint(actual_value, initial_values[expected_value], e)
                     elif isinstance(actual_value, Geometry.FloatSize):
-                        self.assertAlmostEqualSize(actual_value, initial_values[expected_value])
+                        self.assertAlmostEqualSize(actual_value, initial_values[expected_value], e)
                     elif isinstance(actual_value, ScalarCoordinate):
                         self.assertAlmostEqual(actual_value.value, initial_values[expected_value])
                     else:
                         raise Exception("Unknown value type %s", type(actual_value))
                 else:
                     if isinstance(actual_value, Geometry.FloatRect):
-                        self.assertAlmostEqualRect(actual_value, expected_value)
+                        self.assertAlmostEqualRect(actual_value, expected_value, e)
                     elif isinstance(actual_value, Geometry.FloatPoint):
-                        self.assertAlmostEqualPoint(actual_value, expected_value)
+                        self.assertAlmostEqualPoint(actual_value, expected_value, e)
                     elif isinstance(actual_value, Geometry.FloatSize):
-                        self.assertAlmostEqualSize(actual_value, expected_value)
+                        self.assertAlmostEqualSize(actual_value, expected_value, e)
                     elif isinstance(actual_value, float):
                         self.assertAlmostEqual(actual_value, expected_value.value)
                     else:
                         raise Exception("Unknown value type %s", type(actual_value))
             display_specifier.display.remove_graphic(region)
             region.is_bounds_constrained = False
+
+        def rotate(p, o, angle):
+            origin = Geometry.FloatPoint.make(o)
+            point = Geometry.FloatPoint.make(p)
+            delta = point - origin
+            angle_sin = math.sin(angle)
+            angle_cos = math.cos(angle)
+            return origin + Geometry.FloatPoint(x=delta.x * angle_cos + delta.y * angle_sin, y=delta.y * angle_cos - delta.x * angle_sin)
+
+        def round1000(p):
+            return Geometry.FloatPoint(y=int(p.y * 1000) / 1000, x=int(p.x * 1000) / 1000)
 
         # rectangle top-left
 
@@ -348,6 +359,84 @@ class TestGraphicsClass(unittest.TestCase):
         for v in (False, True):
             for h in (False, True):
                 do_drag_test(reflect(d, v, h))
+
+        for rotation in (2 * math.pi / 8, -2 * math.pi / 8):
+
+            d = {
+                "name": "drag rotated top-left corner outside of bounds with no constraints",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect(origin=(0.4, 0.3), size=(0.2, 0.4)), "rotation": rotation }
+                },
+                "drag": [rotate((400, 300), (500, 500), rotation), rotate((450, 250), (500, 500), rotation)],
+                "output": {
+                    "properties": {
+                        "_rotated_top_left": rotate((0.45, 0.25), (0.5, 0.5), rotation),
+                        "_rotated_bottom_right": "_rotated_bottom_right"
+                    },
+                }
+            }
+
+            # rotation odd reflections are not valid
+            do_drag_test(reflect(d, False, False), e=0.001)
+            do_drag_test(reflect(d, True, True), e=0.001)
+
+            d = {
+                "name": "drag rotated top-right corner outside of bounds with no constraints",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect(origin=(0.4, 0.3), size=(0.2, 0.4)), "rotation": rotation }
+                },
+                "drag": [rotate((400, 700), (500, 500), rotation), rotate((450, 750), (500, 500), rotation)],
+                "output": {
+                    "properties": {
+                        "_rotated_top_right": rotate((0.45, 0.75), (0.5, 0.5), rotation),
+                        "_rotated_bottom_left": "_rotated_bottom_left"
+                    },
+                }
+            }
+
+            # rotation odd reflections are not valid
+            do_drag_test(reflect(d, False, False), e=0.001)
+            do_drag_test(reflect(d, True, True), e=0.001)
+
+            d = {
+                "name": "drag rotated top-left corner outside of bounds from center",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect(origin=(0.4, 0.3), size=(0.2, 0.4)), "rotation": rotation }
+                },
+                "drag": [rotate((400, 300), (500, 500), rotation), rotate((450, 250), (500, 500), rotation), CanvasItem.KeyboardModifiers(alt=True)],
+                "output": {
+                    "properties": {
+                        "_rotated_top_left": rotate((0.45, 0.25), (0.5, 0.5), rotation),
+                        "_bounds.center": "_bounds.center"
+                    },
+                }
+            }
+
+            # rotation odd reflections are not valid
+            do_drag_test(reflect(d, False, False), e=0.001)
+            do_drag_test(reflect(d, True, True), e=0.001)
+
+            d = {
+                "name": "drag rotated top-right corner outside of bounds from center",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect(origin=(0.4, 0.3), size=(0.2, 0.4)), "rotation": rotation }
+                },
+                "drag": [rotate((400, 700), (500, 500), rotation), rotate((450, 750), (500, 500), rotation), CanvasItem.KeyboardModifiers(alt=True)],
+                "output": {
+                    "properties": {
+                        "_rotated_top_right": rotate((0.45, 0.75), (0.5, 0.5), rotation),
+                        "_bounds.center": "_bounds.center"
+                    },
+                }
+            }
+
+            # rotation odd reflections are not valid
+            do_drag_test(reflect(d, False, False), e=0.001)
+            do_drag_test(reflect(d, True, True), e=0.001)
 
         d = {
             "name": "drag top-left corner outside of bounds with bounds constraint",

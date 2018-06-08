@@ -1562,7 +1562,7 @@ def make_line_profile_inspector(document_controller, graphic_widget, display_spe
     return items_to_close
 
 
-def make_rectangle_type_inspector(document_controller, graphic_widget, display_specifier, graphic, graphic_name: str):
+def make_rectangle_type_inspector(document_controller, graphic_widget, display_specifier, graphic, graphic_name: str, rotation: bool = False):
     ui = document_controller.ui
     # create the ui
     graphic_center_row = ui.create_row_widget()
@@ -1628,7 +1628,32 @@ def make_rectangle_type_inspector(document_controller, graphic_widget, display_s
         graphic_size_width_line_edit.bind_text(Binding.TuplePropertyBinding(size_model, "value", 1))
         graphic_size_height_line_edit.bind_text(Binding.TuplePropertyBinding(size_model, "value", 0))
 
-    return [center_model, size_model]
+    closeables = [center_model, size_model]
+
+    if rotation:
+        rotation_row = ui.create_row_widget()
+        rotation_row.add_spacing(20)
+
+        rotation_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+        rotation_line_edit.widget_id = "rotation"
+
+        rotation_row2 = ui.create_row_widget()
+        rotation_row2.add(ui.create_label_widget(_("Rotation (deg)")))
+        rotation_row2.add_spacing(8)
+        rotation_row2.add(rotation_line_edit)
+
+        rotation_row.add(rotation_row2)
+        rotation_row.add_stretch()
+
+        graphic_widget.add(rotation_row)
+        graphic_widget.add_spacing(4)
+
+        rotation_model = GraphicPropertyCommandModel(document_controller, display, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
+        rotation_line_edit.bind_text(Binding.PropertyBinding(rotation_model, "value", converter=RadianToDegreeStringConverter()))
+
+        closeables.append(rotation_model)
+
+    return closeables
 
 def make_wedge_type_inspector(document_controller, graphic_widget, display_specifier, graphic):
     ui = document_controller.ui
@@ -1814,10 +1839,10 @@ class GraphicsInspectorSection(InspectorSection):
             self.__items_to_close.extend(make_line_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic))
         elif isinstance(graphic, Graphics.RectangleGraphic):
             graphic_type_label.text = _("Rectangle")
-            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic, graphic_type_label.text))
+            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic, graphic_type_label.text, rotation=True))
         elif isinstance(graphic, Graphics.EllipseGraphic):
             graphic_type_label.text = _("Ellipse")
-            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic, graphic_type_label.text))
+            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic, graphic_type_label.text, rotation=True))
         elif isinstance(graphic, Graphics.IntervalGraphic):
             graphic_type_label.text = _("Interval")
             make_interval_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic)

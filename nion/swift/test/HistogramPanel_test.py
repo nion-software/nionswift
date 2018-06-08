@@ -111,7 +111,7 @@ class TestHistogramPanelClass(unittest.TestCase):
     def test_histogram_statistics_with_zero_array(self):
         self.display_specifier.data_item.set_data(numpy.ones((10, 10), dtype=numpy.uint32))
         rect_region = Graphics.RectangleGraphic()
-        rect_region.bounds = (10000, 10000), (10001, 10001)
+        rect_region.bounds = (10000, 10000), (1, 1)
         self.display_specifier.display.add_graphic(rect_region)
         self.display_specifier.display.graphic_selection.set(0)
         self.histogram_panel._histogram_widget._recompute()

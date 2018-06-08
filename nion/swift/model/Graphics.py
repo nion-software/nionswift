@@ -35,6 +35,17 @@ def angle_diff(start_angle, end_angle):
     return (start_angle - end_angle + math.pi * 2000) % (math.pi * 2)
 
 
+def rotate(point: Geometry.FloatPoint, origin: Geometry.FloatPoint, angle: float) -> Geometry.FloatPoint:
+    # rotate point counterclockwise around origin by angle (radians)
+    # coordinate system x increasing: left to right; y increasing: top to bottom
+    # so sign of y is reversed from regular rotation equations, then reversed again on return
+    delta = point - origin
+    angle_sin = math.sin(angle)
+    angle_cos = math.cos(angle)
+    return origin + Geometry.FloatPoint(x=delta.x * angle_cos + delta.y * angle_sin,
+                                        y=delta.y * angle_cos - delta.x * angle_sin)
+
+
 def get_length_for_angle(angle: float, bounds: typing.Tuple[float, float]):
     top_right = math.atan2(bounds[1], bounds[0])
     top_left = math.pi - math.atan2(bounds[1], bounds[0])
@@ -64,218 +75,252 @@ def get_slope_eq(x, y, angle):
     return y <= numpy.tan(-angle) * x
 
 
-def adjust_rectangle_like(mapping, original, current, part, modifiers, constraints):
+def extend_line(origin, point, pixels):
+    delta = point - origin
+    angle = math.atan2(delta.y, delta.x)
+    delta_extended = delta + pixels * Geometry.FloatPoint(y=math.sin(angle), x=math.cos(angle))
+    return origin + delta_extended
+
+
+def adjust_rectangle_like(mapping, rotation, is_center_constant_by_default, original, current, part, modifiers, constraints):
     # NOTE: all sizes/points are assumed to be in image coordinates
     o = mapping.map_point_widget_to_image(original)
     p = mapping.map_point_widget_to_image(current)
-    delta = (p[0] - o[0], p[1] - o[1]) if not part[0].startswith("inverted") else (o[0] - p[0], o[1] - p[1])
+    delta = p - o if not part[0].startswith("inverted") else o - p
     part_name = part[0] if not part[0].startswith("inverted") else part[0][9:]
+    old_rotation = part[2]
     old_origin = mapping.map_point_image_norm_to_image(part[1][0])
     old_size = mapping.map_point_image_norm_to_image(part[1][1])
-    old_top = old_origin[0]
-    old_left = old_origin[1]
-    old_height = old_size[0]
-    old_width = old_size[1]
-    old_center = old_top + 0.5 * old_height, old_left + 0.5 * old_width
-    old_bottom = old_top + old_height
-    old_right = old_left + old_width
-    data_height = mapping.data_shape[0]
-    data_width = mapping.data_shape[1]
+    old_rect = Geometry.FloatRect(origin=old_origin, size=old_size)
+    data_shape = Geometry.FloatSize(height=mapping.data_shape[0], width=mapping.data_shape[1])
     # find the minimum distance of center from origin and bottom corner of data
-    min_from_origin = min(old_center[0], old_center[1])
-    min_from_full = min(data_height - old_center[0], data_width - old_center[1])
+    min_from_origin = min(old_rect.center.y, old_rect.center.x)
+    min_from_full = min(data_shape.height - old_rect.center.y, data_shape.width - old_rect.center.x)
     # now calculate the min/max v/h by adding/subtracting those values from bottom-right
-    min_v = old_center[0] - min(min_from_origin, min_from_full)
-    max_v = old_center[0] + min(min_from_origin, min_from_full)
-    min_h = old_center[1] - min(min_from_origin, min_from_full)
-    max_h = old_center[1] + min(min_from_origin, min_from_full)
-    max_abs_delta_v = min(old_center[0], mapping.data_shape[0] - old_center[0])
-    max_abs_delta_h = min(old_center[1], mapping.data_shape[1] - old_center[1])
-    new_bounds = (old_origin, old_size)
+    min_value = min(min_from_origin, min_from_full)
+    min_point0 = Geometry.FloatPoint(y=min_value, x=min_value)
+    # min_point = old_rect.center - min_point0
+    # max_point = old_rect.center + min_point0
+    min_v = old_rect.center.y - min_value
+    min_h = old_rect.center.x - min_value
+    max_v = old_rect.center.y + min_value
+    max_h = old_rect.center.x + min_value
+    max_abs_delta_v = min(old_rect.center.y, data_shape.height - old_rect.center.y)
+    max_abs_delta_h = min(old_rect.center.x, data_shape.width - old_rect.center.x)
+    new_bounds = Geometry.FloatRect(origin=old_origin, size=old_size)
+    new_rotation = rotation
     if part_name == "top-left" and not "shape" in constraints:  # top left
-        new_top_left = old_top + delta[0], old_left + delta[1]
-        if modifiers.alt or "position" in constraints:
+        delta = rotate(delta, Geometry.FloatPoint(), -rotation)
+        new_top_left = old_rect.top_left + delta
+        if (bool(modifiers.alt) != bool(is_center_constant_by_default)) or "position" in constraints:
             if modifiers.shift or "square" in constraints:
                 # shape constrained to square; hold center constant
-                half_size = old_center[0] - new_top_left[0], old_center[1] - new_top_left[1]
-                if half_size[0] > half_size[1]:  # size will be width
-                    new_top_left = old_center[0] - half_size[1], old_center[1] - half_size[1]
+                half_size = Geometry.FloatSize.make(old_rect.center - new_top_left)
+                if half_size.height > half_size.width:  # size will be width
+                    new_top_left = old_rect.center - Geometry.FloatPoint(y=half_size.width, x=half_size.width)
                 else:  # size will be height
-                    new_top_left = old_center[0] - half_size[0], old_center[1] - half_size[0]
-                if "bounds" in constraints:
+                    new_top_left = old_rect.center - Geometry.FloatPoint(y=half_size.height, x=half_size.height)
+                if "bounds" in constraints and rotation == 0.0:
                     # now constrain the top-left value
-                    new_top_left = min(max(new_top_left[0], min_v), max_v), min(max(new_top_left[1], min_h), max_h)
+                    new_top_left = Geometry.FloatPoint(y=min(max(new_top_left.y, min_v), max_v), x=min(max(new_top_left.x, min_h), max_h))
             else:
                 # shape not constrained; hold center constant
-                if "bounds" in constraints:
-                    new_top_left = min(max(new_top_left[0], old_center[0] - max_abs_delta_v), old_center[0] + max_abs_delta_v), min(max(new_top_left[1], old_center[1] - max_abs_delta_h), old_center[1] + max_abs_delta_h)
+                if "bounds" in constraints and rotation == 0.0:
+                    new_top_left = Geometry.FloatPoint(y=min(max(new_top_left.y, old_rect.center.y - max_abs_delta_v), old_rect.center.y + max_abs_delta_v), x=min(max(new_top_left.x, old_rect.center.x - max_abs_delta_h), old_rect.center.x + max_abs_delta_h))
             # c + (c - t), c + (c - l)
-            new_bottom_right = 2*old_center[0] - new_top_left[0], 2*old_center[1] - new_top_left[1]
-            new_bounds = new_top_left, (new_bottom_right[0] - new_top_left[0], new_bottom_right[1] - new_top_left[1])
+            new_bottom_right = 2 * old_rect.center - new_top_left
+            new_bounds = Geometry.FloatRect(origin=new_top_left, size=new_bottom_right - new_top_left)
         else:
             if modifiers.shift or "square" in constraints:
-                if "bounds" in constraints:
+                if "bounds" in constraints and rotation == 0.0:
                     # find the minimum distance of bottom-right from origin and opposite corner of data
-                    min_from_00 = min(old_bottom, old_right)
-                    min_from_11 = min(data_height - old_bottom, data_width - old_right)
+                    min_from_00 = min(old_rect.bottom, old_rect.right)
+                    min_from_11 = min(data_shape.height - old_rect.bottom, data_shape.width - old_rect.right)
                     # now calculate the min/max v/h by adding/subtracting those values from bottom-right
-                    min_v = old_bottom - min_from_00
-                    max_v = old_bottom + min_from_11
-                    min_h = old_right - min_from_00
-                    max_h = old_right + min_from_11
+                    min_v = old_rect.bottom - min_from_00
+                    max_v = old_rect.bottom + min_from_11
+                    min_h = old_rect.right - min_from_00
+                    max_h = old_rect.right + min_from_11
                     # now constrain the top-left value
-                    new_top_left = min(max(new_top_left[0], min_v), max_v), min(max(new_top_left[1], min_h), max_h)
+                    new_top_left = Geometry.FloatPoint(y=min(max(new_top_left.y, min_v), max_v), x=min(max(new_top_left.x, min_h), max_h))
                 # shape constrained to square; hold bottom right constant
-                if old_bottom - new_top_left[0] < old_right - new_top_left[1]:  # size will be width
-                    new_top_left = old_bottom - (old_right - new_top_left[1]), new_top_left[1]
+                if old_rect.bottom - new_top_left.y < old_rect.right - new_top_left.x:  # size will be width
+                    new_top_left = Geometry.FloatPoint(y=old_rect.bottom - (old_rect.right - new_top_left.x), x=new_top_left.x)
                 else:  # size will be height
-                    new_top_left = new_top_left[0], old_right - (old_bottom - new_top_left[0])
+                    new_top_left = Geometry.FloatPoint(y=new_top_left.y, x=old_rect.right - (old_rect.bottom - new_top_left.y))
             else:
                 # shape not constrained; hold bottom right constant
-                if "bounds" in constraints:
-                    new_top_left = min(max(new_top_left[0], 0.0), mapping.data_shape[0]), min(max(new_top_left[1], 0.0), mapping.data_shape[1])
-            new_bounds = new_top_left, (old_bottom - new_top_left[0], old_right - new_top_left[1])
+                if "bounds" in constraints and rotation == 0.0:
+                    new_top_left = Geometry.FloatPoint(y=min(max(new_top_left.y, 0.0), data_shape.height), x=min(max(new_top_left.x, 0.0), data_shape.width))
+            new_bounds = Geometry.FloatRect(origin=new_top_left, size=old_rect.bottom_right - new_top_left)
+            rotation_offset = rotate(new_bounds.bottom_right, new_bounds.center, rotation) - rotate(old_rect.bottom_right, old_rect.center, rotation)
+            new_bounds -= rotation_offset
     elif part_name == "top-right" and not "shape" in constraints:  # top right
-        new_top_right = old_top + delta[0], old_right + delta[1]
-        if modifiers.alt or "position" in constraints:
+        delta = rotate(delta, Geometry.FloatPoint(), -rotation)
+        new_top_right = old_rect.top_right + delta
+        if (bool(modifiers.alt) != bool(is_center_constant_by_default)) or "position" in constraints:
             if modifiers.shift or "square" in constraints:
                 # shape constrained to square; hold center constant
-                half_size = old_center[0] - new_top_right[0], new_top_right[1] - old_center[1]
-                if half_size[0] > half_size[1]:  # size will be width
-                    new_top_right = old_center[0] - half_size[1], old_center[1] + half_size[1]
+                half_size = Geometry.FloatSize(height=old_rect.center.y - new_top_right.y, width=new_top_right.x - old_rect.center.x)
+                if half_size.height > half_size.width:  # size will be width
+                    new_top_right = old_rect.center - Geometry.FloatPoint(y=-half_size.width, x=half_size.width)
                 else:  # size will be height
-                    new_top_right = old_center[0] - half_size[0], old_center[1] + half_size[0]
+                    new_top_right = old_rect.center - Geometry.FloatPoint(y=-half_size.height, x=half_size.height)
                 if "bounds" in constraints:
                     # now constrain the top-right value
-                    new_top_right = min(max(new_top_right[0], min_v), max_v), min(max(new_top_right[1], min_h), max_h)
+                    new_top_right = Geometry.FloatPoint(y=min(max(new_top_right.y, min_v), max_v), x=min(max(new_top_right.x, min_h), max_h))
             else:
                 # shape not constrained; hold center constant
                 if "bounds" in constraints:
-                    new_top_right = min(max(new_top_right[0], old_center[0] - max_abs_delta_v), old_center[0] + max_abs_delta_v), min(max(new_top_right[1], old_center[1] - max_abs_delta_h), old_center[1] + max_abs_delta_h)
+                    new_top_right = Geometry.FloatPoint(y=min(max(new_top_right.y, old_rect.center.y - max_abs_delta_v), old_rect.center.y + max_abs_delta_v), x=min(max(new_top_right.x, old_rect.center.x - max_abs_delta_h), old_rect.center.x + max_abs_delta_h))
             # c + (c - t), c - (r - c)
-            new_bottom_left = 2*old_center[0] - new_top_right[0], 2*old_center[1] - new_top_right[1]
-            new_bounds = (new_top_right[0], new_bottom_left[1]), (new_bottom_left[0] - new_top_right[0], new_top_right[1] - new_bottom_left[1])
+            new_bottom_left = 2 * old_rect.center - new_top_right
+            new_bounds = Geometry.FloatRect(origin=new_top_right, size=new_bottom_left - new_top_right)
         else:
             if modifiers.shift or "square" in constraints:
                 if "bounds" in constraints:
                     # find the minimum distance of bottom-left from bottom-left and opposite corner of data
-                    min_from_10 = min(data_height - old_bottom, old_left)
-                    min_from_01 = min(old_bottom, data_width - old_left)
+                    min_from_10 = min(data_shape.height - old_rect.bottom, old_rect.left)
+                    min_from_01 = min(old_rect.bottom, data_shape.width - old_rect.left)
                     # now calculate the min/max v/h by adding/subtracting those values from bottom-left
-                    min_v = old_bottom - min_from_01
-                    max_v = old_bottom + min_from_10
-                    min_h = old_left - min_from_10
-                    max_h = old_left + min_from_01
+                    min_v = old_rect.bottom - min_from_01
+                    max_v = old_rect.bottom + min_from_10
+                    min_h = old_rect.left - min_from_10
+                    max_h = old_rect.left + min_from_01
                     # now constrain the top-left value
-                    new_top_right = min(max(new_top_right[0], min_v), max_v), min(max(new_top_right[1], min_h), max_h)
+                    new_top_right = Geometry.FloatPoint(y=min(max(new_top_right.y, min_v), max_v), x=min(max(new_top_right.x, min_h), max_h))
                 # shape constrained to square; hold bottom left constant
-                if old_bottom - new_top_right[0] < new_top_right[1] - old_left:  # size will be width
-                    new_top_right = old_bottom - (new_top_right[1] - old_left), new_top_right[1]
+                if old_rect.bottom - new_top_right.y < new_top_right.x - old_rect.left:  # size will be width
+                    new_top_right = Geometry.FloatPoint(y=old_rect.bottom - (new_top_right.x - old_rect.left), x=new_top_right.x)
                 else:  # size will be height
-                    new_top_right = new_top_right[0], old_left + (old_bottom - new_top_right[0])
+                    new_top_right = Geometry.FloatPoint(y=new_top_right.y, x=old_rect.left + (old_rect.bottom - new_top_right.y))
             else:
                 # shape not constrained; hold bottom left constant
                 if "bounds" in constraints:
-                    new_top_right = min(max(new_top_right[0], 0.0), mapping.data_shape[0]), min(max(new_top_right[1], 0.0), mapping.data_shape[1])
-            new_bounds = (new_top_right[0], old_left), (old_bottom - new_top_right[0], new_top_right[1] - old_left)
+                    new_top_right = Geometry.FloatPoint(y=min(max(new_top_right.y, 0.0), data_shape.height), x=min(max(new_top_right.x, 0.0), data_shape.width))
+            new_bounds = Geometry.FloatRect(origin=Geometry.FloatPoint(y=new_top_right.y, x=old_rect.left), size=Geometry.FloatSize(height=old_rect.bottom - new_top_right.y, width=new_top_right.x - old_rect.left))
+            rotation_offset = rotate(new_bounds.bottom_left, new_bounds.center, rotation) - rotate(old_rect.bottom_left, old_rect.center, rotation)
+            new_bounds -= rotation_offset
     elif part_name == "bottom-right" and not "shape" in constraints:  # bottom right
-        new_bottom_right = old_bottom + delta[0], old_right + delta[1]
-        if modifiers.alt or "position" in constraints:
+        delta = rotate(delta, Geometry.FloatPoint(), -rotation)
+        new_bottom_right = old_rect.bottom_right + delta
+        if (bool(modifiers.alt) != bool(is_center_constant_by_default)) or "position" in constraints:
             if modifiers.shift or "square" in constraints:
                 # shape constrained to square; hold center constant
-                half_size = new_bottom_right[0] - old_center[0], new_bottom_right[1] - old_center[1]
-                if half_size[0] > half_size[1]:  # size will be width
-                    new_bottom_right = old_center[0] + half_size[1], old_center[1] + half_size[1]
+                half_size = Geometry.FloatSize.make(new_bottom_right - old_rect.center)
+                if half_size.height > half_size.width:  # size will be width
+                    new_bottom_right = old_rect.center + Geometry.FloatPoint(y=half_size.width, x=half_size.width)
                 else:  # size will be height
-                    new_bottom_right = old_center[0] + half_size[0], old_center[1] + half_size[0]
+                    new_bottom_right = old_rect.center + Geometry.FloatPoint(y=half_size.height, x=half_size.height)
                 if "bounds" in constraints:
-                    # now constrain the bottom-left value
-                    new_bottom_right = min(max(new_bottom_right[0], min_v), max_v), min(max(new_bottom_right[1], min_h), max_h)
+                    # now constrain the bottom-right value
+                    new_bottom_right = Geometry.FloatPoint(y=min(max(new_bottom_right.y, min_v), max_v), x=min(max(new_bottom_right.x, min_h), max_h))
             else:
                 # shape not constrained; hold center constant
                 if "bounds" in constraints:
-                    new_bottom_right = min(max(new_bottom_right[0], old_center[0] - max_abs_delta_v), old_center[0] + max_abs_delta_v), min(max(new_bottom_right[1], old_center[1] - max_abs_delta_h), old_center[1] + max_abs_delta_h)
+                    new_bottom_right = Geometry.FloatPoint(y=min(max(new_bottom_right.y, old_rect.center.y - max_abs_delta_v), old_rect.center.y + max_abs_delta_v), x=min(max(new_bottom_right.x, old_rect.center.x - max_abs_delta_h), old_rect.center.x + max_abs_delta_h))
             # c - (b - c), c - (r - c)
-            new_top_left = 2*old_center[0] - new_bottom_right[0], 2*old_center[1] - new_bottom_right[1]
-            new_bounds = new_top_left, (new_bottom_right[0] - new_top_left[0], new_bottom_right[1] - new_top_left[1])
+            new_top_left = 2 * old_rect.center - new_bottom_right
+            new_bounds = Geometry.FloatRect(origin=new_top_left, size=new_bottom_right - new_top_left)
         else:
             if modifiers.shift or "square" in constraints:
                 if "bounds" in constraints:
                     # find the minimum distance of bottom-right from bottom-right and opposite corner of data
-                    min_from_00 = min(old_top, old_left)
-                    min_from_11 = min(data_height - old_top, data_width - old_left)
+                    min_from_00 = min(old_rect.top, old_rect.left)
+                    min_from_11 = min(data_shape.height - old_rect.top, data_shape.width - old_rect.left)
                     # now calculate the min/max v/h by adding/subtracting those values from top-right
-                    min_v = old_top - min_from_00
-                    max_v = old_top + min_from_11
-                    min_h = old_left - min_from_00
-                    max_h = old_left + min_from_11
+                    min_v = old_rect.top - min_from_00
+                    max_v = old_rect.top + min_from_11
+                    min_h = old_rect.left - min_from_00
+                    max_h = old_rect.left + min_from_11
                     # now constrain the bottom-left value
-                    new_bottom_right = min(max(new_bottom_right[0], min_v), max_v), min(max(new_bottom_right[1], min_h), max_h)
+                    new_bottom_right = Geometry.FloatPoint(y=min(max(new_bottom_right.y, min_v), max_v), x=min(max(new_bottom_right.x, min_h), max_h))
                 # shape constrained to square; hold top left constant
-                if new_bottom_right[0] - old_top < new_bottom_right[1] - old_left:  # size will be width
-                    new_bottom_right = old_top + (new_bottom_right[1] - old_left), new_bottom_right[1]
+                if new_bottom_right.y - old_rect.top < new_bottom_right.x - old_rect.left:  # size will be width
+                    new_bottom_right = Geometry.FloatPoint(y=old_rect.top + (new_bottom_right.x - old_rect.left), x=new_bottom_right.x)
                 else:  # size will be height
-                    new_bottom_right = new_bottom_right[0], old_left + (new_bottom_right[0] - old_top)
+                    new_bottom_right = Geometry.FloatPoint(y=new_bottom_right.y, x=old_rect.left + (new_bottom_right.y - old_rect.top))
             else:
                 # shape not constrained; hold top right constant
                 if "bounds" in constraints:
-                    new_bottom_right = min(max(new_bottom_right[0], 0.0), mapping.data_shape[0]), min(max(new_bottom_right[1], 0.0), mapping.data_shape[1])
-            new_bounds = (old_top, old_left), (new_bottom_right[0] - old_top, new_bottom_right[1] - old_left)
+                    new_bottom_right = Geometry.FloatPoint(y=min(max(new_bottom_right.y, 0.0), data_shape.height), x=min(max(new_bottom_right.x, 0.0), data_shape.width))
+            new_bounds = Geometry.FloatRect(origin=old_rect.top_left, size=new_bottom_right - old_rect.top_left)
+            rotation_offset = rotate(new_bounds.top_left, new_bounds.center, rotation) - rotate(old_rect.top_left, old_rect.center, rotation)
+            new_bounds -= rotation_offset
     elif part_name == "bottom-left" and not "shape" in constraints:  # bottom left
-        new_bottom_left = old_bottom + delta[0], old_left + delta[1]
-        if modifiers.alt or "position" in constraints:
+        delta = rotate(delta, Geometry.FloatPoint(), -rotation)
+        new_bottom_left = old_rect.bottom_left + delta
+        if (bool(modifiers.alt) != bool(is_center_constant_by_default)) or "position" in constraints:
             if modifiers.shift or "square" in constraints:
                 # shape constrained to square; hold center constant
-                half_size = new_bottom_left[0] - old_center[0], old_center[1] - new_bottom_left[1]
-                if half_size[0] > half_size[1]:  # size will be width
-                    new_bottom_left = old_center[0] + half_size[1], old_center[1] - half_size[1]
+                half_size = Geometry.FloatSize(height=new_bottom_left.y - old_rect.center.y, width=old_rect.center.x - new_bottom_left.x)
+                if half_size.height > half_size.width:  # size will be width
+                    new_bottom_left = old_rect.center + Geometry.FloatPoint(y=half_size.width, x=-half_size.width)
                 else:  # size will be height
-                    new_bottom_left = old_center[0] + half_size[0], old_center[1] - half_size[0]
+                    new_bottom_left = old_rect.center + Geometry.FloatPoint(y=half_size.height, x=-half_size.height)
                 if "bounds" in constraints:
                     # now constrain the bottom-left value
-                    new_bottom_left = min(max(new_bottom_left[0], min_v), max_v), min(max(new_bottom_left[1], min_h), max_h)
+                    new_bottom_left = Geometry.FloatPoint(y=min(max(new_bottom_left.y, min_v), max_v), x=min(max(new_bottom_left.x, min_h), max_h))
             else:
                 # shape not constrained; hold center constant
                 if "bounds" in constraints:
-                    new_bottom_left = min(max(new_bottom_left[0], old_center[0] - max_abs_delta_v), old_center[0] + max_abs_delta_v), min(max(new_bottom_left[1], old_center[1] - max_abs_delta_h), old_center[1] + max_abs_delta_h)
+                    new_bottom_left = Geometry.FloatPoint(y=min(max(new_bottom_left.y, old_rect.center.y - max_abs_delta_v), old_rect.center.y + max_abs_delta_v), x=min(max(new_bottom_left.x, old_rect.center.x - max_abs_delta_h), old_rect.center.x + max_abs_delta_h))
             # c - (b - c), c + (c - l)
-            new_top_right = 2*old_center[0] - new_bottom_left[0], 2*old_center[1] - new_bottom_left[1]
-            new_bounds = (new_top_right[0], new_bottom_left[1]), (new_bottom_left[0] - new_top_right[0], new_top_right[1] - new_bottom_left[1])
+            new_top_right = 2 * old_rect.center - new_bottom_left
+            new_bounds = Geometry.FloatRect(origin=Geometry.FloatPoint(y=new_top_right.y, x=new_bottom_left.x), size=Geometry.FloatSize(height=new_bottom_left.y - new_top_right.y, width=new_top_right.x - new_bottom_left.x))
         else:
             if modifiers.shift or "square" in constraints:
                 if "bounds" in constraints:
                     # find the minimum distance of top-right from top-right and opposite corner of data
-                    min_from_01 = min(old_top, data_width - old_right)
-                    min_from_10 = min(data_height - old_top, old_right)
+                    min_from_01 = min(old_rect.top, data_shape.width - old_rect.right)
+                    min_from_10 = min(data_shape.height - old_rect.top, old_rect.right)
                     # now calculate the min/max v/h by adding/subtracting those values from top-right
-                    min_v = old_top - min_from_01
-                    max_v = old_top + min_from_10
-                    min_h = old_right - min_from_10
-                    max_h = old_right + min_from_01
+                    min_v = old_rect.top - min_from_01
+                    max_v = old_rect.top + min_from_10
+                    min_h = old_rect.right - min_from_10
+                    max_h = old_rect.right + min_from_01
                     # now constrain the top-left value
-                    new_bottom_left = min(max(new_bottom_left[0], min_v), max_v), min(max(new_bottom_left[1], min_h), max_h)
+                    new_bottom_left = Geometry.FloatPoint(y=min(max(new_bottom_left.y, min_v), max_v), x=min(max(new_bottom_left.x, min_h), max_h))
                 # shape constrained to square; hold top right constant
-                if new_bottom_left[0] - old_top < old_right - new_bottom_left[1]:  # size will be width
-                    new_bottom_left = old_top + (old_right - new_bottom_left[1]), new_bottom_left[1]
+                if new_bottom_left.y - old_rect.top < old_rect.right - new_bottom_left.x:  # size will be width
+                    new_bottom_left = Geometry.FloatPoint(y=old_rect.top + (old_rect.right - new_bottom_left.x), x=new_bottom_left.x)
                 else:  # size will be height
-                    new_bottom_left = new_bottom_left[0], old_right - (new_bottom_left[0] - old_top)
+                    new_bottom_left = Geometry.FloatPoint(y=new_bottom_left.y, x=old_rect.right - (new_bottom_left.y - old_rect.top))
             else:
                 # shape not constrained; hold top right constant
                 if "bounds" in constraints:
-                    new_bottom_left = min(max(new_bottom_left[0], 0.0), mapping.data_shape[0]), min(max(new_bottom_left[1], 0.0), mapping.data_shape[1])
-            new_bounds = (old_top, new_bottom_left[1]), (new_bottom_left[0] - old_top, old_right - new_bottom_left[1])
+                    new_bottom_left = Geometry.FloatPoint(y=min(max(new_bottom_left.y, 0.0), data_shape.height), x=min(max(new_bottom_left.x, 0.0), data_shape.width))
+            new_bounds = Geometry.FloatRect(origin=Geometry.FloatPoint(y=old_rect.top, x=new_bottom_left.x), size=Geometry.FloatSize(height=new_bottom_left.y - old_rect.top, width=old_rect.right - new_bottom_left.x))
+            rotation_offset = rotate(new_bounds.top_right, new_bounds.center, rotation) - rotate(old_rect.top_right, old_rect.center, rotation)
+            new_bounds -= rotation_offset
+    elif part_name == "rotate" and not "rotation" in constraints:
+        original_delta = o - old_rect.center
+        current_delta = p - old_rect.center
+        original_angle = math.atan2(-original_delta.y, original_delta.x)
+        current_angle = math.atan2(-current_delta.y, current_delta.x)
+        new_rotation = old_rotation + (current_angle - original_angle)
+        if modifiers.shift:
+            new_rotation = 2 * math.pi * int(8 * (new_rotation / (2 * math.pi)) + 0.5) / 8
     elif (part_name == "all" or "shape" in constraints) and not "position" in constraints:
         if modifiers.shift:
-            if delta[0] > delta[1]:
-                origin = old_top + delta[0], old_left
+            if abs(delta.y) > abs(delta.x):
+                origin = Geometry.FloatPoint(y=old_rect.top + delta.y, x=old_rect.left)
             else:
-                origin = old_top, old_left + delta[1]
+                origin = Geometry.FloatPoint(y=old_rect.top, x=old_rect.left + delta.x)
         else:
-            origin = old_top + delta[0], old_left + delta[1]
+            origin = old_rect.top_left + delta
         if "bounds" in constraints:
-            origin = min(max(origin[0], 0.0), data_height - old_height), min(max(origin[1], 0.0), data_width - old_width)
-        new_bounds = origin, old_size
-    return mapping.map_point_image_to_image_norm(new_bounds[0]), mapping.map_size_image_to_image_norm(new_bounds[1])
+            origin = min(max(origin.y, 0.0), data_shape.height - old_rect.height), min(max(origin.x, 0.0), data_shape.width - old_rect.width)
+        new_bounds = Geometry.FloatRect(origin=origin, size=old_size)
+    return (mapping.map_point_image_to_image_norm(new_bounds.origin), mapping.map_size_image_to_image_norm(new_bounds.size)), new_rotation
+
+
+def draw_arrow(ctx, p1, p2, arrow_size=8):
+    angle = math.atan2(p2[0] - p1[0], p2[1] - p1[1])
+    ctx.move_to(p2[1], p2[0])
+    ctx.line_to(p2[1] - arrow_size * math.cos(angle - math.pi / 6), p2[0] - arrow_size * math.sin(angle - math.pi / 6))
+    ctx.move_to(p2[1], p2[0])
+    ctx.line_to(p2[1] - arrow_size * math.cos(angle + math.pi / 6), p2[0] - arrow_size * math.sin(angle + math.pi / 6))
 
 
 class NullModifiers(object):
@@ -450,9 +495,9 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
             ctx.stroke()
             ctx.fill()
 
-    def draw_marker(self, ctx, p):
+    def draw_marker(self, ctx, p, fill_style=None):
         with ctx.saver():
-            ctx.fill_style = '#00FF00'
+            ctx.fill_style = fill_style if fill_style else '#00FF00'
             ctx.begin_path()
             ctx.move_to(p[1] - 3, p[0] - 3)
             ctx.line_to(p[1] + 3, p[0] - 3)
@@ -504,15 +549,18 @@ class RectangleTypeGraphic(Graphic):
         super().__init__(type)
         self.title = title
         self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed)
+        self.define_property("rotation", 0.0, changed=self._property_changed)
 
     def mime_data_dict(self) -> dict:
         d = super().mime_data_dict()
         d["bounds"] = self.bounds
+        d["rotation"] = self.rotation
         return d
 
     def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
         super().read_from_mime_data(graphic_dict, is_same_source)
         self.bounds = graphic_dict.get("bounds", self.bounds)
+        self.rotation = graphic_dict.get("rotation", self.rotation)
 
     # accessors
 
@@ -562,26 +610,59 @@ class RectangleTypeGraphic(Graphic):
         self.center = bounds[0][0] + bounds[1][0] * 0.5, bounds[0][1] + bounds[1][1] * 0.5
         self.size = bounds[1]
 
+    @property
+    def _rotated_top_left(self):  # useful for testing
+        return rotate(self._bounds.top_left, self._bounds.center, self.rotation)
+
+    @property
+    def _rotated_top_right(self):  # useful for testing
+        return rotate(self._bounds.top_right, self._bounds.center, self.rotation)
+
+    @property
+    def _rotated_bottom_right(self):  # useful for testing
+        return rotate(self._bounds.bottom_right, self._bounds.center, self.rotation)
+
+    @property
+    def _rotated_bottom_left(self):  # useful for testing
+        return rotate(self._bounds.bottom_left, self._bounds.center, self.rotation)
+
     def get_mask(self, data_shape: typing.Sequence[int]) -> numpy.ndarray:
         mask = numpy.zeros(data_shape)
         bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
                       (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
-        mask[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0] + 1,
-             bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1] + 1] = 1
+        if self.rotation:
+            a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
+            y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
+            angle_sin = math.sin(self.rotation)
+            angle_cos = math.cos(self.rotation)
+            mask_eq = (numpy.fabs(x * angle_cos - y * angle_sin) / (bounds_int[1][1] / 2) <= 1) & (numpy.fabs(y * angle_cos + x * angle_sin) / (bounds_int[1][0] / 2) <= 1)
+            mask[mask_eq] = 1
+        else:
+            mask[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0] + 1,
+                 bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1] + 1] = 1
         return mask
 
     # test point hit
     def test(self, mapping, get_font_metrics_fn, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
+        test_point = Geometry.FloatPoint.make(test_point)
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
         size = mapping.map_size_image_norm_to_widget(self.bounds[1])
-        top_left = origin
-        top_right = origin[0], origin[1] + size[1]
-        bottom_right = origin[0] + size[0], origin[1] + size[1]
-        bottom_left = origin[0] + size[0], origin[1]
+        rect = Geometry.FloatRect(origin=origin, size=size)
+        top_left = rect.top_left
+        top_right = rect.top_right
+        bottom_right = rect.bottom_right
+        bottom_left = rect.bottom_left
+        center = rect.center
+        if self.rotation:
+            top_left = rotate(top_left, center, self.rotation)
+            top_right = rotate(top_right, center, self.rotation)
+            bottom_left = rotate(bottom_left, center, self.rotation)
+            bottom_right = rotate(bottom_right, center, self.rotation)
+        test_point_unrotated = rotate(Geometry.FloatPoint(y=test_point.y, x=test_point.x), center, -self.rotation)
         # top left
-        if self.test_point(origin, test_point, 4):
+        if self.test_point(top_left, test_point, 4):
             return "top-left", True
         # top right
         if self.test_point(top_right, test_point, 4):
@@ -592,6 +673,18 @@ class RectangleTypeGraphic(Graphic):
         # bottom left
         if self.test_point(bottom_left, test_point, 4):
             return "bottom-left", True
+        # rotate top left
+        if self.test_point(extend_line(center, top_left, 14), test_point, 6):
+            return "rotate", True
+        # rotate top right
+        if self.test_point(extend_line(center, top_right, 14), test_point, 6):
+            return "rotate", True
+        # rotate bottom right
+        if self.test_point(extend_line(center, bottom_right, 14), test_point, 6):
+            return "rotate", True
+        # rotate bottom left
+        if self.test_point(extend_line(center, bottom_left, 14), test_point, 6):
+            return "rotate", True
         # top line
         if self.test_line(top_left, top_right, test_point, 4):
             return "all", True
@@ -605,7 +698,7 @@ class RectangleTypeGraphic(Graphic):
         if self.test_line(top_right, bottom_right, test_point, 4):
             return "all", True
         # center
-        if self.test_inside_bounds((origin, size), test_point, 4):
+        if self.test_inside_bounds((origin, size), test_point_unrotated, 4):
             return "all", False
         # label
         if self.test_label(get_font_metrics_fn, mapping, test_point):
@@ -614,14 +707,14 @@ class RectangleTypeGraphic(Graphic):
         return None, None
 
     def begin_drag(self):
-        return (self.bounds, )
+        return (self.bounds, self.rotation)
 
     def end_drag(self, part_data):
         pass
 
     # rectangle
     def adjust_part(self, mapping, original, current, part, modifiers):
-        self.bounds = adjust_rectangle_like(mapping, original, current, part, modifiers, self._constraints)
+        raise NotImplementedError()
 
     def nudge(self, mapping, delta):
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
@@ -638,40 +731,66 @@ class RectangleGraphic(RectangleTypeGraphic):
     def __init__(self):
         super().__init__("rect-graphic", _("Rectangle"))
 
+    # rectangle
+    def adjust_part(self, mapping, original, current, part, modifiers):
+        self.bounds, self.rotation = adjust_rectangle_like(mapping, self.rotation, False, original, current, part, modifiers, self._constraints)
+
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         # origin is top left
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
         size = mapping.map_size_image_norm_to_widget(self.bounds[1])
+        rect = Geometry.FloatRect(origin=origin, size=size)
+        top_left = rect.top_left
+        top_right = rect.top_right
+        bottom_right = rect.bottom_right
+        bottom_left = rect.bottom_left
+        center = rect.center
+        if self.rotation:
+            top_left = rotate(top_left, center, self.rotation)
+            top_right = rotate(top_right, center, self.rotation)
+            bottom_left = rotate(bottom_left, center, self.rotation)
+            bottom_right = rotate(bottom_right, center, self.rotation)
         with ctx.saver():
+            if self.rotation:
+                ctx.translate(center.x, center.y)
+                ctx.rotate(-self.rotation)
+                ctx.translate(-center.x, -center.y)
             ctx.begin_path()
             ctx.move_to(origin[1], origin[0])
             ctx.line_to(origin[1] + size[1], origin[0])
             ctx.line_to(origin[1] + size[1], origin[0] + size[0])
             ctx.line_to(origin[1], origin[0] + size[0])
+            ctx.line_to(origin[1], origin[0])
+            ctx.move_to(center.x, rect.top + 10)
+            ctx.line_to(center.x, rect.top + 2)
+            draw_arrow(ctx, Geometry.FloatPoint(y=rect.top + 10, x=center.x), Geometry.FloatPoint(y=rect.top + 2, x=center.x), arrow_size=4)
             ctx.close_path()
             ctx.line_width = 1
             ctx.stroke_style = self.color
             ctx.stroke()
         if is_selected:
-            self.draw_marker(ctx, origin)
-            self.draw_marker(ctx, (origin[0] + size[0], origin[1]))
-            self.draw_marker(ctx, (origin[0] + size[0], origin[1] + size[1]))
-            self.draw_marker(ctx, (origin[0], origin[1] + size[1]))
-            # draw center marker
-            mark_size = 8
-            if size[0] > mark_size:
-                mid_x = origin[1] + 0.5 * size[1]
-                mid_y = origin[0] + 0.5 * size[0]
-                with ctx.saver():
+            self.draw_marker(ctx, top_left)
+            self.draw_marker(ctx, top_right)
+            self.draw_marker(ctx, bottom_right)
+            self.draw_marker(ctx, bottom_left)
+            with ctx.saver():
+                if self.rotation:
+                    ctx.translate(center.x, center.y)
+                    ctx.rotate(-self.rotation)
+                    ctx.translate(-center.x, -center.y)
+                # draw center marker
+                mark_size = 8
+                if size[0] > mark_size:
+                    mid_x = center.x
+                    mid_y = center.y
                     ctx.begin_path()
                     ctx.move_to(mid_x - 0.5 * mark_size, mid_y)
                     ctx.line_to(mid_x + 0.5 * mark_size, mid_y)
                     ctx.stroke_style = self.color
                     ctx.stroke()
-            if size[1] > mark_size:
-                mid_x = origin[1] + 0.5 * size[1]
-                mid_y = origin[0] + 0.5 * size[0]
-                with ctx.saver():
+                if size[1] > mark_size:
+                    mid_x = origin[1] + 0.5 * size[1]
+                    mid_y = origin[0] + 0.5 * size[0]
                     ctx.begin_path()
                     ctx.move_to(mid_x, mid_y - 0.5 * mark_size)
                     ctx.line_to(mid_x, mid_y + 0.5 * mark_size)
@@ -695,38 +814,73 @@ class EllipseGraphic(RectangleTypeGraphic):
                       (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
         a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
         y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
-        mask_eq = x*x / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + y*y / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
+        if self.rotation:
+            angle_sin = math.sin(self.rotation)
+            angle_cos = math.cos(self.rotation)
+            mask_eq = ((x * angle_cos - y * angle_sin) ** 2) / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + ((y * angle_cos + x * angle_sin) ** 2) / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
+        else:
+            mask_eq = x*x / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + y*y / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
         mask[mask_eq] = 1
         return mask
+
+    # rectangle
+    def adjust_part(self, mapping, original, current, part, modifiers):
+        self.bounds, self.rotation = adjust_rectangle_like(mapping, self.rotation, True, original, current, part, modifiers, self._constraints)
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         # origin is top left
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
         size = mapping.map_size_image_norm_to_widget(self.bounds[1])
+        rect = Geometry.FloatRect(origin=origin, size=size)
+        top_left = rect.top_left
+        top_right = rect.top_right
+        bottom_right = rect.bottom_right
+        bottom_left = rect.bottom_left
+        center = rect.center
+        if self.rotation:
+            top_left = rotate(top_left, center, self.rotation)
+            top_right = rotate(top_right, center, self.rotation)
+            bottom_left = rotate(bottom_left, center, self.rotation)
+            bottom_right = rotate(bottom_right, center, self.rotation)
         with ctx.saver():
+            if self.rotation:
+                ctx.translate(center.x, center.y)
+                ctx.rotate(-self.rotation)
+                ctx.translate(-center.x, -center.y)
             ctx.line_width = 1
             ctx.stroke_style = self.color
             self.draw_ellipse(ctx, origin[1] + size[1] * 0.5, origin[0] + size[0] * 0.5, size[1], size[0])
+            ctx.begin_path()
+            ctx.move_to(center.x, rect.top + 10)
+            ctx.line_to(center.x, rect.top + 2)
+            draw_arrow(ctx, Geometry.FloatPoint(y=rect.top + 10, x=center.x), Geometry.FloatPoint(y=rect.top + 2, x=center.x), arrow_size=4)
+            ctx.close_path()
+            ctx.line_width = 1
+            ctx.stroke_style = self.color
+            ctx.stroke()
         if is_selected:
-            self.draw_marker(ctx, origin)
-            self.draw_marker(ctx, (origin[0] + size[0], origin[1]))
-            self.draw_marker(ctx, (origin[0] + size[0], origin[1] + size[1]))
-            self.draw_marker(ctx, (origin[0], origin[1] + size[1]))
+            self.draw_marker(ctx, top_left)
+            self.draw_marker(ctx, top_right)
+            self.draw_marker(ctx, bottom_right)
+            self.draw_marker(ctx, bottom_left)
             # draw center marker
-            mark_size = 8
-            if size[0] > mark_size:
-                mid_x = origin[1] + 0.5 * size[1]
-                mid_y = origin[0] + 0.5 * size[0]
-                with ctx.saver():
+            with ctx.saver():
+                if self.rotation:
+                    ctx.translate(center.x, center.y)
+                    ctx.rotate(-self.rotation)
+                    ctx.translate(-center.x, -center.y)
+                mark_size = 8
+                if size[0] > mark_size:
+                    mid_x = origin[1] + 0.5 * size[1]
+                    mid_y = origin[0] + 0.5 * size[0]
                     ctx.begin_path()
                     ctx.move_to(mid_x - 0.5 * mark_size, mid_y)
                     ctx.line_to(mid_x + 0.5 * mark_size, mid_y)
                     ctx.stroke_style = self.color
                     ctx.stroke()
-            if size[1] > mark_size:
-                mid_x = origin[1] + 0.5 * size[1]
-                mid_y = origin[0] + 0.5 * size[0]
-                with ctx.saver():
+                if size[1] > mark_size:
+                    mid_x = origin[1] + 0.5 * size[1]
+                    mid_y = origin[0] + 0.5 * size[0]
                     ctx.begin_path()
                     ctx.move_to(mid_x, mid_y - 0.5 * mark_size)
                     ctx.line_to(mid_x, mid_y + 0.5 * mark_size)
@@ -938,14 +1092,6 @@ class LineTypeGraphic(Graphic):
         current = (original[0] + delta[0], original[1] + delta[1])
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
-    def draw_arrow(self, ctx, p1, p2):
-        arrow_size = 8
-        angle = math.atan2(p2[0] - p1[0], p2[1] - p1[1])
-        ctx.move_to(p2[1], p2[0])
-        ctx.line_to(p2[1] - arrow_size * math.cos(angle - math.pi / 6), p2[0] - arrow_size * math.sin(angle - math.pi / 6))
-        ctx.move_to(p2[1], p2[0])
-        ctx.line_to(p2[1] - arrow_size * math.cos(angle + math.pi / 6), p2[0] - arrow_size * math.sin(angle + math.pi / 6))
-
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         raise NotImplementedError()
 
@@ -962,9 +1108,9 @@ class LineGraphic(LineTypeGraphic):
             ctx.move_to(p1[1], p1[0])
             ctx.line_to(p2[1], p2[0])
             if self.start_arrow_enabled:
-                self.draw_arrow(ctx, p2, p1)
+                draw_arrow(ctx, p2, p1)
             if self.end_arrow_enabled:
-                self.draw_arrow(ctx, p1, p2)
+                draw_arrow(ctx, p1, p2)
             ctx.line_width = 1
             ctx.stroke_style = self.color
             ctx.stroke()
@@ -1005,9 +1151,9 @@ class LineProfileGraphic(LineTypeGraphic):
             ctx.move_to(p1[1], p1[0])
             ctx.line_to(p2[1], p2[0])
             if self.start_arrow_enabled:
-                self.draw_arrow(ctx, p2, p1)
+                draw_arrow(ctx, p2, p1)
             if self.end_arrow_enabled:
-                self.draw_arrow(ctx, p1, p2)
+                draw_arrow(ctx, p1, p2)
             ctx.line_width = 1
             ctx.stroke_style = self.color
             ctx.stroke()
@@ -1472,7 +1618,7 @@ class SpotGraphic(Graphic):
         constraints = self._constraints
         if part[0] not in ("all", "inverted-all"):
             constraints = constraints.union({"position", "square"})
-        self.bounds = adjust_rectangle_like(mapping, original, current, part, modifiers, constraints)
+        self.bounds = adjust_rectangle_like(mapping, 0.0, False, original, current, part, modifiers, constraints)
 
     def nudge(self, mapping, delta):
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])

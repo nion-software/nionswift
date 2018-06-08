@@ -1871,7 +1871,10 @@ class DataSource:
             graphic = self.__graphic
             if graphic:
                 if hasattr(graphic, "bounds") and displayed_xdata.is_data_2d:
-                    return Core.function_crop(displayed_xdata, graphic.bounds)
+                    if graphic.rotation:
+                        return Core.function_crop_rotated(displayed_xdata, graphic.bounds, graphic.rotation)
+                    else:
+                        return Core.function_crop(displayed_xdata, graphic.bounds)
                 if hasattr(graphic, "interval") and displayed_xdata.is_data_1d:
                     return Core.function_crop_interval(displayed_xdata, graphic.interval)
             return displayed_xdata
@@ -1885,7 +1888,10 @@ class DataSource:
             graphic = self.__graphic
             if graphic:
                 if hasattr(graphic, "bounds"):
-                    return Core.function_crop(xdata, graphic.bounds)
+                    if graphic.rotation:
+                        return Core.function_crop_rotated(xdata, graphic.bounds, graphic.rotation)
+                    else:
+                        return Core.function_crop(xdata, graphic.bounds)
                 if hasattr(graphic, "interval"):
                     return Core.function_crop_interval(xdata, graphic.interval)
             return xdata
