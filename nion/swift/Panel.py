@@ -129,6 +129,8 @@ class OutputPanel(Panel):
                 self.__out.write(stuff)
             def flush(self):
                 self.__out.flush()
+            def getvalue(self):
+                return self.__out.getvalue()
 
         sys.stdout = StdoutCatcher(self.__old_stdout)
         sys.stderr = StdoutCatcher(self.__old_stderr)
