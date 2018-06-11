@@ -131,6 +131,9 @@ class OutputPanel(Panel):
                 self.__out.flush()
             def getvalue(self):
                 return self.__out.getvalue()
+            @property
+            def delegate(self):
+                return self.__out.delegate
 
         sys.stdout = StdoutCatcher(self.__old_stdout)
         sys.stderr = StdoutCatcher(self.__old_stderr)
