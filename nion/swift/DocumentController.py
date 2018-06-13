@@ -2,6 +2,7 @@
 import copy
 import functools
 import gettext
+import itertools
 import json
 import logging
 import math
@@ -16,6 +17,7 @@ import typing
 import uuid
 import weakref
 
+from nion.data import DataAndMetadata
 from nion.swift import ComputationPanel
 from nion.swift import ConsoleDialog
 from nion.swift import Decorators
@@ -171,6 +173,7 @@ class DocumentController(Window.Window):
         self._processing_fourier_menu = None
         self._processing_graphics_menu = None
         self._processing_sequence_menu = None
+        self._processing_redimension_menu = None
         self._display_type_menu = None
 
         if self.__workspace_controller:
@@ -309,6 +312,35 @@ class DocumentController(Window.Window):
         self._processing_menu.add_menu_item(_("Edit Display Script"), self.new_display_editor_dialog, key_sequence="Ctrl+Shift+D")
         self._processing_menu.add_separator()
 
+        self._processing_transform_menu = self.create_sub_menu()
+        self._processing_menu.add_sub_menu(_("Transform"), self._processing_transform_menu)
+
+        self._processing_transform_menu.add_menu_item(_("Transpose and Flip"), functools.partial(self.__processing_new, self.document_model.get_transpose_flip_new))
+        self._processing_transform_menu.add_menu_item(_("Resample"), functools.partial(self.__processing_new, self.document_model.get_resample_new))
+        self._processing_transform_menu.add_menu_item(_("Crop"), functools.partial(self.__processing_new, self.document_model.get_crop_new))
+        self._processing_transform_menu.add_menu_item(_("Resize"), functools.partial(self.__processing_new, self.document_model.get_resize_new))
+        self._processing_transform_menu.add_menu_item(_("Convert to Scalar"), functools.partial(self.__processing_new, self.document_model.get_convert_to_scalar_new))
+
+        self._processing_arithmetic_menu = self.create_sub_menu()
+        self._processing_menu.add_sub_menu(_("Arithmetic"), self._processing_arithmetic_menu)
+
+        self._processing_arithmetic_menu.add_menu_item(_("Add"), functools.partial(self.__processing_new2, self.document_model.get_add_new))
+        self._processing_arithmetic_menu.add_menu_item(_("Subtract"), functools.partial(self.__processing_new2, self.document_model.get_subtract_new))
+        self._processing_arithmetic_menu.add_menu_item(_("Multiply"), functools.partial(self.__processing_new2, self.document_model.get_multiply_new))
+        self._processing_arithmetic_menu.add_menu_item(_("Divide"), functools.partial(self.__processing_new2, self.document_model.get_divide_new))
+        self._processing_arithmetic_menu.add_menu_item(_("Negate"), functools.partial(self.__processing_new, self.document_model.get_invert_new))
+        self._processing_arithmetic_menu.add_separator()
+        self._processing_arithmetic_menu.add_menu_item(_("Subtract Region Average"), functools.partial(self.__processing_new, self.document_model.get_subtract_region_average_new))
+
+        self._processing_reduce_menu = self.create_sub_menu()
+        self._processing_menu.add_sub_menu(_("Reduce"), self._processing_reduce_menu)
+
+        self._processing_reduce_menu.add_menu_item(_("Slice Sum"), functools.partial(self.__processing_new, self.document_model.get_slice_sum_new))
+        self._processing_reduce_menu.add_menu_item(_("Pick"), functools.partial(self.__processing_new, self.document_model.get_pick_new))
+        self._processing_reduce_menu.add_menu_item(_("Pick Region (Sum)"), functools.partial(self.__processing_new, self.document_model.get_pick_region_new))
+        self._processing_reduce_menu.add_menu_item(_("Pick Region (Average)"), functools.partial(self.__processing_new, self.document_model.get_pick_region_average_new))
+        self._processing_reduce_menu.add_menu_item(_("Projection (Sum)"), functools.partial(self.__processing_new, self.document_model.get_projection_new))
+
         self._processing_fourier_menu = self.create_sub_menu()
         self._processing_menu.add_sub_menu(_("Fourier"), self._processing_fourier_menu)
 
@@ -331,34 +363,10 @@ class DocumentController(Window.Window):
         self._processing_filter_menu.add_menu_item(_("Median Filter"), functools.partial(self.__processing_new, self.document_model.get_median_filter_new))
         self._processing_filter_menu.add_menu_item(_("Uniform Filter"), functools.partial(self.__processing_new, self.document_model.get_uniform_filter_new))
 
-        self._processing_transform_menu = self.create_sub_menu()
-        self._processing_menu.add_sub_menu(_("Transform"), self._processing_transform_menu)
-
-        self._processing_transform_menu.add_menu_item(_("Transpose and Flip"), functools.partial(self.__processing_new, self.document_model.get_transpose_flip_new))
-        self._processing_transform_menu.add_menu_item(_("Resample"), functools.partial(self.__processing_new, self.document_model.get_resample_new))
-        self._processing_transform_menu.add_menu_item(_("Crop"), functools.partial(self.__processing_new, self.document_model.get_crop_new))
-        self._processing_transform_menu.add_menu_item(_("Resize"), functools.partial(self.__processing_new, self.document_model.get_resize_new))
-        self._processing_transform_menu.add_menu_item(_("Convert to Scalar"), functools.partial(self.__processing_new, self.document_model.get_convert_to_scalar_new))
-
-        self._processing_reduce_menu = self.create_sub_menu()
-        self._processing_menu.add_sub_menu(_("Reduce"), self._processing_reduce_menu)
-
-        self._processing_reduce_menu.add_menu_item(_("Slice Sum"), functools.partial(self.__processing_new, self.document_model.get_slice_sum_new))
-        self._processing_reduce_menu.add_menu_item(_("Pick"), functools.partial(self.__processing_new, self.document_model.get_pick_new))
-        self._processing_reduce_menu.add_menu_item(_("Pick Region (Sum)"), functools.partial(self.__processing_new, self.document_model.get_pick_region_new))
-        self._processing_reduce_menu.add_menu_item(_("Pick Region (Average)"), functools.partial(self.__processing_new, self.document_model.get_pick_region_average_new))
-        self._processing_reduce_menu.add_menu_item(_("Projection (Sum)"), functools.partial(self.__processing_new, self.document_model.get_projection_new))
-
-        self._processing_arithmetic_menu = self.create_sub_menu()
-        self._processing_menu.add_sub_menu(_("Arithmetic"), self._processing_arithmetic_menu)
-
-        self._processing_arithmetic_menu.add_menu_item(_("Add"), functools.partial(self.__processing_new2, self.document_model.get_add_new))
-        self._processing_arithmetic_menu.add_menu_item(_("Subtract"), functools.partial(self.__processing_new2, self.document_model.get_subtract_new))
-        self._processing_arithmetic_menu.add_menu_item(_("Multiply"), functools.partial(self.__processing_new2, self.document_model.get_multiply_new))
-        self._processing_arithmetic_menu.add_menu_item(_("Divide"), functools.partial(self.__processing_new2, self.document_model.get_divide_new))
-        self._processing_arithmetic_menu.add_menu_item(_("Negate"), functools.partial(self.__processing_new, self.document_model.get_invert_new))
-        self._processing_arithmetic_menu.add_separator()
-        self._processing_arithmetic_menu.add_menu_item(_("Subtract Region Average"), functools.partial(self.__processing_new, self.document_model.get_subtract_region_average_new))
+        self.__data_menu_actions = list()
+        self._processing_redimension_menu = self.create_sub_menu()
+        self._processing_redimension_menu.on_about_to_show = self.__adjust_redimension_data_menu
+        self._processing_menu.add_sub_menu(_("Redimension Data"), self._processing_redimension_menu)
 
         self._processing_sequence_menu = self.create_sub_menu()
         self._processing_menu.add_sub_menu(_("Sequence"), self._processing_sequence_menu)
@@ -1580,6 +1588,100 @@ class DocumentController(Window.Window):
         inspector_panel = self.find_dock_widget("inspector-panel").panel
         if inspector_panel is not None:
             inspector_panel.request_focus = True
+
+    def _perform_redimension(self, data_item: DataItem.DataItem, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
+        def process() -> DataItem.LibraryItem:
+            new_data_item = self.document_model.get_redimension_new(data_item, data_descriptor)
+            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
+            self.display_data_item(new_display_specifier)
+            return new_data_item
+        command = self.create_insert_library_item_command(process)
+        command.perform()
+        assert isinstance(command, DocumentController.InsertLibraryItemCommand)
+        if command.library_item:
+            self.push_undo_command(command)
+            return command.library_item
+        else:
+            command.close()
+
+    def _perform_squeeze(self, data_item: DataItem.DataItem) -> None:
+        def process() -> DataItem.LibraryItem:
+            new_data_item = self.document_model.get_squeeze_new(data_item)
+            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
+            self.display_data_item(new_display_specifier)
+            return new_data_item
+        command = self.create_insert_library_item_command(process)
+        command.perform()
+        assert isinstance(command, DocumentController.InsertLibraryItemCommand)
+        if command.library_item:
+            self.push_undo_command(command)
+            return command.library_item
+        else:
+            command.close()
+
+    def __adjust_redimension_data_menu(self):
+        for action in self.__data_menu_actions:
+            self._processing_redimension_menu.remove_action(action)
+        self.__data_menu_actions = list()
+        selected_display_panel = self.selected_display_panel
+        data_item = selected_display_panel.data_item if selected_display_panel else None
+        if data_item:
+
+            def describe_data_descriptor(data_descriptor: DataAndMetadata.DataDescriptor, data_shape: typing.List[int]) -> str:
+                if data_descriptor.is_sequence:
+                    data_type_name = _("Sequence of {} ".format(data_shape[0]))
+                    index = 1
+                else:
+                    data_type_name = str()
+                    index = 0
+                if data_descriptor.collection_dimension_count == 1:
+                    data_type_name += _("Collection of ") + str(data_shape[index]) + " "
+                    index += 1
+                elif data_descriptor.collection_dimension_count == 2:
+                    data_type_name += str(data_shape[index]) + "x" + str(data_shape[index + 1]) + _(" Collection of ")
+                    index += 2
+                if data_descriptor.datum_dimension_count == 1:
+                    data_type_name += "Spectra of Length " + str(data_shape[index])
+                elif data_descriptor.datum_dimension_count == 2:
+                    data_type_name += "Images of Shape " + str(data_shape[index]) + "x" + str(data_shape[index + 1])
+                return data_type_name
+
+            # add (disabled) existing data type menu item
+            data_type_name = describe_data_descriptor(data_item.xdata.data_descriptor, data_item.xdata.data_shape)
+            action = self._processing_redimension_menu.add_menu_item(data_type_name, None)
+            action.enabled = False
+            self.__data_menu_actions.append(action)
+
+            # add redimension menu items if available
+            for is_sequence, collection_dims, data_dims in itertools.product((True, False), (0, 1, 2), (1, 2)):
+                data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dims, data_dims)
+                if data_descriptor.expected_dimension_count == data_item.xdata.data_descriptor.expected_dimension_count and data_descriptor != data_item.xdata.data_descriptor:
+                    data_type_name = describe_data_descriptor(data_descriptor, data_item.xdata.data_shape)
+                    action = self._processing_redimension_menu.add_menu_item(_("Redimension to {}").format(data_type_name), functools.partial(self._perform_redimension, data_item, data_descriptor))
+                    self.__data_menu_actions.append(action)
+
+            # add squeeze menu item if available
+            data_descriptor = data_item.xdata.data_descriptor
+            data_shape = list(data_item.xdata.data_shape)
+            if 1 in data_shape[data_descriptor.collection_dimension_index_slice] or 1 in data_shape[data_descriptor.sequence_dimension_index_slice] and len(data_shape[data_descriptor.datum_dimension_index_slice]) > 1 and data_shape[data_descriptor.datum_dimension_index_slice].count(1) > 0:
+                if data_descriptor.is_sequence and data_shape[data_descriptor.sequence_dimension_index_slice] == 1:
+                    data_descriptor.is_sequence = False
+                    data_shape = data_shape[1:]
+                while data_shape[data_descriptor.collection_dimension_index_slice].count(1) > 0:
+                    index = data_shape[data_descriptor.collection_dimension_index_slice].index(1)
+                    del data_shape[data_descriptor.collection_dimension_index_slice.start + index]
+                    data_descriptor.collection_dimension_count -= 1
+                while len(data_shape[data_descriptor.datum_dimension_index_slice]) > 1 and data_shape[data_descriptor.datum_dimension_index_slice].count(1) > 0:
+                    index = data_shape[data_descriptor.datum_dimension_index_slice].index(1)
+                    del data_shape[data_descriptor.datum_dimension_index_slice.start + index]
+                    data_descriptor.datum_dimension_count -= 1
+                data_type_name = describe_data_descriptor(data_descriptor, data_shape)
+                self.__data_menu_actions.append(self._processing_redimension_menu.add_menu_item(_("Squeeze to {}").format(data_type_name), functools.partial(self._perform_squeeze, data_item)))
+        else:
+            action = self._processing_redimension_menu.add_menu_item(_("No Data Selected"), None)
+            action.enabled = False
+            self.__data_menu_actions.append(action)
+        self._window_menu_about_to_show()
 
     def __get_crop_graphic(self, display_specifier):
         crop_graphic = None

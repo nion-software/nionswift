@@ -972,6 +972,69 @@ class TestProcessingClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(cropped_data_item.data, data_item.data[2:6, 0:8]))
 
+    def test_basic_redimension_command_works(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data = numpy.zeros((2, 2, 2))
+            data_descriptor = DataAndMetadata.DataDescriptor(False, 2, 1)
+            dimensional_calibrations = [
+                Calibration.Calibration(1),
+                Calibration.Calibration(2),
+                Calibration.Calibration(3),
+            ]
+            xdata = DataAndMetadata.new_data_and_metadata(data, data_descriptor=data_descriptor, dimensional_calibrations=dimensional_calibrations)
+            data_item = DataItem.new_data_item(xdata)
+            document_model.append_data_item(data_item)
+            document_controller._perform_redimension(data_item, DataAndMetadata.DataDescriptor(False, 1, 2))
+            document_model.recompute_all()
+            redim_data_item = document_model.data_items[1]
+            self.assertEqual(redim_data_item.xdata.data_descriptor, DataAndMetadata.DataDescriptor(False, 1, 2))
+            self.assertEqual(redim_data_item.xdata.dimensional_calibrations, [Calibration.Calibration(1), Calibration.Calibration(2), Calibration.Calibration(3)])
+
+    def test_squeeze_removes_proper_dimensions(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data = numpy.zeros((1, 2, 1, 1))
+            data_descriptor = DataAndMetadata.DataDescriptor(True, 2, 1)
+            dimensional_calibrations = [
+                Calibration.Calibration(1),
+                Calibration.Calibration(2),
+                Calibration.Calibration(3),
+                Calibration.Calibration(4),
+            ]
+            xdata = DataAndMetadata.new_data_and_metadata(data, data_descriptor=data_descriptor, dimensional_calibrations=dimensional_calibrations)
+            data_item = DataItem.new_data_item(xdata)
+            document_model.append_data_item(data_item)
+            document_controller._perform_squeeze(data_item)
+            document_model.recompute_all()
+            squeezed_data_item = document_model.data_items[1]
+            self.assertEqual(squeezed_data_item.xdata.data_descriptor, DataAndMetadata.DataDescriptor(False, 1, 1))
+            self.assertEqual(squeezed_data_item.xdata.dimensional_calibrations, [Calibration.Calibration(2), Calibration.Calibration(4)])
+
+    def test_squeeze_removes_proper_dimensions_when_both_datum_is_1(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data = numpy.zeros((1, 2, 1, 1, 1))
+            data_descriptor = DataAndMetadata.DataDescriptor(True, 2, 2)
+            dimensional_calibrations = [
+                Calibration.Calibration(1),
+                Calibration.Calibration(2),
+                Calibration.Calibration(3),
+                Calibration.Calibration(4),
+                Calibration.Calibration(5),
+            ]
+            xdata = DataAndMetadata.new_data_and_metadata(data, data_descriptor=data_descriptor, dimensional_calibrations=dimensional_calibrations)
+            data_item = DataItem.new_data_item(xdata)
+            document_model.append_data_item(data_item)
+            document_controller._perform_squeeze(data_item)
+            document_model.recompute_all()
+            squeezed_data_item = document_model.data_items[1]
+            self.assertEqual(squeezed_data_item.xdata.data_descriptor, DataAndMetadata.DataDescriptor(False, 1, 1))
+            self.assertEqual(squeezed_data_item.xdata.dimensional_calibrations, [Calibration.Calibration(2), Calibration.Calibration(5)])
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

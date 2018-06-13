@@ -2890,12 +2890,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def make_data_item_with_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
         return self.__make_computation(processing_id, inputs, region_list_map)
 
-    def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, Graphics.Graphic]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
+    def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None, parameters: typing.Mapping[str, typing.Any]=None) -> DataItem.DataItem:
         """Create a new data item with computation specified by processing_id, inputs, and region_list_map.
 
         The region_list_map associates a list of graphics corresponding to the required regions with a computation source (key).
         """
         region_list_map = region_list_map or dict()
+
+        parameters = parameters or dict()
 
         processing_descriptions = self._processing_descriptions
         processing_description = processing_descriptions[processing_id]
@@ -3073,7 +3075,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             computation.create_object(region_name, self.get_object_specifier(region), label=region_label)
         # next process the parameters
         for param_dict in processing_description.get("parameters", list()):
-            computation.create_variable(param_dict["name"], param_dict["type"], param_dict["value"], value_default=param_dict.get("value_default"),
+            parameter_value = parameters.get(param_dict["name"], param_dict["value"])
+            computation.create_variable(param_dict["name"], param_dict["type"], parameter_value, value_default=param_dict.get("value_default"),
                                         value_min=param_dict.get("value_min"), value_max=param_dict.get("value_max"),
                                         control_type=param_dict.get("control_type"), label=param_dict["label"])
 
@@ -3181,6 +3184,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [width_param, height_param]}
             vs["resize"] = {"title": _("Resize"), "expression": "xd.resize({src}, (height, width), 'mean')",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [width_param, height_param]}
+            is_sequence_param = {"name": "is_sequence", "label": _("Sequence"), "type": "bool", "value": False, "value_default": False}
+            collection_dims_param = {"name": "collection_dims", "label": _("Collection Dimensions"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0, "value_max": 0}
+            datum_dims_param = {"name": "datum_dims", "label": _("Datum Dimensions"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1, "value_max": 0}
+            vs["redimension"] = {"title": _("Redimension"), "expression": "xd.redimension({src}, xd.data_descriptor(is_sequence=is_sequence, collection_dims=collection_dims, datum_dims=datum_dims))",
+                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False}], "parameters": [is_sequence_param, collection_dims_param, datum_dims_param]}
+            vs["squeeze"] = {"title": _("Squeeze"), "expression": "xd.squeeze({src})",
+                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False}]}
             bins_param = {"name": "bins", "label": _("Bins"), "type": "integral", "value": 256, "value_default": 256, "value_min": 2}
             vs["histogram"] = {"title": _("Histogram"), "expression": "xd.histogram({src}, bins)",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [bins_param]}
@@ -3286,6 +3296,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def get_resize_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("resize", [(data_item, crop_region)])
+
+    def get_redimension_new(self, data_item: DataItem.DataItem, data_descriptor: DataAndMetadata.DataDescriptor) -> DataItem.DataItem:
+        return self.__make_computation("redimension", [(data_item, None)], parameters={"is_sequence": data_descriptor.is_sequence, "collection_dims": data_descriptor.collection_dimension_count, "datum_dims": data_descriptor.datum_dimension_count})
+
+    def get_squeeze_new(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
+        return self.__make_computation("squeeze", [(data_item, None)])
 
     def get_histogram_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("histogram", [(data_item, crop_region)])
