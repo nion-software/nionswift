@@ -157,6 +157,93 @@ class TestComputationPanelClass(unittest.TestCase):
             document_controller.periodic()  # execute queue
             self.assertEqual(len(panel1._sections_for_testing), 0)
 
+    def test_change_variable_command_resulting_in_error_undo_redo(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            # setup
+            data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item2)
+            data_item3 = DataItem.DataItem(numpy.zeros((10, )))
+            document_model.append_data_item(data_item3)
+            computation = document_model.create_computation("target.xdata = a.xdata[1] + x")
+            variable = computation.create_object("a", document_model.get_object_specifier(data_item2))
+            computation.create_variable("x", value_type="integral", value=5)
+            document_model.set_data_item_computation(data_item1, computation)
+            # verify setup
+            self.assertEqual(variable.bound_item.value.data_item, data_item2)
+            document_model.recompute_all()
+            document_controller.periodic()
+            # change variable
+            variable_specifier = document_model.get_object_specifier(data_item3)
+            properties = {"variable_type": "data_item", "specifier": variable_specifier}
+            command = ComputationPanel.ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, **properties)
+            command.perform()
+            document_controller.push_undo_command(command)
+            # verify change and trigger error
+            self.assertEqual(variable.bound_item.value.data_item, data_item3)
+            document_model.recompute_all()
+            document_controller.periodic()
+            self.assertIsNotNone(computation.error_text)
+            # undo and verify
+            document_controller.handle_undo()
+            self.assertEqual(variable.bound_item.value.data_item, data_item2)
+            document_model.recompute_all()
+            document_controller.periodic()
+            self.assertIsNone(computation.error_text)
+            # redo and verify
+            document_controller.handle_redo()
+            document_model.recompute_all()
+            document_controller.periodic()
+            self.assertEqual(variable.bound_item.value.data_item, data_item3)
+            self.assertIsNotNone(computation.error_text)
+
+    def test_change_variable_command_resulting_in_creating_data_item_undo_redo(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            # setup
+            data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item2)
+            data_item3 = DataItem.DataItem(numpy.zeros((10, )))
+            document_model.append_data_item(data_item3)
+            computation = document_model.create_computation("target.xdata = a.xdata[1] + x")
+            variable = computation.create_object("a", document_model.get_object_specifier(data_item3))
+            computation.create_variable("x", value_type="integral", value=5)
+            document_model.set_data_item_computation(data_item1, computation)
+            # verify setup
+            self.assertEqual(variable.bound_item.value.data_item, data_item3)
+            document_model.recompute_all()
+            document_controller.periodic()
+            self.assertIsNotNone(computation.error_text)
+            # change variable
+            variable_specifier = document_model.get_object_specifier(data_item2)
+            properties = {"variable_type": "data_item", "specifier": variable_specifier}
+            command = ComputationPanel.ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, **properties)
+            command.perform()
+            document_controller.push_undo_command(command)
+            # verify change and trigger computation
+            self.assertEqual(variable.bound_item.value.data_item, data_item2)
+            document_model.recompute_all()
+            document_controller.periodic()
+            self.assertIsNone(computation.error_text)
+            # undo and verify
+            document_controller.handle_undo()
+            self.assertEqual(variable.bound_item.value.data_item, data_item3)
+            document_model.recompute_all()
+            document_controller.periodic()
+            self.assertIsNotNone(computation.error_text)
+            # redo and verify
+            document_controller.handle_redo()
+            document_model.recompute_all()
+            document_controller.periodic()
+            self.assertEqual(variable.bound_item.value.data_item, data_item2)
+            self.assertIsNone(computation.error_text)
+
     def disabled_test_expression_updates_when_variable_is_assigned(self):
         raise Exception()
 

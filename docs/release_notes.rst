@@ -5,6 +5,7 @@ Release Notes
 
 UNRELEASED
 ----------
+* (2018-06-13) Fix undo issues when editing computation variables.
 * (2018-06-12) Add redimension sub-menu with redimensioning and squeeze menu items.
 * (2018-06-12) Rename 'None' menu item for displays to 'Empty Display'.
 * (2018-06-08) Add rotation property to rectangles and ellipses.

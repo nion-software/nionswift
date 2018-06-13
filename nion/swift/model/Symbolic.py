@@ -399,7 +399,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_type("computation")
         self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("original_expression", expression)
-        self.define_property("error_text", changed=self.__error_changed)
+        self.define_property("error_text", hidden=True, changed=self.__error_changed)
         self.define_property("label", changed=self.__label_changed)
         self.define_property("processing_id")  # see note above
         self.define_relationship("variables", variable_factory)
@@ -484,6 +484,16 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
         else:
             unregistered()
+
+    @property
+    def error_text(self) -> typing.Optional[str]:
+        return self._get_persistent_property_value("error_text")
+
+    @error_text.setter
+    def error_text(self, value):
+        modified_state = self.modified_state
+        self._set_persistent_property_value("error_text", value)
+        self.modified_state = modified_state
 
     def __error_changed(self, name, value):
         self.notify_property_changed(name)
