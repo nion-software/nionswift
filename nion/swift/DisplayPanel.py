@@ -1809,7 +1809,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         def switch_to_display_content(display_panel_type):
             self.switch_to_display_content(document_controller, display_panel, display_panel_type, display_panel.data_item)
 
-        empty_action = display_type_menu.add_menu_item(_("None"), functools.partial(switch_to_display_content, "empty-display-panel"))
+        empty_action = display_type_menu.add_menu_item(_("Empty Display"), functools.partial(switch_to_display_content, "empty-display-panel"))
         display_type_menu.add_separator()
 
         data_item_display_action = display_type_menu.add_menu_item(_("Data Item Display"), functools.partial(switch_to_display_content, "data-display-panel"))

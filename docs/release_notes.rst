@@ -5,6 +5,7 @@ Release Notes
 
 UNRELEASED
 ----------
+* (2018-06-12) Rename 'None' menu item for displays to 'Empty Display'.
 * (2018-06-08) Add rotation property to rectangles and ellipses.
 
 Version 0.13.5, June 6, 2018
