@@ -1160,8 +1160,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
             rect = self.canvas_bounds
 
-            drawing_context.save()
-            try:
+            with drawing_context.saver():
                 font = "normal 11px serif"
                 text_pos = Geometry.IntPoint(y=rect[0][1], x=rect[0][0])
                 drawing_context.begin_path()
@@ -1180,8 +1179,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 drawing_context.fill_text("frame:" + fps2, text_pos.x + 8, text_pos.y + 30)
                 drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
                 drawing_context.statistics("display")
-            finally:
-                drawing_context.restore()
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the image canvas item.

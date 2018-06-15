@@ -51,35 +51,32 @@ class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
 
         # draw left display limit
         if left > 0.0:
-            drawing_context.save()
-            drawing_context.begin_path()
-            drawing_context.move_to(left * canvas_width, 1)
-            drawing_context.line_to(left * canvas_width, canvas_height-1)
-            drawing_context.line_width = 2
-            drawing_context.stroke_style = "#000"
-            drawing_context.stroke()
-            drawing_context.restore()
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.move_to(left * canvas_width, 1)
+                drawing_context.line_to(left * canvas_width, canvas_height-1)
+                drawing_context.line_width = 2
+                drawing_context.stroke_style = "#000"
+                drawing_context.stroke()
 
         # draw right display limit
         if right < 1.0:
-            drawing_context.save()
-            drawing_context.begin_path()
-            drawing_context.move_to(right * canvas_width, 1)
-            drawing_context.line_to(right * canvas_width, canvas_height-1)
-            drawing_context.line_width = 2
-            drawing_context.stroke_style = "#FFF"
-            drawing_context.stroke()
-            drawing_context.restore()
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.move_to(right * canvas_width, 1)
+                drawing_context.line_to(right * canvas_width, canvas_height-1)
+                drawing_context.line_width = 2
+                drawing_context.stroke_style = "#FFF"
+                drawing_context.stroke()
 
         # draw border
-        drawing_context.save()
-        drawing_context.begin_path()
-        drawing_context.move_to(0,canvas_height)
-        drawing_context.line_to(canvas_width,canvas_height)
-        drawing_context.line_width = 1
-        drawing_context.stroke_style = "#444"
-        drawing_context.stroke()
-        drawing_context.restore()
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.move_to(0,canvas_height)
+            drawing_context.line_to(canvas_width,canvas_height)
+            drawing_context.line_width = 1
+            drawing_context.stroke_style = "#444"
+            drawing_context.stroke()
 
 
 class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -133,31 +130,29 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
         # draw background
         if self.background_color:
-            drawing_context.save()
-            drawing_context.begin_path()
-            drawing_context.move_to(0,0)
-            drawing_context.line_to(canvas_width,0)
-            drawing_context.line_to(canvas_width,canvas_height)
-            drawing_context.line_to(0,canvas_height)
-            drawing_context.close_path()
-            drawing_context.fill_style = self.background_color
-            drawing_context.fill()
-            drawing_context.restore()
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.move_to(0,0)
+                drawing_context.line_to(canvas_width,0)
+                drawing_context.line_to(canvas_width,canvas_height)
+                drawing_context.line_to(0,canvas_height)
+                drawing_context.close_path()
+                drawing_context.fill_style = self.background_color
+                drawing_context.fill()
 
         # draw the data, if any
         if (self.data is not None and len(self.data) > 0):
 
             # draw the histogram itself
-            drawing_context.save()
-            drawing_context.begin_path()
-            binned_data = Image.rebin_1d(self.data, int(canvas_width), self.__retained_rebin_1d) if int(canvas_width) != self.data.shape[0] else self.data
-            for i in range(canvas_width):
-                drawing_context.move_to(i, canvas_height)
-                drawing_context.line_to(i, canvas_height * (1 - binned_data[i]))
-            drawing_context.line_width = 1
-            drawing_context.stroke_style = "#444"
-            drawing_context.stroke()
-            drawing_context.restore()
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                binned_data = Image.rebin_1d(self.data, int(canvas_width), self.__retained_rebin_1d) if int(canvas_width) != self.data.shape[0] else self.data
+                for i in range(canvas_width):
+                    drawing_context.move_to(i, canvas_height)
+                    drawing_context.line_to(i, canvas_height * (1 - binned_data[i]))
+                drawing_context.line_width = 1
+                drawing_context.stroke_style = "#444"
+                drawing_context.stroke()
 
 
 class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):

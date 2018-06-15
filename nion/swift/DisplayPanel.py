@@ -444,20 +444,19 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
         # canvas size
         canvas_width = self.canvas_size[1]
         canvas_height = self.canvas_size[0]
-        drawing_context.save()
-        drawing_context.begin_path()
-        drawing_context.rect(0, 0, canvas_width, canvas_height)
-        drawing_context.fill_style = "#CCC"
-        drawing_context.fill()
-        drawing_context.begin_path()
-        drawing_context.rect(0, 0, canvas_width, canvas_height)
-        drawing_context.move_to(0, 0)
-        drawing_context.line_to(canvas_width, canvas_height)
-        drawing_context.move_to(0, canvas_height)
-        drawing_context.line_to(canvas_width, 0)
-        drawing_context.stroke_style = "#444"
-        drawing_context.stroke()
-        drawing_context.restore()
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.rect(0, 0, canvas_width, canvas_height)
+            drawing_context.fill_style = "#CCC"
+            drawing_context.fill()
+            drawing_context.begin_path()
+            drawing_context.rect(0, 0, canvas_width, canvas_height)
+            drawing_context.move_to(0, 0)
+            drawing_context.line_to(canvas_width, canvas_height)
+            drawing_context.move_to(0, canvas_height)
+            drawing_context.line_to(canvas_width, 0)
+            drawing_context.stroke_style = "#444"
+            drawing_context.stroke()
 
 
 class CompositeDisplayCanvasItem(CanvasItem.LayerCanvasItem):

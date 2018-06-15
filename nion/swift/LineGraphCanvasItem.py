@@ -716,15 +716,14 @@ class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
             x_ticks = axes.calculate_x_ticks(plot_width)
 
             # draw the tick marks
-            drawing_context.save()
-            for x, _ in x_ticks:
-                drawing_context.begin_path()
-                drawing_context.move_to(x, 0)
-                drawing_context.line_to(x, self.tick_height)
-                drawing_context.line_width = 1
-                drawing_context.stroke_style = '#888'
-                drawing_context.stroke()
-            drawing_context.restore()
+            with drawing_context.saver():
+                for x, _ in x_ticks:
+                    drawing_context.begin_path()
+                    drawing_context.move_to(x, 0)
+                    drawing_context.line_to(x, self.tick_height)
+                    drawing_context.line_width = 1
+                    drawing_context.stroke_style = '#888'
+                    drawing_context.stroke()
 
 
 class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -755,14 +754,13 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             x_ticks = axes.calculate_x_ticks(plot_width)
 
             # draw the tick marks
-            drawing_context.save()
-            drawing_context.font = "{0:d}px".format(self.font_size)
-            for x, label in x_ticks:
-                drawing_context.text_align = "center"
-                drawing_context.text_baseline = "middle"
-                drawing_context.fill_style = "#000"
-                drawing_context.fill_text(label, x, height * 0.5)
-            drawing_context.restore()
+            with drawing_context.saver():
+                drawing_context.font = "{0:d}px".format(self.font_size)
+                for x, label in x_ticks:
+                    drawing_context.text_align = "center"
+                    drawing_context.text_baseline = "middle"
+                    drawing_context.fill_style = "#000"
+                    drawing_context.fill_text(label, x, height * 0.5)
 
 
 class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -805,14 +803,13 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
                 height = self.canvas_size[0]
                 plot_width = int(self.canvas_size[1]) - 1
 
-                drawing_context.save()
-                drawing_context.text_align = "center"
-                drawing_context.text_baseline = "middle"
-                drawing_context.fill_style = "#000"
-                value_str = u"({0})".format(axes.x_calibration.units)
-                drawing_context.font = "{0:d}px".format(self.font_size)
-                drawing_context.fill_text(value_str, plot_width * 0.5, height * 0.5)
-                drawing_context.restore()
+                with drawing_context.saver():
+                    drawing_context.text_align = "center"
+                    drawing_context.text_baseline = "middle"
+                    drawing_context.fill_style = "#000"
+                    value_str = u"({0})".format(axes.x_calibration.units)
+                    drawing_context.font = "{0:d}px".format(self.font_size)
+                    drawing_context.fill_text(value_str, plot_width * 0.5, height * 0.5)
 
 
 class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -844,15 +841,14 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
             y_ticks = axes.calculate_y_ticks(plot_height)
 
             # draw the y_ticks and labels
-            drawing_context.save()
-            for y, _ in y_ticks:
-                drawing_context.begin_path()
-                drawing_context.move_to(width, y)
-                drawing_context.line_to(width - self.tick_width, y)
-                drawing_context.line_width = 1
-                drawing_context.stroke_style = '#888'
-                drawing_context.stroke()
-            drawing_context.restore()
+            with drawing_context.saver():
+                for y, _ in y_ticks:
+                    drawing_context.begin_path()
+                    drawing_context.move_to(width, y)
+                    drawing_context.line_to(width - self.tick_width, y)
+                    drawing_context.line_width = 1
+                    drawing_context.stroke_style = '#888'
+                    drawing_context.stroke()
 
 
 class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -908,17 +904,16 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             y_ticks = axes.calculate_y_ticks(plot_height)
 
             # draw the y_ticks and labels
-            drawing_context.save()
-            drawing_context.text_baseline = "middle"
-            drawing_context.font = "{0:d}px".format(self.font_size)
-            for y, label in y_ticks:
-                drawing_context.begin_path()
-                drawing_context.stroke_style = '#888'
-                drawing_context.stroke()
-                drawing_context.text_align = "right"
-                drawing_context.fill_style = "#000"
-                drawing_context.fill_text(label, width, y)
-            drawing_context.restore()
+            with drawing_context.saver():
+                drawing_context.text_baseline = "middle"
+                drawing_context.font = "{0:d}px".format(self.font_size)
+                for y, label in y_ticks:
+                    drawing_context.begin_path()
+                    drawing_context.stroke_style = '#888'
+                    drawing_context.stroke()
+                    drawing_context.text_align = "right"
+                    drawing_context.fill_style = "#000"
+                    drawing_context.fill_text(label, width, y)
 
 
 class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -961,22 +956,21 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
                 width = self.canvas_size[1]
                 plot_height = int(self.canvas_size[0]) - 1
 
-                drawing_context.save()
-                drawing_context.font = "{0:d}px".format(self.font_size)
-                drawing_context.text_align = "center"
-                drawing_context.text_baseline = "middle"
-                drawing_context.fill_style = "#000"
-                x = width * 0.5
-                y = int(plot_height * 0.5)
-                drawing_context.translate(x, y)
-                drawing_context.rotate(-math.pi*0.5)
-                drawing_context.translate(-x, -y)
-                drawing_context.font = "{0:d}px".format(self.font_size)
-                drawing_context.fill_text(u"{0} ({1})".format(_("Intensity"), axes.y_calibration.units), x, y)
-                drawing_context.translate(x, y)
-                drawing_context.rotate(+math.pi*0.5)
-                drawing_context.translate(-x, -y)
-                drawing_context.restore()
+                with drawing_context.saver():
+                    drawing_context.font = "{0:d}px".format(self.font_size)
+                    drawing_context.text_align = "center"
+                    drawing_context.text_baseline = "middle"
+                    drawing_context.fill_style = "#000"
+                    x = width * 0.5
+                    y = int(plot_height * 0.5)
+                    drawing_context.translate(x, y)
+                    drawing_context.rotate(-math.pi*0.5)
+                    drawing_context.translate(-x, -y)
+                    drawing_context.font = "{0:d}px".format(self.font_size)
+                    drawing_context.fill_text(u"{0} ({1})".format(_("Intensity"), axes.y_calibration.units), x, y)
+                    drawing_context.translate(x, y)
+                    drawing_context.rotate(+math.pi*0.5)
+                    drawing_context.translate(-x, -y)
 
 
 class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
