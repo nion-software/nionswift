@@ -1,0 +1,10 @@
+name: nionswift-docs
+channels:
+  - defaults
+  - nion
+dependencies:
+  - scipy
+  - h5py
+  - pytz
+  - tzlocal
+  - pillow
