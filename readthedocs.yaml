@@ -4,7 +4,7 @@ build:
   image: latest
 
 conda:
-  file: environment.yml
+  file: docs/conda_environment.yaml
 
 python:
   version: 3.6
