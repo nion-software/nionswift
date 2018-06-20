@@ -64,7 +64,7 @@ Nion Swift for macOS requires macOS 10.11 or later. We recommend using the lates
 
 If you have just installed conda or wish to create a new Nion Swift specific environment::
 
-    $ source /path/to/python/Scripts/activate root
+    $ source /path/to/python/bin/activate root
     $ conda create -n nionswift -c nion nionswift nionswift-tool
     $ conda activate nionswift
 
