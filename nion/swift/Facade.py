@@ -553,8 +553,8 @@ class UserInterface:
 
     def create_combo_box_widget(self, items=None, item_text_getter=None):
         combo_box_widget = ComboBoxWidget(self.__ui)
-        combo_box_widget.items = items if items is not None else list()
         combo_box_widget.item_text_getter = item_text_getter
+        combo_box_widget.items = items if items is not None else list()
         return combo_box_widget
 
     def create_label_widget(self, text=None):
