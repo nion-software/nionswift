@@ -164,7 +164,9 @@ class ComputationModel:
         def _undo(self):
             computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
             variable = Symbolic.ComputationVariable()
+            variable.begin_reading()
             variable.read_from_dict(self.__variable_dict)
+            variable.finish_reading()
             computation.insert_variable(self.__variable_index, variable)
 
         def _redo(self):
@@ -239,7 +241,8 @@ class ComputationModel:
             computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
             properties = self.__properties
             self.__properties = computation.write_to_dict()
-            computation.read_from_dict(properties)
+            # NOTE: use read_properties_from_dict (read properties only), not read_from_dict (used for initialization).
+            computation.read_properties_from_dict(properties)
 
         def can_merge(self, command: Undo.UndoableCommand) -> bool:
             return isinstance(command, ComputationModel.ChangeComputationCommand) and self.command_id and self.command_id == command.command_id and self.__computation_uuid == command.__computation_uuid

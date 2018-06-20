@@ -859,8 +859,8 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
         graphics = [display.graphics[index] for index in self.__graphic_indexes]
         self.__properties = [graphic.write_to_dict() for graphic in graphics]
         for graphic, properties in zip(graphics, properties):
-            graphic.read_from_dict(properties)
-
+            # NOTE: use read_properties_from_dict (read properties only), not read_from_dict (used for initialization).
+            graphic.read_properties_from_dict(properties)
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
         return isinstance(command, ChangeGraphicsCommand) and self.command_id and self.command_id == command.command_id and self.__display_uuid == command.__display_uuid and self.__graphic_indexes == command.__graphic_indexes
 

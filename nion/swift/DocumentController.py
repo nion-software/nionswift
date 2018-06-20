@@ -1305,7 +1305,9 @@ class DocumentController(Window.Window):
         def _undo(self) -> None:
             container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
             data_group = DataGroup.DataGroup()
+            data_group.begin_reading()
             data_group.read_from_dict(self.__data_group_properties)
+            data_group.finish_reading()
             container.insert_data_group(self.__data_group_index, data_group)
 
         def _redo(self) -> None:

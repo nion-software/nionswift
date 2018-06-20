@@ -441,6 +441,14 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self._about_to_be_removed = True
         self.__container_weak_ref = None
 
+    def read_properties_from_dict(self, d):
+        if "source_uuid" in d:
+            self.source_uuid = uuid.UUID(d["source_uuid"])
+        self.original_expression = d.get("original_expression", self.original_expression)
+        self.error_text = d.get("error_text", self.error_text)
+        self.label = d.get("label", self.label)
+        self.processing_id = d.get("processing_id", self.processing_id)
+
     def insert_model_item(self, container, name, before_index, item):
         if self.__container_weak_ref:
             self.container.insert_model_item(container, name, before_index, item)

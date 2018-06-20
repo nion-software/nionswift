@@ -18,6 +18,8 @@ import numpy
 # local libraries
 from nion.data import Calibration
 from nion.swift import Application
+from nion.swift import ComputationPanel
+from nion.swift import DisplayPanel
 from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift import Thumbnails
@@ -3814,6 +3816,65 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.data_items), 0)
             self.assertEqual(len(document_model.data_item_deletions), 0)
+
+    def test_undo_redo_is_written_to_storage(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            command = DocumentController.DocumentController.InsertLibraryItemsCommand(document_controller, [data_item], 0)
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual(1, len(memory_persistent_storage_system.properties.keys()))
+            document_controller.handle_undo()
+            self.assertEqual(0, len(memory_persistent_storage_system.properties.keys()))
+            document_controller.handle_redo()
+            self.assertEqual(1, len(memory_persistent_storage_system.properties.keys()))
+
+    def test_undo_graphic_move_is_written_to_storage(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            crop_region = Graphics.RectangleGraphic()
+            data_item.displays[0].add_graphic(crop_region)
+            document_model.append_data_item(data_item)
+            command = DisplayPanel.ChangeGraphicsCommand(document_model, data_item.displays[0], [crop_region], command_id="nudge", is_mergeable=True)
+            old_bounds = crop_region.bounds
+            new_bounds = ((0.1, 0.1), (0.2, 0.2))
+            crop_region.bounds = new_bounds
+            document_controller.push_undo_command(command)
+            self.assertEqual(new_bounds, crop_region.bounds)
+            document_controller.handle_undo()
+            self.assertEqual(old_bounds, crop_region.bounds)
+        # make sure it reloads with the OLD bounds
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            self.assertEqual(old_bounds, document_model.data_items[0].displays[0].graphics[0].bounds)
+
+    def test_undo_computation_edit_is_written_to_storage(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.label = "DEF"
+            document_model.append_computation(computation)
+            command = ComputationPanel.ComputationModel.ChangeComputationCommand(document_model, computation, command_id="computation_change_label", is_mergeable=True, label="ABC")
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual("ABC", document_model.computations[0].label)
+            document_controller.handle_undo()
+            self.assertEqual("DEF", document_model.computations[0].label)
+        # make sure it reloads with the OLD bounds
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        with contextlib.closing(document_model):
+            self.assertEqual("DEF", document_model.computations[0].label)
 
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()

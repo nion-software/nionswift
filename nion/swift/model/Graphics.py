@@ -415,6 +415,9 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.is_shape_locked = graphic_dict.get("is_shape_locked", self.is_shape_locked)
         self.is_bounds_constrained = graphic_dict.get("is_bounds_constrained", self.is_bounds_constrained)
 
+    def read_properties_from_dict(self, d: typing.Mapping):
+        self.read_from_mime_data(d, True)
+
     def _property_changed(self, name, value):
         self.notify_property_changed(name)
 
@@ -928,6 +931,12 @@ class LineTypeGraphic(Graphic):
         self.start_arrow_enabled = graphic_dict.get("start_arrow_enabled", self.start_arrow_enabled)
         self.end_arrow_enabled = graphic_dict.get("end_arrow_enabled", self.end_arrow_enabled)
 
+    def read_properties_from_dict(self, d: typing.Mapping):
+        super().read_from_mime_data(d, True)
+        start = d.get("start", self.vector[0])
+        end = d.get("end", self.vector[1])
+        self.vector = (start, end)
+
     @property
     def start(self):
         return self.vector[0]
@@ -1336,6 +1345,12 @@ class IntervalGraphic(Graphic):
     def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
         super().read_from_mime_data(graphic_dict, is_same_source)
         self.interval = graphic_dict.get("interval", self.interval)
+
+    def read_properties_from_dict(self, d: typing.Mapping):
+        super().read_from_mime_data(d, True)
+        start = d.get("start", self.interval[0])
+        end = d.get("end", self.interval[1])
+        self.interval = (start, end)
 
     @property
     def start(self):
