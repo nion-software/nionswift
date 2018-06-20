@@ -1576,18 +1576,20 @@ class DocumentController(Window.Window):
         data_element = { "data": data, "title": title }
         return self.add_data_element(data_element)
 
-    def display_data_item(self, display_specifier, source_data_item=None):
+    def display_data_item(self, display_specifier, source_data_item=None, request_focus=True):
         library_item = display_specifier.library_item
         assert library_item is not None
         result_display_panel = self.next_result_display_panel()
         if result_display_panel:
             result_display_panel.set_display_panel_data_item(library_item)
-            result_display_panel.request_focus()
+            if request_focus:
+                result_display_panel.request_focus()
         self.select_data_item_in_data_panel(library_item)
-        self.notify_focused_display_changed(display_specifier.display)
-        inspector_panel = self.find_dock_widget("inspector-panel").panel
-        if inspector_panel is not None:
-            inspector_panel.request_focus = True
+        if request_focus:
+            self.notify_focused_display_changed(display_specifier.display)
+            inspector_panel = self.find_dock_widget("inspector-panel").panel
+            if inspector_panel is not None:
+                inspector_panel.request_focus = True
 
     def _perform_redimension(self, data_item: DataItem.DataItem, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
         def process() -> DataItem.LibraryItem:
@@ -1807,15 +1809,18 @@ class DocumentController(Window.Window):
             self._perform_duplicate(data_item)
 
     def _perform_snapshot(self, library_item: DataItem.LibraryItem) -> None:
+        request_focus = not library_item.is_live
         def process() -> DataItem.LibraryItem:
             data_item_copy = self.document_model.get_snapshot_new(library_item)
-            self.select_data_item_in_data_panel(data_item_copy)
-            self.notify_focused_display_changed(data_item_copy.primary_display_specifier.display)
-            inspector_panel = self.find_dock_widget("inspector-panel").panel
-            if inspector_panel is not None:
-                inspector_panel.request_focus = True
+            if request_focus:
+                # see https://github.com/nion-software/nionswift/issues/145
+                self.select_data_item_in_data_panel(data_item_copy)
+                self.notify_focused_display_changed(data_item_copy.primary_display_specifier.display)
+                inspector_panel = self.find_dock_widget("inspector-panel").panel
+                if inspector_panel is not None:
+                    inspector_panel.request_focus = True
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_copy)
-            self.display_data_item(display_specifier, source_data_item=library_item)
+            self.display_data_item(display_specifier, source_data_item=library_item, request_focus=request_focus)
             return data_item_copy
         command = self.create_insert_library_item_command(process)
         command.perform()
