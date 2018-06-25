@@ -9,7 +9,6 @@ import rlcompleter
 import sys
 
 # local libraries
-from nion.swift import Panel
 from nion.ui import Dialog
 from nion.ui import Widgets
 
@@ -22,6 +21,18 @@ def reassign_stdout(new_stdout, new_stderr):
     sys.stdout, sys.stderr = new_stdout, new_stderr
     yield
     sys.stdout, sys.stderr = oldstdout, oldtsderr
+
+
+def get_common_prefix(l):
+    if not l:
+        return str()
+    s1 = min(l)  # return the first, alphabetically
+    s2 = max(l)  # the last
+    # check common characters in between
+    for i, c in enumerate(s1):
+        if c != s2[i]:
+            return s1[:i]
+    return s1
 
 
 class ConsoleWidget(Widgets.CompositeWidgetBase):
@@ -210,13 +221,14 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                     self.__text_edit_widget.move_cursor_position("end")
                     self.__last_position = copy.deepcopy(self.__cursor_position)
                 elif len(terms) > 1:
+                    common_prefix = get_common_prefix(terms)
                     prompt = self.continuation_prompt if self.__incomplete else self.prompt
                     self.__text_edit_widget.move_cursor_position("end")
                     self.__text_edit_widget.set_text_color("brown")
                     self.__text_edit_widget.append_text("   ".join(terms) + "\n")
                     self.__text_edit_widget.move_cursor_position("end")
                     self.__text_edit_widget.set_text_color("white")
-                    self.__text_edit_widget.insert_text("{}{}".format(prompt, partial_command))
+                    self.__text_edit_widget.insert_text("{}{}".format(prompt, common_prefix))
                     self.__text_edit_widget.move_cursor_position("end")
                     self.__last_position = copy.deepcopy(self.__cursor_position)
                 return True

@@ -5,6 +5,7 @@ Release Notes
 
 UNRELEASED
 ----------
+* (2018-06-25) Improve auto complete in Console to auto insert common prefix.
 * (2018-06-20) Fix issue with undo not writing undone items to storage in a few isolated cases.
 * (2018-06-20) Keep keyboard focus on original when taking snapshot of live data.
 * (2018-06-13) Fix undo issues when editing computation variables.
