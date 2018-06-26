@@ -1564,6 +1564,28 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 part_data = (graphic_drag_part, ) + graphic_part_data[index]
                 graphic.adjust_part(widget_mapping, graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
 
+    def nudge_slice(self, delta) -> None:
+        display = self.__display
+        data_item = self.data_item
+        if data_item:
+            if data_item.is_sequence:
+                mx = data_item.dimensional_shape[0] - 1  # sequence_index
+                value = display.sequence_index + delta
+                if 0 <= value <= mx:
+                    property_name = "sequence_index"
+                    command = ChangeDisplayCommand(self.__document_controller.document_model, display, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{property_name: value})
+                    command.perform()
+                    self.__document_controller.push_undo_command(command)
+            if data_item.is_collection and data_item.collection_dimension_count == 1:
+                # it's not a sequence at this point
+                mx = data_item.dimensional_shape[0] - 1  # sequence_index
+                value = display.collection_index[0] + delta
+                if 0 <= value <= mx:
+                    property_name = "collection_index"
+                    command = ChangeDisplayCommand(self.__document_controller.document_model, display, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{property_name: (value, )})
+                    command.perform()
+                    self.__document_controller.push_undo_command(command)
+
     @property
     def tool_mode(self):
         return self.__document_controller.tool_mode

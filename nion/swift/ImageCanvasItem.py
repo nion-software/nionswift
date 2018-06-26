@@ -288,6 +288,8 @@ class ImageCanvasItemDelegate:
 
     def nudge_selected_graphics(self, mapping, delta) -> None: ...
 
+    def nudge_slice(self, delta) -> None: ...
+
     def drag_graphics(self, graphics) -> None: ...
 
     def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers) -> None: ...
@@ -1049,16 +1051,22 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                         self.delegate.nudge_selected_graphics(widget_mapping, Geometry.FloatPoint(y=amount, x=0))
                     return True
             if key.is_arrow:
-                amount = 100.0 if key.modifiers.shift else 10.0
-                if key.is_left_arrow:
-                    self.move_left(amount)
-                elif key.is_up_arrow:
-                    self.move_up(amount)
-                elif key.is_right_arrow:
-                    self.move_right(amount)
-                elif key.is_down_arrow:
-                    self.move_down(amount)
-                return True
+                if key.modifiers.control:
+                    if key.is_left_arrow:
+                        self.delegate.nudge_slice(-1)
+                    elif key.is_right_arrow:
+                        self.delegate.nudge_slice(1)
+                else:
+                    amount = 100.0 if key.modifiers.shift else 10.0
+                    if key.is_left_arrow:
+                        self.move_left(amount)
+                    elif key.is_up_arrow:
+                        self.move_up(amount)
+                    elif key.is_right_arrow:
+                        self.move_right(amount)
+                    elif key.is_down_arrow:
+                        self.move_down(amount)
+                    return True
             if key.text == "-":
                 self.zoom_out()
                 return True
