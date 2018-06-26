@@ -1,6 +1,6 @@
 .. _index:
 
-Nion Swift User's Guide (0.13.5)
+Nion Swift User's Guide (0.13.6)
 =================================
 Nion Swift is open source scientific image processing software integrating hardware control, data acquisition,
 visualization, processing, and analysis using Python. Nion Swift is easily extended using Python. It runs on

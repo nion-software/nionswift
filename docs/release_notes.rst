@@ -3,8 +3,8 @@
 Release Notes
 =============
 
-UNRELEASED
-----------
+Version 0.13.6, June 26, 2018
+-----------------------------
 * (2018-06-26) Add Ctrl/Cmd-Left/Right-Arrow to move through sequences/collections.
 * (2018-06-25) Improve auto complete in Console to auto insert common prefix.
 * (2018-06-20) Fix issue with undo not writing undone items to storage in a few isolated cases.
