@@ -1,7 +1,10 @@
 .. _basic-use:
 
-Basic Use
-=========
+Introduction Tutorial
+=====================
+
+Introduction
+------------
 Nion Swift stores its data on disk as a *library*. You interact with Nion Swift using *workspaces* which display
 one or more individual *data items* within the library. The *data panel* and *browsers* allow you to choose which
 items from the library are displayed in the current workspace.
