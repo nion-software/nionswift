@@ -2,8 +2,8 @@
 
 Nion Swift Installation
 =======================
-To install Nion Swift, you will need to install a Python environment with some specific Python packages. When you
-initially launch the application, it will ask you for the directory of that Python environment.
+Nion Swift is written in the Python programming language. To use Nion Swift, you will need to install a Python
+environment.
 
 As an open source project, there are many possible installation scenarios such as for offline use, for use on a
 Nion electron microscope, or for open source development. In addition, Python installation itself is highly flexible.
@@ -11,52 +11,101 @@ Some Python installations will be used with other software, and others specifica
 
 This guide mainly covers the offline use case with a Python environment dedicated to Nion Swift usage.
 
+Requirements
+------------
+Nion Swift for Windows requires Windows 7 or later, although we recommend Windows 10 for best compatibility.
+
+Nion Swift for macOS requires macOS 10.11 or later. We recommend using the latest version of macOS.
+
+Nion Swift for Linux requires a distribution with Qt 5.5 or later (qt5-default) and Python 3.5 or later.
+
+Nion Swift has been tested with Ubuntu 16.04, 17.04, 17.10, 18.04, Debian 9, Fedora 26. It is expected to work with
+newer distributions of Linux. It is not compatible with Debian 8 (Qt 5.3) but please contact us if you need to run on
+Debian 8 as there may be workarounds.
+
 Python Environment
 ------------------
-To use Nion Swift for offline use, you will need to install a Python environment. We recommend have a dedicated
-Python installation that is only used for Nion Swift.
+There are several Python environments that are capable of running Nion Swift.
 
-You will first need to install Python for your specific platform.
+Anaconda and Miniconda are Python distributions by Continuum Analytics and both allow easy installation of 3rd party
+libraries that are optimized for your computer. Nion Swift has been tested extensively with both Anaconda and Miniconda
+distributions.
 
-Nion Swift has been tested extensively with the *Anaconda* Python distribution and we recommend using that. The
-Anaconda distribution includes a wide range of preinstalled Python packages, including everything required for
-Nion Swift. If you are familiar with Python and wish to use a smaller distribution, you may also consider using
-*Miniconda*.
+Anaconda is a full featured environment which distributes a large number of useful libraries, but it is a large
+download. The Miniconda environment is a minimal environment which can be downloaded more quickly and can later be
+updated to include any desired libraries that would otherwise be contained in the larger Anaconda distribution.
 
-We recommend using Python 3.6 or later for best performance, although the application is compatible with Python 3.5.
+You have two options:
 
-Begin by installing Anaconda or Miniconda on your system.
+    * Install Anaconda (more disk space, slower download, but easier to install)
+    * Install Miniconda (less disk space, faster download, but requires more technical knowledge)
 
-We recommend installing Python to the default location and using a conda environment.
+While it is possible to share a Python environment with other applications, or to use the built-in Python on your
+machine, we recommend against this. We recommend having a dedicated Python installation that is only used for
+Nion Swift.
 
-We do not recommend adding Python to your command line PATH, which the installers will give you the option to do.
+Installing Python
+-----------------
+You will first need to install Python 3.6 for your specific platform. Visit one of the websites below, download the
+64-bit installer, and follow the 'Instructions' link.
 
-    * `Anaconda <https://www.anaconda.com/download/>`_
+    * `Anaconda <https://docs.anaconda.com/anaconda/install/>`_
     * `Miniconda <https://conda.io/miniconda.html>`_
+
+The installer may give you an option to add Python to your command line PATH. We recommend against this since it may
+interfere with other Python installations.
+
+The installer may also give you an option to make this the default Python for your system. Again, we recommend against
+this since it may interfere with other Python installations.
+
+You can usually use the default location for the installation; however, make a note of wherever you choose to install it
+so that that location can be used in the steps below.
 
 Windows
 -------
-Nion Swift for Windows requires Windows 7 or later, although we recommend Windows 10 for best compatibility.
 
-If you have just installed conda or wish to create a new Nion Swift specific environment::
+Activating Python
++++++++++++++++++
+If you have installed Anaconda, you will find an *Anaconda Prompt* in your Start menu. Launch the *Anaconda Prompt*.
 
-    $ C:\path\to\python\Scripts\activate root
+If you have installed Miniconda, you will use the *Command Prompt* to finish the installation. Launch a Command Prompt
+by clicking in the Start menu and looking in the Windows System folder for Command Prompt. You can also just click in
+the Start menu and type "command" and it will usually find the Command Prompt.
+
+For an Anaconda installation, launching the *Anaconda Prompt* will activate Anaconda Python automatically.
+
+For a Miniconda installation you will need to explicitly activate Miniconda Python from the Command Prompt. ::
+
+    $ C:\PATH_TO_MINCONDA\Scripts\Activate.bat
+
+Installing Nion Swift
++++++++++++++++++++++
+Once you have activated Python, you can install Nion Swift within the Anaconda or Miniconda environment. ::
+
     $ conda create -n nionswift -c nion nionswift nionswift-tool
     $ conda activate nionswift
 
-If you already have a conda environment, install Nion Swift using the command::
+Running Nion Swift
+++++++++++++++++++
+Once you have activated Python and installed Nion Swift, you can run Nion Swift from the command line. ::
 
-    $ conda install -c nion nionswift nionswift-tool
-
-Launch Nion Swift from your conda command line environment using::
-
+    $ conda activate nionswift
     $ nionswift
 
-If you have `nionswift-tool` installed, you can create an alias to Nion Swift on your Desktop using the command::
+For easier launching, you can create a Shortcut to Nion Swift on your Desktop using the command::
 
+    $ conda activate nionswift
     $ nionswift --alias
 
-The alias will launch the version of Nion Swift in the Python environment from which it was run.
+Double clicking this Shortcut will launch Nion Swift in the Python environment from which the command above was run.
+
+Updating Nion Swift
++++++++++++++++++++
+Periodically you may want to update Nion Swift to get the latest features and bug fixes. First activate Python (see
+above), then run the following command. ::
+
+    $ conda activate nionswift
+    $ conda update -c nion --all
 
 MacOS
 -----
