@@ -112,6 +112,34 @@ class TestGraphicsClass(unittest.TestCase):
         self.assertEqual(spot_graphic.test(mapping, get_font_metrics, (800, 700), move_only=False), ("inverted-top-right", True))
         self.assertIsNone(spot_graphic.test(mapping, get_font_metrics, (0, 0), move_only=False)[0])
 
+    def test_create_all_graphic_by_dragging(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            t = [
+                ("line", Graphics.LineGraphic),
+                ("rectangle", Graphics.RectangleGraphic),
+                ("ellipse", Graphics.EllipseGraphic),
+                ("point", Graphics.PointGraphic),
+                ("spot", Graphics.SpotGraphic),
+                ("wedge", Graphics.WedgeGraphic),
+                ("ring", Graphics.RingGraphic),
+            ]
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            for tool_mode, graphic_type in t:
+                document_controller.tool_mode = tool_mode
+                self.assertEqual(0, len(data_item.displays[0].graphics))
+                display_panel.display_canvas_item.simulate_drag((500, 500), (600, 600))
+                self.assertEqual(1, len(data_item.displays[0].graphics))
+                graphic = data_item.displays[0].graphics[0]
+                self.assertIsInstance(graphic, graphic_type)
+                data_item.displays[0].remove_graphic(graphic)
+
     def test_spot_mask_is_sensible_when_smaller_than_one_pixel(self):
         spot_graphic = Graphics.SpotGraphic()
         spot_graphic.bounds = (0.5, 0.5), (0.02, 0.02)

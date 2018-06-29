@@ -1623,7 +1623,7 @@ class SpotGraphic(Graphic):
         return None, None
 
     def begin_drag(self):
-        return (self.bounds,)
+        return (self.bounds, 0.0)
 
     def end_drag(self, part_data):
         pass
@@ -1633,7 +1633,7 @@ class SpotGraphic(Graphic):
         constraints = self._constraints
         if part[0] not in ("all", "inverted-all"):
             constraints = constraints.union({"position", "square"})
-        self.bounds = adjust_rectangle_like(mapping, 0.0, False, original, current, part, modifiers, constraints)
+        self.bounds, _ = adjust_rectangle_like(mapping, 0.0, False, original, current, part, modifiers, constraints)
 
     def nudge(self, mapping, delta):
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
