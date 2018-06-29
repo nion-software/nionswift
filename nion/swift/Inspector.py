@@ -1564,6 +1564,7 @@ def make_line_profile_inspector(document_controller, graphic_widget, display_spe
 
 def make_rectangle_type_inspector(document_controller, graphic_widget, display_specifier, graphic, graphic_name: str, rotation: bool = False):
     ui = document_controller.ui
+    graphic_widget.widget_id = "rectangle_type_inspector"
     # create the ui
     graphic_center_row = ui.create_row_widget()
     graphic_center_row.add_spacing(20)
@@ -1657,6 +1658,7 @@ def make_rectangle_type_inspector(document_controller, graphic_widget, display_s
 
 def make_wedge_type_inspector(document_controller, graphic_widget, display_specifier, graphic):
     ui = document_controller.ui
+    graphic_widget.widget_id = "wedge_inspector"
     # create the ui
     graphic_center_start_angle_row = ui.create_row_widget()
     graphic_center_start_angle_row.add_spacing(20)
@@ -1707,6 +1709,8 @@ def make_annular_ring_mode_chooser(document_controller, display, ring):
 def make_ring_type_inspector(document_controller, graphic_widget, display_specifier, graphic):
     ui = document_controller.ui
 
+    graphic_widget.widget_id = "ring_inspector"
+
     display = display_specifier.display
     data_item = display_specifier.data_item
 
@@ -1726,7 +1730,7 @@ def make_ring_type_inspector(document_controller, graphic_widget, display_specif
     ring_mode_row = ui.create_row_widget()
     ring_mode_row.add_spacing(20)
     ring_mode_row.add(ui.create_label_widget(_("Mode"), properties={"width": 60}))
-    ring_mode_row.add(make_annular_ring_mode_chooser(ui, display, graphic))
+    ring_mode_row.add(make_annular_ring_mode_chooser(document_controller, display, graphic))
     ring_mode_row.add_stretch()
 
     graphic_widget.add(graphic_radius_1_row)

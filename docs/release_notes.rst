@@ -5,6 +5,7 @@ Release Notes
 
 UNRELEASED
 ----------
+* (2018-06-29) Fix regression where annular ring inspector was not available.
 * (2018-06-29) Fix regression where spot graphic could not be created/edited by dragging.
 
 Version 0.13.6, June 26, 2018

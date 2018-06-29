@@ -726,6 +726,51 @@ class TestInspectorClass(unittest.TestCase):
             actual_inspector_section_count = len(inspector_panel._get_inspector_sections())
             self.assertEqual(expected_inspector_section_count, actual_inspector_section_count)
 
+    def test_spot_graphic_inspector_updates_without_exception(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((16, 16)))
+            document_model.append_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            self.assertIsNone(inspector_panel.column.find_widget_by_id("rectangle_type_inspector"))
+            document_controller.add_spot_graphic()
+            document_controller.periodic()
+            self.assertIsNotNone(inspector_panel.column.find_widget_by_id("rectangle_type_inspector"))
+
+    def test_band_pass_graphic_inspector_updates_without_exception(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((16, 16)))
+            document_model.append_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            self.assertIsNone(inspector_panel.column.find_widget_by_id("ring_inspector"))
+            document_controller.add_band_pass_graphic()
+            document_controller.periodic()
+            self.assertIsNotNone(inspector_panel.column.find_widget_by_id("ring_inspector"))
+
+    def test_wedge_graphic_inspector_updates_without_exception(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((16, 16)))
+            document_model.append_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            self.assertIsNone(inspector_panel.column.find_widget_by_id("wedge_inspector"))
+            document_controller.add_angle_graphic()
+            document_controller.periodic()
+            self.assertIsNotNone(inspector_panel.column.find_widget_by_id("wedge_inspector"))
+
     def test_graphic_inspector_updates_for_when_data_shape_changes(self):
         # change from 2d item with a rectangle to a 1d item. what happens?
         document_model = DocumentModel.DocumentModel()
