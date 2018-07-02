@@ -58,7 +58,7 @@ class Application(UIApplication.Application):
 
         self.ui.persistence_root = "3"  # sets of preferences
         self.__resources_path = resources_path
-        self.version_str = "0.13.6"
+        self.version_str = "0.13.7"
         self.workspace_dir = None
 
         self.__event_loop = None
