@@ -7,7 +7,7 @@ import gettext
 
 # local libraries
 from nion.swift import Panel
-from nion.swift.model import DocumentModel
+from nion.swift.model import ApplicationData
 
 
 _ = gettext.gettext
@@ -15,9 +15,8 @@ _ = gettext.gettext
 
 class SessionPanelController:
 
-    def __init__(self, document_model: DocumentModel.DocumentModel):
-        self.__document_model = document_model
-        self.__property_changed_listener = self.__document_model.property_changed_event.listen(self.__property_changed)
+    def __init__(self):
+        self.__property_changed_listener = ApplicationData.get_session_metadata_model().property_changed_event.listen(self.__property_changed)
         self.on_fields_changed = None
 
     def close(self):
@@ -25,21 +24,24 @@ class SessionPanelController:
         self.__property_changed_listener = None
         self.on_fields_changed = None
 
+    @property
+    def field_values(self):
+        return ApplicationData.get_session_metadata_model().to_dict_value()
+
     def __property_changed(self, key):
-        if key == 'session_metadata':
-            if callable(self.on_fields_changed):
-                self.on_fields_changed(self.__document_model.session_metadata)
+        if callable(self.on_fields_changed):
+            self.on_fields_changed(self.field_values)
 
     def set_field(self, field_id: str, value: str) -> None:
-        self.__document_model.set_session_field(field_id, value)
+        setattr(ApplicationData.get_session_metadata_model(), field_id, value)
 
 
 class SessionPanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
-        super(SessionPanel, self).__init__(document_controller, panel_id, _("Session"))
+        super().__init__(document_controller, panel_id, _("Session"))
 
-        self.__controller = SessionPanelController(document_controller.document_model)
+        self.__controller = SessionPanelController()
 
         field_descriptions = [
             [_("Site"), _("Site Description"), "site"],
@@ -85,7 +87,7 @@ class SessionPanel(Panel.Panel):
                 line_edit_widget.text = fields.get(field_id)
 
         self.__controller.on_fields_changed = fields_changed
-        fields_changed(document_controller.document_model.session_metadata)
+        fields_changed(self.__controller.field_values)
 
         self.widget = widget
 

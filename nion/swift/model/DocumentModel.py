@@ -25,6 +25,7 @@ import scipy
 from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
+from nion.swift.model import ApplicationData
 from nion.swift.model import Cache
 from nion.swift.model import Connection
 from nion.swift.model import DataGroup
@@ -1151,7 +1152,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.define_relationship("computations", computation_factory, insert=self.__inserted_computation, remove=self.__removed_computation)
         self.define_relationship("data_structures", data_structure_factory, insert=self.__inserted_data_structure, remove=self.__removed_data_structure)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__inserted_connection, remove=self.__removed_connection)
-        self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__session_metadata_changed)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
         self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
@@ -1352,25 +1352,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-
-    def __session_metadata_changed(self, name, value):
-        self.notify_property_changed("session_metadata")
-
-    def has_session_field(self, field_id: str) -> bool:
-        return field_id in self.session_metadata
-
-    def set_session_field(self, field_id: str, value: str) -> None:
-        session_metadata = self.session_metadata
-        session_metadata[field_id] = str(value)
-        self.session_metadata = session_metadata
-
-    def get_session_field(self, field_id: str) -> str:
-        return self.session_metadata.get(field_id)
-
-    def delete_session_field(self, field_id: str) -> None:
-        session_metadata = self.session_metadata
-        session_metadata.pop(field_id, None)
-        self.session_metadata = session_metadata
 
     @property
     def current_session_id(self):
@@ -2640,7 +2621,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
                 if data_item.session_id != session_id:
                     data_item.session_id = session_id
-                session_metadata = self.session_metadata
+                session_metadata = ApplicationData.get_session_metadata_dict()
                 if data_item.session_metadata != session_metadata:
                     data_item.session_metadata = session_metadata
                 if data_channel.processor:

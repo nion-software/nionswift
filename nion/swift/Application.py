@@ -29,6 +29,7 @@ from nion.swift import Task
 from nion.swift import Test
 from nion.swift import ToolbarPanel
 from nion.swift import Workspace
+from nion.swift.model import ApplicationData
 from nion.swift.model import Cache
 from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
@@ -99,6 +100,12 @@ class Application(UIApplication.Application):
         logger.setLevel(logging.INFO)
         self.__event_loop = asyncio.new_event_loop()  # outputs a debugger message!
         logger.setLevel(old_level)
+        # configure app data
+        if load_plug_ins:
+            app_data_file_path = self.ui.get_configuration_location() / pathlib.Path("nionswift_appdata.json")
+            ApplicationData.set_file_path(app_data_file_path)
+            if load_plug_ins:
+                logging.info("Application data: " + str(app_data_file_path))
         # load plug-ins
         if load_plug_ins:
             PlugInManager.load_plug_ins(self, get_root_dir() if use_root_dir else None)

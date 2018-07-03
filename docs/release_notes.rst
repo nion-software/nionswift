@@ -3,6 +3,10 @@
 Release Notes
 =============
 
+UNRELEASED
+----------
+* (2018-07-03) Restructure master session metadata to be stored with application rather than library.
+
 Version 0.13.7, July 2, 2018
 ----------------------------
 * (2018-06-29) Fix regression where annular ring inspector was not available.

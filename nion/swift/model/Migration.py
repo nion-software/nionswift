@@ -34,6 +34,7 @@ def migrate_to_latest(reader_info_list, library_updates, migration_log: Migratio
     # TODO: file format. rename specifier types (data_item -> data_source, library_item -> data_item, region -> graphic)
     # TODO: file format. switch from 'displays' to a single 'display' in data item
     # TODO: file format. Rename workspaces to workspace_layouts.
+    # TODO: store session metadata as regular metadata
 
 def migrate_to_v12(reader_info_list, library_updates, migration_log: MigrationLog):
     for reader_info in reader_info_list:

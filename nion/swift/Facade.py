@@ -52,11 +52,11 @@ import numpy
 # local libraries
 from nion.data import Calibration as CalibrationModule
 from nion.data import DataAndMetadata
-from nion.data import Image
 from nion.swift import Application as ApplicationModule
 from nion.swift import DisplayPanel as DisplayPanelModule
 from nion.swift import Panel as PanelModule
 from nion.swift import Workspace
+from nion.swift.model import ApplicationData
 from nion.swift.model import DataItem as DataItemModule
 from nion.swift.model import DocumentModel as DocumentModelModule
 from nion.swift.model import Graphics
@@ -2385,7 +2385,7 @@ class Library(metaclass=SharedInstance):
         desc = Metadata.session_key_map.get(key)
         if desc is not None:
             field_id = desc['path'][-1]
-            return self._document_model.has_session_field(field_id)
+            return bool(getattr(ApplicationData.get_session_metadata_model(), field_id, None))
         return False
 
     def get_library_value(self, key: str) -> typing.Any:
@@ -2400,7 +2400,7 @@ class Library(metaclass=SharedInstance):
         desc = Metadata.session_key_map.get(key)
         if desc is not None:
             field_id = desc['path'][-1]
-            return self._document_model.get_session_field(field_id)
+            return getattr(ApplicationData.get_session_metadata_model(), field_id)
         raise KeyError()
 
     def set_library_value(self, key: str, value: typing.Any) -> None:
@@ -2415,7 +2415,7 @@ class Library(metaclass=SharedInstance):
         desc = Metadata.session_key_map.get(key)
         if desc is not None:
             field_id = desc['path'][-1]
-            self._document_model.set_session_field(field_id, value)
+            setattr(ApplicationData.get_session_metadata_model(), field_id, value)
             return
         raise KeyError()
 
@@ -2431,7 +2431,7 @@ class Library(metaclass=SharedInstance):
         desc = Metadata.session_key_map.get(key)
         if desc is not None:
             field_id = desc['path'][-1]
-            self._document_model.delete_session_field(field_id)
+            setattr(ApplicationData.get_session_metadata_model(), field_id, None)
             return
         raise KeyError()
 

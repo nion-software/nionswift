@@ -8,6 +8,7 @@ import unittest
 import numpy
 
 from nion.data import DataAndMetadata
+from nion.swift.model import ApplicationData
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
@@ -1035,6 +1036,14 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(len(xdata.dimensional_shape), 2)
             self.assertEqual(xdata.collection_dimension_count, 1)
             self.assertEqual(xdata.datum_dimension_count, 1)
+
+    def test_hardware_source_grabs_data_with_correct_session_metadata(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        with contextlib.closing(document_controller):
+            ApplicationData.get_session_metadata_model().microscopist = "Ned Flanders"
+            self.__acquire_one(document_controller, hardware_source)
+            data_item = document_model.data_items[0]
+            self.assertEqual("Ned Flanders", data_item.session_metadata["microscopist"])
 
     def test_hardware_source_grabs_summed_1d_data(self):
         # really an error case, 1d acquisition + summed processing
