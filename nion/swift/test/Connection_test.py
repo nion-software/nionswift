@@ -306,6 +306,44 @@ class TestConnectionClass(unittest.TestCase):
                 self.assertTrue(document_model.is_in_transaction_state(interval))
                 self.assertTrue(document_model.is_in_transaction_state(data_item))
 
+    def test_removing_graphic_as_connection_source_results_in_consistent_state(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((20, )))
+            data_item1.displays[0].add_graphic(Graphics.IntervalGraphic())
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((20, )))
+            data_item2.displays[0].add_graphic(Graphics.IntervalGraphic())
+            document_model.append_data_item(data_item2)
+            graphic1 = data_item1.displays[0].graphics[0]
+            graphic2 = data_item2.displays[0].graphics[0]
+            document_model.append_connection(Connection.PropertyConnection(graphic1, "interval", graphic2, "interval"))
+            data_item1.displays[0].remove_graphic(graphic1)
+            # the document must have a consistent state for item transaction to work
+            with document_model.item_transaction(data_item1):
+                pass
+            with document_model.item_transaction(data_item2):
+                pass
+
+    def test_removing_graphic_as_connection_target_results_in_consistent_state(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((20, )))
+            data_item1.displays[0].add_graphic(Graphics.IntervalGraphic())
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((20, )))
+            data_item2.displays[0].add_graphic(Graphics.IntervalGraphic())
+            document_model.append_data_item(data_item2)
+            graphic1 = data_item1.displays[0].graphics[0]
+            graphic2 = data_item2.displays[0].graphics[0]
+            document_model.append_connection(Connection.PropertyConnection(graphic1, "interval", graphic2, "interval"))
+            data_item1.displays[0].remove_graphic(graphic2)
+            # the document must have a consistent state for item transaction to work
+            with document_model.item_transaction(data_item1):
+                pass
+            with document_model.item_transaction(data_item2):
+                pass
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

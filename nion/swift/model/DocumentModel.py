@@ -1051,7 +1051,7 @@ class TransactionManager:
                         item._transaction_state_exited()
 
     def __get_deep_transaction_item_set(self, item, items):
-        if not item in items:
+        if item and not item in items:
             # first the dependent items, also keep track of which items are added
             old_items = copy.copy(items)
             self.__get_deep_dependent_item_set(item, items)
@@ -1615,6 +1615,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         self.__build_cascade(computation, items, dependencies)
                         cascaded = True
         # print(list(reversed(items)))
+        # print(list(reversed(dependencies)))
         for source, target in reversed(dependencies):
             self.__remove_dependency(source, target)
         # now delete the actual items

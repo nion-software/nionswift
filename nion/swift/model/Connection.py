@@ -188,7 +188,11 @@ class PropertyConnection(Connection):
             self.__target_property_changed_listener = target.property_changed_event.listen(functools.partial(property_changed, target))
             register()
 
-        def unregistered(source=None):
+        def unregistered(item=None):
+            if not item or item == self.__source:
+                self.__source = None
+            if not item or item == self.__target:
+                self.__target = None
             if self.__binding:
                 self.__binding.close()
                 self.__binding = None
