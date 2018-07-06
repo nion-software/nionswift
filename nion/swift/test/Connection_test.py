@@ -317,7 +317,7 @@ class TestConnectionClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             graphic1 = data_item1.displays[0].graphics[0]
             graphic2 = data_item2.displays[0].graphics[0]
-            document_model.append_connection(Connection.PropertyConnection(graphic1, "interval", graphic2, "interval"))
+            document_model.append_connection(Connection.PropertyConnection(graphic1, "interval", graphic2, "interval", parent=data_item1))
             data_item1.displays[0].remove_graphic(graphic1)
             # the document must have a consistent state for item transaction to work
             with document_model.item_transaction(data_item1):
@@ -336,7 +336,7 @@ class TestConnectionClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             graphic1 = data_item1.displays[0].graphics[0]
             graphic2 = data_item2.displays[0].graphics[0]
-            document_model.append_connection(Connection.PropertyConnection(graphic1, "interval", graphic2, "interval"))
+            document_model.append_connection(Connection.PropertyConnection(graphic1, "interval", graphic2, "interval", parent=data_item1))
             data_item1.displays[0].remove_graphic(graphic2)
             # the document must have a consistent state for item transaction to work
             with document_model.item_transaction(data_item1):

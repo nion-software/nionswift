@@ -1547,6 +1547,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __build_cascade(self, item, items: list, dependencies: list) -> None:
         # build a list of items to delete, with the leafs at the end of the list.
+        # store the dependencies into items. store the dependencies in the form
+        # source -> target into dependencies.
         # print(f"build {item}")
         if item not in items:
             # first handle the case where a data item that is the only target of a graphic cascades to the graphic.
@@ -1559,6 +1561,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         source_targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(source), list())
                         if len(source_targets) == 1 and source_targets[0] == item:
                             self.__build_cascade(source, items, dependencies)
+            if isinstance(item, DataItem.LibraryItem):
                 for display in item.displays:
                     for graphic in display.graphics:
                         self.__build_cascade(graphic, items, dependencies)
@@ -1590,15 +1593,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     if (item, computation) not in dependencies:
                         dependencies.append((item, computation))
                     self.__build_cascade(computation, items, dependencies)
+            # item is being removed; so remove any dependency from any source to this item
             for source in sources:
                 if (source, item) not in dependencies:
                     dependencies.append((source, item))
 
-    def __cascade_delete(self, master_item, items=None, dependencies=None, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def __cascade_delete(self, master_item, safe: bool=False) -> typing.Optional[typing.Sequence]:
         # print(f"cascade {item}")
         undelete_log = list()
-        items = items if items else list()
-        dependencies = dependencies if dependencies else list()
+        items = list()
+        dependencies = list()
         self.__build_cascade(master_item, items, dependencies)
         cascaded = True
         while cascaded:
