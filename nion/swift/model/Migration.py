@@ -18,6 +18,7 @@ class MigrationLog:
         if self.__enabled:
             logging.info(entry)
 
+
 def migrate_to_latest(reader_info_list, library_updates, migration_log: MigrationLog) -> None:
     migrate_to_v2(reader_info_list, migration_log)
     migrate_to_v3(reader_info_list, migration_log)
@@ -30,12 +31,155 @@ def migrate_to_latest(reader_info_list, library_updates, migration_log: Migratio
     migrate_to_v10(reader_info_list, migration_log)
     migrate_to_v11(reader_info_list, migration_log)
     migrate_to_v12(reader_info_list, library_updates, migration_log)
+    migrate_to_v13(reader_info_list, library_updates, migration_log)
+
     # TODO: library item should have a 'type' so that the correct class can be reconstructed
     # TODO: file format. rename specifier types (data_item -> data_source, library_item -> data_item, region -> graphic)
     # TODO: file format. switch from 'displays' to a single 'display' in data item
     # TODO: file format. Rename workspaces to workspace_layouts.
     # TODO: store session metadata as regular metadata
     # TODO: consolidate specifier fields in computation variable into a single dict (specifier, secondary_specifier, property_name)
+
+
+def transform_to_latest(properties):
+    return transform_v12_to_v13(properties)
+
+
+def transform_from_latest(properties):
+    return transform_v13_to_v12(properties)
+
+
+def transform_v12_to_v13(properties):
+
+    if properties.get("version", 0) == 12:
+
+        data_source = properties.pop("data_source", None)
+
+        # move the properties that were in description to data source if it exists
+
+        title = properties.get("description", dict()).get("title")
+        caption = properties.get("description", dict()).get("caption")
+
+        if data_source is not None:
+            if title is not None:
+                data_source["title"] = title
+            if caption is not None:
+                data_source["caption"] = caption
+        else:
+            if title is not None:
+                properties["title"] = title
+            if caption is not None:
+                properties["caption"] = caption
+
+        properties.pop("description", None)
+
+        # move the timezone properties to data source
+
+        timezone = properties.pop("timezone", None)
+        timezone_offset = properties.pop("timezone_offset", None)
+
+        if data_source is not None:
+            if timezone is not None:
+                data_source["timezone"] = timezone
+            if timezone_offset is not None:
+                data_source["timezone_offset"] = timezone_offset
+
+        # copy session id, category to data source; move session data
+
+        session_id = properties.get("session_id", None)
+        category = properties.get("category", None)
+        session_data = properties.pop("session_metadata", None)
+
+        if data_source is not None:
+            if session_id is not None:
+                data_source["session_id"] = session_id
+            if category is not None:
+                data_source["category"] = category
+            if session_data is not None:
+                data_source["session"] = session_data
+
+        data_sources = list()
+        if data_source:
+            data_sources.append(data_source)
+
+        properties["data_sources"] = data_sources
+
+        properties["version"] = 13
+
+    return properties
+
+
+def transform_v13_to_v12(properties):
+
+    if properties.get("version", 0) == 13:
+
+        properties["version"] = 12
+
+        data_sources = properties.pop("data_sources", list())
+
+        if len(data_sources) == 1:
+
+            data_source = data_sources[0]
+
+            # copy session id, category from data source; move session data
+
+            session_id = data_source.pop("session_id", None)
+            category = data_source.pop("category", None)
+            session_data = data_source.pop("session", None)
+
+            if session_id is not None:
+                properties["session_id"] = session_id
+            if category is not None:
+                properties["category"] = category
+            if session_data is not None:
+                properties["session_metadata"] = session_data
+
+            # move the timezone properties to data source
+
+            timezone = data_source.pop("timezone", None)
+            timezone_offset = data_source.pop("timezone_offset", None)
+
+            if timezone is not None:
+                properties["timezone"] = timezone
+            if timezone_offset is not None:
+                properties["timezone_offset"] = timezone_offset
+
+            # move the properties that were in description to data source if it exists
+
+            title = data_source.pop("title", None)
+            caption = data_source.pop("caption", None)
+
+            description = properties.setdefault("description", dict())
+
+            if title is not None:
+                description["title"] = title
+            if caption is not None:
+                description["caption"] = caption
+
+            properties["data_source"] = data_source
+
+    return properties
+
+
+def migrate_to_v13(reader_info_list, library_updates, migration_log: MigrationLog):
+    for reader_info in reader_info_list:
+        storage_handler = reader_info.storage_handler
+        properties = reader_info.properties
+        try:
+            version = properties.get("version", 0)
+            if version == 12:
+                reader_info.changed_ref[0] = True
+                # import pprint; pprint.pprint(properties)
+                # version 12 -> 13 moves non-display related data into data source and moves data item into library storage.
+
+                transform_v12_to_v13(properties)
+
+                migration_log.push("Updated {} to {} (separate data item/move display to lirbary)".format(storage_handler.reference, properties["version"]))
+        except Exception as e:
+            logging.debug("Error reading %s", storage_handler.reference)
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
 
 def migrate_to_v12(reader_info_list, library_updates, migration_log: MigrationLog):
     for reader_info in reader_info_list:
@@ -357,7 +501,7 @@ def migrate_to_v8(reader_info_list, migration_log: MigrationLog):
                         if key not in excluded:
                             data_source_dict.setdefault("metadata", dict())[key] = properties[key]
                             del properties[key]
-                    for key in ["caption", "flag", "rating", "title"]:
+                    for key in ["caption", "title"]:
                         if key in properties:
                             description_metadata[key] = properties[key]
                             del properties[key]

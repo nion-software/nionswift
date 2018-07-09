@@ -31,7 +31,7 @@ class DataItemStorageAdapter:
     def __init__(self, storage_system, storage_handler, properties):
         self.__storage_system = storage_system
         self.__storage_handler = storage_handler
-        self.__properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
+        self.__properties = Migration.transform_to_latest(Utility.clean_dict(copy.deepcopy(properties) if properties else dict()))
         self.__properties_lock = threading.RLock()
         self.__write_delayed = False
 
@@ -58,7 +58,7 @@ class DataItemStorageAdapter:
     def rewrite_item(self, data_item) -> None:
         if not self.__write_delayed:
             file_datetime = data_item.created_local
-            self.__storage_handler.write_properties(self.__properties, file_datetime)
+            self.__storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(self.__properties)), file_datetime)
 
     def update_data(self, data_item, data):
         if not self.__write_delayed:
@@ -283,7 +283,7 @@ class FileStorageSystem:
         trash_dir = os.path.join(self.__directories[0], "trash")
         storage_handlers = self.__find_storage_handlers([trash_dir], skip_trash=False)
         for storage_handler in storage_handlers:
-            properties = storage_handler.read_properties()
+            properties = Migration.transform_to_latest(storage_handler.read_properties())
             if properties.get("uuid", None) == data_item_uuid_str:
                 data_item = DataItem.DataItem(item_uuid=data_item_uuid)
                 data_item.begin_reading()
@@ -383,9 +383,11 @@ class FileStorageSystem:
             return self.__write_delay_counts.get(data_item, 0) > 0
         return False
 
-    def rewrite_item(self, data_item) -> None:
-        storage = self.__get_storage_for_item(data_item)
-        storage.rewrite_item(data_item)
+    def rewrite_item(self, item) -> None:
+        if isinstance(item, DataItem.BufferedDataSource):
+            item = item.persistent_object_parent.parent
+        storage = self.__get_storage_for_item(item)
+        storage.rewrite_item(item)
 
     def read_data_items_version_stats(self):
         return read_data_items_version_stats(self)
@@ -401,7 +403,7 @@ def read_data_items_version_stats(persistent_storage_system):
     writer_version = DataItem.DataItem.writer_version
     for storage_handler in storage_handlers:
         try:
-            properties = storage_handler.read_properties()
+            properties = Migration.transform_to_latest(storage_handler.read_properties())
             version = properties.get("version", 0)
             if version < writer_version:
                 count[2] += 1
@@ -502,7 +504,7 @@ def auto_migrate_data_item(reader_info, persistent_storage_system, new_persisten
     data_item_uuid = uuid.UUID(properties["uuid"])
     if persistent_storage_system == new_persistent_storage_system:
         if reader_info.changed_ref[0]:
-            storage_handler.write_properties(properties, datetime.datetime.now())
+            storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
         persistent_storage_system.register_data_item(None, data_item_uuid, storage_handler, properties)
     else:
         # create a temporary data item that can be used to get the new file reference
@@ -519,7 +521,7 @@ def auto_migrate_data_item(reader_info, persistent_storage_system, new_persisten
         if target_storage_handler:
             os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
             shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
-            target_storage_handler.write_properties(properties, datetime.datetime.now())
+            target_storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
             new_persistent_storage_system.register_data_item(None, data_item_uuid, target_storage_handler, properties)
             migration_log.push("Copying data item {} to library.".format(data_item_uuid))
         else:
@@ -543,7 +545,7 @@ def auto_migrate_storage_system(*, persistent_storage_system=None, new_persisten
     for storage_handler in storage_handlers:
         try:
             large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
-            properties = storage_handler.read_properties()
+            properties = Migration.transform_to_latest(storage_handler.read_properties())
             reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
             reader_info_list.append(reader_info)
         except Exception as e:

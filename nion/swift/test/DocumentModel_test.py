@@ -209,6 +209,14 @@ class TestDocumentModelClass(unittest.TestCase):
                 self.assertEqual(display_item.display_type, new_display_item.display_type)
                 self.assertEqual(new_display_item.graphics[0].position, point_graphic.position)
 
+    def test_creating_r_var_on_data_items(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            data_item_r = document_model.assign_variable_to_data_item(data_item)
+            self.assertEqual(data_item_r, "r01")
+
     def test_transaction_handles_added_graphic(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):

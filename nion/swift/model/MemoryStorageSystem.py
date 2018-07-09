@@ -5,6 +5,7 @@ import uuid
 
 from nion.swift.model import DataItem
 from nion.swift.model import FileStorageSystem
+from nion.swift.model import Migration
 from nion.swift.model import Utility
 from nion.utils import Event
 
@@ -27,14 +28,14 @@ class MemoryStorageHandler:
         return str(self.__uuid)
 
     def read_properties(self):
-        return self.__properties.get(self.__uuid, dict())
+        return copy.deepcopy(self.__properties.get(self.__uuid, dict()))
 
     def read_data(self):
         self.__data_read_event.fire(self.__uuid)
         return self.__data.get(self.__uuid)
 
     def write_properties(self, properties, file_datetime):
-        self.__properties[self.__uuid] = Utility.clean_dict(copy.deepcopy(properties))
+        self.__properties[self.__uuid] = Utility.clean_dict(properties)
 
     def write_data(self, data, file_datetime):
         self.__data[self.__uuid] = data.copy()
@@ -197,7 +198,7 @@ class MemoryStorageSystem:
         trash_entry = self.trash.pop(data_item_uuid_str)
         assert data_item_uuid_str not in self.__properties
         assert data_item_uuid_str not in self.data
-        self.__properties[data_item_uuid_str] = trash_entry["properties"]
+        self.__properties[data_item_uuid_str] = Migration.transform_to_latest(trash_entry["properties"])
         self.data[data_item_uuid_str] = trash_entry["data"]
         properties = self.__properties.get(data_item_uuid_str, dict())
         properties["__large_format"] = False
@@ -278,9 +279,11 @@ class MemoryStorageSystem:
             return self.__write_delay_counts.get(data_item, 0) > 0
         return False
 
-    def rewrite_item(self, data_item) -> None:
-        storage = self.__get_storage_for_item(data_item)
-        storage.rewrite_item(data_item)
+    def rewrite_item(self, item) -> None:
+        if isinstance(item, DataItem.BufferedDataSource):
+            item = item.persistent_object_parent.parent
+        storage = self.__get_storage_for_item(item)
+        storage.rewrite_item(item)
 
     def read_data_items_version_stats(self):
         return FileStorageSystem.read_data_items_version_stats(self)

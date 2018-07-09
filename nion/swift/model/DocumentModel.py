@@ -8,7 +8,6 @@ import gettext
 import logging
 import numbers
 import os.path
-import shutil
 import threading
 import time
 import typing
@@ -31,13 +30,10 @@ from nion.swift.model import DataItem
 from nion.swift.model import Display
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
-from nion.swift.model import HDF5Handler
 from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
 from nion.swift.model import Symbolic
-from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
-from nion.swift.model import FileStorageSystem
 from nion.swift.model import MemoryStorageSystem
 from nion.utils import Converter
 from nion.utils import Event

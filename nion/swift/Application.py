@@ -177,9 +177,10 @@ class Application(UIApplication.Application):
         """ Migrate library to latest version. """
 
         library_path_11 = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
-        library_paths = (library_path_11, )
-
         library_path_12 = os.path.join(workspace_dir, "Nion Swift Library 12.nslib")
+        # library_path_13 = os.path.join(workspace_dir, "Nion Swift Library 13.nslib")
+
+        library_paths = (library_path_11, )
         library_path_latest = library_path_12
 
         if not os.path.exists(library_path_latest):
@@ -233,9 +234,10 @@ class Application(UIApplication.Application):
         auto_migrations.append(DocumentModel.AutoMigration(os.path.join(workspace_dir, "Nion Swift Workspace.nslib"), [os.path.join(workspace_dir, "Nion Swift Data")]))
         auto_migrations.append(DocumentModel.AutoMigration(os.path.join(workspace_dir, "Nion Swift Workspace.nslib"), [os.path.join(workspace_dir, "Nion Swift Data 10")]))
         auto_migrations.append(DocumentModel.AutoMigration(os.path.join(workspace_dir, "Nion Swift Workspace.nslib"), [os.path.join(workspace_dir, "Nion Swift Data 11")]))
+        auto_migrations.append(DocumentModel.AutoMigration(os.path.join(workspace_dir, "Nion Swift Library 12.nslib"), [os.path.join(workspace_dir, "Nion Swift Data 12")]))
         # NOTE: when adding an AutoMigration here, also add the corresponding file copy in __migrate_library
-        file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))], auto_migrations=auto_migrations)
-        cache_filename = "Nion Swift Cache {version}.nscache".format(version=DataItem.DataItem.writer_version)
+        file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.storage_version))], auto_migrations=auto_migrations)
+        cache_filename = "Nion Swift Cache {version}.nscache".format(version=DataItem.DataItem.storage_version)
         cache_path = os.path.join(workspace_dir, cache_filename)
         counts = file_persistent_storage_system.read_data_items_version_stats()
         if counts[2] > 0:

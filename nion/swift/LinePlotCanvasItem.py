@@ -118,7 +118,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
         self.__line_graph_xdata_list = list()
 
-        self.__is_data1 = False
+        self.__xdata_index0 = 0
         self.__xdata_list = list()
         self.__last_data_list = list()
 
@@ -246,15 +246,15 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             display_values = display.get_calculated_display_values()
             display_data_and_metadata = display_values.display_data_and_metadata
             if display_data_and_metadata:
-                self.__xdata_list[index] = display_data_and_metadata
+                self.__xdata_list[self.__xdata_index0 + index] = display_data_and_metadata
             else:
-                self.__xdata_list[index] = None
+                self.__xdata_list[self.__xdata_index0 + index] = None
             # update the cursor info
             self.__update_cursor_info()
             # mark for update. prepare display will mark children for update if necesssary.
             self.update()
 
-        self.__xdata_list.insert(index, None)
+        self.__xdata_list.insert(self.__xdata_index0 + index, None)
         self.__display_listeners.insert(index, display.display_changed_event.listen(display_changed))
 
         display_changed()
@@ -263,7 +263,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         # a display tracker follows the child display model of a display and calls this method when a display is
         # removed. this method removes the xdata and requests rendering.
 
-        del self.__xdata_list[index]
+        del self.__xdata_list[self.__xdata_index0 + index]
         self.__display_listeners[index].close()
         del self.__display_listeners[index]
         # update the cursor info
@@ -318,12 +318,15 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             display_data_and_metadata = display_values.display_data_and_metadata
             if display_data_and_metadata:
                 # store the pending display parameters
-                self.__is_data1 = True
-                self.__xdata_list = [display_data_and_metadata]
+                if self.__xdata_index0 == 0:
+                    self.__xdata_index0 = 1
+                    self.__xdata_list = [display_data_and_metadata] + self.__xdata_list
+                else:
+                    self.__xdata_list[0] = display_data_and_metadata
                 self.__update_frame(display.data_and_metadata_for_display_panel.metadata)
             else:
-                if self.__is_data1:
-                    self.__is_data1 = False
+                if self.__xdata_index0 > 0:
+                    self.__xdata_index0 = 0
                     self.__xdata_list = list()
 
             # update the cursor info

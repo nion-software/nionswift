@@ -216,7 +216,7 @@ class InspectorSection(Widgets.CompositeWidgetBase):
 
 class ChangePropertyCommand(Undo.UndoableCommand):
     def __init__(self, document_model, data_item: DataItem.DataItem, property_name: str, value):
-        super().__init__(_("Change Library Item Info"), command_id="change_property_" + property_name, is_mergeable=True)
+        super().__init__(_("Change Data Item Info"), command_id="change_property_" + property_name, is_mergeable=True)
         self.__document_model = document_model
         self.__data_item_uuid = data_item.uuid
         self.__property_name = property_name
@@ -430,30 +430,6 @@ class InfoInspectorSection(InspectorSection):
         self.caption_row.add(self.caption_edit_stack)
         self.caption_row.add_spacing(8)
 
-        # flag
-        self.flag_row = self.ui.create_row_widget()
-        class FlaggedToIndexConverter:
-            """
-                Convert from flag index (-1, 0, 1) to chooser index.
-            """
-            def convert(self, value):
-                return (2, 0, 1)[value + 1]
-            def convert_back(self, value):
-                return (0, 1, -1)[value]
-        self.flag_chooser = self.ui.create_combo_box_widget()
-        self.flag_chooser.items = [_("Unflagged"), _("Picked"), _("Rejected")]
-        self.flag_chooser.bind_current_index(ChangePropertyBinding(document_controller, data_item, "flag", converter=FlaggedToIndexConverter()))
-        self.flag_row.add(self.ui.create_label_widget(_("Flag"), properties={"width": 60}))
-        self.flag_row.add(self.flag_chooser)
-        self.flag_row.add_stretch()
-        # rating
-        self.rating_row = self.ui.create_row_widget()
-        self.rating_chooser = self.ui.create_combo_box_widget()
-        self.rating_chooser.items = [_("No Rating"), _("1 Star"), _("2 Star"), _("3 Star"), _("4 Star"), _("5 Star")]
-        self.rating_chooser.bind_current_index(ChangePropertyBinding(document_controller, data_item, "rating"))
-        self.rating_row.add(self.ui.create_label_widget(_("Rating"), properties={"width": 60}))
-        self.rating_row.add(self.rating_chooser)
-        self.rating_row.add_stretch()
         # session
         self.info_section_session_row = self.ui.create_row_widget()
         self.info_section_session_row.add(self.ui.create_label_widget(_("Session"), properties={"width": 60}))
@@ -478,8 +454,6 @@ class InfoInspectorSection(InspectorSection):
         # add all of the rows to the section content
         self.add_widget_to_content(self.info_section_title_row)
         self.add_widget_to_content(self.caption_row)
-        #self.add_widget_to_content(self.flag_row)
-        #self.add_widget_to_content(self.rating_row)
         self.add_widget_to_content(self.info_section_session_row)
         self.add_widget_to_content(self.info_section_datetime_row)
         self.add_widget_to_content(self.info_section_format_row)
