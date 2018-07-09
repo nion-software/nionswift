@@ -237,6 +237,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         return (1 + 5 ** 0.5) / 2  # golden ratio
 
     def display_inserted(self, display, index):
+        # a display tracker follows the child display model of a display and calls this method when a new display
+        # is inserted. this method configures a listener for the display changed event and then gets calculated
+        # display values for the changed display, stores the data into xdata list, and requests rendering.
 
         def display_changed():
             # update the data
@@ -257,6 +260,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         display_changed()
 
     def display_removed(self, display, index):
+        # a display tracker follows the child display model of a display and calls this method when a display is
+        # removed. this method removes the xdata and requests rendering.
+
         del self.__xdata_list[index]
         self.__display_listeners[index].close()
         del self.__display_listeners[index]
