@@ -4,6 +4,7 @@ import copy
 import gc
 import random
 import unittest
+import uuid
 
 # third party libraries
 import numpy
@@ -18,6 +19,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.ui import TestUI
+from nion.utils import ListModel
 from nion.utils import Recorder
 
 
@@ -918,6 +920,116 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.remove_data_item(data_item)
             self.assertEqual(len(document_model.data_items), 0)
             self.assertEqual(len(document_model.computations), 0)
+
+    class AddN:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src_list):
+            if len(set(src.data_shape for src in src_list)) == 1:
+                self.__new_data = numpy.sum([src.data for src in src_list], axis=0)
+            else:
+                self.__new_data = None
+
+        def commit(self):
+            if self.__new_data is not None:
+                self.computation.set_referenced_data("dst", self.__new_data)
+            else:
+                self.computation.clear_referenced_data("dst")
+
+    def test_new_computation_allows_list_of_data_item_inputs(self):
+        Symbolic.register_computation_type("add_n", self.AddN)
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            src_list_model = ListModel.ListModel(items=[document_model.get_object_specifier(data_item1, "display_xdata"), document_model.get_object_specifier(data_item2, "display_xdata")])
+            computation.create_objects("src_list", src_list_model)
+            computation.processing_id = "add_n"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(len(document_model.computations), 1)
+            self.assertEqual(len(document_model.data_items), 3)
+            data_item3 = document_model.data_items[2]
+            self.assertTrue(numpy.array_equal(data_item3.data, numpy.full((2, 2), 3)))
+
+    def test_new_computation_reevaluates_when_list_of_data_item_inputs_changes(self):
+        Symbolic.register_computation_type("add_n", self.AddN)
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
+            document_model.append_data_item(data_item2)
+            data_item3 = DataItem.DataItem(numpy.full((2, 2), 3))
+            document_model.append_data_item(data_item3)
+            computation = document_model.create_computation()
+            src_list_model = ListModel.ListModel(items=[document_model.get_object_specifier(data_item1, "display_xdata"), document_model.get_object_specifier(data_item2, "display_xdata")])
+            computation.create_objects("src_list", src_list_model)
+            computation.processing_id = "add_n"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            data_item4 = document_model.data_items[3]
+            self.assertTrue(numpy.array_equal(data_item4.data, numpy.full((2, 2), 3)))
+            src_list_model.insert_item(0, document_model.get_object_specifier(data_item3, "display_xdata"))
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item4.data, numpy.full((2, 2), 6)))
+            src_list_model.remove_item(2)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item4.data, numpy.full((2, 2), 4)))
+
+    def test_new_computation_unresolved_list_prevents_recomputation(self):
+        Symbolic.register_computation_type("add_n", self.AddN)
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            src_list = [document_model.get_object_specifier(data_item1, "display_xdata"), document_model.get_object_specifier(data_item2, "display_xdata")]
+            src_list[0]["uuid"] = str(uuid.uuid4())
+            src_list_model = ListModel.ListModel(items=src_list)
+            computation.create_objects("src_list", src_list_model)
+            computation.processing_id = "add_n"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(len(document_model.computations), 1)
+            self.assertEqual(len(document_model.data_items), 2)
+            src_list_model.remove_item(0)
+            src_list_model.insert_item(0, document_model.get_object_specifier(data_item1, "display_xdata"))
+            document_model.recompute_all()
+            data_item3 = document_model.data_items[2]
+            self.assertTrue(numpy.array_equal(data_item3.data, numpy.full((2, 2), 3)))
+
+    def test_new_computation_recomputes_when_list_element_changes(self):
+        Symbolic.register_computation_type("add_n", self.AddN)
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            src_list_model = ListModel.ListModel(items=[document_model.get_object_specifier(data_item1, "xdata"), document_model.get_object_specifier(data_item2, "xdata")])
+            computation.create_objects("src_list", src_list_model)
+            computation.processing_id = "add_n"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(len(document_model.computations), 1)
+            self.assertEqual(len(document_model.data_items), 3)
+            data_item3 = document_model.data_items[2]
+            self.assertTrue(numpy.array_equal(data_item3.data, numpy.full((2, 2), 3)))
+            data_item1.set_data(numpy.full((2, 2), 2))
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item3.data, numpy.full((2, 2), 4)))
 
     class CopyData:
         def __init__(self, computation, **kwargs):

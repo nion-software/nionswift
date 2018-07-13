@@ -31,6 +31,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.ui import TestUI
+from nion.utils import ListModel
 
 
 Facade.initialize()
@@ -3656,6 +3657,45 @@ class TestStorageClass(unittest.TestCase):
             document_model.data_items[0].set_data(numpy.random.randn(3, 3))
             document_model.recompute_all()
             self.assertEqual(self.computation1_eval_count, 0)
+
+    class AddN:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src_list):
+            if len(set(src.data_shape for src in src_list)) == 1:
+                self.__new_data = numpy.sum([src.data for src in src_list], axis=0)
+            else:
+                self.__new_data = None
+
+        def commit(self):
+            if self.__new_data is not None:
+                self.computation.set_referenced_data("dst", self.__new_data)
+            else:
+                self.computation.clear_referenced_data("dst")
+
+    def test_library_computation_with_list_input_reloads(self):
+        Symbolic.register_computation_type("add_n", self.AddN)
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            src_list_model = ListModel.ListModel(items=[document_model.get_object_specifier(data_item1, "display_xdata"), document_model.get_object_specifier(data_item2, "display_xdata")])
+            computation.create_objects("src_list", src_list_model)
+            computation.processing_id = "add_n"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        with contextlib.closing(document_model):
+            document_model.data_items[0].set_data(numpy.full((2, 2), 3))
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(document_model.data_items[2].data, numpy.full((2, 2), 5)))
 
     def test_data_item_with_references_to_another_data_item_reloads(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()

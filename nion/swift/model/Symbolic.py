@@ -9,6 +9,7 @@
 
 # standard libraries
 import ast
+import copy
 import threading
 import time
 import typing
@@ -20,6 +21,7 @@ import weakref
 # local libraries
 from nion.utils import Converter
 from nion.utils import Event
+from nion.utils import ListModel
 from nion.utils import Observable
 from nion.utils import Persistence
 
@@ -97,7 +99,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
     Clients can also get/set the bound_item, which must be an object that provides a read-only value property and a
     changed_event.  This object can be used to watch for changes to the object portion of this object.
     """
-    def __init__(self, name: str=None, *, property_name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None, secondary_specifier: dict=None):  # defaults are None for factory
+    def __init__(self, name: str=None, *, property_name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None, secondary_specifier: dict=None, objects: ListModel.ListModel=None):  # defaults are None for factory
         super().__init__()
         self.define_type("variable")
         self.define_property("name", name, changed=self.__property_changed)
@@ -111,12 +113,43 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("secondary_specifier", secondary_specifier, changed=self.__property_changed)
         self.define_property("property_name", property_name, changed=self.__property_changed)
         self.define_property("control_type", control_type, changed=self.__property_changed)
+        self.define_property("object_specifiers", copy.deepcopy(objects.items) if objects else None, changed=self.__property_changed)
         self.changed_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
         self.needs_rebind_event = Event.Event()  # an event to be fired when the computation needs to rebind
         self.needs_rebuild_event = Event.Event()  # an event to be fired when the UI needs a rebuild
+        self.__objects_model = objects
+        self.__objects_model_item_inserted_event_listener = None
+        self.__objects_model_item_removed_event_listener = None
+        if objects is not None:
+
+            def item_inserted(key, value, index):
+                self.needs_rebind_event.fire()
+                # self.changed_event.fire()  # implicit when setting object_specifiers
+                self.object_specifiers = copy.deepcopy(objects.items)
+
+            def item_removed(key, value, index):
+                self.needs_rebind_event.fire()
+                # self.changed_event.fire()  # implicit when setting object_specifiers
+                self.object_specifiers = copy.deepcopy(objects.items)
+
+            self.__objects_model_item_inserted_event_listener = self.__objects_model.item_inserted_event.listen(item_inserted)
+            self.__objects_model_item_removed_event_listener = self.__objects_model.item_removed_event.listen(item_removed)
+
+            for index, object in enumerate(objects.items):
+                item_inserted("items", object, index)
+
         self.__bound_item = None
         self.__bound_item_changed_event_listener = None
+
+    def close(self):
+        # TODO: this is not called
+        if self.__objects_model_item_inserted_event_listener:
+            self.__objects_model_item_inserted_event_listener.close()
+            self.__objects_model_item_inserted_event_listener = None
+        if self.__objects_model_item_removed_event_listener:
+            self.__objects_model_item_removed_event_listener.close()
+            self.__objects_model_item_removed_event_listener = None
 
     def __repr__(self):
         return "{} ({} {} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self.specifier, self.secondary_specifier)
@@ -127,6 +160,8 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         value_type_property = self._get_persistent_property("value_type")
         value_type_property.read_from_dict(properties)
         super().read_from_dict(properties)
+        if self.object_specifiers:
+            self.__objects_model = ListModel.ListModel(items=self.object_specifiers)
 
     def write_to_dict(self) -> dict:
         # used for persistence. left here since read_from_dict is defined.
@@ -223,6 +258,10 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             def fire_changed_event():
                 self.changed_event.fire()
             self.__bound_item_changed_event_listener = self.__bound_item.changed_event.listen(fire_changed_event)
+
+    @property
+    def objects_model(self):
+        return self.__objects_model
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -562,6 +601,11 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.add_variable(variable)
         return variable
 
+    def create_objects(self, name: str, objects: ListModel.ListModel, label: str=None) -> ComputationVariable:
+        variable = ComputationVariable(name, objects=objects, label=label)
+        self.add_variable(variable)
+        return variable
+
     def create_result(self, name: str=None, object_specifier: dict=None, specifiers: typing.Sequence[dict]=None, label: str=None) -> ComputationOutput:
         result = ComputationOutput(name, specifier=object_specifier, specifiers=specifiers, label=label)
         self.append_item("results", result)
@@ -617,8 +661,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 # able to modify the input objects; reality, though, dictates that performance is
                 # more important than this protection. so use the resolved object directly.
                 api_object = api._new_api_object(resolved_object) if resolved_object else None
-                kwargs[
-                    variable.name] = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
+                kwargs[variable.name] = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
+                is_resolved = resolved_object is not None
             else:
                 is_resolved = False
         for result in self.results:
@@ -739,10 +783,48 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__variable_needs_rebind_event_listeners[variable.uuid] = variable.needs_rebind_event.listen(rebind)
 
         variable_specifier = variable.variable_specifier
-        if not variable_specifier:
-            return
+        if variable_specifier:
+            variable.bound_item = self.__computation_context.resolve_object_specifier(variable_specifier, variable.secondary_specifier, variable.property_name)
 
-        variable.bound_item = self.__computation_context.resolve_object_specifier(variable_specifier, variable.secondary_specifier, variable.property_name)
+        objects_model = variable.objects_model
+        if objects_model:
+
+            class BoundList:
+                def __init__(self, computation_context, objects_model):
+                    self.__objects_model = objects_model
+                    self.__bound_items = list()
+                    self.changed_event = Event.Event()
+                    self.property_changed_event = Event.Event()
+                    self.__changed_listeners = list()
+                    self.__resolved = True
+                    for variable_specifier in objects_model.items:
+                        bound_item = computation_context.resolve_object_specifier(variable_specifier)
+                        self.__bound_items.append(bound_item)
+                        self.__changed_listeners.append(bound_item.changed_event.listen(self.changed_event.fire) if bound_item else None)
+                        self.__resolved = self.__resolved and bound_item is not None
+                def close(self):
+                    for bound_object, change_listener in zip(self.__bound_items, self.__changed_listeners):
+                        if bound_object:
+                            bound_object.close()
+                        if change_listener:
+                            change_listener.close()
+                    self.__bound_items = None
+                    self.__resolved_items = None
+                    self.__changed_listeners = None
+                @property
+                def value(self):
+                    return [bound_item.value for bound_item in self.__bound_items] if self.__resolved else None
+                @property
+                def base_objects(self):
+                    # return the base objects in a stable order
+                    base_objects = list()
+                    for bound_item in self.__bound_items:
+                        for base_object in bound_item.base_objects:
+                            if not base_object in base_objects:
+                                base_objects.append(base_object)
+                    return base_objects
+
+            variable.bound_item = BoundList(self.__computation_context, objects_model)
 
     def __unbind_variable(self, variable: ComputationVariable) -> None:
         self.__variable_changed_event_listeners[variable.uuid].close()
