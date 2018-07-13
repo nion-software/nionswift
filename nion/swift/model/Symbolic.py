@@ -74,20 +74,33 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
 
 
 class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
-    """Tracks a variable used in a computation.
+    """Tracks a variable (value or object) used in a computation.
 
     A variable has user visible name, a label used in the script, a value type.
 
     Scalar value types have a value, a default, and optional min and max values. The control type is used to
     specify the preferred UI control (e.g. checkbox vs. input field).
 
-    Specifier value types have a specifier which can be resolved to a specific object.
+    Specifier value types have a specifier/secondary_specifier/property_name which can be resolved to a part of a
+    specific object. The specifier indicates the object and the part of the object to be used (e.g., a data item and the
+    masked data of that data item). The secondary specifier is used to augment the first object (e.g. a crop graphic on
+    an image). The property name is also used to augment the specifier (e.g., a field of a data structure or graphic).
+
+    The object provides four events: changed, fired when anything changes; variable_type_changed, fired when the
+    variable type changes; needs_rebind, fired when a specifier changes and the variable needs rebinding to the context;
+    and needs_rebuild, fired when the UI needs rebuilding. variable_type_changed and needs_rebuild are specific to the
+    inspector and shouldn't be used elsewhere.
+
+    Clients can ask for the bound_variable which supplies an object that provides a read-only value property and a
+    changed_event. This object can be used to watch for changes to the value type portion of this object.
+
+    Clients can also get/set the bound_item, which must be an object that provides a read-only value property and a
+    changed_event.  This object can be used to watch for changes to the object portion of this object.
     """
     def __init__(self, name: str=None, *, property_name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None, secondary_specifier: dict=None):  # defaults are None for factory
         super().__init__()
         self.define_type("variable")
         self.define_property("name", name, changed=self.__property_changed)
-        self.define_property("property_name", property_name, changed=self.__property_changed)
         self.define_property("label", label if label else name, changed=self.__property_changed)
         self.define_property("value_type", value_type, changed=self.__property_changed)
         self.define_property("value", value, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
@@ -96,6 +109,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("value_max", value_max, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
         self.define_property("specifier", specifier, changed=self.__property_changed)
         self.define_property("secondary_specifier", secondary_specifier, changed=self.__property_changed)
+        self.define_property("property_name", property_name, changed=self.__property_changed)
         self.define_property("control_type", control_type, changed=self.__property_changed)
         self.changed_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
@@ -108,18 +122,22 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         return "{} ({} {} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self.specifier, self.secondary_specifier)
 
     def read_from_dict(self, properties: dict) -> None:
+        # used for persistence
         # ensure that value_type is read first
         value_type_property = self._get_persistent_property("value_type")
         value_type_property.read_from_dict(properties)
         super().read_from_dict(properties)
 
     def write_to_dict(self) -> dict:
+        # used for persistence. left here since read_from_dict is defined.
         return super().write_to_dict()
 
     def save_properties(self):
+        # used for undo
         return self.value, self.specifier, self.secondary_specifier
 
     def restore_properties(self, properties):
+        # used for undo
         self.value = properties[0]
         self.specifier = properties[1]
         self.secondary_specifier = properties[2]
@@ -186,6 +204,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             def close(self):
                 self.__variable_property_changed_listener.close()
                 self.__variable_property_changed_listener = None
+
         return BoundVariable(self)
 
     @property
@@ -193,18 +212,17 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         return self.__bound_item
 
     @bound_item.setter
-    def bound_item(self, value):
-        self.__bound_item = value
+    def bound_item(self, bound_item):
+        if self.__bound_item_changed_event_listener:
+            self.__bound_item_changed_event_listener.close()
+            self.__bound_item_changed_event_listener = None
+        if self.__bound_item:
+            self.__bound_item.close()
+        self.__bound_item = bound_item
         if self.__bound_item:
             def fire_changed_event():
                 self.changed_event.fire()
             self.__bound_item_changed_event_listener = self.__bound_item.changed_event.listen(fire_changed_event)
-        else:
-            if self.__bound_item_changed_event_listener:
-                self.__bound_item_changed_event_listener.close()
-                self.__bound_item_changed_event_listener = None
-            if self.__bound_item:
-                self.__bound_item.close()
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)

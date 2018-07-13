@@ -35,6 +35,7 @@ def migrate_to_latest(reader_info_list, library_updates, migration_log: Migratio
     # TODO: file format. switch from 'displays' to a single 'display' in data item
     # TODO: file format. Rename workspaces to workspace_layouts.
     # TODO: store session metadata as regular metadata
+    # TODO: consolidate specifier fields in computation variable into a single dict (specifier, secondary_specifier, property_name)
 
 def migrate_to_v12(reader_info_list, library_updates, migration_log: MigrationLog):
     for reader_info in reader_info_list:

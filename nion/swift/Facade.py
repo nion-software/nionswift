@@ -2048,6 +2048,7 @@ class Computation(metaclass=SharedInstance):
         return self.__computation.uuid
 
     def set_input_value(self, name: str, value):
+        # support lists here?
         for variable in self.__computation.variables:
             if variable.name == name:
                 if isinstance(value, str):
@@ -2113,6 +2114,11 @@ class Computation(metaclass=SharedInstance):
             data_item = self.api.library.create_data_item()
             self.set_result(name, data_item)
         data_item.xdata = xdata
+
+    def clear_referenced_data(self, name: str) -> None:
+        data_item = self.get_result(name)
+        if data_item:
+            self.api.library.remove_data_item(data_item)
 
 
 class Library(metaclass=SharedInstance):
