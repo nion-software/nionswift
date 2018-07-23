@@ -3,8 +3,9 @@
 Release Notes
 =============
 
-UNRELEASED
-----------
+Versin 0.13.8, July 23, 2018
+----------------------------
+* (2017-07-23) Make launcher command Python 3.7 compatible.
 * (2018-07-03) Restructure master session metadata to be stored with application rather than library.
 
 Version 0.13.7, July 2, 2018
