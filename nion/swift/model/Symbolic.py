@@ -141,6 +141,8 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
 
         self.__bound_item = None
         self.__bound_item_changed_event_listener = None
+        self.__bound_item_removed_event_listener = None
+        self.__bound_item_child_removed_event_listener = None
 
     def close(self):
         # TODO: this is not called
@@ -229,6 +231,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             def __init__(self, variable):
                 self.__variable = variable
                 self.changed_event = Event.Event()
+                self.needs_rebind_event = Event.Event()
                 def property_changed(key):
                     if key == "value":
                         self.changed_event.fire()
@@ -251,13 +254,22 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         if self.__bound_item_changed_event_listener:
             self.__bound_item_changed_event_listener.close()
             self.__bound_item_changed_event_listener = None
+        if self.__bound_item_removed_event_listener:
+            self.__bound_item_removed_event_listener.close()
+            self.__bound_item_removed_event_listener = None
+        if self.__bound_item_child_removed_event_listener:
+            self.__bound_item_child_removed_event_listener.close()
+            self.__bound_item_child_removed_event_listener = None
         if self.__bound_item:
             self.__bound_item.close()
         self.__bound_item = bound_item
         if self.__bound_item:
-            def fire_changed_event():
-                self.changed_event.fire()
-            self.__bound_item_changed_event_listener = self.__bound_item.changed_event.listen(fire_changed_event)
+            self.__bound_item_changed_event_listener = self.__bound_item.changed_event.listen(self.changed_event.fire)
+            self.__bound_item_removed_event_listener = self.__bound_item.needs_rebind_event.listen(self.needs_rebind_event.fire)
+            if hasattr(self.__bound_item, "child_removed_event"):
+                def child_removed(index):
+                    self.objects_model.remove_item(index)
+                self.__bound_item_child_removed_event_listener = self.__bound_item.child_removed_event.listen(child_removed)
 
     @property
     def objects_model(self):
@@ -407,7 +419,7 @@ class ComputationContext:
         self.__computation = weakref.ref(computation)
         self.__context = context
 
-    def resolve_object_specifier(self, object_specifier, secondary_specifier=None, property_name=None):
+    def resolve_object_specifier(self, object_specifier, secondary_specifier=None, property_name=None, objects_model=None):
         """Resolve the object specifier.
 
         First lookup the object specifier in the enclosing computation. If it's not found,
@@ -416,7 +428,7 @@ class ComputationContext:
         """
         variable = self.__computation().resolve_variable(object_specifier)
         if not variable:
-            return self.__context.resolve_object_specifier(object_specifier, secondary_specifier, property_name)
+            return self.__context.resolve_object_specifier(object_specifier, secondary_specifier, property_name, objects_model)
         elif variable.specifier is None:
             return variable.bound_variable
         return None
@@ -601,8 +613,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.add_variable(variable)
         return variable
 
-    def create_objects(self, name: str, objects: ListModel.ListModel, label: str=None) -> ComputationVariable:
-        variable = ComputationVariable(name, objects=objects, label=label)
+    def create_objects(self, name: str, items, label: str=None) -> ComputationVariable:
+        list_model = ListModel.ListModel(items=items)
+        variable = ComputationVariable(name, objects=list_model, label=label)
         self.add_variable(variable)
         return variable
 
@@ -613,13 +626,22 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.computation_mutated_event.fire()
         return result
 
+    def remove_item_from_objects(self, name: str, index: int) -> None:
+        variable = self._get_variable(name)
+        variable.objects_model.remove_item(index)
+
+    def insert_item_into_objects(self, name: str, index: int, object) -> None:
+        variable = self._get_variable(name)
+        variable.objects_model.insert_item(index, object)
+
     def resolve_variable(self, object_specifier: dict) -> typing.Optional[ComputationVariable]:
-        uuid_str = object_specifier.get("uuid")
-        uuid_ = Converter.UuidToStringConverter().convert_back(uuid_str) if uuid_str else None
-        if uuid_:
-            for variable in self.variables:
-                if variable.uuid == uuid_:
-                    return variable
+        if object_specifier:
+            uuid_str = object_specifier.get("uuid")
+            uuid_ = Converter.UuidToStringConverter().convert_back(uuid_str) if uuid_str else None
+            if uuid_:
+                for variable in self.variables:
+                    if variable.uuid == uuid_:
+                        return variable
         return None
 
     @property
@@ -777,54 +799,13 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__variable_changed_event_listeners[variable.uuid] = variable.changed_event.listen(needs_update)
 
         def rebind():
+            self.needs_update = True
             self.__unbind_variable(variable)
             self.__bind_variable(variable)
 
         self.__variable_needs_rebind_event_listeners[variable.uuid] = variable.needs_rebind_event.listen(rebind)
 
-        variable_specifier = variable.variable_specifier
-        if variable_specifier:
-            variable.bound_item = self.__computation_context.resolve_object_specifier(variable_specifier, variable.secondary_specifier, variable.property_name)
-
-        objects_model = variable.objects_model
-        if objects_model:
-
-            class BoundList:
-                def __init__(self, computation_context, objects_model):
-                    self.__objects_model = objects_model
-                    self.__bound_items = list()
-                    self.changed_event = Event.Event()
-                    self.property_changed_event = Event.Event()
-                    self.__changed_listeners = list()
-                    self.__resolved = True
-                    for variable_specifier in objects_model.items:
-                        bound_item = computation_context.resolve_object_specifier(variable_specifier)
-                        self.__bound_items.append(bound_item)
-                        self.__changed_listeners.append(bound_item.changed_event.listen(self.changed_event.fire) if bound_item else None)
-                        self.__resolved = self.__resolved and bound_item is not None
-                def close(self):
-                    for bound_object, change_listener in zip(self.__bound_items, self.__changed_listeners):
-                        if bound_object:
-                            bound_object.close()
-                        if change_listener:
-                            change_listener.close()
-                    self.__bound_items = None
-                    self.__resolved_items = None
-                    self.__changed_listeners = None
-                @property
-                def value(self):
-                    return [bound_item.value for bound_item in self.__bound_items] if self.__resolved else None
-                @property
-                def base_objects(self):
-                    # return the base objects in a stable order
-                    base_objects = list()
-                    for bound_item in self.__bound_items:
-                        for base_object in bound_item.base_objects:
-                            if not base_object in base_objects:
-                                base_objects.append(base_object)
-                    return base_objects
-
-            variable.bound_item = BoundList(self.__computation_context, objects_model)
+        variable.bound_item = self.__computation_context.resolve_object_specifier(variable.variable_specifier, variable.secondary_specifier, variable.property_name, variable.objects_model)
 
     def __unbind_variable(self, variable: ComputationVariable) -> None:
         self.__variable_changed_event_listeners[variable.uuid].close()
@@ -883,7 +864,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         for result in self.results:
             self.__unbind_result(result)
 
-    def _get_variable(self, variable_name):
+    def _get_variable(self, variable_name) -> ComputationVariable:
         for variable in self.variables:
             if variable.name == variable_name:
                 return variable

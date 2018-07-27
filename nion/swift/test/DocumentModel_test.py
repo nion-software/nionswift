@@ -806,6 +806,129 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.computations), 0)
             self.assertEqual(len(document_model.data_items), 0)
 
+    def test_new_computation_becomes_unresolved_when_data_item_input_is_removed_from_document(self):
+        Symbolic.register_computation_type("add2", self.Add2)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+            data_item2 = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+            data_item3 = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            computation = document_model.create_computation()
+            computation.create_object("src1", document_model.get_object_specifier(data_item, "data_item"))
+            computation.create_object("src2", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.create_result("dst", document_model.get_object_specifier(data_item3, "data_item"))
+            computation.processing_id = "add2"
+            document_model.append_computation(computation)
+            self.assertTrue(computation.is_resolved)
+            document_model.recompute_all()
+            self.assertFalse(computation.needs_update)
+            document_model.remove_data_item(data_item)
+            self.assertIn(computation, document_model.computations)
+            self.assertFalse(computation.is_resolved)
+            self.assertTrue(computation.needs_update)
+
+    def test_new_computation_becomes_unresolved_when_data_source_input_is_removed_from_document(self):
+        Symbolic.register_computation_type("add2", self.Add2)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+            data_item2 = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+            data_item3 = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            computation = document_model.create_computation()
+            computation.create_object("src1", document_model.get_object_specifier(data_item))
+            computation.create_object("src2", document_model.get_object_specifier(data_item2))
+            computation.create_result("dst", document_model.get_object_specifier(data_item3, "data_item"))
+            computation.processing_id = "add2"
+            document_model.append_computation(computation)
+            self.assertTrue(computation.is_resolved)
+            document_model.recompute_all()
+            self.assertFalse(computation.needs_update)
+            document_model.remove_data_item(data_item)
+            self.assertIn(computation, document_model.computations)
+            self.assertFalse(computation.is_resolved)
+            self.assertTrue(computation.needs_update)
+
+    def test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document(self):
+        Symbolic.register_computation_type("add2", self.Add2)
+        for t in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
+            document_model = DocumentModel.DocumentModel()
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+                data_item2 = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+                data_item3 = DataItem.DataItem()
+                document_model.append_data_item(data_item)
+                document_model.append_data_item(data_item2)
+                document_model.append_data_item(data_item3)
+                computation = document_model.create_computation()
+                computation.create_object("src1", document_model.get_object_specifier(data_item, t))
+                computation.create_object("src2", document_model.get_object_specifier(data_item2, t))
+                computation.create_result("dst", document_model.get_object_specifier(data_item3, "data_item"))
+                computation.processing_id = "add2"
+                document_model.append_computation(computation)
+                self.assertTrue(computation.is_resolved)
+                document_model.recompute_all()
+                self.assertFalse(computation.needs_update)
+                document_model.remove_data_item(data_item)
+                self.assertIn(computation, document_model.computations)
+                self.assertFalse(computation.is_resolved)
+                self.assertTrue(computation.needs_update)
+
+    def test_new_computation_becomes_unresolved_when_data_structure_input_is_removed_from_document(self):
+        Symbolic.register_computation_type("set_const_struct", self.SetConstDataStruct)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            data_structure = document_model.create_data_structure()
+            data_structure.set_property_value("value", 3)
+            document_model.append_data_structure(data_structure)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            computation.create_object("data_structure", document_model.get_object_specifier(data_structure))
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "set_const_struct"
+            document_model.append_computation(computation)
+            self.assertTrue(computation.is_resolved)
+            document_model.recompute_all()
+            self.assertFalse(computation.needs_update)
+            document_model.remove_data_structure(data_structure)
+            self.assertIn(computation, document_model.computations)
+            self.assertFalse(computation.is_resolved)
+            self.assertTrue(computation.needs_update)
+
+    def test_new_computation_becomes_unresolved_when_graphic_input_is_removed_from_document(self):
+        Symbolic.register_computation_type("set_const_graphic", self.SetConstGraphic)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            graphic = Graphics.PointGraphic()
+            data_item.displays[0].add_graphic(graphic)  # computation should become valid
+            # data_item.displays[0].add_graphic(graphic)  # purposely not added
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            computation.create_object("graphic", document_model.get_object_specifier(graphic))
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "set_const_graphic"
+            document_model.append_computation(computation)
+            self.assertTrue(computation.is_resolved)
+            document_model.recompute_all()
+            self.assertFalse(computation.needs_update)
+            data_item.displays[0].remove_graphic(graphic)
+            self.assertIn(computation, document_model.computations)
+            self.assertFalse(computation.is_resolved)
+            self.assertTrue(computation.needs_update)
+
     def test_new_computation_deletes_computation_when_result_data_item_deleted(self):
         Symbolic.register_computation_type("add2", self.Add2)
         document_model = DocumentModel.DocumentModel()
@@ -947,8 +1070,8 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation()
-            src_list_model = ListModel.ListModel(items=[document_model.get_object_specifier(data_item1, "display_xdata"), document_model.get_object_specifier(data_item2, "display_xdata")])
-            computation.create_objects("src_list", src_list_model)
+            items = [document_model.get_object_specifier(data_item1, "display_xdata"), document_model.get_object_specifier(data_item2, "display_xdata")]
+            computation.create_objects("src_list", items)
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -956,6 +1079,23 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 3)
             data_item3 = document_model.data_items[2]
             self.assertTrue(numpy.array_equal(data_item3.data, numpy.full((2, 2), 3)))
+
+    def test_new_computation_treats_list_of_data_item_inputs_as_inputs(self):
+        Symbolic.register_computation_type("add_n", self.AddN)
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            items = [document_model.get_object_specifier(data_item1, "display_xdata"), document_model.get_object_specifier(data_item2, "display_xdata")]
+            computation.create_objects("src_list", items)
+            computation.processing_id = "add_n"
+            document_model.append_computation(computation)
+            self.assertIn(data_item1, computation._inputs)
+            self.assertIn(data_item2, computation._inputs)
 
     def test_new_computation_reevaluates_when_list_of_data_item_inputs_changes(self):
         Symbolic.register_computation_type("add_n", self.AddN)
@@ -969,19 +1109,46 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item3 = DataItem.DataItem(numpy.full((2, 2), 3))
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
-            src_list_model = ListModel.ListModel(items=[document_model.get_object_specifier(data_item1, "display_xdata"), document_model.get_object_specifier(data_item2, "display_xdata")])
-            computation.create_objects("src_list", src_list_model)
+            items = [document_model.get_object_specifier(data_item1, "display_xdata"), document_model.get_object_specifier(data_item2, "display_xdata")]
+            computation.create_objects("src_list", items)
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
             document_model.recompute_all()
             data_item4 = document_model.data_items[3]
             self.assertTrue(numpy.array_equal(data_item4.data, numpy.full((2, 2), 3)))
-            src_list_model.insert_item(0, document_model.get_object_specifier(data_item3, "display_xdata"))
+            computation.insert_item_into_objects("src_list", 0, document_model.get_object_specifier(data_item3, "display_xdata"))
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(data_item4.data, numpy.full((2, 2), 6)))
-            src_list_model.remove_item(2)
+            computation.remove_item_from_objects("src_list", 2)
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(data_item4.data, numpy.full((2, 2), 4)))
+
+    def test_new_computation_reevaluates_when_referenced_item_in_list_of_inputs_is_removed(self):
+        Symbolic.register_computation_type("add_n", self.AddN)
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
+            document_model.append_data_item(data_item2)
+            data_item3 = DataItem.DataItem(numpy.full((2, 2), 3))
+            document_model.append_data_item(data_item3)
+            computation = document_model.create_computation()
+            items = [
+                document_model.get_object_specifier(data_item1, "display_xdata"),
+                document_model.get_object_specifier(data_item2, "display_xdata"),
+                document_model.get_object_specifier(data_item3, "display_xdata")
+            ]
+            computation.create_objects("src_list", items)
+            computation.processing_id = "add_n"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            data_item4 = document_model.data_items[3]
+            self.assertTrue(numpy.array_equal(data_item4.data, numpy.full((2, 2), 6)))
+            document_model.remove_data_item(data_item3)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item4.data, numpy.full((2, 2), 3)))
 
     def test_new_computation_unresolved_list_prevents_recomputation(self):
         Symbolic.register_computation_type("add_n", self.AddN)
@@ -995,15 +1162,14 @@ class TestDocumentModelClass(unittest.TestCase):
             computation = document_model.create_computation()
             src_list = [document_model.get_object_specifier(data_item1, "display_xdata"), document_model.get_object_specifier(data_item2, "display_xdata")]
             src_list[0]["uuid"] = str(uuid.uuid4())
-            src_list_model = ListModel.ListModel(items=src_list)
-            computation.create_objects("src_list", src_list_model)
+            computation.create_objects("src_list", src_list)
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
             document_model.recompute_all()
             self.assertEqual(len(document_model.computations), 1)
             self.assertEqual(len(document_model.data_items), 2)
-            src_list_model.remove_item(0)
-            src_list_model.insert_item(0, document_model.get_object_specifier(data_item1, "display_xdata"))
+            computation.remove_item_from_objects("src_list", 0)
+            computation.insert_item_into_objects("src_list", 0, document_model.get_object_specifier(data_item1, "display_xdata"))
             document_model.recompute_all()
             data_item3 = document_model.data_items[2]
             self.assertTrue(numpy.array_equal(data_item3.data, numpy.full((2, 2), 3)))
@@ -1018,8 +1184,8 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation()
-            src_list_model = ListModel.ListModel(items=[document_model.get_object_specifier(data_item1, "xdata"), document_model.get_object_specifier(data_item2, "xdata")])
-            computation.create_objects("src_list", src_list_model)
+            items = [document_model.get_object_specifier(data_item1, "xdata"), document_model.get_object_specifier(data_item2, "xdata")]
+            computation.create_objects("src_list", items)
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
             document_model.recompute_all()

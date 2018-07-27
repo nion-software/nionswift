@@ -3686,8 +3686,8 @@ class TestStorageClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation()
-            src_list_model = ListModel.ListModel(items=[document_model.get_object_specifier(data_item1, "display_xdata"), document_model.get_object_specifier(data_item2, "display_xdata")])
-            computation.create_objects("src_list", src_list_model)
+            items = [document_model.get_object_specifier(data_item1, "display_xdata"), document_model.get_object_specifier(data_item2, "display_xdata")]
+            computation.create_objects("src_list", items)
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
             document_model.recompute_all()

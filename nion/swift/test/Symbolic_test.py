@@ -1527,6 +1527,18 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.remove_data_item(document_model.data_items[1])
             self.assertIsNone(computation.variables[0].bound_item)
 
+    def test_removing_data_item_source_data_item_from_library_is_possible(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata"))
+            computation.create_object("a", document_model.get_object_specifier(data_item))
+            document_model.append_computation(computation)
+            self.assertTrue(computation.is_resolved)
+            document_model.remove_data_item(data_item)
+            self.assertFalse(computation.is_resolved)
+
     def disabled_test_reshape_rgb(self):
         assert False
 
