@@ -1694,6 +1694,47 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.remove_data_item(data_item3)
             self.assertEqual(0, len(document_model.computations))
 
+    class SourceCycleTest:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, s, i1, i2l):
+            pass
+
+        def commit(self):
+            self.computation.set_referenced_data("dst1", numpy.zeros((2, )))
+            self.computation.set_referenced_data("dst2", numpy.zeros((2, )))
+
+    def test_computation_deletes_when_source_cycle_deletes(self):
+        Symbolic.register_computation_type("source_cycle_test", self.SourceCycleTest)
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((2, )))
+            interval1 = Graphics.IntervalGraphic()
+            interval2 = Graphics.IntervalGraphic()
+            interval3 = Graphics.IntervalGraphic()
+            data_item1.displays[0].add_graphic(interval1)
+            data_item1.displays[0].add_graphic(interval2)
+            data_item1.displays[0].add_graphic(interval3)
+            document_model.append_data_item(data_item1)
+            computation = document_model.create_computation()
+            computation.processing_id = "source_cycle_test"
+            computation.create_object("s", document_model.get_object_specifier(data_item1, "xdata"))
+            computation.create_object("i1", document_model.get_object_specifier(interval1))
+            computation.create_objects("i2l", [document_model.get_object_specifier(interval2), document_model.get_object_specifier(interval3)])
+            computation.source = interval1
+            interval1.source = computation
+            interval2.source = interval1
+            interval3.source = interval1
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            document_model.remove_data_item(document_model.data_items[-1])
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(0, len(document_model.computations))
+            self.assertEqual(0, len(data_item1.displays[0].graphics))
+            self.assertEqual(0, len(document_model.get_dependent_items(data_item1)))
+
     def test_computation_deletes_when_triggered_by_both_inputs_and_source_deletion(self):
         Symbolic.register_computation_type("pass_thru", self.PassThru)
         document_model = DocumentModel.DocumentModel()

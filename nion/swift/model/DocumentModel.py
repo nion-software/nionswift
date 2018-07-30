@@ -1146,6 +1146,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__uuid_to_data_item = dict()
         self.__computation_changed_listeners = dict()
         self.__computation_output_changed_listeners = dict()
+        self.__computation_changed_delay_list = None
         self.__data_item_references = dict()
         self.__computation_queue_lock = threading.RLock()
         self.__computation_pending_queue = list()  # type: typing.List[ComputationQueueItem]
@@ -1550,9 +1551,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return m
 
     def __build_cascade(self, item, items: list, dependencies: list) -> None:
-        # build a list of items to delete, with the leafs at the end of the list.
-        # store the dependencies into items. store the dependencies in the form
-        # source -> target into dependencies.
+        # build a list of items to delete using item as the base. put the leafs at the end of the list.
+        # store associated dependencies in the form source -> target into dependencies.
         # print(f"build {item}")
         if item not in items:
             # first handle the case where a data item that is the only target of a graphic cascades to the graphic.
@@ -1565,33 +1565,48 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         source_targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(source), list())
                         if len(source_targets) == 1 and source_targets[0] == item:
                             self.__build_cascade(source, items, dependencies)
+            # graphics on a data item are deleted.
             if isinstance(item, DataItem.LibraryItem):
                 for display in item.displays:
                     for graphic in display.graphics:
                         self.__build_cascade(graphic, items, dependencies)
+            # outputs of a computation are deleted.
             elif isinstance(item, Symbolic.Computation):
                 for output in item._outputs:
                     self.__build_cascade(output, items, dependencies)
+            # dependencies are deleted
             targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())
             for target in targets:
                 if (item, target) not in dependencies:
                     dependencies.append((item, target))
                 self.__build_cascade(target, items, dependencies)
+            # data items whose source is the item are deleted
             for data_item in self.data_items:
                 if data_item.source == item:
                     if (item, data_item) not in dependencies:
                         dependencies.append((item, data_item))
                     self.__build_cascade(data_item, items, dependencies)
+            # graphics whose source is the item are deleted
+            for data_item in self.data_items:
+                for display in data_item.displays:
+                    for graphic in display.graphics:
+                        if graphic.source == item:
+                            if (item, graphic) not in dependencies:
+                                dependencies.append((item, graphic))
+                            self.__build_cascade(graphic, items, dependencies)
+            # connections whose source is the item are deleted
             for connection in self.connections:
                 if connection.parent == item:
                     if (item, connection) not in dependencies:
                         dependencies.append((item, connection))
                     self.__build_cascade(connection, items, dependencies)
+            # data structures whose source is the item are deleted
             for data_structure in self.data_structures:
                 if data_structure.source == item:
                     if (item, data_structure) not in dependencies:
                         dependencies.append((item, data_structure))
                     self.__build_cascade(data_structure, items, dependencies)
+            # computations whose source is the item are deleted
             for computation in self.computations:
                 if computation.source == item:
                     if (item, computation) not in dependencies:
@@ -1603,7 +1618,27 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     dependencies.append((source, item))
 
     def __cascade_delete(self, master_item, safe: bool=False) -> typing.Optional[typing.Sequence]:
-        # print(f"cascade {item}")
+        """Cascade delete an item.
+
+        Returns an undelete log that can be used to undo the cascade deletion.
+
+        Builds a cascade of items to be deleted and dependencies to be removed when the passed item is deleted. Then
+        removes computations that are no longer valid. Removing a computation may result in more deletions, so the
+        process is repeated until nothing more gets removed.
+
+        Next remove dependencies.
+
+        Next remove individual items (from the most distant from the root item to the root item).
+        """
+        # print(f"cascade {master_item}")
+        # this horrible little hack ensures that computation changed messages are delayed until the end of the cascade
+        # delete; otherwise there are cases where dependencies can be reestablished during the changed messages while
+        # this method is partially finished. ugh. see test_computation_deletes_when_source_cycle_deletes.
+        if self.__computation_changed_delay_list is None:
+            computation_changed_delay_list = list()
+            self.__computation_changed_delay_list = computation_changed_delay_list
+        else:
+            computation_changed_delay_list = None
         undelete_log = list()
         items = list()
         dependencies = list()
@@ -1665,6 +1700,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 # if displays are cascade deleted in the future, they would go here too.
                 elif name in ("graphics", ):
                     self.graphic_removed_event.fire(container, item)
+        # check whether this call of __cascade_delete is the top level one that will finish the computation
+        # changed messages.
+        if computation_changed_delay_list is not None:
+            self.__finish_computation_changed()
         return undelete_log
 
     def undelete_all(self, undelete_log):
@@ -1772,10 +1811,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if hasattr(object, "base_objects"):
                     input_items.update(object.base_objects)
             if variable.object_specifiers:
-                for specifier in variable.object_specifiers:
-                    object = self.resolve_object_specifier(specifier)
-                    if hasattr(object, "base_objects"):
-                        input_items.update(object.base_objects)
+                object = self.resolve_object_specifier(variable.specifier, variable.secondary_specifier, variable.property_name, variable.objects_model)
+                if hasattr(object, "base_objects"):
+                    input_items.update(object.base_objects)
         return input_items
 
     def __resolve_computation_outputs(self, computation: Symbolic.Computation) -> typing.Set:
@@ -2867,8 +2905,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # changed or mutated method to resolve computation variables and update dependencies between
         # library objects. it also fires the computation_updated_event to allow the user interface
         # to update.
-        self.__computation_update_dependencies(computation)
-        self.__computation_needs_update(None, computation)
+        # during updating of dependencies, this HUGE hack is in place to delay the computation changed
+        # messages until ALL of the dependencies are updated so as to avoid the computation changed message
+        # reestablishing dependencies during the updating of them. UGH. planning a better way...
+        if self.__computation_changed_delay_list is not None:
+            self.__computation_changed_delay_list.append(computation)
+        else:
+            self.__computation_update_dependencies(computation)
+            self.__computation_needs_update(None, computation)
+
+    def __finish_computation_changed(self):
+        computation_changed_delay_list = self.__computation_changed_delay_list
+        self.__computation_changed_delay_list = None
+        for computation in computation_changed_delay_list:
+            self.__computation_changed(computation)
 
     def __computation_update_dependencies(self, computation):
         # when a computation output is changed, this function is called to establish dependencies.
