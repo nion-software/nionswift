@@ -9,6 +9,7 @@ import numpy  # for arange
 import typing
 
 # local libraries
+from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
@@ -349,6 +350,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self._closed = False
         self.define_type(type)
         self.define_property("graphic_id", None, changed=self._property_changed, validate=lambda s: str(s) if s else None)
+        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("color", "#F80", changed=self._property_changed)
         self.define_property("label", changed=self._property_changed, validate=lambda s: str(s) if s else None)
         self.define_property("is_position_locked", False, changed=self._property_changed)
@@ -358,6 +360,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.graphic_changed_event = Event.Event()
         self.label_padding = 4
         self.label_font = "normal 11px serif"
+        self.__source = None
 
     def close(self):
         assert self._about_to_be_removed
@@ -417,6 +420,34 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
 
     def read_properties_from_dict(self, d: typing.Mapping):
         self.read_from_mime_data(d, True)
+
+    @property
+    def source(self):
+        return self.__source
+
+    @source.setter
+    def source(self, source):
+        self.__source = source
+        self.source_uuid = source.uuid if source else None
+
+    def persistent_object_context_changed(self):
+        super().persistent_object_context_changed()
+
+        def register():
+            if self.__source is not None:
+                pass
+
+        def source_registered(source):
+            self.__source = source
+            register()
+
+        def unregistered(source=None):
+            pass
+
+        if self.persistent_object_context:
+            self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
+        else:
+            unregistered()
 
     def _property_changed(self, name, value):
         self.notify_property_changed(name)
