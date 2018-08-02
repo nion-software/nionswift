@@ -58,18 +58,33 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         self.define_property("specifiers", specifiers, changed=self.__property_changed)
         self.needs_rebind_event = Event.Event()  # an event to be fired when the computation needs to rebind
         self.bound_item = None
+        self.__needs_rebind_event_listeners = list()
+
+    def close(self):
+        # TODO: this is not called
+        for needs_rebind_event_listener in self.__needs_rebind_event_listeners:
+            needs_rebind_event_listener.close()
+        self.__needs_rebind_event_listeners = None
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
         if name in ("specifier", "specifiers"):
             self.needs_rebind_event.fire()
 
+    def __unbind(self):
+        # self.specifier = None
+        self.bound_item = None
+
     def bind(self, resolve_object_specifier):
         if self.specifier:
             self.bound_item = resolve_object_specifier(self.specifier)
+            if self.bound_item:
+                self.__needs_rebind_event_listeners.append(self.bound_item.needs_rebind_event.listen(self.__unbind))
         elif self.specifiers is not None:
             bound_items = [resolve_object_specifier(specifier) for specifier in self.specifiers]
             bound_items = [bound_item for bound_item in bound_items if bound_item is not None]
+            for bound_item in bound_items:
+                self.__needs_rebind_event_listeners.append(bound_item.needs_rebind_event.listen(self.__unbind))
             self.bound_item = bound_items
         else:
             self.bound_item = None
@@ -267,9 +282,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             self.__bound_item_changed_event_listener = self.__bound_item.changed_event.listen(self.changed_event.fire)
             self.__bound_item_removed_event_listener = self.__bound_item.needs_rebind_event.listen(self.needs_rebind_event.fire)
             if hasattr(self.__bound_item, "child_removed_event"):
-                def child_removed(index):
-                    self.objects_model.remove_item(index)
-                self.__bound_item_child_removed_event_listener = self.__bound_item.child_removed_event.listen(child_removed)
+                self.__bound_item_child_removed_event_listener = self.__bound_item.child_removed_event.listen(self.objects_model.remove_item)
 
     @property
     def objects_model(self):

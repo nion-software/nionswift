@@ -1097,6 +1097,51 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertIn(data_item1, computation._inputs)
             self.assertIn(data_item2, computation._inputs)
 
+    def test_new_computation_with_multiple_inputs_unbinds_result_when_one_input_is_removed_and_causes_result_to_be_removed(self):
+        Symbolic.register_computation_type("add2", self.Add2)
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
+            document_model.append_data_item(data_item2)
+            data_item3 = DataItem.DataItem(numpy.full((2, 2), 3))
+            document_model.append_data_item(data_item3)
+            computation = document_model.create_computation()
+            computation.create_object("src1", document_model.get_object_specifier(data_item1))
+            computation.create_object("src2", document_model.get_object_specifier(data_item2))
+            computation.create_result("dst", document_model.get_object_specifier(data_item3, "data_item"))
+            computation.processing_id = "add2"
+            document_model.append_computation(computation)
+            document_model.recompute_all()  # establish outputs
+            document_model.remove_data_item(data_item2)
+            self.assertEqual(1, len(document_model.computations))
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(document_model.data_items[0], data_item1)
+            self.assertIsNone(computation.results[0].bound_item)
+
+    def test_new_computation_with_list_of_data_item_inputs_does_not_remove_outputs_when_item_in_list_is_removed(self):
+        Symbolic.register_computation_type("add_n", self.AddN)
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            items = [document_model.get_object_specifier(data_item1, "display_xdata"), document_model.get_object_specifier(data_item2, "display_xdata")]
+            computation.create_objects("src_list", items)
+            computation.processing_id = "add_n"
+            document_model.append_computation(computation)
+            document_model.recompute_all()  # establish outputs
+            self.assertEqual(1, len(document_model.computations))
+            self.assertEqual(3, len(document_model.data_items))
+            document_model.remove_data_item(data_item2)
+            self.assertEqual(1, len(document_model.computations))
+            self.assertEqual(2, len(document_model.data_items))
+
     def test_new_computation_reevaluates_when_list_of_data_item_inputs_changes(self):
         Symbolic.register_computation_type("add_n", self.AddN)
         document_model = DocumentModel.DocumentModel()

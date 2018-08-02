@@ -1575,11 +1575,27 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 for output in item._outputs:
                     self.__build_cascade(output, items, dependencies)
             # dependencies are deleted
-            targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())
-            for target in targets:
-                if (item, target) not in dependencies:
-                    dependencies.append((item, target))
-                self.__build_cascade(target, items, dependencies)
+            # in order to be able to have finer control over how dependencies of input lists are handled,
+            # enumerate the computations and match up dependencies instead of using the dependency tree.
+            # this could obviously be optimized.
+            if not isinstance(item, Symbolic.Computation):
+                for computation in self.computations:
+                    for variable in computation.variables:
+                        bound_item = variable.bound_item
+                        base_objects = getattr(bound_item, "base_objects", list()) if bound_item and not getattr(bound_item, "is_list", False) else list()
+                        if item in base_objects:
+                            targets = computation._outputs
+                            for target in targets:
+                                if (item, target) not in dependencies:
+                                    dependencies.append((item, target))
+                                self.__build_cascade(target, items, dependencies)
+            # dependencies are deleted
+            # see note above
+            # targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())
+            # for target in targets:
+            #     if (item, target) not in dependencies:
+            #         dependencies.append((item, target))
+            #     self.__build_cascade(target, items, dependencies)
             # data items whose source is the item are deleted
             for data_item in self.data_items:
                 if data_item.source == item:
@@ -2491,13 +2507,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     self.__changed_listeners = list()
                     self.__needs_rebind_listeners = list()
                     self.__resolved = True
+                    self.is_list = True  # special marker to indicate items in base objects should not trigger a delete
                     for index, variable_specifier in enumerate(objects_model.items):
                         bound_item = document_model.resolve_object_specifier(variable_specifier)
                         self.__bound_items.append(bound_item)
                         self.__changed_listeners.append(bound_item.changed_event.listen(self.changed_event.fire) if bound_item else None)
-                        def child_removed(index):
-                            self.child_removed_event.fire(index)
-                        self.__needs_rebind_listeners.append(bound_item.needs_rebind_event.listen(functools.partial(child_removed, index)) if bound_item else None)
+                        self.__needs_rebind_listeners.append(bound_item.needs_rebind_event.listen(functools.partial(self.child_removed_event.fire, index)) if bound_item else None)
                         self.__resolved = self.__resolved and bound_item is not None
                 def close(self):
                     for bound_object, change_listener, needs_rebind_listener in zip(self.__bound_items, self.__changed_listeners, self.__needs_rebind_listeners):
