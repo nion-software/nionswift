@@ -2469,6 +2469,10 @@ class Library(metaclass=SharedInstance):
                 else:
                     specifier_dict = object.specifier.rpc_dict
                 computation.create_object(name, specifier_dict)
+            elif isinstance(item, list):
+                # TODO: handle more than just objects
+                items = [object.specifier.rpc_dict for object in item]
+                computation.create_objects(name, items)
             else:
                 specifier_dict = item.specifier.rpc_dict if item else None
                 computation.create_object(name, specifier_dict)
