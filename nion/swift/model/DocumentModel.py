@@ -554,14 +554,17 @@ def read_data_items_version_stats(persistent_storage_system):
     count = [0, 0, 0]  # data item matches version, data item has higher version, data item has lower version
     writer_version = DataItem.DataItem.writer_version
     for storage_handler in storage_handlers:
-        properties = storage_handler.read_properties()
-        version = properties.get("version", 0)
-        if version < writer_version:
-            count[2] += 1
-        elif version > writer_version:
-            count[1] += 1
-        else:
-            count[0] += 1
+        try:
+            properties = storage_handler.read_properties()
+            version = properties.get("version", 0)
+            if version < writer_version:
+                count[2] += 1
+            elif version > writer_version:
+                count[1] += 1
+            else:
+                count[0] += 1
+        except Exception as e:
+            pass  # logging.warning("Could not open file {}".format(storage_handler.reference))
     return count
 
 
@@ -579,10 +582,9 @@ def read_data_items(library_storage_properties, persistent_storage_system, ignor
         try:
             reader_info_list.append(ReaderInfo(storage_handler.read_properties(), [False], storage_handler))
         except Exception as e:
-            logging.debug("Error reading %s", storage_handler.reference)
             import traceback
-            traceback.print_exc()
-            traceback.print_stack()
+            logging.warning("Error reading %s", storage_handler.reference)
+            logging.debug(traceback.format_exc())
     library_updates = dict()
     if not ignore_older_files:
         migration_log = Migration.MigrationLog(log_migrations)
