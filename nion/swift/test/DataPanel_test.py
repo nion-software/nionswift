@@ -122,8 +122,7 @@ class TestDataPanelClass(unittest.TestCase):
     # make sure switching between two views containing data items from the same group
     # switch between those data items in the data panel when switching.
     def test_selected_data_item_persistence(self):
-        library_storage = DocumentModel.FilePersistentStorage()
-        document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel()
         parent_data_group = DataGroup.DataGroup()
         parent_data_group.title = "parent_data_group"
         data_group = DataGroup.DataGroup()

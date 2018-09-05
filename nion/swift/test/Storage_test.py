@@ -133,14 +133,14 @@ class TestStorageClass(unittest.TestCase):
 
     def test_save_load_document(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         data_items_count = len(document_controller.document_model.data_items)
         data_items_type = type(document_controller.document_model.data_items)
         document_controller.close()
         # # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
@@ -155,13 +155,12 @@ class TestStorageClass(unittest.TestCase):
     def test_storage_cache_validates_data_range_upon_reading(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
-        Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
             storage_cache = Cache.DictStorageCache()
-            library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -169,7 +168,7 @@ class TestStorageClass(unittest.TestCase):
                 data_range = display_specifier.display.get_calculated_display_values(True).data_range
             # read it back
             storage_cache = Cache.DictStorageCache()
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -182,14 +181,13 @@ class TestStorageClass(unittest.TestCase):
         # tests caching on display
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
-        Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         cache_name = os.path.join(workspace_dir, "Data.cache")
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
-            library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -198,7 +196,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertFalse(storage_cache.is_cached_value_dirty(display_specifier.display, "thumbnail_data"))
             # read it back
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -212,7 +210,7 @@ class TestStorageClass(unittest.TestCase):
         # tests caching on display
         storage_cache = Cache.DictStorageCache()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -223,7 +221,7 @@ class TestStorageClass(unittest.TestCase):
                 thumbnail_source.recompute_data()
         # read it back
         storage_cache = storage_cache.clone()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         with contextlib.closing(document_model):
             read_data_item = document_model.data_items[0]
             read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -234,14 +232,14 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reload_data_item_initializes_display_data_range(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
             self.assertIsNotNone(display_specifier.display.get_calculated_display_values(True).data_range)
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
             self.assertIsNotNone(display_specifier.display.get_calculated_display_values(True).data_range)
@@ -250,7 +248,7 @@ class TestStorageClass(unittest.TestCase):
     def test_reload_data_item_does_not_recalculate_display_data_range(self):
         storage_cache = Cache.DictStorageCache()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -258,7 +256,7 @@ class TestStorageClass(unittest.TestCase):
         # read it back
         data_range = 1, 4
         storage_cache.cache[display_uuid]["data_range"] = data_range
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         with contextlib.closing(document_model):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
             self.assertEqual(display_specifier.display.get_calculated_display_values(True).data_range, data_range)
@@ -267,7 +265,7 @@ class TestStorageClass(unittest.TestCase):
         # reloading data from disk should not have to load the data, otherwise bad performance ensues
         storage_cache = Cache.DictStorageCache()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -277,13 +275,13 @@ class TestStorageClass(unittest.TestCase):
             data_read_count_ref[0] += 1
         listener = memory_persistent_storage_system._test_data_read_event.listen(data_read)
         with contextlib.closing(listener):
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 self.assertEqual(data_read_count_ref[0], 0)
 
     def test_reload_data_item_initializes_display_slice(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((4, 4, 8), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -291,7 +289,7 @@ class TestStorageClass(unittest.TestCase):
             display_specifier.display.slice_center = 5
             display_specifier.display.slice_width = 3
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
             self.assertEqual(display_specifier.display.slice_center, 5)
@@ -299,7 +297,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reload_data_item_validates_display_slice_and_has_valid_data_and_stats(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data = numpy.zeros((4, 4, 8), numpy.uint32)
             data[..., 7] = 1
@@ -310,9 +308,9 @@ class TestStorageClass(unittest.TestCase):
             display_specifier.display.slice_width = 1
             self.assertEqual(display_specifier.display.get_calculated_display_values(True).data_range, (0, 0))
         # make the slice_center be out of bounds
-        memory_persistent_storage_system.properties[str(data_item.uuid)]["displays"][0]["slice_center"] = 20
+        memory_persistent_storage_system.persistent_storage_properties[str(data_item.uuid)]["displays"][0]["slice_center"] = 20
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
             self.assertEqual(display_specifier.display.slice_center, 7)
@@ -323,14 +321,13 @@ class TestStorageClass(unittest.TestCase):
     def test_save_load_document_to_files(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
-        Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         cache_name = os.path.join(workspace_dir, "Data.cache")
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
-            library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             self.save_document(document_controller)
             data_items_count = len(document_controller.document_model.data_items)
@@ -342,7 +339,7 @@ class TestStorageClass(unittest.TestCase):
             storage_cache = None
             # read it back
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 self.assertEqual(data_items_count, len(document_model.data_items))
                 self.assertEqual(data_items_type, type(document_model.data_items))
@@ -355,9 +352,8 @@ class TestStorageClass(unittest.TestCase):
     def test_db_storage(self):
         cache_name = ":memory:"
         storage_cache = Cache.DbStorageCache(cache_name)
-        library_storage = DocumentModel.FilePersistentStorage()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         document_model_uuid = document_controller.document_model.uuid
@@ -373,7 +369,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         new_data_item0 = document_controller.document_model.get_data_item_by_uuid(data_item0_uuid)
         new_data_item0_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item0)
@@ -397,9 +393,8 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
 
     def test_dependencies_are_correct_when_dependent_read_before_source(self):
-        library_storage = DocumentModel.MemoryPersistentStorage()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             src_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             src_data_item.category = "temporary"
@@ -409,7 +404,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item.created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
             src_data_item_uuid = src_data_item.uuid
             dst_data_item_uuid = dst_data_item.uuid
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             src_data_item = document_model.get_data_item_by_uuid(src_data_item_uuid)
             dst_data_item = document_model.get_data_item_by_uuid(dst_data_item_uuid)
@@ -423,9 +418,8 @@ class TestStorageClass(unittest.TestCase):
         # configure list of data items so that after sorted (on creation date) they will still be listed in this order.
         # this makes one dependency (86d982d1) load before the main item (71ab9215) and one (7d3b374e) load after.
         # this tests the get_dependent_data_items after reading data.
-        library_storage = DocumentModel.MemoryPersistentStorage()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem(item_uuid=uuid.UUID('86d982d1-6d81-46fa-b19e-574e904902de'))
             data_item1.ensure_data_source()
@@ -442,10 +436,10 @@ class TestStorageClass(unittest.TestCase):
             computation2 = document_model.create_computation(Symbolic.xdata_expression("xd.fft(a.xdata)"))
             computation2.create_object("a", document_model.get_object_specifier(data_item2))
             document_model.set_data_item_computation(data_item3, computation2)
-        memory_persistent_storage_system.properties["86d982d1-6d81-46fa-b19e-574e904902de"]["created"] = "2015-01-22T17:16:12.421290"
-        memory_persistent_storage_system.properties["71ab9215-c6ae-4c36-aaf5-92ce78db02b6"]["created"] = "2015-01-22T17:16:12.219730"
-        memory_persistent_storage_system.properties["7d3b374e-e48b-460f-91de-7ff4e1a1a63c"]["created"] = "2015-01-22T17:16:12.308003"
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        memory_persistent_storage_system.persistent_storage_properties["86d982d1-6d81-46fa-b19e-574e904902de"]["created"] = "2015-01-22T17:16:12.421290"
+        memory_persistent_storage_system.persistent_storage_properties["71ab9215-c6ae-4c36-aaf5-92ce78db02b6"]["created"] = "2015-01-22T17:16:12.219730"
+        memory_persistent_storage_system.persistent_storage_properties["7d3b374e-e48b-460f-91de-7ff4e1a1a63c"]["created"] = "2015-01-22T17:16:12.308003"
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item1_uuid = uuid.UUID("71ab9215-c6ae-4c36-aaf5-92ce78db02b6")
             new_data_item1 = document_model.get_data_item_by_uuid(data_item1_uuid)
@@ -458,7 +452,7 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
@@ -474,7 +468,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = document_controller.document_model.data_items[0]
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
@@ -486,7 +480,7 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
@@ -510,7 +504,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_controller.document_model.data_items[0]
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -520,8 +514,8 @@ class TestStorageClass(unittest.TestCase):
     def test_storage_insert_items(self):
         cache_name = ":memory:"
         storage_cache = Cache.DbStorageCache(cache_name)
-        library_storage = DocumentModel.FilePersistentStorage()
-        document_model = DocumentModel.DocumentModel(library_storage=library_storage, storage_cache=storage_cache)
+        storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         # insert and append items
@@ -531,7 +525,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.document_model.data_groups[0].append_data_group(data_group1)
         document_controller.document_model.data_groups[0].insert_data_group(0, data_group2)
         document_controller.document_model.data_groups[0].append_data_group(data_group3)
-        self.assertEqual(len(library_storage.properties["data_groups"][0]["data_groups"]), 3)
+        self.assertEqual(len(storage_system.library_storage_properties["data_groups"][0]["data_groups"]), 3)
         # delete items to generate key error unless primary keys handled carefully. need to delete an item that is at index >= 2 to test for this problem.
         data_group4 = DataGroup.DataGroup()
         data_group5 = DataGroup.DataGroup()
@@ -539,7 +533,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.document_model.data_groups[0].insert_data_group(1, data_group5)
         document_controller.document_model.data_groups[0].remove_data_group(document_controller.document_model.data_groups[0].data_groups[2])
         # make sure indexes are in sequence still
-        self.assertEqual(len(library_storage.properties["data_groups"][0]["data_groups"]), 4)
+        self.assertEqual(len(storage_system.library_storage_properties["data_groups"][0]["data_groups"]), 4)
         document_controller.close()
 
     def test_copy_data_group(self):
@@ -584,9 +578,8 @@ class TestStorageClass(unittest.TestCase):
                 document_model.data_groups[0].append_data_item(data_item)
 
     def test_reading_data_group_with_duplicate_data_items_discards_duplicates(self):
-        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        library_storage = DocumentModel.FilePersistentStorage()
-        document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_system=memory_persistent_storage_system)
+        storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=storage_system)
         with contextlib.closing(document_model):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
@@ -596,10 +589,10 @@ class TestStorageClass(unittest.TestCase):
             data_group.append_data_item(document_model.data_items[0])
             data_group.append_data_item(document_model.data_items[1])
             document_model.append_data_group(data_group)
-        library_properties = library_storage.properties
+        library_properties = storage_system.library_storage_properties
         library_properties['data_groups'][0]['data_item_uuids'][1] = library_properties['data_groups'][0]['data_item_uuids'][0]
-        library_storage._set_properties(library_properties)
-        document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_system=memory_persistent_storage_system)
+        storage_system._set_properties(library_properties)
+        document_model = DocumentModel.DocumentModel(storage_system=storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.data_groups[0].data_items), 1)
 
@@ -607,7 +600,7 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         with contextlib.closing(document_model):
             data_group = DataGroup.DataGroup()
             document_model.append_data_group(data_group)
@@ -621,7 +614,7 @@ class TestStorageClass(unittest.TestCase):
                 data_group.append_data_item(data_item)
         # make sure it reloads
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
             data_item2 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
@@ -640,14 +633,14 @@ class TestStorageClass(unittest.TestCase):
     def test_data_item_modification_should_not_change_when_reading(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem()
             data_item.ensure_data_source()
             document_model.append_data_item(data_item)
             data_item._set_modified(modified)
         # make sure it reloads
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(document_model.data_items[0].modified, modified)
 
@@ -656,7 +649,7 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem()
             data_item.ensure_data_source()
@@ -665,7 +658,7 @@ class TestStorageClass(unittest.TestCase):
                 data_item.created = created
         # make sure it reloads
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         with contextlib.closing(document_model):
             self.assertEqual(document_model.data_items[0].created, created)
 
@@ -673,12 +666,13 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
             data = numpy.random.randn(16, 16)
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
@@ -691,7 +685,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertTrue(os.path.isfile(data_file_path))
             # make sure the data reloads
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -719,13 +713,13 @@ class TestStorageClass(unittest.TestCase):
 
     def test_delete_and_undelete_from_memory_storage_system_restores_data_item_after_reload(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16)))
             document_model.append_data_item(data_item)
             data_item_uuid = data_item.uuid
             document_model.remove_data_item(data_item, safe=True)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(0, len(document_model.data_items))
             document_model.restore_data_item(data_item_uuid)
@@ -734,7 +728,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_delete_and_undelete_from_memory_storage_system_restores_composite_item_after_reload(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((4, 4)))
             composite_item = DataItem.CompositeLibraryItem()
@@ -743,7 +737,7 @@ class TestStorageClass(unittest.TestCase):
             composite_item.append_data_item(data_item)
             data_item_uuid = composite_item.uuid
             document_model.remove_data_item(composite_item, safe=True)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(1, len(document_model.data_items))
             document_model.restore_data_item(data_item_uuid, 0)
@@ -754,12 +748,11 @@ class TestStorageClass(unittest.TestCase):
     def test_delete_and_undelete_from_file_storage_system_restores_data_item(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
-        Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
-            library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16)))
                 document_model.append_data_item(data_item)
@@ -778,19 +771,18 @@ class TestStorageClass(unittest.TestCase):
         # is established for restoring items in the trash.
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
-        Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
-            library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16)))
                 document_model.append_data_item(data_item)
                 data_item_uuid = data_item.uuid
                 document_model.remove_data_item(data_item, safe=True)
             # read it back
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
             with contextlib.closing(document_model):
                 self.assertEqual(0, len(document_model.data_items))
                 document_model.restore_data_item(data_item_uuid)
@@ -803,20 +795,21 @@ class TestStorageClass(unittest.TestCase):
     def test_data_changes_update_large_format_file(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
             zeros = numpy.zeros((8, 8), numpy.uint32)
             ones = numpy.ones((8, 8), numpy.uint32)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(ones)
                 data_item.large_format = True
                 document_model.append_data_item(data_item)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 document_model.data_items[0].set_data(zeros)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 self.assertTrue(numpy.array_equal(document_model.data_items[0].data, zeros))
         finally:
@@ -827,11 +820,12 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
@@ -852,11 +846,12 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 document_model.append_data_item(data_item)
@@ -873,11 +868,12 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
@@ -903,46 +899,46 @@ class TestStorageClass(unittest.TestCase):
     def test_begin_end_transaction_with_no_change_should_not_write(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
             # force a write and verify
             with document_model.item_transaction(data_item):
                 pass
-            self.assertEqual(len(memory_persistent_storage_system.properties.keys()), 1)
+            self.assertEqual(len(memory_persistent_storage_system.persistent_storage_properties.keys()), 1)
             # continue with test
             data_item._set_modified(modified)
             self.assertEqual(document_model.data_items[0].modified, modified)
             # now clear the memory_persistent_storage_system and see if it gets written again
-            memory_persistent_storage_system.properties.clear()
+            memory_persistent_storage_system.persistent_storage_properties.clear()
             with document_model.item_transaction(data_item):
                 pass
             self.assertEqual(document_model.data_items[0].modified, modified)
             # properties should still be empty, unless it was written again
-            self.assertEqual(memory_persistent_storage_system.properties, dict())
+            self.assertEqual(memory_persistent_storage_system.persistent_storage_properties, dict())
 
     def test_begin_end_transaction_with_change_should_write(self):
         # converse of previous test
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
             data_item._set_modified(modified)
             self.assertEqual(document_model.data_items[0].modified, modified)
             # now clear the memory_persistent_storage_system and see if it gets written again
-            memory_persistent_storage_system.properties.clear()
+            memory_persistent_storage_system.persistent_storage_properties.clear()
             with document_model.item_transaction(data_item):
                 data_item.metadata = data_item.metadata
             self.assertNotEqual(document_model.data_items[0].modified, modified)
             # properties should still be empty, unless it was written again
-            self.assertNotEqual(memory_persistent_storage_system.properties, dict())
+            self.assertNotEqual(memory_persistent_storage_system.persistent_storage_properties, dict())
 
     def test_begin_end_transaction_with_non_data_change_should_not_write_data(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -954,7 +950,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_begin_end_transaction_with_data_change_should_write_data(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -969,11 +965,12 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
@@ -1001,7 +998,7 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         storage_cache = Cache.DbStorageCache(cache_name)
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         read_data_item = document_model.data_items[0]
@@ -1011,7 +1008,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_model.get_data_item_by_uuid(read_data_item_uuid)
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -1025,7 +1022,7 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # create empty data item
         data_item = DataItem.DataItem()
@@ -1038,7 +1035,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_controller.document_model.data_items[0]
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -1051,29 +1048,28 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # clean up
         document_controller.close()
 
     def test_reloaded_line_profile_operation_binds_to_roi(self):
-        library_storage = DocumentModel.MemoryPersistentStorage()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             document_model.get_line_profile_new(data_item)
             data_item.displays[0].graphics[0].vector = (0.1, 0.2), (0.3, 0.4)
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = document_model.data_items[0]
             data_item2 = document_model.data_items[1]
@@ -1087,14 +1083,14 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloaded_line_plot_has_valid_calibration_style(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
             document_model.append_data_item(data_item)
             self.assertEqual(data_item.displays[0].display_calibrated_values, True)
             self.assertIsNone(data_item.displays[0].dimensional_calibration_style)
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = document_model.data_items[0]
             self.assertEqual(data_item.displays[0].display_calibrated_values, True)
@@ -1104,7 +1100,7 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -1115,7 +1111,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_model.data_items[0]
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -1128,7 +1124,7 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -1139,7 +1135,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_controller.document_model.data_items[0]
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -1154,14 +1150,14 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group = DataGroup.DataGroup()
         document_model.append_data_group(data_group)
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # clean up
         document_controller.close()
@@ -1180,10 +1176,11 @@ class TestStorageClass(unittest.TestCase):
     def test_deleting_dependent_after_deleting_source_succeeds(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
@@ -1202,8 +1199,8 @@ class TestStorageClass(unittest.TestCase):
             # delete the original file
             os.remove(data_file_path)
             # read it back the library
-            file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system)
+            file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertTrue(os.path.isfile(data2_file_path))
@@ -1217,7 +1214,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_properties_are_able_to_be_cleared_and_reloaded(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
@@ -1225,7 +1222,7 @@ class TestStorageClass(unittest.TestCase):
             display.display_type = "image"
             display.display_type = None
         # make sure it reloads without changing modification
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             display = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0]).display
             self.assertIsNone(display.display_type)
@@ -1233,17 +1230,18 @@ class TestStorageClass(unittest.TestCase):
     def test_properties_with_no_data_reloads(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 document_model.append_data_item(data_item)
                 data_item.title = "TitleX"
             # read it back the library
-            file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system)
+            file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.data_items[0].title, "TitleX")
@@ -1254,17 +1252,18 @@ class TestStorageClass(unittest.TestCase):
     def test_resized_data_reloads(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(data=numpy.zeros((16, 16)))
                 document_model.append_data_item(data_item)
                 data_item.set_data(numpy.zeros((32, 32)))
             # read it back the library
-            file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system)
+            file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.data_items[0].data.shape, (32, 32))
@@ -1275,10 +1274,11 @@ class TestStorageClass(unittest.TestCase):
     def test_resized_data_reclaims_space(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(data=numpy.zeros((32, 32)))
                 document_model.append_data_item(data_item)
@@ -1294,14 +1294,14 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_model.data_items[0]
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -1312,22 +1312,21 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_written_with_newer_version_get_ignored(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             # increment the version on the data item
-            list(memory_persistent_storage_system.properties.values())[0]["version"] = DataItem.DataItem.writer_version + 1
+            list(memory_persistent_storage_system.persistent_storage_properties.values())[0]["version"] = DataItem.DataItem.writer_version + 1
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 0)
 
     def test_reloading_composite_operation_reconnects_when_reloaded(self):
-        library_storage = DocumentModel.MemoryPersistentStorage()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
@@ -1339,7 +1338,7 @@ class TestStorageClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             new_data_item = document_model.get_invert_new(data_item, crop_region)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             read_data_item = document_model.data_items[0]
             read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -1350,16 +1349,15 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(read_display_specifier.display.graphics[0].bounds, computation_bounds)
 
     def test_inverted_data_item_does_not_need_recompute_when_reloaded(self):
-        library_storage = DocumentModel.MemoryPersistentStorage()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             document_model.append_data_item(data_item)
             document_model.get_invert_new(data_item)
             document_model.recompute_all()
         # reload and check inverted data item does not need recompute
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             read_data_item2 = document_model.data_items[1]
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
@@ -1368,12 +1366,11 @@ class TestStorageClass(unittest.TestCase):
     def test_data_item_with_persistent_r_value_does_not_need_recompute_when_reloaded(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
-        Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
-            library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
                 document_model.append_data_item(data_item)
@@ -1384,7 +1381,7 @@ class TestStorageClass(unittest.TestCase):
             file_path_base, file_path_ext = os.path.splitext(file_path)
             shutil.copyfile(file_path, file_path_base + "_" + file_path_ext)
             # read it back
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
             with contextlib.closing(document_model):
                 read_data_item2 = document_model.data_items[1]
                 read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
@@ -1395,7 +1392,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_computations_with_id_update_to_latest_version_when_reloaded(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         modifieds = dict()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
@@ -1409,14 +1406,14 @@ class TestStorageClass(unittest.TestCase):
             modifieds[str(cropped_inverted_data_item.uuid)] = cropped_inverted_data_item.modified
         # modify original expression to be something else
         original_expressions = dict()
-        for data_item_uuid in memory_persistent_storage_system.properties.keys():
-            computation_dict = memory_persistent_storage_system.properties[data_item_uuid].get("computation", dict())
+        for data_item_uuid in memory_persistent_storage_system.persistent_storage_properties.keys():
+            computation_dict = memory_persistent_storage_system.persistent_storage_properties[data_item_uuid].get("computation", dict())
             original_expression = computation_dict.get("original_expression")
             if original_expression:
                 computation_dict["original_expression"] = "incorrect"
                 original_expressions[data_item_uuid] = original_expression
         # reload and check inverted data item has updated original expression, does not need recompute, and has not been modified
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             for data_item_uuid in original_expressions.keys():
                 data_item = document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid))
@@ -1425,9 +1422,8 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(data_item.modified, modifieds[data_item_uuid])
 
     def test_cropped_data_item_with_region_does_not_need_recompute_when_reloaded(self):
-        library_storage = DocumentModel.MemoryPersistentStorage()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             crop_region = Graphics.RectangleGraphic()
@@ -1439,14 +1435,13 @@ class TestStorageClass(unittest.TestCase):
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
             self.assertFalse(document_model.get_data_item_computation(read_display_specifier2.data_item).needs_update)
         # reload and check inverted data item does not need recompute
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertFalse(document_model.get_data_item_computation(document_model.data_items[1]).needs_update)
 
     def test_cropped_data_item_with_region_still_updates_when_reloaded(self):
-        library_storage = DocumentModel.MemoryPersistentStorage()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             crop_region = Graphics.RectangleGraphic()
@@ -1460,7 +1455,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertFalse(document_model.get_data_item_computation(read_display_specifier2.data_item).needs_update)
             self.assertEqual(read_display_specifier2.data_item.data_shape, (4, 4))
         # reload and check inverted data item does not need recompute
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             document_model.recompute_all()  # shouldn't be necessary unless other tests fail
             read_data_item = document_model.data_items[0]
@@ -1474,7 +1469,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v1_migration(self):
         # construct v1 data item
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         data_item_dict["spatial_calibrations"] = [{ "origin": 1.0, "scale": 2.0, "units": "mm" }, { "origin": 1.0, "scale": 2.0, "units": "mm" }]
         data_item_dict["intensity_calibration"] = { "origin": 0.1, "scale": 0.2, "units": "l" }
         data_item_dict["data_source_uuid"] = str(uuid.uuid4())
@@ -1482,7 +1477,7 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["version"] = 1
         memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
@@ -1502,7 +1497,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v2_migration(self):
         # construct v2 data item
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         data_item_dict["displays"] = [{"graphics": [{"type": "rect-graphic"}]}]
         data_item_dict["operations"] = [{"operation_id": "invert-operation"}]
         data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
@@ -1510,7 +1505,7 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["version"] = 2
         memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
@@ -1522,7 +1517,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v3_migration(self):
         # construct v3 data item
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item_dict["intrinsic_spatial_calibrations"] = [{ "origin": 1.0, "scale": 2.0, "units": "mm" }, { "origin": 1.0, "scale": 2.0, "units": "mm" }]
         data_item_dict["intrinsic_intensity_calibration"] = { "origin": 0.1, "scale": 0.2, "units": "l" }
@@ -1531,7 +1526,7 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["version"] = 3
         memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
@@ -1546,7 +1541,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v4_migration(self):
         # construct v4 data item
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         region_uuid_str = str(uuid.uuid4())
         data_item_dict["regions"] = [{"type": "rectangle-region", "uuid": region_uuid_str}]
@@ -1556,7 +1551,7 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["version"] = 4
         memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
@@ -1568,7 +1563,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v5_migration(self):
         # construct v5 data item
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         data_item_dict["uuid"] = str(uuid.uuid4())
         data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
@@ -1578,7 +1573,7 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["datetime_original"] = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:01:00.000000'}
         data_item_dict["version"] = 5
         memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
-        data_item2_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        data_item2_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         data_item2_dict["uuid"] = str(uuid.uuid4())
         data_item2_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item2_dict["operations"] = [{"operation_id": "invert-operation"}]
@@ -1586,7 +1581,7 @@ class TestStorageClass(unittest.TestCase):
         data_item2_dict["datetime_original"] = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
         data_item2_dict["version"] = 5
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 2)
@@ -1608,7 +1603,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v6_migration(self):
         # construct v6 data item
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         data_item_dict["uuid"] = str(uuid.uuid4())
         data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
@@ -1618,12 +1613,12 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["datetime_original"] = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:01:00.000000'}
         data_item_dict["version"] = 6
         memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
-        data_item2_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        data_item2_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         data_item2_dict["uuid"] = str(uuid.uuid4())
         data_item2_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item2_dict["operation"] = {"type": "operation", "operation_id": "invert-operation", "data_sources": [{"type": "data-item-data-source", "data_item_uuid": data_item_dict["uuid"]}]}
         data_item2_dict["version"] = 6
-        data_item3_dict = memory_persistent_storage_system.properties.setdefault("C", dict())
+        data_item3_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("C", dict())
         data_item3_dict["uuid"] = str(uuid.uuid4())
         data_item3_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item3_dict["master_data_dtype"] = None
@@ -1633,7 +1628,7 @@ class TestStorageClass(unittest.TestCase):
         data_item2_dict["datetime_original"] = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
         data_item3_dict["version"] = 6
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # # check it
             self.assertEqual(len(document_model.data_items), 3)
@@ -1656,7 +1651,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v7_migration(self):
         # construct v7 data item
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         data_item_dict["uuid"] = str(uuid.uuid4())
         data_item_dict["version"] = 7
         caption, flag, rating, title = "caption", -1, 3, "title"
@@ -1679,7 +1674,7 @@ class TestStorageClass(unittest.TestCase):
         new_metadata = {"instrument": "a big screwdriver", "autostem": { "high_tension_v": 42}, "extra_high_tension": 42 }
         data_item_dict["hardware_source"] = metadata
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 1)
@@ -1695,7 +1690,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_fft_migration(self):
         # construct v8 data items
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_data_item_dict["uuid"] = str(uuid.uuid4())
         src_data_item_dict["version"] = 8
         src_data_source_dict = dict()
@@ -1708,7 +1703,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
         src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         src_data_item_dict["data_sources"] = [src_data_source_dict]
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 8
         dst_data_source_dict = dict()
@@ -1727,7 +1722,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -1747,7 +1742,7 @@ class TestStorageClass(unittest.TestCase):
         # construct v8 data items
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
 
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_data_item_dict["uuid"] = str(uuid.uuid4())
         src_data_item_dict["version"] = 8
         src_data_source_dict = dict()
@@ -1761,7 +1756,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         src_data_item_dict["data_sources"] = [src_data_source_dict]
 
-        src2_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        src2_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         src2_data_item_dict["uuid"] = str(uuid.uuid4())
         src2_data_item_dict["version"] = 8
         src2_data_source_dict = dict()
@@ -1775,7 +1770,7 @@ class TestStorageClass(unittest.TestCase):
         src2_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         src2_data_item_dict["data_sources"] = [src2_data_source_dict]
 
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("C", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("C", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 8
         dst_data_source_dict = dict()
@@ -1794,7 +1789,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 3)
@@ -1816,7 +1811,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_gaussian_blur_migration(self):
         # construct v8 data items
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_data_item_dict["uuid"] = str(uuid.uuid4())
         src_data_item_dict["version"] = 8
         src_data_source_dict = dict()
@@ -1831,7 +1826,7 @@ class TestStorageClass(unittest.TestCase):
         crop_uuid_str = str(uuid.uuid4())
         src_data_source_dict["regions"] = [{"type": "rectangle-region", "uuid": crop_uuid_str, "size": (0.4, 0.5), "center": (0.4, 0.55)}]
         src_data_item_dict["data_sources"] = [src_data_source_dict]
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 8
         dst_data_source_dict = dict()
@@ -1863,7 +1858,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -1888,7 +1883,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_median_filter_migration(self):
         # construct v8 data items
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_data_item_dict["uuid"] = str(uuid.uuid4())
         src_data_item_dict["version"] = 8
         src_data_source_dict = dict()
@@ -1901,7 +1896,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
         src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         src_data_item_dict["data_sources"] = [src_data_source_dict]
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 8
         dst_data_source_dict = dict()
@@ -1920,7 +1915,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -1940,7 +1935,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_slice_migration(self):
         # construct v8 data items
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_data_item_dict["uuid"] = str(uuid.uuid4())
         src_data_item_dict["version"] = 8
         src_data_source_dict = dict()
@@ -1953,7 +1948,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
         src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         src_data_item_dict["data_sources"] = [src_data_source_dict]
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 8
         dst_data_source_dict = dict()
@@ -1972,7 +1967,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -1993,7 +1988,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_crop_migration(self):
         # construct v8 data items
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_data_item_dict["uuid"] = str(uuid.uuid4())
         src_data_item_dict["version"] = 8
         src_data_source_dict = dict()
@@ -2008,7 +2003,7 @@ class TestStorageClass(unittest.TestCase):
         crop_uuid_str = str(uuid.uuid4())
         src_data_source_dict["regions"] = [{"type": "rectangle-region", "uuid": crop_uuid_str, "size": (0.4, 0.5), "center": (0.4, 0.55)}]
         src_data_item_dict["data_sources"] = [src_data_source_dict]
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 8
         dst_data_source_dict = dict()
@@ -2027,7 +2022,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2047,7 +2042,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_projection_migration(self):
         # construct v8 data items
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_data_item_dict["uuid"] = str(uuid.uuid4())
         src_data_item_dict["version"] = 8
         src_data_source_dict = dict()
@@ -2062,7 +2057,7 @@ class TestStorageClass(unittest.TestCase):
         crop_uuid_str = str(uuid.uuid4())
         src_data_source_dict["regions"] = [{"type": "rectangle-region", "uuid": crop_uuid_str, "size": (0.4, 0.5), "center": (0.4, 0.55)}]
         src_data_item_dict["data_sources"] = [src_data_source_dict]
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 8
         dst_data_source_dict = dict()
@@ -2094,7 +2089,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2118,7 +2113,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_convert_to_scalar_migration(self):
         # construct v8 data items
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_data_item_dict["uuid"] = str(uuid.uuid4())
         src_data_item_dict["version"] = 8
         src_data_source_dict = dict()
@@ -2133,7 +2128,7 @@ class TestStorageClass(unittest.TestCase):
         crop_uuid_str = str(uuid.uuid4())
         src_data_source_dict["regions"] = [{"type": "rectangle-region", "uuid": crop_uuid_str, "size": (0.4, 0.5), "center": (0.4, 0.55)}]
         src_data_item_dict["data_sources"] = [src_data_source_dict]
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 8
         dst_data_source_dict = dict()
@@ -2165,7 +2160,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2189,7 +2184,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_resample_migration(self):
         # construct v8 data items
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_data_item_dict["uuid"] = str(uuid.uuid4())
         src_data_item_dict["version"] = 8
         src_data_source_dict = dict()
@@ -2202,7 +2197,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
         src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         src_data_item_dict["data_sources"] = [src_data_source_dict]
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 8
         dst_data_source_dict = dict()
@@ -2221,7 +2216,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2242,7 +2237,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_pick_migration(self):
         # construct v8 data items
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_data_item_dict["uuid"] = str(uuid.uuid4())
         src_data_item_dict["version"] = 8
         src_data_source_dict = dict()
@@ -2257,7 +2252,7 @@ class TestStorageClass(unittest.TestCase):
         point_uuid_str = str(uuid.uuid4())
         src_data_source_dict["regions"] = [{"type": "point-region", "uuid": point_uuid_str, "position": (0.4, 0.5)}]
         src_data_item_dict["data_sources"] = [src_data_source_dict]
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 8
         dst_data_source_dict = dict()
@@ -2276,7 +2271,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2303,7 +2298,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_line_profile_migration(self):
         # construct v8 data items
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_data_item_dict["uuid"] = str(uuid.uuid4())
         src_data_item_dict["version"] = 8
         src_data_source_dict = dict()
@@ -2318,7 +2313,7 @@ class TestStorageClass(unittest.TestCase):
         line_uuid_str = str(uuid.uuid4())
         src_data_source_dict["regions"] = [{"type": "line-region", "uuid": line_uuid_str, "width": 1.3, "start": (0.2, 0.3), "end": (0.4, 0.5)}]
         src_data_item_dict["data_sources"] = [src_data_source_dict]
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 8
         dst_data_source_dict = dict()
@@ -2337,7 +2332,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2362,7 +2357,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_unknown_migration(self):
         # construct v8 data items
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_data_item_dict["uuid"] = str(uuid.uuid4())
         src_data_item_dict["version"] = 8
         src_data_source_dict = dict()
@@ -2375,7 +2370,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
         src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         src_data_item_dict["data_sources"] = [src_data_source_dict]
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 8
         dst_data_source_dict = dict()
@@ -2394,7 +2389,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2405,7 +2400,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v9_to_v10_migration(self):
         # construct v9 data items with regions, make sure they get translated to graphics
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         data_item_dict["uuid"] = str(uuid.uuid4())
         data_item_dict["version"] = 9
         data_source_dict = dict()
@@ -2432,7 +2427,7 @@ class TestStorageClass(unittest.TestCase):
         ]
         data_item_dict["data_sources"] = [data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 1)
@@ -2478,7 +2473,7 @@ class TestStorageClass(unittest.TestCase):
         # construct v9 data items with regions, make sure they get translated to graphics
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
 
-        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         data_item_uuid = str(uuid.uuid4())
         data_item_dict["uuid"] = data_item_uuid
         data_item_dict["version"] = 9
@@ -2497,7 +2492,7 @@ class TestStorageClass(unittest.TestCase):
         ]
         data_item_dict["data_sources"] = [data_source_dict]
 
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_uuid = str(uuid.uuid4())
         dst_data_item_dict["uuid"] = dst_data_item_uuid
         dst_data_item_dict["version"] = 9
@@ -2519,7 +2514,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_item_dict["connections"] = [{"source_uuid": dst_data_source_uuid, "target_uuid": line_uuid_str, "type": "interval-list-connection", "uuid": str(uuid.uuid4())}]
 
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2532,7 +2527,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v10_to_v11_created_date_migration(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
 
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_uuid_str = str(uuid.uuid4())
         src_data_item_dict["uuid"] = src_uuid_str
         src_data_item_dict["version"] = 10
@@ -2552,7 +2547,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_item_dict["data_sources"] = [src_data_source_dict]
 
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             self.assertEqual(document_model.data_items[0].created.date(), DataItem.DatetimeToStringConverter().convert_back(created_str).date())
             self.assertEqual(document_model.data_items[0].modified.date(), DataItem.DatetimeToStringConverter().convert_back(modified_str).date())
@@ -2560,7 +2555,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v10_to_v11_crop_migration(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
 
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_uuid_str = str(uuid.uuid4())
         src_data_item_dict["uuid"] = src_uuid_str
         src_data_item_dict["version"] = 10
@@ -2575,7 +2570,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         src_data_item_dict["data_sources"] = [src_data_source_dict]
 
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("C", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("C", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 10
         dst_data_source_dict = dict()
@@ -2594,7 +2589,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
 
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2614,7 +2609,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v10_to_v11_gaussian_migration(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
 
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_uuid_str = str(uuid.uuid4())
         src_data_item_dict["uuid"] = src_uuid_str
         src_data_item_dict["version"] = 10
@@ -2629,7 +2624,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         src_data_item_dict["data_sources"] = [src_data_source_dict]
 
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("C", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("C", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 10
         dst_data_source_dict = dict()
@@ -2649,7 +2644,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
 
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2669,7 +2664,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v10_to_v11_cross_correlate_migration(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
 
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_uuid_str = str(uuid.uuid4())
         src_data_item_dict["uuid"] = src_uuid_str
         src_data_item_dict["version"] = 10
@@ -2684,7 +2679,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         src_data_item_dict["data_sources"] = [src_data_source_dict]
 
-        src2_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        src2_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         src2_uuid_str = str(uuid.uuid4())
         src2_data_item_dict["uuid"] = src2_uuid_str
         src2_data_item_dict["version"] = 10
@@ -2699,7 +2694,7 @@ class TestStorageClass(unittest.TestCase):
         src2_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         src2_data_item_dict["data_sources"] = [src2_data_source_dict]
 
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("C", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("C", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 10
         dst_data_source_dict = dict()
@@ -2720,7 +2715,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
 
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 3)
@@ -2745,7 +2740,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v11_to_v12_line_profile_migration(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
 
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_uuid_str = str(uuid.uuid4())
         src_data_item_dict["uuid"] = src_uuid_str
         src_data_item_dict["version"] = 11
@@ -2758,7 +2753,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_item_dict["displays"] = [{"uuid": str(uuid.uuid4()), "graphics": [{"type": "line-profile-graphic", "uuid": graphic_uuid_str, "start": (0, 0), "end": (1, 1)}]}]
         src_data_item_dict["data_source"] = src_data_source_dict
 
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 11
         dst_data_source_dict = dict()
@@ -2778,7 +2773,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_item_dict["data_source"] = dst_data_source_dict
 
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(2, len(document_model.data_items))
@@ -2796,7 +2791,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v11_to_v12_pick_migration(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
 
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_uuid_str = str(uuid.uuid4())
         src_data_item_dict["uuid"] = src_uuid_str
         src_data_item_dict["version"] = 11
@@ -2810,7 +2805,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_item_dict["displays"] = [{"uuid": src_display_uuid_str, "graphics": [{"type": "point-graphic", "uuid": point_graphic_uuid_str, "start": (0, 0), "end": (1, 1)}]}]
         src_data_item_dict["data_source"] = src_data_source_dict
 
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 11
         dst_data_source_dict = dict()
@@ -2834,7 +2829,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_item_dict["data_source"] = dst_data_source_dict
 
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(2, len(document_model.data_items))
@@ -2850,10 +2845,9 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.connections))
 
     def test_data_items_v11_to_v12_computation_reloads_without_duplicating_computation(self):
-        library_storage = DocumentModel.MemoryPersistentStorage()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
 
-        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("A", dict())
         src_uuid_str = str(uuid.uuid4())
         src_data_item_dict["uuid"] = src_uuid_str
         src_data_item_dict["version"] = 11
@@ -2866,7 +2860,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_item_dict["displays"] = [{"uuid": str(uuid.uuid4()), "graphics": [{"type": "line-profile-graphic", "uuid": graphic_uuid_str, "start": (0, 0), "end": (1, 1)}]}]
         src_data_item_dict["data_source"] = src_data_source_dict
 
-        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict = memory_persistent_storage_system.persistent_storage_properties.setdefault("B", dict())
         dst_data_item_dict["uuid"] = str(uuid.uuid4())
         dst_data_item_dict["version"] = 11
         dst_data_source_dict = dict()
@@ -2885,13 +2879,12 @@ class TestStorageClass(unittest.TestCase):
         dst_data_item_dict["connections"] = [connection_dict]
         dst_data_item_dict["data_source"] = dst_data_source_dict
 
-        memory_persistent_storage_system2 = DocumentModel.MemoryStorageSystem()
-        memory_persistent_storage_system2.properties = copy.deepcopy(memory_persistent_storage_system.properties)
+        memory_persistent_storage_system2 = copy.deepcopy(memory_persistent_storage_system)
 
         auto_migration = DocumentModel.AutoMigration(log_copying=False, storage_system=memory_persistent_storage_system2)
 
         # make sure it reloads twice
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, auto_migrations=[auto_migration], library_storage=library_storage, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, auto_migrations=[auto_migration], log_migrations=False)
         with contextlib.closing(document_model):
             self.assertEqual(1, len(document_model.computations))
 
@@ -2927,8 +2920,8 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
 
             # read workspace
-            file_persistent_storage_system = DocumentModel.FileStorageSystem([data_path])
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, log_migrations=False, ignore_older_files=False)
+            file_persistent_storage_system = DocumentModel.FileStorageSystem(library_path, [data_path])
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False, ignore_older_files=False)
             document_model.close()
 
             # verify
@@ -2973,8 +2966,8 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
 
             # read workspace
-            file_persistent_storage_system = DocumentModel.FileStorageSystem([data_path])
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, ignore_older_files=True)
+            file_persistent_storage_system = DocumentModel.FileStorageSystem(library_path, [data_path])
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, ignore_older_files=True)
             document_model.close()
 
             # verify
@@ -3019,9 +3012,9 @@ class TestStorageClass(unittest.TestCase):
 
             # auto migrate workspace
             data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
-            file_persistent_storage_system = DocumentModel.FileStorageSystem([data_path])
-            auto_migration = DocumentModel.AutoMigration([old_data_path], log_copying=False)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, auto_migrations=[auto_migration])
+            file_persistent_storage_system = DocumentModel.FileStorageSystem(library_path, [data_path])
+            auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, auto_migrations=[auto_migration])
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.data_items[0].uuid, uuid.UUID(data_item_dict["uuid"]))
@@ -3064,10 +3057,10 @@ class TestStorageClass(unittest.TestCase):
 
             # auto migrate workspace
             data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
-            file_persistent_storage_system = DocumentModel.FileStorageSystem([data_path])
-            auto_migration1 = DocumentModel.AutoMigration([old_data_path], log_copying=False)
-            auto_migration2 = DocumentModel.AutoMigration([old_data_path], log_copying=False)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, auto_migrations=[auto_migration1, auto_migration2])
+            file_persistent_storage_system = DocumentModel.FileStorageSystem(library_path, [data_path])
+            auto_migration1 = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
+            auto_migration2 = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, auto_migrations=[auto_migration1, auto_migration2])
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.data_items[0].uuid, uuid.UUID(data_item_dict["uuid"]))
@@ -3105,14 +3098,13 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
-            library_storage = DocumentModel.FilePersistentStorage()
-            library_storage._set_properties({"data_item_deletions": [src_uuid_str, str(uuid.uuid4())]})
 
             # auto migrate workspace
             data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
-            file_persistent_storage_system = DocumentModel.FileStorageSystem([data_path])
-            auto_migration = DocumentModel.AutoMigration([old_data_path], log_copying=False)
-            document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_system=file_persistent_storage_system, auto_migrations=[auto_migration])
+            file_persistent_storage_system = DocumentModel.FileStorageSystem(library_path, [data_path])
+            file_persistent_storage_system._set_properties({"data_item_deletions": [src_uuid_str, str(uuid.uuid4())]})
+            auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, auto_migrations=[auto_migration])
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 0)
                 self.assertTrue(uuid.UUID(src_uuid_str) in document_model.data_item_deletions)
@@ -3152,14 +3144,13 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
-            library_storage = DocumentModel.FilePersistentStorage()
-            library_storage._set_properties({"data_item_references": {"key": src_uuid_str}})
 
             # auto migrate workspace
             data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
-            file_persistent_storage_system = DocumentModel.FileStorageSystem([data_path])
-            auto_migration = DocumentModel.AutoMigration([old_data_path], log_copying=False)
-            document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_system=file_persistent_storage_system, auto_migrations=[auto_migration])
+            file_persistent_storage_system = DocumentModel.FileStorageSystem(library_path, [data_path])
+            file_persistent_storage_system._set_properties({"data_item_references": {"key": src_uuid_str}})
+            auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, auto_migrations=[auto_migration])
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.get_data_item_reference("key").data_item, document_model.data_items[0])
@@ -3171,7 +3162,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_item_with_connected_crop_region_should_not_update_modification_when_loading(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             crop_region = Graphics.RectangleGraphic()
@@ -3184,7 +3175,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.data_items[0].modified, modified)
             self.assertEqual(document_model.data_items[1].modified, modified)
         # make sure it reloads without changing modification
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(document_model.data_items[0].modified, modified)
             self.assertEqual(document_model.data_items[1].modified, modified)
@@ -3221,21 +3212,20 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
-            library_storage = DocumentModel.FilePersistentStorage()
 
             # auto migrate workspace
             data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
-            file_persistent_storage_system = DocumentModel.FileStorageSystem([data_path])
-            auto_migration = DocumentModel.AutoMigration([old_data_path], log_copying=False)
-            document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_system=file_persistent_storage_system, auto_migrations=[auto_migration])
+            file_persistent_storage_system = DocumentModel.FileStorageSystem(library_path, [data_path])
+            auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, auto_migrations=[auto_migration])
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
 
             # ensure it imports twice
             data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
-            file_persistent_storage_system = DocumentModel.FileStorageSystem([data_path])
-            auto_migration = DocumentModel.AutoMigration([old_data_path], log_copying=False)
-            document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_system=file_persistent_storage_system, auto_migrations=[auto_migration])
+            file_persistent_storage_system = DocumentModel.FileStorageSystem(library_path, [data_path])
+            auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, auto_migrations=[auto_migration])
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
 
@@ -3247,7 +3237,7 @@ class TestStorageClass(unittest.TestCase):
     def test_storage_cache_disabled_during_transaction(self):
         storage_cache = Cache.DictStorageCache()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -3287,10 +3277,11 @@ class TestStorageClass(unittest.TestCase):
     def test_writing_properties_with_numpy_float32_succeeds(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -3301,15 +3292,14 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_structure_reloads_basic_value_types(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        library_storage = DocumentModel.MemoryPersistentStorage()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_structure = document_model.create_data_structure(structure_type="nada")
             data_structure.set_property_value("title", "Title")
             data_structure.set_property_value("width", 8.5)
             document_model.append_data_structure(data_structure)
             data_structure.set_property_value("interval", (0.5, 0.2))
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.data_structures), 1)
             self.assertEqual(document_model.data_structures[0].get_property_value("title"), "Title")
@@ -3319,8 +3309,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_attached_data_structure_reconnects_after_reload(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        library_storage = DocumentModel.MemoryPersistentStorage()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2)))
             document_model.append_data_item(data_item)
@@ -3328,7 +3317,7 @@ class TestStorageClass(unittest.TestCase):
             data_structure.set_property_value("title", "Title")
             document_model.append_data_structure(data_structure)
             document_model.attach_data_structure(data_structure, data_item)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.data_structures), 1)
             self.assertEqual(document_model.data_structures[0].source, document_model.data_items[0])
@@ -3337,8 +3326,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_connected_data_structure_reconnects_after_reload(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        library_storage = DocumentModel.MemoryPersistentStorage()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
@@ -3350,7 +3338,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_structure(data_struct2)
             connection = Connection.PropertyConnection(data_struct1, "title", data_struct2, "title", parent=data_item)
             document_model.append_connection(connection)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_struct1 = document_model.data_structures[0]
             data_struct2 = document_model.data_structures[1]
@@ -3363,22 +3351,20 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_structure_references_reconnect_after_reload(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        library_storage = DocumentModel.MemoryPersistentStorage()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             data_struct = document_model.create_data_structure()
             data_struct.set_referenced_object("master", data_item)
             document_model.append_data_structure(data_struct)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(document_model.data_items[0], document_model.data_structures[0].get_referenced_object("master"))
 
     def test_data_structure_reloads_after_computation(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        library_storage = DocumentModel.MemoryPersistentStorage()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
@@ -3390,7 +3376,7 @@ class TestStorageClass(unittest.TestCase):
             computed_data_item = DataItem.DataItem()
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(2, len(document_model.data_items))
             self.assertEqual(1, len(document_model.data_structures))
@@ -3398,8 +3384,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_library_item_sources_reconnect_after_reload(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        library_storage = DocumentModel.MemoryPersistentStorage()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
@@ -3409,16 +3394,15 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(3, len(document_model.data_items))
             document_model.remove_data_item(document_model.data_items[1])
             self.assertEqual(0, len(document_model.data_items))
 
     def test_computation_reconnects_after_reload(self):
-        library_storage = DocumentModel.MemoryPersistentStorage()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
@@ -3430,7 +3414,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
             assert numpy.array_equal(-document_model.data_items[0].data, document_model.data_items[1].data)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             read_computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertIsNotNone(read_computation)
@@ -3441,7 +3425,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_computation_does_not_recompute_on_reload(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
@@ -3453,7 +3437,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
             assert numpy.array_equal(-document_model.data_items[0].data, document_model.data_items[1].data)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             changed_ref = [False]
             def changed():
@@ -3466,7 +3450,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_computation_with_optional_none_parameters_reloads(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
@@ -3477,7 +3461,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             read_computation = document_model.get_data_item_computation(document_model.data_items[1])
             with document_model.data_items[0].data_ref() as data_ref:
@@ -3486,7 +3470,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_computation_slice_reloads(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data = numpy.ones((8, 4, 4), numpy.double)
             data_item = DataItem.DataItem(data)
@@ -3498,7 +3482,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
             data_shape = computed_data_item.data_shape
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             computed_data_item = document_model.data_items[1]
             with document_model.data_items[0].data_ref() as data_ref:
@@ -3508,21 +3492,20 @@ class TestStorageClass(unittest.TestCase):
 
     def test_computation_pick_and_display_interval_reloads(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data = numpy.ones((8, 4, 4), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             document_model.get_pick_new(data_item)
             document_model.recompute_all()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.data_items), 2)
 
     def test_computation_corrupt_variable_reloads(self):
-        library_storage = DocumentModel.MemoryPersistentStorage()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data = numpy.ones((8, 4, 4), numpy.double)
             data_item = DataItem.DataItem(data)
@@ -3535,16 +3518,15 @@ class TestStorageClass(unittest.TestCase):
             document_model.set_data_item_computation(computed_data_item, computation)
             x.value_type = "integral"
             x.value = 6
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             read_computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertEqual(read_computation.variables[1].name, "x")
             self.assertEqual(read_computation.variables[1].value, 6)
 
     def test_computation_missing_variable_reloads(self):
-        library_storage = DocumentModel.MemoryPersistentStorage()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data = numpy.ones((8, 4, 4), numpy.double)
             data_item = DataItem.DataItem(data)
@@ -3556,10 +3538,10 @@ class TestStorageClass(unittest.TestCase):
             computed_data_item = DataItem.DataItem(data.copy())
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
-        library_storage_properties = library_storage.properties
+        library_storage_properties = memory_persistent_storage_system.library_storage_properties
         del library_storage_properties["computations"][0]["variables"][0]
         library_storage_properties["computations"][0]["variables"][0]["uuid"] = str(uuid.uuid4())
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=DocumentModel.MemoryPersistentStorage(library_storage_properties))
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_model.close()
 
     computation1_eval_count = 0
@@ -3580,8 +3562,7 @@ class TestStorageClass(unittest.TestCase):
         TestStorageClass.computation1_eval_count = 0
         Symbolic.register_computation_type("computation1", self.Computation1)
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        library_storage = DocumentModel.MemoryPersistentStorage()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2)))
             document_model.append_data_item(data_item)
@@ -3595,7 +3576,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.recompute_all()
             assert numpy.array_equal(-document_model.data_items[0].data, document_model.data_items[1].data)
             self.assertEqual(len(document_model.computations), 1)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.computations), 1)
             document_model.data_items[0].set_data(numpy.random.randn(3, 3))
@@ -3607,8 +3588,7 @@ class TestStorageClass(unittest.TestCase):
         TestStorageClass.computation1_eval_count = 0
         Symbolic.register_computation_type("computation1", self.Computation1)
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        library_storage = DocumentModel.MemoryPersistentStorage()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2)))
             document_model.append_data_item(data_item)
@@ -3620,7 +3600,7 @@ class TestStorageClass(unittest.TestCase):
             computation.create_result("dst", document_model.get_object_specifier(dst_data_item, "data_item"))
             document_model.append_computation(computation)
             document_model.recompute_all()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = document_model.data_items[0]
             dst_data_item = document_model.data_items[1]
@@ -3635,8 +3615,7 @@ class TestStorageClass(unittest.TestCase):
         TestStorageClass.computation1_eval_count = 0
         Symbolic.register_computation_type("computation1", self.Computation1)
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        library_storage = DocumentModel.MemoryPersistentStorage()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2)))
             document_model.append_data_item(data_item)
@@ -3648,11 +3627,11 @@ class TestStorageClass(unittest.TestCase):
             computation.create_result("dst", document_model.get_object_specifier(dst_data_item, "data_item"))
             document_model.append_computation(computation)
             document_model.recompute_all()
-        library_storage_properties = library_storage.properties
+        library_storage_properties = memory_persistent_storage_system.library_storage_properties
         library_storage_properties["computations"][0]["variables"][0]["specifier"]["uuid"] = str(uuid.uuid4())
-        library_storage._set_properties(library_storage_properties)
+        memory_persistent_storage_system._set_properties(library_storage_properties)
         self.computation1_eval_count = 0
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             document_model.data_items[0].set_data(numpy.random.randn(3, 3))
             document_model.recompute_all()
@@ -3677,8 +3656,7 @@ class TestStorageClass(unittest.TestCase):
     def test_library_computation_with_list_input_reloads(self):
         Symbolic.register_computation_type("add_n", self.AddN)
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        library_storage = DocumentModel.MemoryPersistentStorage()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         self.app._set_document_model(document_model)  # required to allow API to find document model
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
@@ -3691,7 +3669,7 @@ class TestStorageClass(unittest.TestCase):
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
             document_model.recompute_all()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             document_model.data_items[0].set_data(numpy.full((2, 2), 3))
             document_model.recompute_all()
@@ -3699,14 +3677,14 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_item_with_references_to_another_data_item_reloads(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item0 = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item0)
             composite_item = DataItem.CompositeLibraryItem()
             composite_item.append_data_item(data_item0)
             document_model.append_data_item(composite_item)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.data_items), 2)
             self.assertEqual(len(document_model.data_items[1].data_items), 1)
@@ -3714,7 +3692,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_composite_library_item_reloads_metadata(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item0 = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item0)
@@ -3722,7 +3700,7 @@ class TestStorageClass(unittest.TestCase):
             composite_item.append_data_item(data_item0)
             composite_item.metadata = {"abc": 1}
             document_model.append_data_item(composite_item)
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.data_items), 2)
             self.assertEqual(len(document_model.data_items[1].data_items), 1)
@@ -3732,12 +3710,11 @@ class TestStorageClass(unittest.TestCase):
     def test_composite_data_item_saves_to_file_storage(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
-        Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
-            library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 data_item0 = DataItem.DataItem(numpy.zeros((8, 8)))
                 document_model.append_data_item(data_item0)
@@ -3745,7 +3722,7 @@ class TestStorageClass(unittest.TestCase):
                 composite_item.append_data_item(data_item0)
                 document_model.append_data_item(composite_item)
             # read it back
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 2)
         finally:
@@ -3754,13 +3731,13 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_item_with_corrupt_created_still_loads(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             src_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(src_data_item)
-        memory_persistent_storage_system.properties[str(src_data_item.uuid)]["created"] = "todaytodaytodaytodaytoday0"
-        memory_persistent_storage_system.properties[str(src_data_item.uuid)]["data_source"]["created"] = "todaytodaytodaytodaytoday0"
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        memory_persistent_storage_system.persistent_storage_properties[str(src_data_item.uuid)]["created"] = "todaytodaytodaytodaytoday0"
+        memory_persistent_storage_system.persistent_storage_properties[str(src_data_item.uuid)]["data_source"]["created"] = "todaytodaytodaytodaytoday0"
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # for corrupt/missing created dates, a new one matching todays date should be assigned
             self.assertIsNotNone(document_model.data_items[0].created)
@@ -3769,12 +3746,11 @@ class TestStorageClass(unittest.TestCase):
     def test_loading_library_with_two_copies_of_same_uuid_ignores_second_copy(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
-        Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
-            library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -3782,7 +3758,7 @@ class TestStorageClass(unittest.TestCase):
             file_path_base, file_path_ext = os.path.splitext(file_path)
             shutil.copyfile(file_path, file_path_base + "_" + file_path_ext)
             # read it back
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
         finally:
@@ -3792,12 +3768,11 @@ class TestStorageClass(unittest.TestCase):
     def test_snapshot_copies_storage_format(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
-        Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem(lib_name, [workspace_dir])
         try:
-            library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 data_item1 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 data_item2 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
@@ -3805,7 +3780,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item1)
                 document_model.append_data_item(data_item2)
             # read it back
-            document_model = DocumentModel.DocumentModel(persistent_storage_system=file_persistent_storage_system, library_storage=library_storage, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
             with contextlib.closing(document_model):
                 data_item1 = document_model.data_items[0]
                 data_item2 = document_model.data_items[1]
@@ -3840,7 +3815,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_deleted_data_item_updates_into_deleted_list_and_clears_on_reload(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -3852,29 +3827,29 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 0)
             self.assertEqual(len(document_model.data_item_deletions), 2)
         # make sure it reloads without changing modification
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.data_items), 0)
             self.assertEqual(len(document_model.data_item_deletions), 0)
 
     def test_undo_redo_is_written_to_storage(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             command = DocumentController.DocumentController.InsertLibraryItemsCommand(document_controller, [data_item], 0)
             command.perform()
             document_controller.push_undo_command(command)
-            self.assertEqual(1, len(memory_persistent_storage_system.properties.keys()))
+            self.assertEqual(1, len(memory_persistent_storage_system.persistent_storage_properties.keys()))
             document_controller.handle_undo()
-            self.assertEqual(0, len(memory_persistent_storage_system.properties.keys()))
+            self.assertEqual(0, len(memory_persistent_storage_system.persistent_storage_properties.keys()))
             document_controller.handle_redo()
-            self.assertEqual(1, len(memory_persistent_storage_system.properties.keys()))
+            self.assertEqual(1, len(memory_persistent_storage_system.persistent_storage_properties.keys()))
 
     def test_undo_graphic_move_is_written_to_storage(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -3890,14 +3865,13 @@ class TestStorageClass(unittest.TestCase):
             document_controller.handle_undo()
             self.assertEqual(old_bounds, crop_region.bounds)
         # make sure it reloads with the OLD bounds
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(old_bounds, document_model.data_items[0].displays[0].graphics[0].bounds)
 
     def test_undo_computation_edit_is_written_to_storage(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        library_storage = DocumentModel.MemoryPersistentStorage()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -3912,7 +3886,7 @@ class TestStorageClass(unittest.TestCase):
             document_controller.handle_undo()
             self.assertEqual("DEF", document_model.computations[0].label)
         # make sure it reloads with the OLD bounds
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual("DEF", document_model.computations[0].label)
 

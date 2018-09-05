@@ -363,9 +363,50 @@ class MemoryStorageSystem:
 
     def __init__(self):
         self.data = dict()
-        self.properties = dict()
+        self.__properties = dict()
         self.trash = dict()
         self._test_data_read_event = Event.Event()
+        self.__persistent_storage = MemoryPersistentStorage()
+
+    def __deepcopy__(self, memo):
+        deepcopy = self.__class__()
+        deepcopy._set_properties(copy.deepcopy(self.library_storage_properties))
+        deepcopy._set_storage_properties(copy.deepcopy(self.persistent_storage_properties))
+        deepcopy.data = copy.deepcopy(self.data)
+        memo[id(self)] = deepcopy
+        return deepcopy
+
+    @property
+    def library_storage_properties(self):
+        return self.__persistent_storage.properties
+
+    @property
+    def persistent_storage_properties(self):
+        return self.__properties
+
+    def _set_properties(self, properties):
+        self.__persistent_storage._set_properties(properties)
+
+    def rewrite_properties(self, properties):
+        self.__persistent_storage.rewrite_properties(properties)
+
+    def insert_item(self, parent, name, before_index, item):
+        self.__persistent_storage.insert_item(parent, name, before_index, item)
+
+    def remove_item(self, parent, name, index, item):
+        self.__persistent_storage.remove_item(parent, name, index, item)
+
+    def set_item(self, parent, name, item):
+        self.__persistent_storage.set_item(parent, name, item)
+
+    def set_property(self, object, name, value):
+        self.__persistent_storage.set_property(object, name, value)
+
+    def clear_property(self, object, name):
+        self.__persistent_storage.clear_property(object, name)
+
+    def _set_storage_properties(self, properties):
+        self.__properties = properties
 
     class MemoryStorageHandler:
 
@@ -399,19 +440,19 @@ class MemoryStorageSystem:
 
     def find_data_items(self):
         storage_handlers = list()
-        for key in sorted(self.properties):
-            self.properties[key].setdefault("uuid", str(uuid.uuid4()))
-            storage_handlers.append(MemoryStorageSystem.MemoryStorageHandler(key, self.properties, self.data, self._test_data_read_event))
+        for key in sorted(self.__properties):
+            self.__properties[key].setdefault("uuid", str(uuid.uuid4()))
+            storage_handlers.append(MemoryStorageSystem.MemoryStorageHandler(key, self.__properties, self.data, self._test_data_read_event))
         return storage_handlers
 
     def make_storage_handler(self, data_item, file_handler=None):
         data_item_uuid_str = str(data_item.uuid)
-        return MemoryStorageSystem.MemoryStorageHandler(data_item_uuid_str, self.properties, self.data, self._test_data_read_event)
+        return MemoryStorageSystem.MemoryStorageHandler(data_item_uuid_str, self.__properties, self.data, self._test_data_read_event)
 
     def remove_storage_handler(self, storage_handler, *, safe: bool=False) -> None:
         storage_handler_reference = storage_handler.reference
         data = self.data.pop(storage_handler_reference, None)
-        properties = self.properties.pop(storage_handler_reference)
+        properties = self.__properties.pop(storage_handler_reference)
         if safe:
             assert storage_handler_reference not in self.trash
             self.trash[storage_handler_reference] = {"data": data, "properties": properties}
@@ -419,11 +460,11 @@ class MemoryStorageSystem:
     def restore_storage_handler(self, data_item_uuid: uuid.UUID):
         data_item_uuid_str = str(data_item_uuid)
         trash_entry = self.trash.pop(data_item_uuid_str)
-        assert data_item_uuid_str not in self.properties
+        assert data_item_uuid_str not in self.__properties
         assert data_item_uuid_str not in self.data
-        self.properties[data_item_uuid_str] = trash_entry["properties"]
+        self.__properties[data_item_uuid_str] = trash_entry["properties"]
         self.data[data_item_uuid_str] = trash_entry["data"]
-        return MemoryStorageSystem.MemoryStorageHandler(data_item_uuid_str, self.properties, self.data, self._test_data_read_event)
+        return MemoryStorageSystem.MemoryStorageHandler(data_item_uuid_str, self.__properties, self.data, self._test_data_read_event)
 
     def purge_removed_storage_handlers(self):
         self.trash = dict()
@@ -439,9 +480,35 @@ class FileStorageSystem:
 
     _file_handlers = [NDataHandler.NDataHandler, HDF5Handler.HDF5Handler]
 
-    def __init__(self, directories):
+    def __init__(self, file_path, directories):
         self.__directories = directories
         self.__file_handlers = FileStorageSystem._file_handlers
+        self.__persistent_storage = FilePersistentStorage(file_path)
+
+    @property
+    def library_storage_properties(self):
+        return self.__persistent_storage.properties
+
+    def _set_properties(self, properties):
+        self.__persistent_storage._set_properties(properties)
+
+    def rewrite_properties(self, properties):
+        self.__persistent_storage.rewrite_properties(properties)
+
+    def insert_item(self, parent, name, before_index, item):
+        self.__persistent_storage.insert_item(parent, name, before_index, item)
+
+    def remove_item(self, parent, name, index, item):
+        self.__persistent_storage.remove_item(parent, name, index, item)
+
+    def set_item(self, parent, name, item):
+        self.__persistent_storage.set_item(parent, name, item)
+
+    def set_property(self, object, name, value):
+        self.__persistent_storage.set_property(object, name, value)
+
+    def clear_property(self, object, name):
+        self.__persistent_storage.clear_property(object, name)
 
     def find_data_items(self):
         return self.__find_storage_handlers(self.__directories)
@@ -547,6 +614,7 @@ class FileStorageSystem:
                     # test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload
                     file_path = pathlib.Path(root) / pathlib.Path(file)
                     file_path.unlink()
+
 
 def read_data_items_version_stats(persistent_storage_system):
     storage_handlers = list()  # storage_handler
@@ -782,7 +850,8 @@ class ComputationQueueItem:
 
 
 class AutoMigration:
-    def __init__(self, paths: typing.List[str]=None, log_copying: bool=True, storage_system=None):
+    def __init__(self, library_path: str=None, paths: typing.List[str]=None, log_copying: bool=True, storage_system=None):
+        self.library_path = library_path
         self.paths = paths
         self.log_copying = log_copying
         self.storage_system = storage_system
@@ -1110,7 +1179,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     computation_min_period = 0.0
 
-    def __init__(self, library_storage=None, persistent_storage_system=None, storage_cache=None, log_migrations=True, ignore_older_files=False, auto_migrations=None):
+    def __init__(self, *, storage_system=None, storage_cache=None, log_migrations=True, ignore_older_files=False, auto_migrations=None):
         super().__init__()
 
         self.library_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
@@ -1129,11 +1198,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         self.__thread_pool = ThreadPool.ThreadPool()
         self.__computation_thread_pool = ThreadPool.ThreadPool()
-        self.__persistent_storage_system = persistent_storage_system if persistent_storage_system else MemoryStorageSystem()
+        self.__persistent_storage_system = storage_system if storage_system else MemoryStorageSystem()
+        self.__library_storage = self.__persistent_storage_system
         self.__ignore_older_files = ignore_older_files
         self.__log_migrations = log_migrations
+
+        # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
+        # there is a single shared object context per document model.
         self.persistent_object_context = Persistence.PersistentObjectContext()
-        self.__library_storage = library_storage if library_storage else FilePersistentStorage()
+
         self.persistent_object_context._set_persistent_storage_for_object(self, self.__library_storage)
         self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
         self.__auto_migrations = auto_migrations or list()
@@ -1200,7 +1273,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __read(self):
         # first read the library (for deletions) and the library items from the primary storage systems
-        library_storage_properties = self.__library_storage.properties
+        library_storage_properties = self.__library_storage.library_storage_properties
         data_items = read_data_items(library_storage_properties, self.__persistent_storage_system, self.__ignore_older_files, self.__log_migrations)
         data_item_uuids = {data_item.uuid for data_item in data_items}
         utilized_deletions = set()  # the uuid's skipped due to being deleted
@@ -1209,7 +1282,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # using auto_migrate_storage_system. the data items returned will have been copied to the current storage
         # system (persistent object context).
         for auto_migration in self.__auto_migrations:
-            file_persistent_storage_system = FileStorageSystem(auto_migration.paths) if auto_migration.paths else auto_migration.storage_system
+            file_persistent_storage_system = FileStorageSystem(auto_migration.library_path, auto_migration.paths) if auto_migration.paths else auto_migration.storage_system
             new_data_items = auto_migrate_storage_system(library_storage_properties,
                                                          persistent_storage_system=file_persistent_storage_system,
                                                          new_persistent_storage_system=self.__persistent_storage_system,
@@ -1419,8 +1492,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.persistent_object_context = self.persistent_object_context
         # persistent storage facilitates writing properties and relationships to the storage handler
         # persistent object context tracks the persistent storage for each object in the system
-        persistent_storage = DataItemPersistentStorage(self.__persistent_storage_system, storage_handler, data_item,
-                                                       properties)
+        persistent_storage = DataItemPersistentStorage(self.__persistent_storage_system, storage_handler, data_item, properties)
         data_item.persistent_storage = persistent_storage
         data_item.persistent_object_context._set_persistent_storage_for_object(data_item, persistent_storage)
         data_item.persistent_object_context_changed()

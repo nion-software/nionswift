@@ -31,7 +31,7 @@ class TestFacadeClass(unittest.TestCase):
 
     def test_basic_api_methods(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             api = Facade.get_api("~1.0", "~1.0")
@@ -41,7 +41,7 @@ class TestFacadeClass(unittest.TestCase):
 
     def test_create_data_item_from_data(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             data0 = numpy.arange(64).reshape(8, 8)
@@ -67,7 +67,7 @@ class TestFacadeClass(unittest.TestCase):
 
     def test_library_and_data_items_can_be_compared_for_equality(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
@@ -104,7 +104,7 @@ class TestFacadeClass(unittest.TestCase):
 
     def test_data_on_empty_data_item_returns_none(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             api = Facade.get_api("~1.0", "~1.0")
@@ -115,7 +115,7 @@ class TestFacadeClass(unittest.TestCase):
 
     def test_data_item_data_methods(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             data0 = numpy.arange(64).reshape(8, 8)
@@ -135,7 +135,7 @@ class TestFacadeClass(unittest.TestCase):
 
     def test_data_item_metadata_methods(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             data0 = numpy.arange(64).reshape(8, 8)
@@ -161,7 +161,7 @@ class TestFacadeClass(unittest.TestCase):
 
     def test_data_item_regions(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.arange(64).reshape(8, 8))
@@ -198,7 +198,7 @@ class TestFacadeClass(unittest.TestCase):
 
     def test_display_data_panel_reuses_existing_display(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             # configure data item
@@ -232,7 +232,7 @@ class TestFacadeClass(unittest.TestCase):
 
     def test_target_data_item_returns_none_if_panel_is_empty(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             # configure workspace
@@ -246,7 +246,7 @@ class TestFacadeClass(unittest.TestCase):
 
     def test_display_data_item_returns_none_if_no_panel_available(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             # configure data item
@@ -277,7 +277,7 @@ class TestFacadeClass(unittest.TestCase):
 
     def test_create_data_item_from_data_copies_data(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             api = Facade.get_api("~1.0", "~1.0")
@@ -288,7 +288,7 @@ class TestFacadeClass(unittest.TestCase):
 
     def test_create_data_item_from_xdata_copies_data(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             api = Facade.get_api("~1.0", "~1.0")
@@ -300,7 +300,7 @@ class TestFacadeClass(unittest.TestCase):
 
     def test_create_empty_data_item_and_set_data_copies_data(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             api = Facade.get_api("~1.0", "~1.0")
@@ -312,7 +312,7 @@ class TestFacadeClass(unittest.TestCase):
 
     def test_create_empty_data_item_and_set_xdata_copies_data(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             api = Facade.get_api("~1.0", "~1.0")
