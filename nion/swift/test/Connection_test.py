@@ -13,6 +13,7 @@ from nion.swift.model import Connection
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import MemoryStorageSystem
 from nion.swift.model import Symbolic
 from nion.ui import TestUI
 
@@ -64,7 +65,7 @@ class TestConnectionClass(unittest.TestCase):
 
     def test_connection_saves_and_restores(self):
         # setup document
-        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item_3d = DataItem.DataItem(numpy.zeros((8, 8, 32), numpy.uint32))

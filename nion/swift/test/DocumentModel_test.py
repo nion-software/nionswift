@@ -17,6 +17,7 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import MemoryStorageSystem
 from nion.swift.model import Symbolic
 from nion.ui import TestUI
 from nion.utils import ListModel
@@ -74,7 +75,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(data_group.counted_data_items[data_item2], 1)
 
     def test_loading_document_with_duplicated_data_items_ignores_earlier_ones(self):
-        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))

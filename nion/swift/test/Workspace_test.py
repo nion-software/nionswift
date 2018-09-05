@@ -16,6 +16,7 @@ from nion.swift import DocumentController
 from nion.swift import Workspace
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import MemoryStorageSystem
 from nion.swift.test import DocumentController_test
 from nion.ui import CanvasItem
 from nion.ui import TestUI
@@ -269,7 +270,7 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item3)
 
     def test_workspace_records_json_compatible_content_when_closing_document(self):
-        storage_system = DocumentModel.MemoryStorageSystem()
+        storage_system = MemoryStorageSystem.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(storage_system=storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
@@ -282,7 +283,7 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertEqual(properties, storage_system.library_storage_properties)
 
     def test_workspace_saves_contents_immediately_following_change(self):
-        storage_system = DocumentModel.MemoryStorageSystem()
+        storage_system = MemoryStorageSystem.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(storage_system=storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
@@ -301,7 +302,7 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(2, len(workspace_controller.display_panels))
 
     def test_workspace_saves_contents_immediately_following_adjustment(self):
-        storage_system = DocumentModel.MemoryStorageSystem()
+        storage_system = MemoryStorageSystem.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(storage_system=storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
@@ -328,7 +329,7 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_workspace_saves_contents_immediately_following_controller_change(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
-        storage_system = DocumentModel.MemoryStorageSystem()
+        storage_system = MemoryStorageSystem.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(storage_system=storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
@@ -352,7 +353,7 @@ class TestWorkspaceClass(unittest.TestCase):
         DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
     def test_workspace_saves_contents_immediately_following_view_change(self):
-        storage_system = DocumentModel.MemoryStorageSystem()
+        storage_system = MemoryStorageSystem.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(storage_system=storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
@@ -722,7 +723,7 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(2, len(document_model.workspaces))
 
     def test_workspace_records_and_reloads_image_panel_contents(self):
-        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
@@ -1279,7 +1280,7 @@ class TestWorkspaceClass(unittest.TestCase):
         DisplayPanel._test_log_exceptions = False
         try:
             DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("error", TestWorkspaceClass.DisplayPanelControllerFactory())
-            storage_system = DocumentModel.MemoryStorageSystem()
+            storage_system = MemoryStorageSystem.MemoryStorageSystem()
             document_model = DocumentModel.DocumentModel(storage_system=storage_system)
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             # first create a workspace

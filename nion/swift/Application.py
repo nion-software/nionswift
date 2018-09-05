@@ -34,6 +34,7 @@ from nion.swift.model import Cache
 from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import FileStorageSystem
 from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Utility
@@ -220,7 +221,7 @@ class Application(UIApplication.Application):
         else:
             if welcome_message_enabled:
                 logging.info("Using existing document %s", library_path)
-        file_persistent_storage_system = DocumentModel.FileStorageSystem(library_path, [os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))])
+        file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))])
         counts = DocumentModel.read_data_items_version_stats(file_persistent_storage_system)
         if counts[2] > 0:
 
