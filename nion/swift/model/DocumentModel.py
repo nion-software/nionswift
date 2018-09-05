@@ -69,7 +69,7 @@ class DataItemStorageAdapter:
         self.__properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
         self.__properties_lock = threading.RLock()
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
-        self.write_delayed = False
+        self.__write_delayed = False
 
     def close(self):
         if self.__storage_handler:
@@ -77,12 +77,8 @@ class DataItemStorageAdapter:
             self.__storage_handler = None
 
     @property
-    def data_item(self):
+    def __data_item(self):
         return self.__weak_data_item() if self.__weak_data_item else None
-
-    @data_item.setter
-    def data_item(self, data_item):
-        self.__weak_data_item = weakref.ref(data_item) if data_item else None
 
     @property
     def properties(self):
@@ -92,6 +88,14 @@ class DataItemStorageAdapter:
     @property
     def _storage_handler(self):
         return self.__storage_handler
+
+    def set_write_delayed(self, data_item, write_delayed: bool) -> None:
+        assert self.__data_item == data_item
+        self.__write_delayed = write_delayed
+
+    def is_write_delayed(self, data_item) -> bool:
+        assert self.__data_item == data_item
+        return self.__write_delayed
 
     def __get_storage_dict(self, object):
         persistent_object_parent = object.persistent_object_parent
@@ -111,9 +115,13 @@ class DataItemStorageAdapter:
             self.__update_modified_and_get_storage_dict(parent)
         return storage_dict
 
-    def update_properties(self):
-        if not self.write_delayed:
-            file_datetime = self.data_item.created_local
+    def rewrite_properties(self, data_item) -> None:
+        assert self.__data_item == data_item
+        self.__update_properties()
+
+    def __update_properties(self):
+        if not self.__write_delayed:
+            file_datetime = self.__data_item.created_local
             self.__storage_handler.write_properties(self.properties, file_datetime)
 
     def insert_item(self, parent, name, before_index, item):
@@ -123,14 +131,14 @@ class DataItemStorageAdapter:
             item_dict = item.write_to_dict()
             item_list.insert(before_index, item_dict)
             item.persistent_object_context = parent.persistent_object_context
-        self.update_properties()
+        self.__update_properties()
 
     def remove_item(self, parent, name, index, item):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
             item_list = storage_dict[name]
             del item_list[index]
-        self.update_properties()
+        self.__update_properties()
         item.persistent_object_context = None
 
     def set_item(self, parent, name, item):
@@ -144,31 +152,34 @@ class DataItemStorageAdapter:
             else:
                 if name in storage_dict:
                     del storage_dict[name]
-        self.update_properties()
-
-    def update_data(self, data):
-        if not self.write_delayed:
-            file_datetime = self.data_item.created_local
-            if data is not None:
-                self.__storage_handler.write_data(data, file_datetime)
-
-    def load_data(self):
-        assert self.data_item.has_data
-        return self.__storage_handler.read_data()
+        self.__update_properties()
 
     def set_property(self, object, name, value):
         storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.__properties_lock:
             storage_dict[name] = value
-        self.update_properties()
+        self.__update_properties()
 
     def clear_property(self, object, name):
         storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.__properties_lock:
             storage_dict.pop(name, None)
-        self.update_properties()
+        self.__update_properties()
 
-    def remove(self, safe: bool=False) -> None:
+    def update_data(self, data_item, data):
+        assert self.__data_item == data_item
+        if not self.__write_delayed:
+            file_datetime = self.__data_item.created_local
+            if data is not None:
+                self.__storage_handler.write_data(data, file_datetime)
+
+    def load_data(self, data_item) -> None:
+        assert self.__data_item == data_item
+        assert self.__data_item.has_data
+        return self.__storage_handler.read_data()
+
+    def delete_item(self, data_item, safe: bool=False) -> None:
+        assert self.__data_item == data_item
         self.__storage_system.remove_storage_handler(self.__storage_handler, safe=safe)
 
 
@@ -1051,7 +1062,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.persistent_storage = persistent_storage
         data_item.persistent_object_context._set_persistent_storage_for_object(data_item, persistent_storage)
         data_item.persistent_object_context_changed()
-        if do_write and persistent_storage and not persistent_storage.write_delayed:
+        if do_write and persistent_storage and not persistent_storage.is_write_delayed(data_item):
             # don't directly write data item, or else write_pending is not cleared on data item
             # call finish pending write instead
             data_item._finish_pending_write()  # initially write to disk
@@ -1120,7 +1131,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item.r_var = None
         # keep storage up-to-date
         persistent_storage = data_item.persistent_storage
-        persistent_storage.remove(safe=safe)
+        persistent_storage.delete_item(data_item, safe=safe)
         data_item.persistent_object_context = None
         data_item.__storage_cache = None
         # update data item count

@@ -305,7 +305,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
 
     def __load_data(self):
         if self.persistent_storage:
-            return self.persistent_storage.load_data()
+            return self.persistent_storage.load_data(self.persistent_object_parent.parent)
         return None
 
     def __set_data_metadata_direct(self, data_and_metadata, data_modified=None):
@@ -348,7 +348,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
             if self.__data_and_metadata is not None:
                 if self.persistent_storage:
-                    self.persistent_storage.update_data(self.__data_and_metadata.data)
+                    self.persistent_storage.update_data(self.persistent_object_parent.parent, self.__data_and_metadata.data)
                     self.__data_and_metadata.unloadable = True
         finally:
             self.decrement_data_ref_count()
@@ -767,12 +767,12 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self._enter_write_delay_state_inner()
         if self.persistent_object_context:
             if self.persistent_storage:
-                self.persistent_storage.write_delayed = True
+                self.persistent_storage.set_write_delayed(self, True)
 
     def __exit_write_delay_state(self):
         if self.persistent_object_context:
             if self.persistent_storage:
-                self.persistent_storage.write_delayed = False
+                self.persistent_storage.set_write_delayed(self, False)
             self._finish_pending_write()
 
     def _finish_write(self):
@@ -787,7 +787,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
             self.__pending_write = False
         else:
             if self.modified_count > self.__write_delay_modified_count:
-                self.persistent_storage.update_properties()
+                self.persistent_storage.rewrite_properties(self)
             self._finish_pending_write_inner()
 
     def _transaction_state_entered(self):
@@ -1321,7 +1321,7 @@ class DataItem(LibraryItem):
     def _finish_write(self):
         super()._finish_write()
         if self.data_source:
-            self.persistent_storage.update_data(self.data)
+            self.persistent_storage.update_data(self, self.data)
 
     def _enter_write_delay_state_inner(self):
         super()._enter_write_delay_state_inner()
@@ -1330,7 +1330,7 @@ class DataItem(LibraryItem):
     def _finish_pending_write_inner(self):
         super()._finish_pending_write_inner()
         if self.__write_delay_data_changed:
-            self.persistent_storage.update_data(self.data)
+            self.persistent_storage.update_data(self, self.data)
 
     @property
     def date_for_sorting(self):

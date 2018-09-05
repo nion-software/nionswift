@@ -17,6 +17,9 @@ class MemoryPersistentStorage:
     def get_version(self):
         return 0
 
+    def __write_properties(self):
+        pass
+
     @property
     def properties(self):
         with self.__properties_lock:
@@ -31,6 +34,7 @@ class MemoryPersistentStorage:
         """Set the properties and write to disk."""
         with self.__properties_lock:
             self.__properties = properties
+        self.__write_properties()
 
     def __get_storage_dict(self, object):
         persistent_object_parent = object.persistent_object_parent
@@ -57,12 +61,14 @@ class MemoryPersistentStorage:
             item_dict = item.write_to_dict()
             item_list.insert(before_index, item_dict)
             item.persistent_object_context = parent.persistent_object_context
+        self.__write_properties()
 
     def remove_item(self, parent, name, index, item):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
             item_list = storage_dict[name]
             del item_list[index]
+        self.__write_properties()
         item.persistent_object_context = None
 
     def set_item(self, parent, name, item):
@@ -75,17 +81,19 @@ class MemoryPersistentStorage:
             else:
                 if name in storage_dict:
                     del storage_dict[name]
+        self.__write_properties()
 
     def set_property(self, object, name, value):
         storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.__properties_lock:
             storage_dict[name] = value
+        self.__write_properties()
 
     def clear_property(self, object, name):
         storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.__properties_lock:
             storage_dict.pop(name, None)
-
+        self.__write_properties()
 
 
 class MemoryStorageHandler:

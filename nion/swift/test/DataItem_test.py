@@ -758,7 +758,7 @@ class TestDataItemClass(unittest.TestCase):
             with document_model.item_transaction(data_item):
                 document_model.append_data_item(data_item)
                 persistent_storage = data_item.persistent_storage
-                self.assertTrue(persistent_storage.write_delayed)
+                self.assertTrue(persistent_storage.is_write_delayed(data_item))
 
     def test_data_item_added_to_live_data_item_becomes_live_and_unlive_based_on_parent_item(self):
         document_model = DocumentModel.DocumentModel()
