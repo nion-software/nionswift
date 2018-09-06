@@ -126,6 +126,28 @@ class TestStorageClass(unittest.TestCase):
         document_controller.processing_fft()
         document_controller.processing_ifft()
 
+    def test_write_read_empty_data_item(self):
+        # basic test (redundant, but useful for debugging)
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            self.assertEqual(1, len(document_model.data_items))
+
+    def test_set_data_item_data(self):
+        # basic test (redundant, but useful for debugging)
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            self.assertTrue(numpy.array_equal(data_item.data, numpy.zeros((2, 2))))
+            data_item.set_data(numpy.ones((2, 2)))
+            self.assertTrue(numpy.array_equal(data_item.data, numpy.ones((2, 2))))
+
     def test_save_document(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -885,12 +907,11 @@ class TestStorageClass(unittest.TestCase):
                 with document_model.item_transaction(data_item):
                     display_specifier.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                     # make sure data does NOT exist during the transaction
-                    handler = data_item.persistent_storage._storage_handler
-                    self.assertIsNone(handler.read_data())
+                    self.assertIsNone(data_item.persistent_storage.load_data(data_item))
                 # make sure it DOES exist after the transaction
                 self.assertTrue(os.path.exists(data_file_path))
                 self.assertTrue(os.path.isfile(data_file_path))
-                self.assertIsNotNone(handler.read_data())
+                self.assertIsNotNone(data_item.persistent_storage.load_data(data_item))
             document_model = None
             storage_cache = None
         finally:

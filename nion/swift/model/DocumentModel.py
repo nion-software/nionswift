@@ -52,137 +52,6 @@ from nion.utils import ThreadPool
 _ = gettext.gettext
 
 
-class DataItemStorageAdapter:
-    """Persistent storage for writing data item properties, relationships, and data to its storage handler.
-
-    The storage_handler must respond to these methods:
-        close()
-        read_data()
-        write_properties(properties, file_datetime)
-        write_data(data, file_datetime)
-        remove()
-    """
-
-    def __init__(self, storage_system, storage_handler, data_item, properties):
-        self.__storage_system = storage_system
-        self.__storage_handler = storage_handler
-        self.__properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
-        self.__properties_lock = threading.RLock()
-        self.__weak_data_item = weakref.ref(data_item) if data_item else None
-        self.__write_delayed = False
-
-    def close(self):
-        if self.__storage_handler:
-            self.__storage_handler.close()
-            self.__storage_handler = None
-
-    @property
-    def __data_item(self):
-        return self.__weak_data_item() if self.__weak_data_item else None
-
-    @property
-    def properties(self):
-        with self.__properties_lock:
-            return copy.deepcopy(self.__properties)
-
-    @property
-    def _storage_handler(self):
-        return self.__storage_handler
-
-    def set_write_delayed(self, data_item, write_delayed: bool) -> None:
-        assert self.__data_item == data_item
-        self.__write_delayed = write_delayed
-
-    def is_write_delayed(self, data_item) -> bool:
-        assert self.__data_item == data_item
-        return self.__write_delayed
-
-    def __get_storage_dict(self, object):
-        persistent_object_parent = object.persistent_object_parent
-        if not persistent_object_parent:
-            return self.__properties
-        else:
-            parent_storage_dict = self.__get_storage_dict(persistent_object_parent.parent)
-            return object.get_accessor_in_parent()(parent_storage_dict)
-
-    def __update_modified_and_get_storage_dict(self, object):
-        storage_dict = self.__get_storage_dict(object)
-        with self.__properties_lock:
-            storage_dict["modified"] = object.modified.isoformat()
-        persistent_object_parent = object.persistent_object_parent
-        parent = persistent_object_parent.parent if persistent_object_parent else None
-        if parent:
-            self.__update_modified_and_get_storage_dict(parent)
-        return storage_dict
-
-    def rewrite_properties(self, data_item) -> None:
-        assert self.__data_item == data_item
-        self.__update_properties()
-
-    def __update_properties(self):
-        if not self.__write_delayed:
-            file_datetime = self.__data_item.created_local
-            self.__storage_handler.write_properties(self.properties, file_datetime)
-
-    def insert_item(self, parent, name, before_index, item):
-        storage_dict = self.__update_modified_and_get_storage_dict(parent)
-        with self.__properties_lock:
-            item_list = storage_dict.setdefault(name, list())
-            item_dict = item.write_to_dict()
-            item_list.insert(before_index, item_dict)
-            item.persistent_object_context = parent.persistent_object_context
-        self.__update_properties()
-
-    def remove_item(self, parent, name, index, item):
-        storage_dict = self.__update_modified_and_get_storage_dict(parent)
-        with self.__properties_lock:
-            item_list = storage_dict[name]
-            del item_list[index]
-        self.__update_properties()
-        item.persistent_object_context = None
-
-    def set_item(self, parent, name, item):
-        storage_dict = self.__update_modified_and_get_storage_dict(parent)
-        with self.__properties_lock:
-            if item:
-                item_dict = item.write_to_dict()
-                storage_dict[name] = item_dict
-                item.persistent_object_context = None
-                item.persistent_object_context = parent.persistent_object_context
-            else:
-                if name in storage_dict:
-                    del storage_dict[name]
-        self.__update_properties()
-
-    def set_property(self, object, name, value):
-        storage_dict = self.__update_modified_and_get_storage_dict(object)
-        with self.__properties_lock:
-            storage_dict[name] = value
-        self.__update_properties()
-
-    def clear_property(self, object, name):
-        storage_dict = self.__update_modified_and_get_storage_dict(object)
-        with self.__properties_lock:
-            storage_dict.pop(name, None)
-        self.__update_properties()
-
-    def update_data(self, data_item, data):
-        assert self.__data_item == data_item
-        if not self.__write_delayed:
-            file_datetime = self.__data_item.created_local
-            if data is not None:
-                self.__storage_handler.write_data(data, file_datetime)
-
-    def load_data(self, data_item) -> None:
-        assert self.__data_item == data_item
-        assert self.__data_item.has_data
-        return self.__storage_handler.read_data()
-
-    def delete_item(self, data_item, safe: bool=False) -> None:
-        assert self.__data_item == data_item
-        self.__storage_system.remove_storage_handler(self.__storage_handler, safe=safe)
-
-
 def read_data_items_version_stats(persistent_storage_system):
     storage_handlers = list()  # storage_handler
     storage_handlers.extend(persistent_storage_system.find_data_items())
@@ -245,8 +114,8 @@ def read_data_items(library_storage_properties, persistent_storage_system, ignor
                 data_item.begin_reading()
                 data_item.read_from_dict(properties)
                 # persistent storage facilitates writing properties and relationships to the storage handler
-                persistent_storage = DataItemStorageAdapter(persistent_storage_system, storage_handler, data_item, properties)
-                data_item.persistent_storage = persistent_storage
+                persistent_storage_system.register_data_item(data_item, storage_handler, properties)
+                data_item.persistent_storage = persistent_storage_system
                 if log_migrations and data_item.uuid in data_items_by_uuid:
                     logging.info("Warning: Duplicate data item %s", data_item.uuid)
                 data_items_by_uuid[data_item.uuid] = data_item
@@ -293,8 +162,8 @@ def auto_migrate_data_item(reader_info, persistent_storage_system, migration_log
         new_data_item.begin_reading()
         new_data_item.read_from_dict(properties)
         # persistent storage facilitates writing properties and relationships to the storage handler
-        persistent_storage = DataItemStorageAdapter(persistent_storage_system, target_storage_handler, new_data_item, properties)
-        new_data_item.persistent_storage = persistent_storage
+        persistent_storage_system.register_data_item(new_data_item, target_storage_handler, properties)
+        new_data_item.persistent_storage = persistent_storage_system
         migration_log.push("Copying data item {} to library.".format(data_item_uuid))
     else:
         migration_log.push("Unable to copy data item %s to library.".format(data_item_uuid))
@@ -858,7 +727,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_items.extend(new_data_items)
             data_item_uuids.update({data_item.uuid for data_item in new_data_items})
         for data_item in data_items:
-            self.persistent_object_context._set_persistent_storage_for_object(data_item, data_item.persistent_storage)
+            self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
             data_item.persistent_object_context = self.persistent_object_context
         self.__storage_system.rewrite_properties(library_storage_properties)
         self.begin_reading()
@@ -1058,11 +927,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.persistent_object_context = self.persistent_object_context
         # persistent storage facilitates writing properties and relationships to the storage handler
         # persistent object context tracks the persistent storage for each object in the system
-        persistent_storage = DataItemStorageAdapter(self.__storage_system, storage_handler, data_item, properties)
-        data_item.persistent_storage = persistent_storage
-        data_item.persistent_object_context._set_persistent_storage_for_object(data_item, persistent_storage)
+        self.__storage_system.register_data_item(data_item, storage_handler, properties)
+        data_item.persistent_storage = self.__storage_system
+        data_item.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
         data_item.persistent_object_context_changed()
-        if do_write and persistent_storage and not persistent_storage.is_write_delayed(data_item):
+        if do_write and not self.__storage_system.is_write_delayed(data_item):
             # don't directly write data item, or else write_pending is not cleared on data item
             # call finish pending write instead
             data_item._finish_pending_write()  # initially write to disk

@@ -649,7 +649,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         # close the storage handler
         if self.persistent_object_context:
             if self.persistent_storage:
-                self.persistent_storage.close()
+                self.persistent_storage.unregister_data_item(self)
             self.persistent_storage = None
             self.persistent_object_context = None
         assert self._about_to_be_removed
@@ -787,7 +787,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
             self.__pending_write = False
         else:
             if self.modified_count > self.__write_delay_modified_count:
-                self.persistent_storage.rewrite_properties(self)
+                self.persistent_storage.rewrite_item(self)
             self._finish_pending_write_inner()
 
     def _transaction_state_entered(self):
@@ -841,7 +841,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
             unregistered()
 
     def _test_get_file_path(self):
-        return self.persistent_storage._storage_handler.reference if self.persistent_storage else None
+        return self.persistent_storage._get_file_path(self)
 
     # access properties
 
