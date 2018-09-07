@@ -170,7 +170,7 @@ def auto_migrate_data_item(reader_info, persistent_storage_system, migration_log
     return new_data_item
 
 
-def auto_migrate_storage_system(library_storage_properties, *, persistent_storage_system=None, new_persistent_storage_system=None, data_item_uuids=None, deletions: typing.Set[uuid.UUID] = None, utilized_deletions: typing.Set[uuid.UUID] = None):
+def auto_migrate_storage_system(library_storage_properties, *, auto_migration=None, new_persistent_storage_system=None, data_item_uuids=None, deletions: typing.Set[uuid.UUID] = None, utilized_deletions: typing.Set[uuid.UUID] = None):
     """Migrate items from the storage system to the object context.
 
     Files in data_item_uuids have already been loaded and are ignored (not migrated).
@@ -181,6 +181,7 @@ def auto_migrate_storage_system(library_storage_properties, *, persistent_storag
     Data items will have persistent_object_context set upon return, but caller will need to call finish_reading
     on each of the data items.
     """
+    persistent_storage_system = FileStorageSystem.FileStorageSystem(auto_migration.library_path, auto_migration.paths) if auto_migration.paths else auto_migration.storage_system
     storage_handlers = persistent_storage_system.find_data_items()
     data_items_by_uuid = dict()
     ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "storage_handler"])
@@ -717,9 +718,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # using auto_migrate_storage_system. the data items returned will have been copied to the current storage
         # system (persistent object context).
         for auto_migration in self.__auto_migrations:
-            file_persistent_storage_system = FileStorageSystem.FileStorageSystem(auto_migration.library_path, auto_migration.paths) if auto_migration.paths else auto_migration.storage_system
             new_data_items = auto_migrate_storage_system(library_storage_properties,
-                                                         persistent_storage_system=file_persistent_storage_system,
+                                                         auto_migration=auto_migration,
                                                          new_persistent_storage_system=self.__storage_system,
                                                          data_item_uuids=data_item_uuids,
                                                          deletions=deletions,

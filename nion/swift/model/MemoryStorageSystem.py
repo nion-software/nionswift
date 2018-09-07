@@ -63,7 +63,7 @@ class MemoryStorageSystem:
         persistent_object_parent = object.persistent_object_parent if object else None
         if not persistent_object_parent:
             if object in self.__data_item_storage:
-                self.__data_item_storage[object]._write_properties()
+                self.__data_item_storage[object].rewrite_item(object)
         else:
             self.__write_properties(persistent_object_parent.parent)
 
@@ -213,7 +213,7 @@ class MemoryStorageSystem:
 
     def delete_item(self, data_item, safe: bool=False) -> None:
         storage = self.__get_storage_for_item(data_item)
-        storage.delete_item(data_item, safe)
+        self.remove_storage_handler(storage._storage_handler, safe=safe)
 
     def set_write_delayed(self, data_item, write_delayed: bool) -> None:
         storage = self.__get_storage_for_item(data_item)

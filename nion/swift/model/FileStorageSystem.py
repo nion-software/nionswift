@@ -31,17 +31,12 @@ class DataItemStorageAdapter:
         self.__storage_handler = storage_handler
         self.__properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
         self.__properties_lock = threading.RLock()
-        self.__weak_data_item = weakref.ref(data_item) if data_item else None
         self.__write_delayed = False
 
     def close(self):
         if self.__storage_handler:
             self.__storage_handler.close()
             self.__storage_handler = None
-
-    @property
-    def __data_item(self):
-        return self.__weak_data_item() if self.__weak_data_item else None
 
     @property
     def properties(self):
@@ -53,40 +48,25 @@ class DataItemStorageAdapter:
         return self.__storage_handler
 
     def set_write_delayed(self, data_item, write_delayed: bool) -> None:
-        assert self.__data_item == data_item
         self.__write_delayed = write_delayed
 
     def is_write_delayed(self, data_item) -> bool:
-        assert self.__data_item == data_item
         return self.__write_delayed
 
     def rewrite_item(self, data_item) -> None:
-        assert self.__data_item == data_item
-        self.__write_properties()
-
-    def __write_properties(self):
         if not self.__write_delayed:
-            file_datetime = self.__data_item.created_local
+            file_datetime = data_item.created_local
             self.__storage_handler.write_properties(self.properties, file_datetime)
 
-    def _write_properties(self):
-        self.__write_properties()
-
     def update_data(self, data_item, data):
-        assert self.__data_item == data_item
         if not self.__write_delayed:
-            file_datetime = self.__data_item.created_local
+            file_datetime = data_item.created_local
             if data is not None:
                 self.__storage_handler.write_data(data, file_datetime)
 
     def load_data(self, data_item) -> None:
-        assert self.__data_item == data_item
-        assert self.__data_item.has_data
+        assert data_item.has_data
         return self.__storage_handler.read_data()
-
-    def delete_item(self, data_item, safe: bool=False) -> None:
-        assert self.__data_item == data_item
-        self.__storage_system.remove_storage_handler(self.__storage_handler, safe=safe)
 
 
 class FileStorageSystem:
@@ -116,7 +96,7 @@ class FileStorageSystem:
         persistent_object_parent = object.persistent_object_parent if object else None
         if not persistent_object_parent:
             if object in self.__data_item_storage:
-                self.__data_item_storage[object]._write_properties()
+                self.__data_item_storage[object].rewrite_item(object)
             else:
                 if self.__filepath:
                     # atomically overwrite
@@ -334,7 +314,7 @@ class FileStorageSystem:
 
     def delete_item(self, data_item, safe: bool=False) -> None:
         storage = self.__get_storage_for_item(data_item)
-        storage.delete_item(data_item, safe)
+        self.remove_storage_handler(storage._storage_handler, safe=safe)
 
     def set_write_delayed(self, data_item, write_delayed: bool) -> None:
         storage = self.__get_storage_for_item(data_item)
