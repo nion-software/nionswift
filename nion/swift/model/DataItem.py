@@ -648,8 +648,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
             display.close()
         # close the storage handler
         if self.persistent_object_context:
-            if self.persistent_storage:
-                self.persistent_storage.unregister_data_item(self)
             self.persistent_storage = None
             self.persistent_object_context = None
         assert self._about_to_be_removed

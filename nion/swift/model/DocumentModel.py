@@ -141,8 +141,6 @@ def auto_migrate_data_item(reader_info, persistent_storage_system, migration_log
     properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
     storage_handler = reader_info.storage_handler
     data_item_uuid = uuid.UUID(properties["uuid"])
-    new_data_item = None
-    target_storage_handler = None
     # create a temporary data item that can be used to get the new file reference
     old_data_item = DataItem.DataItem(item_uuid=data_item_uuid)
     old_data_item.begin_reading()
@@ -153,6 +151,7 @@ def auto_migrate_data_item(reader_info, persistent_storage_system, migration_log
     file_handler = persistent_storage_system.get_file_handler_for_file(old_data_item_path)
     # ask the storage system to make a storage handler (an instance of a file handler) for the data item
     # this ensures that the storage handler (file format) is the same as before.
+    new_data_item = None
     target_storage_handler = persistent_storage_system.make_storage_handler(old_data_item, file_handler)
     if target_storage_handler:
         os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
@@ -911,23 +910,22 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         assert data_item.uuid not in self.__uuid_to_data_item
         # ensure the data item has a new persistent storage
         assert not data_item.persistent_storage
-        storage_handler = self.__storage_system.make_storage_handler(data_item)
-        properties = data_item.write_to_dict()
         do_write = True
         # update the session
         data_item.session_id = self.session_id
         # insert in internal list
-        self.__insert_data_item(before_index, data_item, storage_handler, properties, do_write)
+        self.__insert_data_item(before_index, data_item, do_write)
 
-    def __insert_data_item(self, before_index, data_item, storage_handler, properties, do_write):
+    def __insert_data_item(self, before_index, data_item, do_write):
         data_item.about_to_be_inserted(self)
         self.__data_items.insert(before_index, data_item)
         self.__uuid_to_data_item[data_item.uuid] = data_item
+        # TODO: future should deal with persistent object parent too
+        if self.persistent_object_context:
+            self.persistent_object_context.item_inserted(self, "data_items", before_index, data_item)  # this will also update item's persistent_object_context
         data_item.set_storage_cache(self.storage_cache)
-        data_item.persistent_object_context = self.persistent_object_context
         # persistent storage facilitates writing properties and relationships to the storage handler
         # persistent object context tracks the persistent storage for each object in the system
-        self.__storage_system.register_data_item(data_item, storage_handler, properties)
         data_item.persistent_storage = self.__storage_system
         data_item.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
         data_item.persistent_object_context_changed()
@@ -1001,8 +999,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # keep storage up-to-date
         persistent_storage = data_item.persistent_storage
         persistent_storage.delete_item(data_item, safe=safe)
-        data_item.persistent_object_context = None
         data_item.__storage_cache = None
+        # TODO: future should deal with persistent object parent too
+        if self.persistent_object_context:
+            self.persistent_object_context.item_removed(self, "data_items", index, data_item)  # this will also update item's persistent_object_context
         # update data item count
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_removed(data_item)
@@ -1011,19 +1011,23 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.close()
         return undelete_log
 
-    def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int=None) -> DataItem.DataItem:
-        before_index = before_index if before_index is not None else len(self.data_items)
-        storage_handler = self.__storage_system.restore_storage_handler(data_item_uuid)
-        properties = storage_handler.read_properties()
+    def __create_data_item_from_properties(self, properties: dict, large_format: bool) -> DataItem.DataItem:
+        # creates an empty data item from properties; the properties are not used to populate the data item.
+        data_item_uuid = uuid.UUID(properties.get("uuid"))
         if len(properties.get("data_item_uuids", list())) > 0:
             data_item = DataItem.CompositeLibraryItem(item_uuid=data_item_uuid)
         else:
-            large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
             data_item = DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
+        return data_item
+
+    def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int=None) -> DataItem.DataItem:
+        before_index = before_index if before_index is not None else len(self.data_items)
+        properties, large_format = self.__storage_system.restore_item(data_item_uuid)
+        data_item = self.__create_data_item_from_properties(properties, large_format)
         data_item.begin_reading()
         data_item.read_from_dict(properties)
         # insert in internal list
-        self.__insert_data_item(before_index, data_item, storage_handler, properties, do_write=False)
+        self.__insert_data_item(before_index, data_item, do_write=False)
         data_item.finish_reading()
         return data_item
 

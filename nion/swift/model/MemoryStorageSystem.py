@@ -111,21 +111,30 @@ class MemoryStorageSystem:
         return storage_dict
 
     def insert_item(self, parent, name, before_index, item):
-        storage_dict = self.__update_modified_and_get_storage_dict(parent)
-        with self.__properties2_lock:
-            item_list = storage_dict.setdefault(name, list())
-            item_dict = item.write_to_dict()
-            item_list.insert(before_index, item_dict)
+        if isinstance(item, DataItem.LibraryItem):
             item.persistent_object_context = parent.persistent_object_context
-        self.__write_properties(parent)
+            storage_handler = self.make_storage_handler(item)
+            self.register_data_item(item, storage_handler, item.write_to_dict())
+        else:
+            storage_dict = self.__update_modified_and_get_storage_dict(parent)
+            with self.__properties2_lock:
+                item_list = storage_dict.setdefault(name, list())
+                item_dict = item.write_to_dict()
+                item_list.insert(before_index, item_dict)
+                item.persistent_object_context = parent.persistent_object_context
+            self.__write_properties(parent)
 
     def remove_item(self, parent, name, index, item):
-        storage_dict = self.__update_modified_and_get_storage_dict(parent)
-        with self.__properties2_lock:
-            item_list = storage_dict[name]
-            del item_list[index]
-        self.__write_properties(parent)
-        item.persistent_object_context = None
+        if isinstance(item, DataItem.LibraryItem):
+            item.persistent_object_context = None
+            self.unregister_data_item(item)
+        else:
+            storage_dict = self.__update_modified_and_get_storage_dict(parent)
+            with self.__properties2_lock:
+                item_list = storage_dict[name]
+                del item_list[index]
+            self.__write_properties(parent)
+            item.persistent_object_context = None
 
     def set_item(self, parent, name, item):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
@@ -173,14 +182,14 @@ class MemoryStorageSystem:
             assert storage_handler_reference not in self.trash
             self.trash[storage_handler_reference] = {"data": data, "properties": properties}
 
-    def restore_storage_handler(self, data_item_uuid: uuid.UUID):
+    def restore_item(self, data_item_uuid: uuid.UUID) -> typing.Tuple[typing.Optional[dict], bool]:
         data_item_uuid_str = str(data_item_uuid)
         trash_entry = self.trash.pop(data_item_uuid_str)
         assert data_item_uuid_str not in self.__properties
         assert data_item_uuid_str not in self.data
         self.__properties[data_item_uuid_str] = trash_entry["properties"]
         self.data[data_item_uuid_str] = trash_entry["data"]
-        return MemoryStorageHandler(data_item_uuid_str, self.__properties, self.data, self._test_data_read_event)
+        return self.__properties.get(data_item_uuid_str, dict()), False
 
     def purge_removed_storage_handlers(self):
         self.trash = dict()

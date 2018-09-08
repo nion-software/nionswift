@@ -144,21 +144,30 @@ class FileStorageSystem:
         return storage_dict
 
     def insert_item(self, parent, name, before_index, item):
-        storage_dict = self.__update_modified_and_get_storage_dict(parent)
-        with self.__properties_lock:
-            item_list = storage_dict.setdefault(name, list())
-            item_dict = item.write_to_dict()
-            item_list.insert(before_index, item_dict)
+        if isinstance(item, DataItem.LibraryItem):
             item.persistent_object_context = parent.persistent_object_context
-        self.__write_properties(parent)
+            storage_handler = self.make_storage_handler(item)
+            self.register_data_item(item, storage_handler, item.write_to_dict())
+        else:
+            storage_dict = self.__update_modified_and_get_storage_dict(parent)
+            with self.__properties_lock:
+                item_list = storage_dict.setdefault(name, list())
+                item_dict = item.write_to_dict()
+                item_list.insert(before_index, item_dict)
+                item.persistent_object_context = parent.persistent_object_context
+            self.__write_properties(parent)
 
     def remove_item(self, parent, name, index, item):
-        storage_dict = self.__update_modified_and_get_storage_dict(parent)
-        with self.__properties_lock:
-            item_list = storage_dict[name]
-            del item_list[index]
-        self.__write_properties(parent)
-        item.persistent_object_context = None
+        if isinstance(item, DataItem.LibraryItem):
+            item.persistent_object_context = None
+            self.unregister_data_item(item)
+        else:
+            storage_dict = self.__update_modified_and_get_storage_dict(parent)
+            with self.__properties_lock:
+                item_list = storage_dict[name]
+                del item_list[index]
+            self.__write_properties(parent)
+            item.persistent_object_context = None
 
     def set_item(self, parent, name, item):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
@@ -254,7 +263,7 @@ class FileStorageSystem:
             shutil.move(file_path, new_file_path)
         storage_handler.remove()
 
-    def restore_storage_handler(self, data_item_uuid: uuid.UUID):
+    def restore_item(self, data_item_uuid: uuid.UUID) -> typing.Tuple[typing.Optional[dict], bool]:
         data_item_uuid_str = str(data_item_uuid)
         trash_dir = os.path.join(self.__directories[0], "trash")
         storage_handlers = self.__find_storage_handlers([trash_dir], skip_trash=False)
@@ -271,8 +280,9 @@ class FileStorageSystem:
                     os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
                     shutil.move(old_file_path, new_file_path)
                 self.make_storage_handler(data_item, file_handler=None)
-                return storage_handler.make(new_file_path)
-        return None
+                large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
+                return properties, large_format
+        return None, False
 
     def purge_removed_storage_handlers(self):
         self.trash = dict()
