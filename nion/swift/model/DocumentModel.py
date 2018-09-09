@@ -72,19 +72,19 @@ def read_data_items_version_stats(persistent_storage_system):
     return count
 
 
-def read_data_items(library_storage_properties, persistent_storage_system, ignore_older_files, log_migrations):
+def read_data_items(persistent_storage_system, ignore_older_files, log_migrations):
     """Read data items from the data reference handler and return as a list.
 
     Data items will have persistent_object_context set upon return, but caller will need to call finish_reading
     on each of the data items.
     """
     storage_handlers = persistent_storage_system.find_data_items()
-    data_items_by_uuid = dict()
-    ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "storage_handler"])
+    ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "large_format", "storage_handler"])
     reader_info_list = list()
     for storage_handler in storage_handlers:
         try:
-            reader_info_list.append(ReaderInfo(storage_handler.read_properties(), [False], storage_handler))
+            large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
+            reader_info_list.append(ReaderInfo(storage_handler.read_properties(), [False], large_format, storage_handler))
         except Exception as e:
             import traceback
             logging.warning("Error reading %s", storage_handler.reference)
@@ -93,50 +93,10 @@ def read_data_items(library_storage_properties, persistent_storage_system, ignor
     if not ignore_older_files:
         migration_log = Migration.MigrationLog(log_migrations)
         Migration.migrate_to_latest(reader_info_list, library_updates, migration_log)
-    for reader_info in reader_info_list:
-        properties = reader_info.properties
-        properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
-        changed_ref = reader_info.changed_ref
-        storage_handler = reader_info.storage_handler
-        try:
-            version = properties.get("version", 0)
-            if version == DataItem.DataItem.writer_version:
-                data_item_uuid = uuid.UUID(properties["uuid"])
-                if changed_ref[0]:
-                    storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
-                # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
-                # NOTE: change writer_version in DataItem.py
-                if len(properties.get("data_item_uuids", list())) > 0:
-                    data_item = DataItem.CompositeLibraryItem(item_uuid=data_item_uuid)
-                else:
-                    large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
-                    data_item = DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
-                data_item.begin_reading()
-                data_item.read_from_dict(properties)
-                # persistent storage facilitates writing properties and relationships to the storage handler
-                persistent_storage_system.register_data_item(data_item, storage_handler, properties)
-                data_item.persistent_storage = persistent_storage_system
-                if log_migrations and data_item.uuid in data_items_by_uuid:
-                    logging.info("Warning: Duplicate data item %s", data_item.uuid)
-                data_items_by_uuid[data_item.uuid] = data_item
-                library_update = library_updates.get(data_item_uuid, dict())
-                library_storage_properties.setdefault("connections", list()).extend(library_update.get("connections", list()))
-                library_storage_properties.setdefault("computations", list()).extend(library_update.get("computations", list()))
-        except Exception as e:
-            logging.debug("Error reading %s", storage_handler.reference)
-            import traceback
-            traceback.print_exc()
-            traceback.print_stack()
-
-    def sort_by_date_key(data_item):
-        return data_item.created
-
-    data_items = list(data_items_by_uuid.values())
-    data_items.sort(key=sort_by_date_key)
-    return data_items
+    return reader_info_list, library_updates
 
 
-def auto_migrate_data_item(reader_info, persistent_storage_system, migration_log: Migration.MigrationLog) -> DataItem.LibraryItem:
+def auto_migrate_data_item(reader_info, persistent_storage_system, migration_log: Migration.MigrationLog):
     properties = reader_info.properties
     properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
     storage_handler = reader_info.storage_handler
@@ -151,25 +111,17 @@ def auto_migrate_data_item(reader_info, persistent_storage_system, migration_log
     file_handler = persistent_storage_system.get_file_handler_for_file(old_data_item_path)
     # ask the storage system to make a storage handler (an instance of a file handler) for the data item
     # this ensures that the storage handler (file format) is the same as before.
-    new_data_item = None
     target_storage_handler = persistent_storage_system.make_storage_handler(old_data_item, file_handler)
     if target_storage_handler:
         os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
         shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
         target_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
-        new_data_item = DataItem.DataItem(item_uuid=data_item_uuid)
-        new_data_item.begin_reading()
-        new_data_item.read_from_dict(properties)
-        # persistent storage facilitates writing properties and relationships to the storage handler
-        persistent_storage_system.register_data_item(new_data_item, target_storage_handler, properties)
-        new_data_item.persistent_storage = persistent_storage_system
         migration_log.push("Copying data item {} to library.".format(data_item_uuid))
     else:
         migration_log.push("Unable to copy data item %s to library.".format(data_item_uuid))
-    return new_data_item
 
 
-def auto_migrate_storage_system(library_storage_properties, *, auto_migration=None, new_persistent_storage_system=None, data_item_uuids=None, deletions: typing.Set[uuid.UUID] = None, utilized_deletions: typing.Set[uuid.UUID] = None):
+def auto_migrate_storage_system(*, auto_migration=None, new_persistent_storage_system=None, data_item_uuids=None, deletions: typing.Set[uuid.UUID] = None, utilized_deletions: typing.Set[uuid.UUID] = None):
     """Migrate items from the storage system to the object context.
 
     Files in data_item_uuids have already been loaded and are ignored (not migrated).
@@ -182,12 +134,12 @@ def auto_migrate_storage_system(library_storage_properties, *, auto_migration=No
     """
     persistent_storage_system = FileStorageSystem.FileStorageSystem(auto_migration.library_path, auto_migration.paths) if auto_migration.paths else auto_migration.storage_system
     storage_handlers = persistent_storage_system.find_data_items()
-    data_items_by_uuid = dict()
-    ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "storage_handler"])
+    ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "large_format", "storage_handler"])
     reader_info_list = list()
     for storage_handler in storage_handlers:
         try:
-            reader_info_list.append(ReaderInfo(storage_handler.read_properties(), [False], storage_handler))
+            large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
+            reader_info_list.append(ReaderInfo(storage_handler.read_properties(), [False], large_format, storage_handler))
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback
@@ -196,6 +148,7 @@ def auto_migrate_storage_system(library_storage_properties, *, auto_migration=No
     library_updates = dict()
     migration_log = Migration.MigrationLog(False)
     Migration.migrate_to_latest(reader_info_list, library_updates, migration_log)
+    good_reader_info_list = list()
     for reader_info in reader_info_list:
         properties = reader_info.properties
         storage_handler = reader_info.storage_handler
@@ -207,24 +160,14 @@ def auto_migrate_storage_system(library_storage_properties, *, auto_migration=No
                     if str(data_item_uuid) in deletions:
                         utilized_deletions.add(data_item_uuid)
                     else:
-                        new_data_item = auto_migrate_data_item(reader_info, new_persistent_storage_system, migration_log)
-                        if new_data_item:
-                            data_items_by_uuid[data_item_uuid] = new_data_item
-                            library_update = library_updates.get(data_item_uuid, dict())
-                            library_storage_properties.setdefault("connections", list()).extend(library_update.get("connections", list()))
-                            library_storage_properties.setdefault("computations", list()).extend(library_update.get("computations", list()))
+                        auto_migrate_data_item(reader_info, new_persistent_storage_system, migration_log)
+                        good_reader_info_list.append(reader_info)
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback
             traceback.print_exc()
             traceback.print_stack()
-
-    def sort_by_date_key(data_item):
-        return data_item.created
-
-    data_items = list(data_items_by_uuid.values())
-    data_items.sort(key=sort_by_date_key)
-    return data_items
+    return good_reader_info_list, library_updates
 
 
 class ComputationQueueItem:
@@ -709,25 +652,65 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __read(self):
         # first read the library (for deletions) and the library items from the primary storage systems
         library_storage_properties = self.__storage_system.library_storage_properties
-        data_items = read_data_items(library_storage_properties, self.__storage_system, self.__ignore_older_files, self.__log_migrations)
-        data_item_uuids = {data_item.uuid for data_item in data_items}
+
+        reader_info_list, library_updates = read_data_items(self.__storage_system, self.__ignore_older_files, self.__log_migrations)
+
+        data_item_uuids = {uuid.UUID(reader_info.properties.get("uuid")) for reader_info in reader_info_list}
         utilized_deletions = set()  # the uuid's skipped due to being deleted
         deletions = library_storage_properties.get("data_item_deletions", list())
         # next, for each auto migration, create a temporary storage system and read items from that storage system
         # using auto_migrate_storage_system. the data items returned will have been copied to the current storage
         # system (persistent object context).
         for auto_migration in self.__auto_migrations:
-            new_data_items = auto_migrate_storage_system(library_storage_properties,
-                                                         auto_migration=auto_migration,
-                                                         new_persistent_storage_system=self.__storage_system,
-                                                         data_item_uuids=data_item_uuids,
-                                                         deletions=deletions,
-                                                         utilized_deletions=utilized_deletions)
-            data_items.extend(new_data_items)
-            data_item_uuids.update({data_item.uuid for data_item in new_data_items})
-        for data_item in data_items:
-            self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
-            data_item.persistent_object_context = self.persistent_object_context
+            new_reader_info_list, new_library_updates = auto_migrate_storage_system(auto_migration=auto_migration,
+                                                                                    new_persistent_storage_system=self.__storage_system,
+                                                                                    data_item_uuids=data_item_uuids,
+                                                                                    deletions=deletions,
+                                                                                    utilized_deletions=utilized_deletions)
+            reader_info_list.extend(new_reader_info_list)
+            data_item_uuids.update({uuid.UUID(reader_info.properties.get("uuid")) for reader_info in new_reader_info_list})
+            library_updates.update(new_library_updates)
+
+        data_items_by_uuid = dict()
+
+        for reader_info in reader_info_list:
+            properties = reader_info.properties
+            properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
+            changed_ref = reader_info.changed_ref
+            storage_handler = reader_info.storage_handler
+            large_format = reader_info.large_format
+            try:
+                version = properties.get("version", 0)
+                if version == DataItem.DataItem.writer_version:
+                    data_item_uuid = uuid.UUID(properties["uuid"])
+                    if changed_ref[0]:
+                        storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
+                    data_item = self.__create_data_item_from_properties(properties, large_format)
+                    data_item.begin_reading()
+                    data_item.read_from_dict(properties)
+                    # persistent storage facilitates writing properties and relationships to the storage handler
+                    self.__storage_system.register_data_item(data_item, storage_handler, properties)
+                    data_item.persistent_storage = self.__storage_system
+                    self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
+                    data_item.persistent_object_context = self.persistent_object_context
+                    if self.__log_migrations and data_item.uuid in data_items_by_uuid:
+                        logging.info("Warning: Duplicate data item %s", data_item.uuid)
+                    data_items_by_uuid[data_item.uuid] = data_item
+                    library_update = library_updates.get(data_item_uuid, dict())
+                    library_storage_properties.setdefault("connections", list()).extend(library_update.get("connections", list()))
+                    library_storage_properties.setdefault("computations", list()).extend(library_update.get("computations", list()))
+            except Exception as e:
+                logging.debug("Error reading %s", storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+
+        def sort_by_date_key(data_item):
+            return data_item.created
+
+        data_items = list(data_items_by_uuid.values())
+        data_items.sort(key=sort_by_date_key)
+
         self.__storage_system.rewrite_properties(library_storage_properties)
         self.begin_reading()
         try:
