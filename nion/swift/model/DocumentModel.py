@@ -79,12 +79,18 @@ def read_data_items(persistent_storage_system, ignore_older_files, log_migration
     on each of the data items.
     """
     storage_handlers = persistent_storage_system.find_data_items()
-    ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "large_format", "storage_handler"])
+    ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "large_format", "storage_handler", "identifier"])
     reader_info_list = list()
+    data_item_uuids = set()
     for storage_handler in storage_handlers:
         try:
             large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
-            reader_info_list.append(ReaderInfo(storage_handler.read_properties(), [False], large_format, storage_handler))
+            properties = storage_handler.read_properties()
+            data_item_uuid = properties["uuid"]
+            if not data_item_uuid in data_item_uuids:
+                reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
+                reader_info_list.append(reader_info)
+                data_item_uuids.add(data_item_uuid)
         except Exception as e:
             import traceback
             logging.warning("Error reading %s", storage_handler.reference)
@@ -93,6 +99,19 @@ def read_data_items(persistent_storage_system, ignore_older_files, log_migration
     if not ignore_older_files:
         migration_log = Migration.MigrationLog(log_migrations)
         Migration.migrate_to_latest(reader_info_list, library_updates, migration_log)
+    for reader_info in reader_info_list:
+        storage_handler = reader_info.storage_handler
+        properties = reader_info.properties
+        try:
+            if reader_info.changed_ref[0]:
+                storage_handler.write_properties(reader_info.properties, datetime.datetime.now())
+            if properties.get("version", 0) == DataItem.DataItem.writer_version:
+                data_item_uuid = uuid.UUID(properties["uuid"])
+                persistent_storage_system.register_data_item(data_item_uuid, storage_handler, properties)
+        except Exception as e:
+            import traceback
+            logging.warning("Error rewriting %s", storage_handler.reference)
+            logging.debug(traceback.format_exc())
     return reader_info_list, library_updates
 
 
@@ -115,7 +134,8 @@ def auto_migrate_data_item(reader_info, persistent_storage_system, migration_log
     if target_storage_handler:
         os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
         shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
-        target_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
+        target_storage_handler.write_properties(properties, datetime.datetime.now())
+        persistent_storage_system.register_data_item(data_item_uuid, target_storage_handler, properties)
         migration_log.push("Copying data item {} to library.".format(data_item_uuid))
     else:
         migration_log.push("Unable to copy data item %s to library.".format(data_item_uuid))
@@ -134,12 +154,12 @@ def auto_migrate_storage_system(*, auto_migration=None, new_persistent_storage_s
     """
     persistent_storage_system = FileStorageSystem.FileStorageSystem(auto_migration.library_path, auto_migration.paths) if auto_migration.paths else auto_migration.storage_system
     storage_handlers = persistent_storage_system.find_data_items()
-    ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "large_format", "storage_handler"])
+    ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "large_format", "storage_handler", "identifier"])
     reader_info_list = list()
     for storage_handler in storage_handlers:
         try:
             large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
-            reader_info_list.append(ReaderInfo(storage_handler.read_properties(), [False], large_format, storage_handler))
+            reader_info_list.append(ReaderInfo(storage_handler.read_properties(), [False], large_format, storage_handler, storage_handler.reference))
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback
@@ -578,6 +598,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__thread_pool = ThreadPool.ThreadPool()
         self.__computation_thread_pool = ThreadPool.ThreadPool()
         self.__storage_system = storage_system if storage_system else MemoryStorageSystem.MemoryStorageSystem()
+        self.__storage_system.reset()  # this makes storage reusable during tests
         self.__ignore_older_files = ignore_older_files
         self.__log_migrations = log_migrations
 
@@ -671,28 +692,22 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item_uuids.update({uuid.UUID(reader_info.properties.get("uuid")) for reader_info in new_reader_info_list})
             library_updates.update(new_library_updates)
 
+        assert len(reader_info_list) == len(data_item_uuids)
+
         data_items_by_uuid = dict()
 
         for reader_info in reader_info_list:
             properties = reader_info.properties
             properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
-            changed_ref = reader_info.changed_ref
-            storage_handler = reader_info.storage_handler
             large_format = reader_info.large_format
             try:
                 version = properties.get("version", 0)
                 if version == DataItem.DataItem.writer_version:
                     data_item_uuid = uuid.UUID(properties["uuid"])
-                    if changed_ref[0]:
-                        storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
                     data_item = self.__create_data_item_from_properties(properties, large_format)
                     data_item.begin_reading()
                     data_item.read_from_dict(properties)
-                    # persistent storage facilitates writing properties and relationships to the storage handler
-                    self.__storage_system.register_data_item(data_item, storage_handler, properties)
-                    data_item.persistent_storage = self.__storage_system
-                    self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
-                    data_item.persistent_object_context = self.persistent_object_context
+                    data_item.finish_reading()
                     if self.__log_migrations and data_item.uuid in data_items_by_uuid:
                         logging.info("Warning: Duplicate data item %s", data_item.uuid)
                     data_items_by_uuid[data_item.uuid] = data_item
@@ -700,7 +715,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     library_storage_properties.setdefault("connections", list()).extend(library_update.get("connections", list()))
                     library_storage_properties.setdefault("computations", list()).extend(library_update.get("computations", list()))
             except Exception as e:
-                logging.debug("Error reading %s", storage_handler.reference)
+                logging.debug("Error reading %s", reader_info.identifier)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
@@ -721,17 +736,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.finish_reading()
 
     def __finish_read_partial(self, data_items: typing.List[DataItem.DataItem]) -> None:
+        # all sorts of interconnections may occur between data items and other objects. give the data item a chance to
+        # mark itself clean after reading all of them in.
         for index, data_item in enumerate(data_items):
             if data_item.uuid not in self.__uuid_to_data_item:
                 data_item.about_to_be_inserted(self)
                 self.__data_items.insert(index, data_item)
                 self.__uuid_to_data_item[data_item.uuid] = data_item
                 data_item.set_storage_cache(self.storage_cache)
-                data_item.set_session_manager(self)
-        # all sorts of interconnections may occur between data items and other objects. give the data item a chance to
-        # mark itself clean after reading all of them in.
-        for data_item in data_items:
-            data_item.finish_reading()
+                # persistent storage facilitates writing properties and relationships to the storage handler
+                data_item.persistent_storage = self.__storage_system
+                self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
+                data_item.persistent_object_context = self.persistent_object_context
 
     def __finish_read(self, utilized_deletions: typing.Set[uuid.UUID]) -> None:
         # deletions
@@ -742,6 +758,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
         for data_item in data_items:
             data_item.connect_data_items(self.get_data_item_by_uuid)
+            data_item.set_session_manager(self)
         # this loop reestablishes dependencies now that everything is loaded.
         # the change listener for the computation will already have been established via the regular
         # loading mechanism; but because some data items may not have been loaded at the first time computation

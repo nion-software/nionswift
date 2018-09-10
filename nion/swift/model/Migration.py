@@ -578,7 +578,7 @@ def migrate_to_v2(reader_info_list, migration_log: MigrationLog):
                     properties["master_data_dtype"] = str(temp_data.dtype)
                     properties["master_data_shape"] = temp_data.shape
                 properties["displays"] = [{}]
-                properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
+                properties["uuid"] = properties.get("uuid", str(uuid.uuid4()))  # assign a new uuid if it doesn't exist
                 properties["version"] = 2
                 migration_log.push("Updated {} to {} (ndata1)".format(storage_handler.reference, properties["version"]))
         except Exception as e:

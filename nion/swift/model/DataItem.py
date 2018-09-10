@@ -773,6 +773,11 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
                 self.persistent_storage.set_write_delayed(self, False)
             self._finish_pending_write()
 
+    def write_to_dict(self):
+        properties = super().write_to_dict()
+        properties["version"] = DataItem.writer_version
+        return properties
+
     def _finish_write(self):
         pass
 

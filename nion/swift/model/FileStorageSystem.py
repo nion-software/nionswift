@@ -26,7 +26,7 @@ class DataItemStorageAdapter:
         remove()
     """
 
-    def __init__(self, storage_system, storage_handler, data_item, properties):
+    def __init__(self, storage_system, storage_handler, properties):
         self.__storage_system = storage_system
         self.__storage_handler = storage_handler
         self.__properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
@@ -56,7 +56,7 @@ class DataItemStorageAdapter:
     def rewrite_item(self, data_item) -> None:
         if not self.__write_delayed:
             file_datetime = data_item.created_local
-            self.__storage_handler.write_properties(self.properties, file_datetime)
+            self.__storage_handler.write_properties(self.__properties, file_datetime)
 
     def update_data(self, data_item, data):
         if not self.__write_delayed:
@@ -81,6 +81,9 @@ class FileStorageSystem:
         self.__properties = self.__read_properties()
         self.__properties_lock = threading.RLock()
 
+    def reset(self):
+        self.__data_item_storage = dict()
+
     def __read_properties(self):
         properties = dict()
         if self.__filepath and os.path.exists(self.__filepath):
@@ -95,8 +98,8 @@ class FileStorageSystem:
     def __write_properties(self, object):
         persistent_object_parent = object.persistent_object_parent if object else None
         if not persistent_object_parent:
-            if object in self.__data_item_storage:
-                self.__data_item_storage[object].rewrite_item(object)
+            if object and isinstance(object, DataItem.LibraryItem):
+                self.__get_storage_for_item(object).rewrite_item(object)
             else:
                 if self.__filepath:
                     # atomically overwrite
@@ -126,8 +129,8 @@ class FileStorageSystem:
     def __get_storage_dict(self, object):
         persistent_object_parent = object.persistent_object_parent
         if not persistent_object_parent:
-            if object in self.__data_item_storage:
-                return self.__data_item_storage[object].properties
+            if isinstance(object, DataItem.LibraryItem):
+                return self.__get_storage_for_item(object).properties
             return self.__properties
         else:
             parent_storage_dict = self.__get_storage_dict(persistent_object_parent.parent)
@@ -147,7 +150,7 @@ class FileStorageSystem:
         if isinstance(item, DataItem.LibraryItem):
             item.persistent_object_context = parent.persistent_object_context
             storage_handler = self.make_storage_handler(item)
-            self.register_data_item(item, storage_handler, item.write_to_dict())
+            self.register_data_item(item.uuid, storage_handler, item.write_to_dict())
         else:
             storage_dict = self.__update_modified_and_get_storage_dict(parent)
             with self.__properties_lock:
@@ -299,16 +302,19 @@ class FileStorageSystem:
                     file_path = pathlib.Path(root) / pathlib.Path(file)
                     file_path.unlink()
 
-    def register_data_item(self, item: DataItem, storage_handler, properties: dict) -> None:
-        assert item not in self.__data_item_storage
-        self.__data_item_storage[item] = DataItemStorageAdapter(self, storage_handler, item, properties)
+    def register_data_item(self, item_uuid: uuid.UUID, storage_handler, properties: dict) -> None:
+        assert item_uuid not in self.__data_item_storage
+        self.__data_item_storage[item_uuid] = DataItemStorageAdapter(self, storage_handler, properties)
 
     def unregister_data_item(self, item: DataItem) -> None:
-        assert item in self.__data_item_storage
-        self.__data_item_storage.pop(item).close()
+        assert item.uuid in self.__data_item_storage
+        self.__data_item_storage.pop(item.uuid).close()
 
     def __get_storage_for_item(self, item: DataItem) -> DataItemStorageAdapter:
-        return self.__data_item_storage.get(item)
+        if not item.uuid in self.__data_item_storage:
+            storage_handler = self.make_storage_handler(item)
+            self.register_data_item(item.uuid, storage_handler, item.write_to_dict())
+        return self.__data_item_storage.get(item.uuid)
 
     def _get_file_path(self, data_item: DataItem) -> typing.Optional[str]:
         storage = self.__get_storage_for_item(data_item)
