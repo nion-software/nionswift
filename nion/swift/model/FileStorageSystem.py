@@ -320,13 +320,17 @@ class FileStorageSystem:
         storage = self.__get_storage_for_item(data_item)
         return storage._storage_handler.reference if storage else None
 
-    def update_data(self, data_item, data):
-        storage = self.__get_storage_for_item(data_item)
-        storage.update_data(data_item, data)
+    def update_data(self, item, data):
+        if isinstance(item, DataItem.BufferedDataSource):
+            item = item.persistent_object_parent.parent
+        storage = self.__get_storage_for_item(item)
+        storage.update_data(item, data)
 
-    def load_data(self, data_item):
-        storage = self.__get_storage_for_item(data_item)
-        return storage.load_data(data_item)
+    def load_data(self, item):
+        if isinstance(item, DataItem.BufferedDataSource):
+            item = item.persistent_object_parent.parent
+        storage = self.__get_storage_for_item(item)
+        return storage.load_data(item)
 
     def delete_item(self, data_item, safe: bool=False) -> None:
         storage = self.__get_storage_for_item(data_item)

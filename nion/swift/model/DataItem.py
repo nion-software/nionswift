@@ -299,7 +299,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
 
     def __load_data(self):
         if self.persistent_storage:
-            return self.persistent_storage.load_data(self.persistent_object_parent.parent)
+            return self.persistent_storage.load_data(self)
         return None
 
     def __set_data_metadata_direct(self, data_and_metadata, data_modified=None):
@@ -342,7 +342,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
             if self.__data_and_metadata is not None:
                 if self.persistent_storage:
-                    self.persistent_storage.update_data(self.persistent_object_parent.parent, self.__data_and_metadata.data)
+                    self.persistent_storage.update_data(self, self.__data_and_metadata.data)
                     self.__data_and_metadata.unloadable = True
         finally:
             self.decrement_data_ref_count()
