@@ -79,12 +79,6 @@ class CalibrationList:
 """
 
 
-# enumerations for types of data item content changes
-DATA = 1
-METADATA = 2
-DISPLAYS = 3
-
-
 class DtypeToStringConverter:
     def convert(self, value):
         return str(value) if value is not None else None
