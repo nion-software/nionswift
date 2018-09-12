@@ -105,16 +105,15 @@ class FileStorageSystem:
 
     def __write_properties(self, object):
         persistent_object_parent = object.persistent_object_parent if object else None
-        if not persistent_object_parent:
-            if object and isinstance(object, DataItem.LibraryItem):
-                self.__get_storage_for_item(object).rewrite_item(object)
-            else:
-                if self.__filepath:
-                    # atomically overwrite
-                    temp_filepath = self.__filepath + ".temp"
-                    with open(temp_filepath, "w") as fp:
-                        json.dump(self.__properties, fp)
-                    os.replace(temp_filepath, self.__filepath)
+        if object and isinstance(object, DataItem.LibraryItem):
+            self.__get_storage_for_item(object).rewrite_item(object)
+        elif not persistent_object_parent:
+            if self.__filepath:
+                # atomically overwrite
+                temp_filepath = self.__filepath + ".temp"
+                with open(temp_filepath, "w") as fp:
+                    json.dump(self.__properties, fp)
+                os.replace(temp_filepath, self.__filepath)
         else:
             self.__write_properties(persistent_object_parent.parent)
 
@@ -136,9 +135,9 @@ class FileStorageSystem:
 
     def __get_storage_dict(self, object):
         persistent_object_parent = object.persistent_object_parent
+        if isinstance(object, DataItem.LibraryItem):
+            return self.__get_storage_for_item(object).properties
         if not persistent_object_parent:
-            if isinstance(object, DataItem.LibraryItem):
-                return self.__get_storage_for_item(object).properties
             return self.__properties
         else:
             parent_storage_dict = self.__get_storage_dict(persistent_object_parent.parent)
