@@ -221,7 +221,11 @@ class Application(UIApplication.Application):
         else:
             if welcome_message_enabled:
                 logging.info("Using existing document %s", library_path)
-        file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))])
+        auto_migrations = list()
+        auto_migrations.append(DocumentModel.AutoMigration(paths=[os.path.join(workspace_dir, "Nion Swift Data")]))
+        auto_migrations.append(DocumentModel.AutoMigration(paths=[os.path.join(workspace_dir, "Nion Swift Data 10")]))
+        auto_migrations.append(DocumentModel.AutoMigration(paths=[os.path.join(workspace_dir, "Nion Swift Data 11")]))
+        file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))], auto_migrations=auto_migrations)
         counts = DocumentModel.read_data_items_version_stats(file_persistent_storage_system)
         if counts[2] > 0:
 
@@ -295,13 +299,8 @@ class Application(UIApplication.Application):
     def continue_start(self, cache_path, create_new_document, file_persistent_storage_system, workspace_dir, ignore_older_files, welcome_message=True):
         storage_cache = Cache.DbStorageCache(cache_path)
         DocumentModel.DocumentModel.computation_min_period = 0.1
-        auto_migrations = list()
-        auto_migrations.append(DocumentModel.AutoMigration(paths=[os.path.join(workspace_dir, "Nion Swift Data")]))
-        auto_migrations.append(DocumentModel.AutoMigration(paths=[os.path.join(workspace_dir, "Nion Swift Data 10")]))
-        auto_migrations.append(DocumentModel.AutoMigration(paths=[os.path.join(workspace_dir, "Nion Swift Data 11")]))
         document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system,
-                                                     storage_cache=storage_cache, ignore_older_files=ignore_older_files,
-                                                     auto_migrations=auto_migrations)
+                                                     storage_cache=storage_cache, ignore_older_files=ignore_older_files)
         document_model.create_default_data_groups()
         document_model.start_dispatcher()
         # parse the hardware aliases file

@@ -73,16 +73,22 @@ class FileStorageSystem:
 
     _file_handlers = [NDataHandler.NDataHandler, HDF5Handler.HDF5Handler]
 
-    def __init__(self, file_path, directories):
+    def __init__(self, file_path, directories, *, auto_migrations=None):
         self.__directories = directories
         self.__file_handlers = FileStorageSystem._file_handlers
         self.__data_item_storage = dict()
         self.__filepath = file_path
         self.__properties = self.__read_properties()
         self.__properties_lock = threading.RLock()
+        self.__auto_migrations = auto_migrations or list()
+        for auto_migration in self.__auto_migrations:
+            auto_migration.storage_system = self
 
     def reset(self):
         self.__data_item_storage = dict()
+
+    def get_auto_migrations(self):
+        return self.__auto_migrations
 
     def __read_properties(self):
         properties = dict()

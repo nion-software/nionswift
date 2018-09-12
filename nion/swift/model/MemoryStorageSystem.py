@@ -42,7 +42,7 @@ class MemoryStorageHandler:
 
 class MemoryStorageSystem:
 
-    def __init__(self):
+    def __init__(self, *, auto_migrations=None):
         self.data = dict()
         self.__properties = dict()
         self.trash = dict()
@@ -50,6 +50,9 @@ class MemoryStorageSystem:
         self.__properties2 = dict()
         self.__properties2_lock = threading.RLock()
         self.__data_item_storage = dict()
+        self.__auto_migrations = auto_migrations or list()
+        for auto_migration in self.__auto_migrations:
+            auto_migration.storage_system = self
 
     def __deepcopy__(self, memo):
         deepcopy = self.__class__()
@@ -61,6 +64,9 @@ class MemoryStorageSystem:
 
     def reset(self):
         self.__data_item_storage = dict()
+
+    def get_auto_migrations(self):
+        return self.__auto_migrations
 
     def __write_properties(self, object):
         persistent_object_parent = object.persistent_object_parent if object else None
