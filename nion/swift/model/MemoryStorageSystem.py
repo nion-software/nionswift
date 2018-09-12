@@ -251,3 +251,9 @@ class MemoryStorageSystem:
     def rewrite_item(self, data_item) -> None:
         storage = self.__get_storage_for_item(data_item)
         storage.rewrite_item(data_item)
+
+    def read_data_items_version_stats(self):
+        return FileStorageSystem.read_data_items_version_stats(self)
+
+    def read_data_items(self, ignore_older_files, log_migrations):
+        return FileStorageSystem.read_data_items(self, ignore_older_files, log_migrations)

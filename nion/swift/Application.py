@@ -226,7 +226,7 @@ class Application(UIApplication.Application):
         auto_migrations.append(DocumentModel.AutoMigration(paths=[os.path.join(workspace_dir, "Nion Swift Data 10")]))
         auto_migrations.append(DocumentModel.AutoMigration(paths=[os.path.join(workspace_dir, "Nion Swift Data 11")]))
         file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))], auto_migrations=auto_migrations)
-        counts = DocumentModel.read_data_items_version_stats(file_persistent_storage_system)
+        counts = file_persistent_storage_system.read_data_items_version_stats()
         if counts[2] > 0:
 
             assert fixed_workspace_dir is None
