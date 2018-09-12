@@ -273,6 +273,16 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         return self.__referenced_objects.values()
 
 
+def data_item_factory(lookup_id):
+    data_item_uuid = uuid.UUID(lookup_id("uuid"))
+    if len(lookup_id("data_item_uuids", list())) > 0:
+        data_item = DataItem.CompositeLibraryItem(item_uuid=data_item_uuid)
+    else:
+        large_format = lookup_id("__large_format", False)
+        data_item = DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
+    return data_item
+
+
 def computation_factory(lookup_id):
     return Symbolic.Computation()
 
@@ -476,7 +486,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__dependency_tree_lock = threading.RLock()
         self.__dependency_tree_source_to_target_map = dict()
         self.__dependency_tree_target_to_source_map = dict()
-        self.__data_items = list()
         self.__uuid_to_data_item = dict()
         self.__computation_changed_listeners = dict()
         self.__computation_output_changed_listeners = dict()
@@ -486,6 +495,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_pending_queue = list()  # type: typing.List[ComputationQueueItem]
         self.__computation_active_item = None  # type: ComputationQueueItem
         self.define_type("library")
+        self.define_relationship("data_items", data_item_factory)
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)
         self.define_relationship("computations", computation_factory, insert=self.__inserted_computation, remove=self.__removed_computation)
@@ -537,47 +547,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.begin_reading()
         try:
             self.read_from_dict(properties)
-            self.__read_data_items(properties)
             self.__finish_read()
         finally:
             self.finish_reading()
 
-    def __read_data_items(self, properties: typing.Mapping) -> None:
-        data_items = list()
-
-        for data_item_properties in properties.get("data_items", list()):
-            identifier = data_item_properties.get("__identifier", data_item_properties.get("uuid", "N/A"))
-            try:
-                large_format = data_item_properties.get("__large_format", False)
-                data_item = self.__create_data_item_from_properties(data_item_properties, large_format)
-                data_item.begin_reading()
-                data_item.read_from_dict(data_item_properties)
-                data_item.finish_reading()
-                data_items.append(data_item)
-            except Exception as e:
-                logging.debug("Error reading %s", identifier)
-                import traceback
-                traceback.print_exc()
-                traceback.print_stack()
-
-        data_items.sort(key=lambda data_item: data_item.created)
-
-        # all sorts of interconnections may occur between data items and other objects. give the data item a chance to
-        # mark itself clean after reading all of them in.
-        for index, data_item in enumerate(data_items):
-            if data_item.uuid not in self.__uuid_to_data_item:
-                data_item.about_to_be_inserted(self)
-                self.__data_items.insert(index, data_item)
-                self.__uuid_to_data_item[data_item.uuid] = data_item
-                data_item.set_storage_cache(self.storage_cache)
-                # persistent storage facilitates writing properties and relationships to the storage handler
-                data_item.persistent_storage = self.__storage_system
-                self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
-                data_item.persistent_object_context = self.persistent_object_context
-
     def __finish_read(self) -> None:
         # computations and connections
         data_items = self.data_items
+        for data_item in data_items:
+            self.__uuid_to_data_item[data_item.uuid] = data_item
+            data_item.about_to_be_inserted(self)
+            data_item.set_storage_cache(self.storage_cache)
+            # persistent storage facilitates writing properties and relationships to the storage handler
+            data_item.persistent_storage = self.__storage_system
+            self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
         for data_item in data_items:
             self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
         for data_item in data_items:
@@ -610,6 +593,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 data_item = self.__uuid_to_data_item[data_item_uuid]
                 data_item.set_r_value(r_var, notify_changed=False)
         self._set_persistent_property_value("data_item_variables", new_data_item_variables)
+
+    def write_to_dict(self):
+        # this should not be used in regular operation of the application since it is
+        # incredibly inefficient (writing # data items). it is left here, with a warning,
+        #  as a useful debugging tool.
+        logging.warning("Writing library to dict (please report as bug).")
+        return super().write_to_dict()
 
     def close(self):
         # stop computations
@@ -729,8 +719,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         This method is NOT threadsafe.
         """
         assert data_item is not None
-        assert data_item not in self.__data_items
-        assert before_index <= len(self.__data_items) and before_index >= 0
+        assert data_item not in self.data_items
+        assert before_index <= len(self.data_items) and before_index >= 0
         assert data_item.uuid not in self.__uuid_to_data_item
         # ensure the data item has a new persistent storage
         assert not data_item.persistent_storage
@@ -741,12 +731,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__insert_data_item(before_index, data_item, do_write)
 
     def __insert_data_item(self, before_index, data_item, do_write):
-        data_item.about_to_be_inserted(self)
-        self.__data_items.insert(before_index, data_item)
+        self.insert_item("data_items", before_index, data_item)
+
         self.__uuid_to_data_item[data_item.uuid] = data_item
-        # TODO: future should deal with persistent object parent too
-        if self.persistent_object_context:
-            self.persistent_object_context.item_inserted(self, "data_items", before_index, data_item)  # this will also update item's persistent_object_context
+        data_item.about_to_be_inserted(self)
         data_item.set_storage_cache(self.storage_cache)
         # persistent storage facilitates writing properties and relationships to the storage handler
         # persistent object context tracks the persistent storage for each object in the system
@@ -809,10 +797,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.about_to_be_removed()
         # remove it from the persistent_storage
         assert data_item is not None
-        assert data_item in self.__data_items
-        index = self.__data_items.index(data_item)
-        # do actual removal
-        del self.__data_items[index]
+        assert data_item in self.data_items
+        index = self.data_items.index(data_item)
+
         self._set_persistent_property_value("data_item_deletions", self._get_persistent_property_value("data_item_deletions") + [str(data_item.uuid)])
         self.__uuid_to_data_item.pop(data_item.uuid, None)
         if data_item.r_var:
@@ -824,30 +811,21 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         persistent_storage = data_item.persistent_storage
         persistent_storage.delete_item(data_item, safe=safe)
         data_item.__storage_cache = None
-        # TODO: future should deal with persistent object parent too
-        if self.persistent_object_context:
-            self.persistent_object_context.item_removed(self, "data_items", index, data_item)  # this will also update item's persistent_object_context
         # update data item count
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_removed(data_item)
         self.data_item_removed_event.fire(self, data_item, index, False)
         self.notify_remove_item("data_items", data_item, index)
+
+        self.remove_item("data_items", data_item)
+
         data_item.close()
         return undelete_log
 
-    def __create_data_item_from_properties(self, properties: typing.Mapping, large_format: bool) -> DataItem.DataItem:
-        # creates an empty data item from properties; the properties are not used to populate the data item.
-        data_item_uuid = uuid.UUID(properties.get("uuid"))
-        if len(properties.get("data_item_uuids", list())) > 0:
-            data_item = DataItem.CompositeLibraryItem(item_uuid=data_item_uuid)
-        else:
-            data_item = DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
-        return data_item
-
     def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int=None) -> DataItem.DataItem:
         before_index = before_index if before_index is not None else len(self.data_items)
-        properties, large_format = self.__storage_system.restore_item(data_item_uuid)
-        data_item = self.__create_data_item_from_properties(properties, large_format)
+        properties = self.__storage_system.restore_item(data_item_uuid)
+        data_item = data_item_factory(lambda k, dv=None: properties.get(k, dv))
         data_item.begin_reading()
         data_item.read_from_dict(properties)
         # insert in internal list
@@ -1225,10 +1203,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     self.__add_dependency(input, output)
         if removed_inputs or added_inputs or removed_outputs or added_outputs:
             self.__transaction_manager._rebuild_transactions()
-
-    @property
-    def data_items(self):
-        return tuple(self.__data_items)  # tuple makes it read only
 
     # live state, and dependencies
 

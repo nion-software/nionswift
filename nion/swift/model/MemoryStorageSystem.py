@@ -197,7 +197,9 @@ class MemoryStorageSystem:
         assert data_item_uuid_str not in self.data
         self.__properties[data_item_uuid_str] = trash_entry["properties"]
         self.data[data_item_uuid_str] = trash_entry["data"]
-        return self.__properties.get(data_item_uuid_str, dict()), False
+        properties = self.__properties.get(data_item_uuid_str, dict())
+        properties["__large_format"] = False
+        return properties
 
     def purge_removed_storage_handlers(self):
         self.trash = dict()

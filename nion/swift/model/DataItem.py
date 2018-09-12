@@ -1269,6 +1269,10 @@ class DataItem(LibraryItem):
             data_source.about_to_be_removed()
         super().about_to_be_removed()
 
+    def read_from_dict(self, properties):
+        super().read_from_dict(properties)
+        self.large_format = properties.get("__large_format", self.large_format)
+
     def _set_persistent_storage(self, persistent_storage):
         super()._set_persistent_storage(persistent_storage)
         if self.data_source:

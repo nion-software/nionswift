@@ -290,8 +290,8 @@ class FileStorageSystem:
                     os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
                     shutil.move(old_file_path, new_file_path)
                 self.make_storage_handler(data_item, file_handler=None)
-                large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
-                return properties, large_format
+                properties["__large_format"] = isinstance(storage_handler, HDF5Handler.HDF5Handler)
+                return properties
         return None, False
 
     def purge_removed_storage_handlers(self):
@@ -468,7 +468,7 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
 
     persistent_storage_system.rewrite_properties(library_storage_properties)
 
-    properties = library_storage_properties
+    properties = copy.deepcopy(library_storage_properties)
 
     for reader_info in reader_info_list:
         data_item_properties = Utility.clean_dict(reader_info.properties if reader_info.properties else dict())
@@ -476,6 +476,11 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
             data_item_properties["__large_format"] = reader_info.large_format
             data_item_properties["__identifier"] = reader_info.identifier
             properties.setdefault("data_items", list()).append(data_item_properties)
+
+    def data_item_created(data_item_properties: typing.Mapping) -> str:
+        return data_item_properties.get("created", "1900-01-01T00:00:00.000000")
+
+    properties["data_items"] = sorted(properties.get("data_items", list()), key=data_item_created)
 
     return properties
 
