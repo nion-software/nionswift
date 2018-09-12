@@ -532,7 +532,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __read(self):
         # first read the library (for deletions) and the library items from the primary storage systems
-        reader_info_list, library_updates, utilized_deletions, library_storage_properties = self.__storage_system.read_data_items(self.__ignore_older_files, self.__log_migrations)
+        reader_info_list, library_storage_properties = self.__storage_system.read_data_items(self.__ignore_older_files, self.__log_migrations)
 
         data_items = list()
 
@@ -560,7 +560,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         try:
             self.read_from_dict(library_storage_properties)
             self.__finish_read_partial(data_items)
-            self.__finish_read(utilized_deletions)
+            self.__finish_read()
         finally:
             self.finish_reading()
 
@@ -578,9 +578,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
                 data_item.persistent_object_context = self.persistent_object_context
 
-    def __finish_read(self, utilized_deletions: typing.Set[uuid.UUID]) -> None:
-        # deletions
-        self._set_persistent_property_value("data_item_deletions", [str(uuid_) for uuid_ in utilized_deletions])
+    def __finish_read(self) -> None:
         # computations and connections
         data_items = self.data_items
         for data_item in data_items:

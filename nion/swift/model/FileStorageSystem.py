@@ -453,6 +453,12 @@ def read_data_items(persistent_storage_system, ignore_older_files, log_migration
             library_storage_properties.setdefault("connections", list()).extend(library_update.get("connections", list()))
             library_storage_properties.setdefault("computations", list()).extend(library_update.get("computations", list()))
 
+    # mark deletions that need to be tracked because they've been deleted but are also present in older libraries
+    # and would be migrated during reading unless they explicitly are prevented from doing so (via data_item_deletions).
+    # utilized deletions are the ones that were attempted; if nothing was attempted, then no reason to track it anymore
+    # since there is nothing to migrate in the future.
+    library_storage_properties["data_item_deletions"] = [str(uuid_) for uuid_ in utilized_deletions]
+
     connections_list = library_storage_properties.get("connections", list())
     assert len(connections_list) == len({connection.get("uuid") for connection in connections_list})
 
@@ -463,7 +469,7 @@ def read_data_items(persistent_storage_system, ignore_older_files, log_migration
 
     persistent_storage_system.rewrite_properties(library_storage_properties)
 
-    return reader_info_list, library_updates, utilized_deletions, library_storage_properties
+    return reader_info_list, library_storage_properties
 
 
 def auto_migrate_data_item(reader_info, persistent_storage_system, migration_log: Migration.MigrationLog):
