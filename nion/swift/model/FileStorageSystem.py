@@ -359,8 +359,8 @@ class FileStorageSystem:
     def read_data_items_version_stats(self):
         return read_data_items_version_stats(self)
 
-    def read_data_items(self, ignore_older_files, log_migrations):
-        return read_data_items(self, ignore_older_files, log_migrations)
+    def read_library(self, ignore_older_files, log_migrations):
+        return read_library(self, ignore_older_files, log_migrations)
 
 
 def read_data_items_version_stats(persistent_storage_system):
@@ -383,7 +383,7 @@ def read_data_items_version_stats(persistent_storage_system):
     return count
 
 
-def read_data_items(persistent_storage_system, ignore_older_files, log_migrations):
+def read_library(persistent_storage_system, ignore_older_files, log_migrations):
     """Read data items from the data reference handler and return as a list.
 
     Data items will have persistent_object_context set upon return, but caller will need to call finish_reading
@@ -469,7 +469,16 @@ def read_data_items(persistent_storage_system, ignore_older_files, log_migration
 
     persistent_storage_system.rewrite_properties(library_storage_properties)
 
-    return reader_info_list, library_storage_properties
+    properties = library_storage_properties
+
+    for reader_info in reader_info_list:
+        data_item_properties = Utility.clean_dict(reader_info.properties if reader_info.properties else dict())
+        if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
+            data_item_properties["__large_format"] = reader_info.large_format
+            data_item_properties["__identifier"] = reader_info.identifier
+            properties.setdefault("data_items", list()).append(data_item_properties)
+
+    return properties
 
 
 def auto_migrate_data_item(reader_info, persistent_storage_system, migration_log: Migration.MigrationLog):

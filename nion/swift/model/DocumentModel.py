@@ -532,39 +532,36 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __read(self):
         # first read the library (for deletions) and the library items from the primary storage systems
-        reader_info_list, library_storage_properties = self.__storage_system.read_data_items(self.__ignore_older_files, self.__log_migrations)
+        properties = self.__storage_system.read_library(self.__ignore_older_files, self.__log_migrations)
 
+        self.begin_reading()
+        try:
+            self.read_from_dict(properties)
+            self.__read_data_items(properties)
+            self.__finish_read()
+        finally:
+            self.finish_reading()
+
+    def __read_data_items(self, properties: typing.Mapping) -> None:
         data_items = list()
 
-        for reader_info in reader_info_list:
-            properties = reader_info.properties
-            properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
-            large_format = reader_info.large_format
+        for data_item_properties in properties.get("data_items", list()):
+            identifier = data_item_properties.get("__identifier", data_item_properties.get("uuid", "N/A"))
             try:
-                version = properties.get("version", 0)
-                if version == DataItem.DataItem.writer_version:
-                    data_item = self.__create_data_item_from_properties(properties, large_format)
-                    data_item.begin_reading()
-                    data_item.read_from_dict(properties)
-                    data_item.finish_reading()
-                    data_items.append(data_item)
+                large_format = data_item_properties.get("__large_format", False)
+                data_item = self.__create_data_item_from_properties(data_item_properties, large_format)
+                data_item.begin_reading()
+                data_item.read_from_dict(data_item_properties)
+                data_item.finish_reading()
+                data_items.append(data_item)
             except Exception as e:
-                logging.debug("Error reading %s", reader_info.identifier)
+                logging.debug("Error reading %s", identifier)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
 
         data_items.sort(key=lambda data_item: data_item.created)
 
-        self.begin_reading()
-        try:
-            self.read_from_dict(library_storage_properties)
-            self.__finish_read_partial(data_items)
-            self.__finish_read()
-        finally:
-            self.finish_reading()
-
-    def __finish_read_partial(self, data_items: typing.List[DataItem.DataItem]) -> None:
         # all sorts of interconnections may occur between data items and other objects. give the data item a chance to
         # mark itself clean after reading all of them in.
         for index, data_item in enumerate(data_items):
@@ -838,7 +835,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.close()
         return undelete_log
 
-    def __create_data_item_from_properties(self, properties: dict, large_format: bool) -> DataItem.DataItem:
+    def __create_data_item_from_properties(self, properties: typing.Mapping, large_format: bool) -> DataItem.DataItem:
         # creates an empty data item from properties; the properties are not used to populate the data item.
         data_item_uuid = uuid.UUID(properties.get("uuid"))
         if len(properties.get("data_item_uuids", list())) > 0:
