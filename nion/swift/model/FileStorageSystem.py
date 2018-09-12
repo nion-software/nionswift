@@ -453,9 +453,17 @@ def read_data_items(persistent_storage_system, ignore_older_files, log_migration
             library_storage_properties.setdefault("connections", list()).extend(library_update.get("connections", list()))
             library_storage_properties.setdefault("computations", list()).extend(library_update.get("computations", list()))
 
+    connections_list = library_storage_properties.get("connections", list())
+    assert len(connections_list) == len({connection.get("uuid") for connection in connections_list})
+
+    computations_list = library_storage_properties.get("computations", list())
+    assert len(computations_list) == len({computation.get("uuid") for computation in computations_list})
+
+    # TODO: add consistency checks: no duplicated items [by uuid] such as connections or computations or data items
+
     persistent_storage_system.rewrite_properties(library_storage_properties)
 
-    return reader_info_list, library_updates, utilized_deletions
+    return reader_info_list, library_updates, utilized_deletions, library_storage_properties
 
 
 def auto_migrate_data_item(reader_info, persistent_storage_system, migration_log: Migration.MigrationLog):
@@ -508,10 +516,11 @@ def auto_migrate_storage_system(*, auto_migration=None, new_persistent_storage_s
             import traceback
             traceback.print_exc()
             traceback.print_stack()
-    library_updates = dict()
+    preliminary_library_updates = dict()
     migration_log = Migration.MigrationLog(False)
-    Migration.migrate_to_latest(reader_info_list, library_updates, migration_log)
+    Migration.migrate_to_latest(reader_info_list, preliminary_library_updates, migration_log)
     good_reader_info_list = list()
+    library_updates = dict()
     for reader_info in reader_info_list:
         properties = reader_info.properties
         storage_handler = reader_info.storage_handler
@@ -525,6 +534,9 @@ def auto_migrate_storage_system(*, auto_migration=None, new_persistent_storage_s
                     else:
                         auto_migrate_data_item(reader_info, new_persistent_storage_system, migration_log)
                         good_reader_info_list.append(reader_info)
+                        library_update = preliminary_library_updates.get(data_item_uuid)
+                        if library_update:
+                            library_updates[data_item_uuid] = library_update
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback

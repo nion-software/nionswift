@@ -532,7 +532,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __read(self):
         # first read the library (for deletions) and the library items from the primary storage systems
-        reader_info_list, library_updates, utilized_deletions = self.__storage_system.read_data_items(self.__ignore_older_files, self.__log_migrations)
+        reader_info_list, library_updates, utilized_deletions, library_storage_properties = self.__storage_system.read_data_items(self.__ignore_older_files, self.__log_migrations)
 
         data_items = list()
 
@@ -558,7 +558,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         self.begin_reading()
         try:
-            self.read_from_dict(self.__storage_system.library_storage_properties)
+            self.read_from_dict(library_storage_properties)
             self.__finish_read_partial(data_items)
             self.__finish_read(utilized_deletions)
         finally:
