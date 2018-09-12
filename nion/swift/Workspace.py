@@ -797,11 +797,15 @@ class Workspace:
 
         def _get_modified_state(self):
             workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-            return workspace_layout.modified_state
+            return workspace_layout.modified_state, self.__workspace_controller.document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
             workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-            workspace_layout.modified_state = modified_state
+            workspace_layout.modified_state, self.__workspace_controller.document_model.modified_state = modified_state
+
+        def _compare_modified_states(self, state1, state2) -> bool:
+            # override to allow the undo command to track state; but only use part of the state for comparison
+            return state1[0] == state2[0]
 
         @property
         def _old_splits(self):
@@ -848,11 +852,15 @@ class Workspace:
 
         def _get_modified_state(self):
             workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-            return workspace_layout.modified_state
+            return workspace_layout.modified_state, self.__workspace_controller.document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
             workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-            workspace_layout.modified_state = modified_state
+            workspace_layout.modified_state, self.__workspace_controller.document_model.modified_state = modified_state
+
+        def _compare_modified_states(self, state1, state2) -> bool:
+            # override to allow the undo command to track state; but only use part of the state for comparison
+            return state1[0] == state2[0]
 
         def _undo(self) -> None:
             old_splits, new_display_panel = self.__workspace_controller._insert_display_panel(self.__old_display_panel, self.__region, None, self.__d, self.__old_uuid, self.__old_splits)
@@ -865,7 +873,7 @@ class Workspace:
             self.__old_display_panel = old_display_panel
 
     def insert_display_panel(self, display_panel, region, data_item=None, d=None, new_uuid=None, new_splits=None) -> Undo.UndoableCommand:
-        modified_state = self.__workspace.modified_state
+        modified_state = self.__workspace.modified_state, self.document_model.modified_state
         old_splits, new_display_panel = self._insert_display_panel(display_panel, region, data_item, d, new_uuid, new_splits)
         return Workspace.SplitDisplayPanelCommand(self, self.__workspace, modified_state, display_panel, region, data_item, d, old_splits, new_display_panel)
 
@@ -913,7 +921,7 @@ class Workspace:
     def remove_display_panel(self, display_panel, splits=None) -> Undo.UndoableCommand:
         # save the old display panel
         d = display_panel.save_contents()
-        modified_state = self.__workspace.modified_state
+        modified_state = self.__workspace.modified_state, self.document_model.modified_state
         old_display_panel, old_splits, region_id = self._remove_display_panel(display_panel, splits)
         return Workspace.RemoveDisplayPanelCommand(self, self.__workspace, modified_state, old_display_panel, region_id, d, display_panel.uuid, old_splits)
 

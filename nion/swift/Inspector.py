@@ -238,11 +238,15 @@ class ChangePropertyCommand(Undo.UndoableCommand):
 
     def _get_modified_state(self):
         library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        return library_item.modified_state
+        return library_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
         library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        library_item.modified_state = modified_state
+        library_item.modified_state, self.__document_model.modified_state = modified_state
+
+    def _compare_modified_states(self, state1, state2) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0]
 
     def _undo(self) -> None:
         library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
@@ -567,11 +571,15 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
 
     def _get_modified_state(self):
         library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        return library_item.modified_state
+        return library_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
         library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        library_item.modified_state = modified_state
+        library_item.modified_state, self.__document_model.modified_state = modified_state
+
+    def _compare_modified_states(self, state1, state2) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0]
 
     def _undo(self) -> None:
         library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
@@ -600,11 +608,15 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
 
     def _get_modified_state(self):
         library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        return library_item.modified_state
+        return library_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
         library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        library_item.modified_state = modified_state
+        library_item.modified_state, self.__document_model.modified_state = modified_state
+
+    def _compare_modified_states(self, state1, state2) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0]
 
     def _undo(self) -> None:
         library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
@@ -1912,12 +1924,16 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
     def _get_modified_state(self):
         computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
         variable = computation.variables[self.__variable_index]
-        return variable.modified_state
+        return variable.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
         computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
         variable = computation.variables[self.__variable_index]
-        variable.modified_state = modified_state
+        variable.modified_state, self.__document_model.modified_state = modified_state
+
+    def _compare_modified_states(self, state1, state2) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0]
 
     def _undo(self):
         computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)

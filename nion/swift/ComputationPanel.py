@@ -118,11 +118,15 @@ class ComputationModel:
 
         def _get_modified_state(self):
             computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
-            return computation.modified_state
+            return computation.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
             computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
-            computation.modified_state = modified_state
+            computation.modified_state, self.__document_model.modified_state = modified_state
+
+        def _compare_modified_states(self, state1, state2) -> bool:
+            # override to allow the undo command to track state; but only use part of the state for comparison
+            return state1[0] == state2[0]
 
         def _undo(self):
             computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
@@ -155,11 +159,15 @@ class ComputationModel:
 
         def _get_modified_state(self):
             computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
-            return computation.modified_state
+            return computation.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
             computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
-            computation.modified_state = modified_state
+            computation.modified_state, self.__document_model.modified_state = modified_state
+
+        def _compare_modified_states(self, state1, state2) -> bool:
+            # override to allow the undo command to track state; but only use part of the state for comparison
+            return state1[0] == state2[0]
 
         def _undo(self):
             computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
@@ -231,11 +239,15 @@ class ComputationModel:
 
         def _get_modified_state(self):
             computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
-            return computation.modified_state
+            return computation.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
             computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
-            computation.modified_state = modified_state
+            computation.modified_state, self.__document_model.modified_state = modified_state
+
+        def _compare_modified_states(self, state1, state2) -> bool:
+            # override to allow the undo command to track state; but only use part of the state for comparison
+            return state1[0] == state2[0]
 
         def _undo(self):
             computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
@@ -275,11 +287,15 @@ class ComputationModel:
 
         def _get_modified_state(self):
             computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
-            return computation.modified_state
+            return computation.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
             computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
-            computation.modified_state = modified_state
+            computation.modified_state, self.__document_model.modified_state = modified_state
+
+        def _compare_modified_states(self, state1, state2) -> bool:
+            # override to allow the undo command to track state; but only use part of the state for comparison
+            return state1[0] == state2[0]
 
         def _undo(self):
             computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)

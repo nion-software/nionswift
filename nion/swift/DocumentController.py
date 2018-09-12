@@ -1083,11 +1083,15 @@ class DocumentController(Window.Window):
 
         def _get_modified_state(self):
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            return data_group.modified_state
+            return data_group.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            data_group.modified_state = modified_state
+            data_group.modified_state, self.__document_model.modified_state = modified_state
+
+        def _compare_modified_states(self, state1, state2) -> bool:
+            # override to allow the undo command to track state; but only use part of the state for comparison
+            return state1[0] == state2[0]
 
         def perform(self) -> None:
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
@@ -1188,11 +1192,15 @@ class DocumentController(Window.Window):
 
         def _get_modified_state(self):
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            return data_group.modified_state
+            return data_group.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            data_group.modified_state = modified_state
+            data_group.modified_state, self.__document_model.modified_state = modified_state
+
+        def _compare_modified_states(self, state1, state2) -> bool:
+            # override to allow the undo command to track state; but only use part of the state for comparison
+            return state1[0] == state2[0]
 
         def perform(self) -> None:
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
@@ -1221,11 +1229,15 @@ class DocumentController(Window.Window):
 
         def _get_modified_state(self):
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            return data_group.modified_state
+            return data_group.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            data_group.modified_state = modified_state
+            data_group.modified_state, self.__document_model.modified_state = modified_state
+
+        def _compare_modified_states(self, state1, state2) -> bool:
+            # override to allow the undo command to track state; but only use part of the state for comparison
+            return state1[0] == state2[0]
 
         def perform(self) -> None:
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
@@ -1254,11 +1266,15 @@ class DocumentController(Window.Window):
 
         def _get_modified_state(self):
             container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
-            return container.modified_state
+            return container.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
             container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
-            container.modified_state = modified_state
+            container.modified_state, self.__document_model.modified_state = modified_state
+
+        def _compare_modified_states(self, state1, state2) -> bool:
+            # override to allow the undo command to track state; but only use part of the state for comparison
+            return state1[0] == state2[0]
 
         def perform(self) -> None:
             container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
@@ -1289,11 +1305,15 @@ class DocumentController(Window.Window):
 
         def _get_modified_state(self):
             container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
-            return container.modified_state
+            return container.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
             container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
-            container.modified_state = modified_state
+            container.modified_state, self.__document_model.modified_state = modified_state
+
+        def _compare_modified_states(self, state1, state2) -> bool:
+            # override to allow the undo command to track state; but only use part of the state for comparison
+            return state1[0] == state2[0]
 
         def perform(self) -> None:
             container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)

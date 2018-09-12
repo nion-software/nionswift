@@ -34,11 +34,15 @@ class UndoableCommand(abc.ABC):
 
     @property
     def is_redo_valid(self) -> bool:
-        return self.__old_modified_state == self._get_modified_state()
+        return self._compare_modified_states(self.__old_modified_state, self._get_modified_state())
 
     @property
     def is_undo_valid(self) -> bool:
-        return self.__new_modified_state == self._get_modified_state()
+        return self._compare_modified_states(self.__new_modified_state, self._get_modified_state())
+
+    def _compare_modified_states(self, state1, state2) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1 == state2
 
     def initialize(self, modified_state=None):
         self.__old_modified_state = modified_state if modified_state else self._get_modified_state()

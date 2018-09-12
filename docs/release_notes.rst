@@ -5,6 +5,7 @@ Release Notes
 
 UNRELEASED
 ----------
+* (2017-09-12) Improve reliability of undo/redo, enabled in more situations.
 * (2017-08-03) Add some experimental API functions.
 
 Version 0.13.8, July 23, 2018

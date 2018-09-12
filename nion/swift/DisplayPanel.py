@@ -804,11 +804,15 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
 
     def _get_modified_state(self):
         display = self.__document_model.get_display_by_uuid(self.__display_uuid)
-        return display.modified_state
+        return display.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
         display = self.__document_model.get_display_by_uuid(self.__display_uuid)
-        display.modified_state = modified_state
+        display.modified_state, self.__document_model.modified_state = modified_state
+
+    def _compare_modified_states(self, state1, state2) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0]
 
     def _undo(self):
         display = self.__document_model.get_display_by_uuid(self.__display_uuid)
@@ -847,11 +851,15 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
 
     def _get_modified_state(self):
         display = self.__document_model.get_display_by_uuid(self.__display_uuid)
-        return display.modified_state
+        return display.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
         display = self.__document_model.get_display_by_uuid(self.__display_uuid)
-        display.modified_state = modified_state
+        display.modified_state, self.__document_model.modified_state = modified_state
+
+    def _compare_modified_states(self, state1, state2) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0]
 
     def _undo(self):
         display = self.__document_model.get_display_by_uuid(self.__display_uuid)
@@ -861,6 +869,7 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
         for graphic, properties in zip(graphics, properties):
             # NOTE: use read_properties_from_dict (read properties only), not read_from_dict (used for initialization).
             graphic.read_properties_from_dict(properties)
+
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
         return isinstance(command, ChangeGraphicsCommand) and self.command_id and self.command_id == command.command_id and self.__display_uuid == command.__display_uuid and self.__graphic_indexes == command.__graphic_indexes
 
