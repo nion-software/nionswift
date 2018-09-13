@@ -13,11 +13,9 @@ matrix:
     - python: nightly
       dist: xenial
       sudo: true
-    - python: pypy3
   allow_failures:
     - python: 3.8-dev
     - python: nightly
-    - python: pypy3
 
 # command to install dependencies
 install:
