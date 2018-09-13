@@ -408,18 +408,22 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
             logging.warning("Error reading %s", storage_handler.reference)
             logging.debug(traceback.format_exc())
     library_updates = dict()
+    preliminary_library_updates = dict()
     if not ignore_older_files:
         migration_log = Migration.MigrationLog(log_migrations)
-        Migration.migrate_to_latest(reader_info_list, library_updates, migration_log)
+        Migration.migrate_to_latest(reader_info_list, preliminary_library_updates, migration_log)
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
         try:
-            if reader_info.changed_ref[0]:
-                storage_handler.write_properties(reader_info.properties, datetime.datetime.now())
             if properties.get("version", 0) == DataItem.DataItem.writer_version:
+                if reader_info.changed_ref[0]:
+                    storage_handler.write_properties(properties, datetime.datetime.now())
                 data_item_uuid = uuid.UUID(properties["uuid"])
                 persistent_storage_system.register_data_item(data_item_uuid, storage_handler, properties)
+                library_update = preliminary_library_updates.get(data_item_uuid)
+                if library_update:
+                    library_updates[data_item_uuid] = library_update
         except Exception as e:
             import traceback
             logging.warning("Error rewriting %s", storage_handler.reference)
