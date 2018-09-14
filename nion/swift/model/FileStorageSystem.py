@@ -430,18 +430,17 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
             logging.debug(traceback.format_exc())
 
     utilized_deletions = set()  # the uuid's skipped due to being deleted
-    deletions = library_storage_properties.get("data_item_deletions", list())
+    deletions = copy.deepcopy(library_storage_properties.get("data_item_deletions", list()))
     # next, for each auto migration, create a temporary storage system and read items from that storage system
     # using auto_migrate_storage_system. the data items returned will have been copied to the current storage
     # system (persistent object context).
-    for auto_migration in persistent_storage_system.get_auto_migrations():
+    for auto_migration in reversed(persistent_storage_system.get_auto_migrations()):
         new_reader_info_list, new_library_updates = auto_migrate_storage_system(auto_migration=auto_migration,
                                                                                 new_persistent_storage_system=persistent_storage_system,
                                                                                 data_item_uuids=data_item_uuids,
                                                                                 deletions=deletions,
                                                                                 utilized_deletions=utilized_deletions)
         reader_info_list.extend(new_reader_info_list)
-        data_item_uuids.update({uuid.UUID(reader_info.properties.get("uuid")) for reader_info in new_reader_info_list})
         library_updates.update(new_library_updates)
 
     assert len(reader_info_list) == len(data_item_uuids)
@@ -526,6 +525,7 @@ def auto_migrate_storage_system(*, auto_migration=None, new_persistent_storage_s
     Data items will have persistent_object_context set upon return, but caller will need to call finish_reading
     on each of the data items.
     """
+    migration_log = Migration.MigrationLog(False)
     persistent_storage_system = FileStorageSystem(auto_migration.library_path, auto_migration.paths) if auto_migration.paths else auto_migration.storage_system
     storage_handlers = persistent_storage_system.find_data_items()
     ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "large_format", "storage_handler", "identifier"])
@@ -539,8 +539,11 @@ def auto_migrate_storage_system(*, auto_migration=None, new_persistent_storage_s
             import traceback
             traceback.print_exc()
             traceback.print_stack()
+    library_storage_properties = persistent_storage_system.library_storage_properties
+    for deletion in copy.deepcopy(library_storage_properties.get("data_item_deletions", list())):
+        if not deletion in deletions:
+            deletions.append(deletion)
     preliminary_library_updates = dict()
-    migration_log = Migration.MigrationLog(False)
     Migration.migrate_to_latest(reader_info_list, preliminary_library_updates, migration_log)
     good_reader_info_list = list()
     library_updates = dict()
@@ -557,6 +560,7 @@ def auto_migrate_storage_system(*, auto_migration=None, new_persistent_storage_s
                     else:
                         auto_migrate_data_item(reader_info, new_persistent_storage_system, migration_log)
                         good_reader_info_list.append(reader_info)
+                        data_item_uuids.add(data_item_uuid)
                         library_update = preliminary_library_updates.get(data_item_uuid)
                         if library_update:
                             library_updates[data_item_uuid] = library_update

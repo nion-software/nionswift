@@ -173,14 +173,22 @@ class Application(UIApplication.Application):
 
     def __migrate_library(self, workspace_dir: str, welcome_message_enabled: bool=True) -> str:
         """ Migrate library to latest version. """
+
         library_path_11 = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
+        library_paths = (library_path_11, )
+
         library_path_12 = os.path.join(workspace_dir, "Nion Swift Library 12.nslib")
-        if not os.path.exists(library_path_12):
-            if os.path.exists(library_path_11):
-                if welcome_message_enabled:
-                    logging.info("Migrating from library 11 to 12: %s -> %s", library_path_11, library_path_12)
-                shutil.copyfile(library_path_11, library_path_12)
-        return library_path_12
+        library_path_latest = library_path_12
+
+        if not os.path.exists(library_path_latest):
+            for library_path in library_paths:
+                if os.path.exists(library_path):
+                    if welcome_message_enabled:
+                        logging.info("Migrating library: %s -> %s", library_path, library_path_latest)
+                    shutil.copyfile(library_path, library_path_latest)
+                    break
+
+        return library_path_latest
 
     def start(self, skip_choose=False, fixed_workspace_dir=None):
         """
@@ -206,10 +214,8 @@ class Application(UIApplication.Application):
             documents_dir = self.ui.get_document_location()
             workspace_dir = os.path.join(documents_dir, "Nion Swift Libraries")
             workspace_dir = self.ui.get_persistent_string("workspace_location", workspace_dir)
-        cache_filename = "Nion Swift Cache {version}.nscache".format(version=DataItem.DataItem.writer_version)
         welcome_message_enabled = fixed_workspace_dir is None
         library_path = self.__migrate_library(workspace_dir, welcome_message_enabled)
-        cache_path = os.path.join(workspace_dir, cache_filename)
         if not skip_choose and not os.path.exists(library_path):
             self.choose_library()
             return True
@@ -222,10 +228,13 @@ class Application(UIApplication.Application):
             if welcome_message_enabled:
                 logging.info("Using existing document %s", library_path)
         auto_migrations = list()
-        auto_migrations.append(DocumentModel.AutoMigration(paths=[os.path.join(workspace_dir, "Nion Swift Data")]))
-        auto_migrations.append(DocumentModel.AutoMigration(paths=[os.path.join(workspace_dir, "Nion Swift Data 10")]))
-        auto_migrations.append(DocumentModel.AutoMigration(paths=[os.path.join(workspace_dir, "Nion Swift Data 11")]))
+        auto_migrations.append(DocumentModel.AutoMigration(os.path.join(workspace_dir, "Nion Swift Workspace.nslib"), [os.path.join(workspace_dir, "Nion Swift Data")]))
+        auto_migrations.append(DocumentModel.AutoMigration(os.path.join(workspace_dir, "Nion Swift Workspace.nslib"), [os.path.join(workspace_dir, "Nion Swift Data 10")]))
+        auto_migrations.append(DocumentModel.AutoMigration(os.path.join(workspace_dir, "Nion Swift Workspace.nslib"), [os.path.join(workspace_dir, "Nion Swift Data 11")]))
+        # NOTE: when adding an AutoMigration here, also add the corresponding file copy in __migrate_library
         file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))], auto_migrations=auto_migrations)
+        cache_filename = "Nion Swift Cache {version}.nscache".format(version=DataItem.DataItem.writer_version)
+        cache_path = os.path.join(workspace_dir, cache_filename)
         counts = file_persistent_storage_system.read_data_items_version_stats()
         if counts[2] > 0:
 
