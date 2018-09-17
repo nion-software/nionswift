@@ -198,46 +198,6 @@ class TestDocumentModelClass(unittest.TestCase):
         self.assertEqual(data_item.displays[0].display_type, new_data_item.displays[0].display_type)
         self.assertEqual(new_data_item.displays[0].graphics[0].position, point_graphic.position)
 
-    def test_creating_r_var_on_library_items(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
-            document_model.append_data_item(data_item)
-            composite_item = DataItem.CompositeLibraryItem()
-            document_model.append_data_item(composite_item)
-            composite_item.append_data_item(data_item)
-            data_item_r = document_model.assign_variable_to_library_item(data_item)
-            composite_item_r = document_model.assign_variable_to_library_item(composite_item)
-            self.assertEqual(data_item_r, "r01")
-            self.assertEqual(composite_item_r, "r02")
-
-    def test_transaction_on_composite_display_propagates_to_dependents(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((100, )))
-            document_model.append_data_item(data_item)
-            composite_item = DataItem.CompositeLibraryItem()
-            document_model.append_data_item(composite_item)
-            composite_item.append_data_item(data_item)
-            composite_item.displays[0].display_type = "line_plot"
-            interval = Graphics.IntervalGraphic()
-            composite_item.displays[0].add_graphic(interval)
-            computed_data_item = DataItem.DataItem(numpy.zeros((100, )))
-            document_model.append_data_item(computed_data_item)
-            computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
-            computation.create_object("interval", document_model.get_object_specifier(interval))
-            document_model.set_data_item_computation(computed_data_item, computation)
-            self.assertSetEqual(set(document_model.get_dependent_items(data_item)), {computed_data_item})
-            self.assertSetEqual(set(document_model.get_dependent_items(interval)), {computed_data_item})
-            with document_model.begin_display_transaction(composite_item.displays[0]):
-                self.assertTrue(composite_item.in_transaction_state)
-                self.assertTrue(computed_data_item.in_transaction_state)
-                self.assertFalse(data_item.in_transaction_state)
-            self.assertFalse(composite_item.in_transaction_state)
-            self.assertFalse(computed_data_item.in_transaction_state)
-            self.assertFalse(data_item.in_transaction_state)
-
     def test_transaction_handles_added_graphic(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
@@ -322,19 +282,6 @@ class TestDocumentModelClass(unittest.TestCase):
                 self.assertTrue(document_model.is_in_transaction_state(data_item))
                 self.assertTrue(document_model.is_in_transaction_state(line_profile_data_item))
             self.assertEqual(0, document_model.transaction_count)
-
-    def test_composite_item_deletes_children_when_deleted(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((100, )))
-            document_model.append_data_item(data_item)
-            composite_item = DataItem.CompositeLibraryItem()
-            document_model.append_data_item(composite_item)
-            composite_item.append_data_item(data_item)
-            data_item.source = composite_item
-            self.assertEqual(len(document_model.data_items), 2)
-            document_model.remove_data_item(composite_item)
-            self.assertEqual(len(document_model.data_items), 0)
 
     def test_data_item_with_associated_data_structure_deletes_when_data_item_deleted(self):
         document_model = DocumentModel.DocumentModel()
@@ -2094,29 +2041,6 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.computations))
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(0, len(document_model.data_items[0].displays[0].graphics))
-
-    def test_undelete_composite_item(self):
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
-            # create the data items
-            data_item1 = DataItem.DataItem(numpy.ones((8, 8)))
-            data_item2 = DataItem.DataItem(numpy.ones((8, 8)))
-            document_model.append_data_item(data_item1)
-            document_model.append_data_item(data_item2)
-            composite_item = DataItem.CompositeLibraryItem()
-            document_model.append_data_item(composite_item)
-            composite_item.append_data_item(data_item1)
-            composite_item.append_data_item(data_item2)
-            self.assertEqual(3, len(document_model.data_items))
-            self.assertEqual(2, len(document_model.data_items[2].data_items))
-            # delete the data item and verify
-            undelete_log = document_model.remove_data_item(composite_item, safe=True)
-            self.assertEqual(2, len(document_model.data_items))
-            # undelete and verify
-            document_model.undelete_all(undelete_log)
-            self.assertEqual(3, len(document_model.data_items))
-            self.assertEqual(2, len(document_model.data_items[2].data_items))
 
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?

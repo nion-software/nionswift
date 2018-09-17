@@ -1412,8 +1412,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         if self.__display:
             display_specifier = DataItem.DisplaySpecifier.from_display(self.__display)
             mime_data = self.ui.create_mime_data()
-            if display_specifier.library_item:
-                mime_data.set_data_as_string("text/library_item_uuid", str(display_specifier.library_item.uuid))
             if display_specifier.data_item:
                 mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
             mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))

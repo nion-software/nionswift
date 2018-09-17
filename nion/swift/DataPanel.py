@@ -92,14 +92,6 @@ class DisplayItem:
         return self.__display
 
     @property
-    def composite_library_item(self) -> DataItem.CompositeLibraryItem:
-        return DataItem.DisplaySpecifier.from_display(self.__display).composite_library_item
-
-    @property
-    def library_item(self) -> DataItem.LibraryItem:
-        return DataItem.DisplaySpecifier.from_display(self.__display).library_item
-
-    @property
     def data_item(self) -> DataItem.DataItem:
         return DataItem.DisplaySpecifier.from_display(self.__display).data_item
 
@@ -151,8 +143,6 @@ class DisplayItem:
         if self.__display:
             display_specifier = DataItem.DisplaySpecifier.from_display(self.__display)
             mime_data = self.ui.create_mime_data()
-            if display_specifier.library_item:
-                mime_data.set_data_as_string("text/library_item_uuid", str(display_specifier.library_item.uuid))
             if display_specifier.data_item:
                 mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
             self.__create_thumbnail_source()
@@ -885,14 +875,13 @@ class DataGroupModelController:
         data_group = self.get_data_group_of_parent(parent_row, parent_id)
         if data_group and mime_data.has_file_paths:
             return row < 0  # only accept drops ONTO items, not BETWEEN items
-        if data_group and (mime_data.has_format("text/data_item_uuid") or mime_data.has_format("text/library_item_uuid")):
+        if data_group and (mime_data.has_format("text/data_item_uuid")):
             if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                 return False
             # if the data item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            library_item_uuid = uuid.UUID(mime_data.data_as_string("text/library_item_uuid"))
-            data_item_uuid = library_item_uuid if library_item_uuid else uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = self.__document_model.get_data_item_by_key(data_item_uuid)
             if data_item:
                 return True
@@ -913,14 +902,13 @@ class DataGroupModelController:
             if callable(self.on_receive_files):
                 if self.on_receive_files(mime_data.file_paths, data_group, len(data_group.data_items)):
                     return self.item_model_controller.COPY
-        if data_group and (mime_data.has_format("text/data_item_uuid") or mime_data.has_format("text/library_item_uuid")):
+        if data_group and (mime_data.has_format("text/data_item_uuid")):
             if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                 return self.item_model_controller.NONE
             # if the data item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            library_item_uuid = uuid.UUID(mime_data.data_as_string("text/library_item_uuid"))
-            data_item_uuid = library_item_uuid if library_item_uuid else uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = self.__document_model.get_data_item_by_key(data_item_uuid)
             if data_item:
                 command = self.__document_controller.create_insert_data_group_library_item_command(data_group, len(data_group.data_items), data_item)

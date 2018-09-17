@@ -275,12 +275,8 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
 
 def data_item_factory(lookup_id):
     data_item_uuid = uuid.UUID(lookup_id("uuid"))
-    if len(lookup_id("data_item_uuids", list())) > 0:
-        data_item = DataItem.CompositeLibraryItem(item_uuid=data_item_uuid)
-    else:
-        large_format = lookup_id("__large_format", False)
-        data_item = DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
-    return data_item
+    large_format = lookup_id("__large_format", False)
+    return DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
 
 
 def computation_factory(lookup_id):

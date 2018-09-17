@@ -1052,52 +1052,6 @@ class TestDataItemClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertGreaterEqual(data_item.data_modified, src_data_item.created)
 
-    def test_transaction_does_not_cascade_to_data_item_refs(self):
-        # no reason to cascade since there is no high cost data to be loaded for aggregate data items
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
-            document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
-            master_data_item = DataItem.CompositeLibraryItem()
-            master_data_item.append_data_item(document_model.data_items[0])
-            master_data_item.append_data_item(document_model.data_items[1])
-            document_model.append_data_item(master_data_item)
-            self.assertFalse(master_data_item.in_transaction_state)
-            self.assertFalse(document_model.data_items[0].in_transaction_state)
-            self.assertFalse(document_model.data_items[1].in_transaction_state)
-            with document_model.item_transaction(master_data_item):
-                self.assertTrue(master_data_item.in_transaction_state)
-                self.assertFalse(document_model.data_items[0].in_transaction_state)
-                self.assertFalse(document_model.data_items[1].in_transaction_state)
-
-    def test_increment_data_ref_counts_cascades_to_data_item_refs(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
-            document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
-            master_data_item = DataItem.CompositeLibraryItem()
-            master_data_item.append_data_item(document_model.data_items[0])
-            master_data_item.append_data_item(document_model.data_items[1])
-            document_model.append_data_item(master_data_item)
-            self.assertFalse(document_model.data_items[0].is_data_loaded)
-            self.assertFalse(document_model.data_items[1].is_data_loaded)
-            master_data_item.increment_display_ref_count()
-            self.assertTrue(document_model.data_items[0].is_data_loaded)
-            self.assertTrue(document_model.data_items[1].is_data_loaded)
-            master_data_item.decrement_display_ref_count()
-            self.assertFalse(document_model.data_items[0].is_data_loaded)
-            self.assertFalse(document_model.data_items[1].is_data_loaded)
-
-    def test_adding_data_item_twice_to_composite_item_fails(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((4, 4)))
-            document_model.append_data_item(data_item)
-            master_data_item = DataItem.CompositeLibraryItem()
-            master_data_item.append_data_item(data_item)
-            with self.assertRaises(Exception):
-                master_data_item.append_data_item(data_item)
-
     def test_dependent_calibration(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):

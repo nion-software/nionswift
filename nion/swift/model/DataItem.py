@@ -1114,116 +1114,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         return " ".join([self.displayed_title, self.caption])
 
 
-class CompositeLibraryItem(LibraryItem):
-    """Composite library item consists of references to other library items."""
-
-    def __init__(self, item_uuid=None):
-        super().__init__(item_uuid=item_uuid)
-        self.__data_items = list()
-        self.__data_item_about_to_be_removed_listeners = list()
-        self.add_display(Display.Display())  # always have one display, for now
-        self.define_property("data_item_uuids", list(), converter=UuidsToStringsConverter(), changed=self.__property_changed)
-        self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
-        self.__metadata = dict()
-
-    def close(self):
-        self.__unlisten_about_to_be_removed()
-        super().close()
-
-    def about_to_close(self):
-        self.__unlisten_about_to_be_removed()
-        super().about_to_close()
-
-    def about_to_be_removed(self):
-        self.__unlisten_about_to_be_removed()
-        super().about_to_be_removed()
-
-    def __unlisten_about_to_be_removed(self):
-        for listener in self.__data_item_about_to_be_removed_listeners:
-            listener.close()
-        self.__data_item_about_to_be_removed_listeners.clear()
-
-    def read_from_dict(self, properties):
-        super().read_from_dict(properties)
-        self.__metadata = self._get_persistent_property_value("metadata", dict())
-
-    @property
-    def data_items(self):
-        return tuple(self.__data_items)
-
-    @property
-    def metadata(self):
-        return copy.deepcopy(self.__metadata)
-
-    @metadata.setter
-    def metadata(self, metadata):
-        assert isinstance(metadata, dict)
-        self.__metadata = copy.deepcopy(metadata)
-        self._set_persistent_property_value("metadata", self.__metadata)
-
-    def connect_data_items(self, lookup_data_item):
-        super().connect_data_items(lookup_data_item)
-        for data_item_uuid in self.data_item_uuids:
-            data_item = lookup_data_item(data_item_uuid)
-            # check whether the data item is already in data items; this covers the case where data items are added
-            # to the composite library item before it is added to the document when it will be connected.
-            if data_item and not data_item in self.__data_items:
-                before_index = len(self.__data_items)
-                self.__data_items.append(data_item)
-                self.__data_item_about_to_be_removed_listeners.append(data_item.about_to_be_removed_event.listen(functools.partial(self.__data_item_about_to_be_removed, data_item)))
-                self.notify_insert_item("data_items", data_item, before_index)
-
-    def append_data_item(self, data_item):
-        self.insert_data_item(len(self.__data_items), data_item)
-
-    def insert_data_item(self, before_index, data_item):
-        assert data_item not in self.__data_items
-        self.__data_items.insert(before_index, data_item)
-        self.__data_item_about_to_be_removed_listeners.append(data_item.about_to_be_removed_event.listen(functools.partial(self.__data_item_about_to_be_removed, data_item)))
-        data_item_uuids = self.data_item_uuids
-        data_item_uuids.insert(before_index, data_item.uuid)
-        self.data_item_uuids = data_item_uuids
-        self.notify_property_changed("data_item_uuids")
-        self.notify_insert_item("data_items", data_item, before_index)
-        data_item.increment_display_ref_count(self._display_ref_count)
-
-    def remove_data_item(self, data_item):
-        index = self.__data_items.index(data_item)
-        self.notify_remove_item("data_items", data_item, index)
-        self.__data_item_about_to_be_removed_listeners[index].close()
-        del self.__data_item_about_to_be_removed_listeners[index]
-        self.__data_items.remove(data_item)
-        data_item_uuids = self.data_item_uuids
-        data_item_uuids.remove(data_item.uuid)
-        self.data_item_uuids = data_item_uuids
-        self.notify_property_changed("data_item_uuids")
-        data_item.decrement_display_ref_count(self._display_ref_count)
-
-    def __data_item_about_to_be_removed(self, data_item):
-        self.remove_data_item(data_item)
-
-    def increment_display_ref_count(self, amount: int=1):
-        super().increment_display_ref_count(amount)
-        for data_item in self.data_items:
-            data_item.increment_display_ref_count(amount)
-
-    def decrement_display_ref_count(self, amount: int=1):
-        super().decrement_display_ref_count(amount)
-        for data_item in self.data_items:
-            data_item.decrement_display_ref_count(amount)
-
-    def __property_changed(self, name, value):
-        self.notify_property_changed(name)
-
-    def __metadata_property_changed(self, name, value):
-        self.__property_changed(name, value)
-        self.metadata_changed_event.fire()
-
-    @property
-    def size_and_data_format_as_string(self) -> str:
-        return "{0} ({1})".format(_("Composite"), len(self.__data_items))
-
-
 class DataItem(LibraryItem):
 
     def __init__(self, data=None, item_uuid=None, large_format=False):
@@ -1752,10 +1642,6 @@ class DisplaySpecifier:
     @property
     def data_item(self):
         return self.library_item if isinstance(self.library_item, DataItem) else None
-
-    @property
-    def composite_library_item(self):
-        return self.library_item if isinstance(self.library_item, CompositeLibraryItem) else None
 
     @classmethod
     def from_display(cls, display):

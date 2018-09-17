@@ -835,27 +835,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.selected_display_panel.set_display_panel_data_item(data_item)
             display_item = data_panel.data_list_controller._test_get_display_item(0)
             mime_data, thumbnail = display_item.drag_started(self.app.ui, 0, 0, 0)
-            self.assertTrue(mime_data.has_format("text/library_item_uuid"))
             self.assertTrue(mime_data.has_format("text/data_item_uuid"))
-
-    def test_composition_item_starts_drag_with_composition_item_mime_data(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((4, 4)))
-            document_model.append_data_item(data_item)
-            composition_data_item = DataItem.CompositeLibraryItem()
-            composition_data_item.append_data_item(data_item)
-            document_model.append_data_item(composition_data_item)
-            data_panel = document_controller.find_dock_widget("data-panel").panel
-            # index, parent_row, parent_id
-            data_panel.library_widget.on_selection_changed([(0, -1, 0)])  # all
-            document_controller.periodic()
-            document_controller.selected_display_panel.set_display_panel_data_item(composition_data_item)
-            display_item = data_panel.data_list_controller._test_get_display_item(0)
-            mime_data, thumbnail = display_item.drag_started(self.app.ui, 0, 0, 0)
-            self.assertTrue(mime_data.has_format("text/library_item_uuid"))
-            self.assertFalse(mime_data.has_format("text/data_item_uuid"))
 
 
 if __name__ == '__main__':

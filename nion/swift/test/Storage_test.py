@@ -749,25 +749,6 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
 
-    def test_delete_and_undelete_from_memory_storage_system_restores_composite_item_after_reload(self):
-        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((4, 4)))
-            composite_item = DataItem.CompositeLibraryItem()
-            document_model.append_data_item(composite_item)
-            document_model.append_data_item(data_item)
-            composite_item.append_data_item(data_item)
-            data_item_uuid = composite_item.uuid
-            document_model.remove_data_item(composite_item, safe=True)
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
-        with contextlib.closing(document_model):
-            self.assertEqual(1, len(document_model.data_items))
-            document_model.restore_data_item(data_item_uuid, 0)
-            self.assertEqual(2, len(document_model.data_items))
-            self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
-            self.assertEqual(1, len(document_model.data_items[0].data_items))
-
     def test_delete_and_undelete_from_file_storage_system_restores_data_item(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
@@ -3746,60 +3727,6 @@ class TestStorageClass(unittest.TestCase):
             document_model.data_items[0].set_data(numpy.full((2, 2), 3))
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(document_model.data_items[2].data, numpy.full((2, 2), 5)))
-
-    def test_data_item_with_references_to_another_data_item_reloads(self):
-        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
-        with contextlib.closing(document_model):
-            data_item0 = DataItem.DataItem(numpy.zeros((8, 8)))
-            document_model.append_data_item(data_item0)
-            composite_item = DataItem.CompositeLibraryItem()
-            composite_item.append_data_item(data_item0)
-            document_model.append_data_item(composite_item)
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
-        with contextlib.closing(document_model):
-            self.assertEqual(len(document_model.data_items), 2)
-            self.assertEqual(len(document_model.data_items[1].data_items), 1)
-            self.assertEqual(document_model.data_items[1].data_items[0], document_model.data_items[0])
-
-    def test_composite_library_item_reloads_metadata(self):
-        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
-        with contextlib.closing(document_model):
-            data_item0 = DataItem.DataItem(numpy.zeros((8, 8)))
-            document_model.append_data_item(data_item0)
-            composite_item = DataItem.CompositeLibraryItem()
-            composite_item.append_data_item(data_item0)
-            composite_item.metadata = {"abc": 1}
-            document_model.append_data_item(composite_item)
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
-        with contextlib.closing(document_model):
-            self.assertEqual(len(document_model.data_items), 2)
-            self.assertEqual(len(document_model.data_items[1].data_items), 1)
-            self.assertEqual(document_model.data_items[1].data_items[0], document_model.data_items[0])
-            self.assertEqual(document_model.data_items[1].metadata, {"abc": 1})
-
-    def test_composite_data_item_saves_to_file_storage(self):
-        current_working_directory = os.getcwd()
-        workspace_dir = os.path.join(current_working_directory, "__Test")
-        lib_name = os.path.join(workspace_dir, "Data.nslib")
-        Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = FileStorageSystem.FileStorageSystem(lib_name, [workspace_dir])
-        try:
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
-            with contextlib.closing(document_model):
-                data_item0 = DataItem.DataItem(numpy.zeros((8, 8)))
-                document_model.append_data_item(data_item0)
-                composite_item = DataItem.CompositeLibraryItem()
-                composite_item.append_data_item(data_item0)
-                document_model.append_data_item(composite_item)
-            # read it back
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
-            with contextlib.closing(document_model):
-                self.assertEqual(len(document_model.data_items), 2)
-        finally:
-            #logging.debug("rmtree %s", workspace_dir)
-            shutil.rmtree(workspace_dir)
 
     def test_data_item_with_corrupt_created_still_loads(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()

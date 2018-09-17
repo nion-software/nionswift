@@ -471,17 +471,6 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertNotIn(interval_region1, intermediate_display.graphics)
             self.assertNotIn(interval_region2, intermediate_display.graphics)
 
-    def test_delete_composite_cascade_delete_works(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
-            document_model.append_data_item(data_item)
-            composite_item = DataItem.CompositeLibraryItem()
-            document_model.append_data_item(composite_item)
-            composite_item.append_data_item(data_item)
-            document_model.remove_data_item(composite_item)
-
     def test_delete_graphic_with_two_dependencies_deletes_both_dependencies(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -625,20 +614,6 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_panel.set_display_panel_data_item(data_item)
             document_controller.prepare_data_item_script(do_log=False)
             self.assertEqual(data_item.r_var, "r01")
-
-    def test_creating_r_var_on_composite_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
-            document_model.append_data_item(data_item)
-            composite_item = DataItem.CompositeLibraryItem()
-            document_model.append_data_item(composite_item)
-            composite_item.append_data_item(data_item)
-            display_panel = document_controller.selected_display_panel
-            display_panel.set_display_panel_data_item(composite_item)
-            document_controller.prepare_data_item_script(do_log=False)
-            self.assertEqual(composite_item.r_var, "r01")
 
     def test_display_data_item_when_it_is_immediately_filtered(self):
         document_model = DocumentModel.DocumentModel()
