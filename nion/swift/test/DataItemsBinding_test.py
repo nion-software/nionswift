@@ -160,10 +160,10 @@ class TestDataItemsModelModule(unittest.TestCase):
                 document_model.append_data_item(data_item)
             self.assertEqual(len(filtered_data_items.items), 0)
             with document_model.data_item_live(document_model.data_items[0]):
-                document_model.data_items[0].library_item_changed_event.fire()
+                document_model.data_items[0].data_item_changed_event.fire()
                 self.assertEqual(len(filtered_data_items.items), 1)
                 with document_model.data_item_live(document_model.data_items[2]):
-                    document_model.data_items[2].library_item_changed_event.fire()
+                    document_model.data_items[2].data_item_changed_event.fire()
                     self.assertEqual(len(filtered_data_items.items), 2)
                     self.assertTrue(filtered_data_items.items.index(document_model.data_items[0]) < filtered_data_items.items.index(document_model.data_items[2]))
 
@@ -178,10 +178,10 @@ class TestDataItemsModelModule(unittest.TestCase):
                 document_model.append_data_item(data_item)
             self.assertEqual(len(filtered_data_items.items), 0)
             with document_model.data_item_live(document_model.data_items[0]):
-                document_model.data_items[0].library_item_changed_event.fire()
+                document_model.data_items[0].data_item_changed_event.fire()
                 self.assertEqual(len(filtered_data_items.items), 1)
                 with document_model.data_item_live(document_model.data_items[2]):
-                    document_model.data_items[2].library_item_changed_event.fire()
+                    document_model.data_items[2].data_item_changed_event.fire()
                     self.assertEqual(len(filtered_data_items.items), 2)
 
     def test_sorted_filtered_model_updates_when_data_item_exits_filter(self):
@@ -198,7 +198,7 @@ class TestDataItemsModelModule(unittest.TestCase):
                 document_model.append_data_item(data_item)
             self.assertEqual(len(filtered_data_items.items), 4)
             with document_model.data_item_live(document_model.data_items[0]):
-                document_model.data_items[0].library_item_changed_event.fire()
+                document_model.data_items[0].data_item_changed_event.fire()
                 self.assertEqual(len(filtered_data_items.items), 3)
 
     def test_filtered_model_updates_when_source_model_has_data_item_that_updates(self):
@@ -215,7 +215,7 @@ class TestDataItemsModelModule(unittest.TestCase):
             filtered_data_items2.filter = ListModel.EqFilter("is_live", True)
             self.assertEqual(len(filtered_data_items2.items), 0)
             with document_model.data_item_live(document_model.data_items[0]):
-                document_model.data_items[0].library_item_changed_event.fire()
+                document_model.data_items[0].data_item_changed_event.fire()
                 self.assertEqual(len(filtered_data_items.items), 4)  # verify assumption
                 self.assertEqual(len(filtered_data_items2.items), 1)  # verify assumption
                 self.assertTrue(document_model.data_items[0] in filtered_data_items2.items)
@@ -269,7 +269,7 @@ class TestDataItemsModelModule(unittest.TestCase):
             def update_randomly():
                 for _ in range(cc):
                     data_item = random.choice(filtered_data_items._get_master_items())
-                    data_item.library_item_changed_event.fire()
+                    data_item.data_item_changed_event.fire()
                 finished.set()
             list_model.insert_item(0, data_items[0])
             threading.Thread(target = update_randomly).start()

@@ -44,13 +44,13 @@ class ImportExportHandler:
         return True
 
     # return data items
-    def read_data_items(self, ui, extension, file_path) -> typing.Sequence[DataItem.LibraryItem]:
+    def read_data_items(self, ui, extension, file_path) -> typing.Sequence[DataItem.DataItem]:
         data_items = list()
         if os.path.exists(file_path) or file_path.startswith(":"):  # check for colon is for testing
             data_items.extend(self._read_data_items(ui, extension, file_path))
         return data_items
 
-    def _read_data_items(self, ui, extension, file_path) -> typing.Sequence[DataItem.LibraryItem]:
+    def _read_data_items(self, ui, extension, file_path) -> typing.Sequence[DataItem.DataItem]:
         data_items = list()
         data_elements = self.read_data_elements(ui, extension, file_path)
         for data_element in data_elements:

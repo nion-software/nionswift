@@ -393,7 +393,7 @@ class TransactionManager:
             old_items = copy.copy(items)
             self.__get_deep_dependent_item_set(item, items)
             # next, the graphics and connections (where item is source)
-            if isinstance(item, DataItem.LibraryItem):
+            if isinstance(item, DataItem.DataItem):
                 for display in item.displays:
                     for graphic in display.graphics:
                         self.__get_deep_transaction_item_set(graphic, items)
@@ -448,7 +448,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __init__(self, *, storage_system=None, storage_cache=None, log_migrations=True, ignore_older_files=False):
         super().__init__()
 
-        self.library_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
+        self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
         self.data_item_inserted_event = Event.Event()
         self.data_item_removed_event = Event.Event()
 
@@ -759,7 +759,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if computation.is_resolved:
                     computation.mark_update()
 
-    def remove_data_item(self, library_item: DataItem.LibraryItem, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def remove_data_item(self, data_item: DataItem.DataItem, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         """Remove data item from document model.
 
         Data item will have persistent_object_context cleared upon return.
@@ -767,7 +767,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         This method is NOT threadsafe.
         """
         # remove data item from any computations
-        return self.__cascade_delete(library_item, safe=safe)
+        return self.__cascade_delete(data_item, safe=safe)
 
     def __remove_data_item(self, data_item, *, safe: bool=False) -> typing.Sequence:
         undelete_log = list()
@@ -783,7 +783,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if self.__computation_active_item and data_item is self.__computation_active_item.data_item:
                 self.__computation_active_item.valid = False
         # remove data item from any selections
-        self.library_item_will_be_removed_event.fire(data_item)
+        self.data_item_will_be_removed_event.fire(data_item)
         # remove the data item from any groups
         for data_group in self.get_flat_data_group_generator():
             if data_item in data_group.data_items:
@@ -839,8 +839,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         return self.__cascade_delete(item, safe=safe)
 
-    def assign_variable_to_library_item(self, library_item: DataItem.LibraryItem) -> str:
-        if not library_item.r_var:
+    def assign_variable_to_data_item(self, data_item: DataItem.DataItem) -> str:
+        if not data_item.r_var:
             data_item_variables = self._get_persistent_property_value("data_item_variables")
             def find_var() -> str:
                 for r in range(1, 1000000):
@@ -849,10 +849,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         return r_var
                 return str()
             data_item_var = find_var()
-            data_item_variables[data_item_var] = str(library_item.uuid)
-            library_item.set_r_value(data_item_var)
+            data_item_variables[data_item_var] = str(data_item.uuid)
+            data_item.set_r_value(data_item_var)
             self._set_persistent_property_value("data_item_variables", data_item_variables)
-        return library_item.r_var
+        return data_item.r_var
 
     def variable_to_data_item_map(self) -> typing.Mapping[str, DataItem.DataItem]:
         m = dict()
@@ -876,8 +876,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         source_targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(source), list())
                         if len(source_targets) == 1 and source_targets[0] == item:
                             self.__build_cascade(source, items, dependencies)
-            # graphics on a data item are deleted.
-            if isinstance(item, DataItem.LibraryItem):
+                # graphics on a data item are deleted.
                 for display in item.displays:
                     for graphic in display.graphics:
                         self.__build_cascade(graphic, items, dependencies)
@@ -991,7 +990,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # now delete the actual items
         for item in reversed(items):
             container = item.container
-            if isinstance(item, DataItem.LibraryItem):
+            if isinstance(item, DataItem.DataItem):
                 name = "data_items"
             elif isinstance(item, Graphics.Graphic):
                 name = "graphics"
@@ -1253,9 +1252,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return self.__transaction_manager.transaction_count
 
     def begin_display_transaction(self, display: Display.Display) -> Transaction:
-        library_item = DataItem.DisplaySpecifier.from_display(display).library_item
-        if library_item:
-            return self.item_transaction(library_item)
+        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+        if data_item:
+            return self.item_transaction(data_item)
         else:
             return Transaction(self.__transaction_manager, set())
 

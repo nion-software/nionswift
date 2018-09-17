@@ -121,13 +121,13 @@ class DisplayItem:
 
     @property
     def format_str(self) -> str:
-        library_item = self.library_item
-        return library_item.size_and_data_format_as_string if library_item else str()
+        data_item = self.data_item
+        return data_item.size_and_data_format_as_string if data_item else str()
 
     @property
     def datetime_str(self) -> str:
-        library_item = self.library_item
-        return library_item.date_for_sorting_local_as_string if library_item else str()
+        data_item = self.data_item
+        return data_item.date_for_sorting_local_as_string if data_item else str()
 
     @property
     def status_str(self) -> str:
@@ -911,7 +911,7 @@ class DataGroupModelController:
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = self.__document_model.get_data_item_by_key(data_item_uuid)
             if data_item:
-                command = self.__document_controller.create_insert_data_group_library_item_command(data_group, len(data_group.data_items), data_item)
+                command = self.__document_controller.create_insert_data_group_data_item_command(data_group, len(data_group.data_items), data_item)
                 command.perform()
                 self.__document_controller.push_undo_command(command)
                 return action
@@ -973,8 +973,8 @@ class DataPanel(Panel.Panel):
                     if self.on_title_changed:
                         document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
 
-                self.__library_item_inserted_listener = self.__data_items_model.item_inserted_event.listen(data_item_inserted)
-                self.__library_item_removed_listener = self.__data_items_model.item_removed_event.listen(data_item_removed)
+                self.__data_item_inserted_listener = self.__data_items_model.item_inserted_event.listen(data_item_inserted)
+                self.__data_item_removed_listener = self.__data_items_model.item_removed_event.listen(data_item_removed)
 
                 self.__count = len(self.__data_items_model.data_items)
 
@@ -983,18 +983,18 @@ class DataPanel(Panel.Panel):
                 return self.__base_title + (" (%i)" % self.__count)
 
             def close(self):
-                self.__library_item_inserted_listener.close()
-                self.__library_item_inserted_listener = None
-                self.__library_item_removed_listener.close()
-                self.__library_item_removed_listener = None
+                self.__data_item_inserted_listener.close()
+                self.__data_item_inserted_listener = None
+                self.__data_item_removed_listener.close()
+                self.__data_item_removed_listener = None
                 self.__data_items_model.close()
 
-        all_library_items_model = document_controller.create_data_items_model(None, "all")
-        all_items_controller = LibraryItemController(_("All"), all_library_items_model)
-        live_library_items_model = document_controller.create_data_items_model(None, "temporary")
-        live_items_controller = LibraryItemController(_("Live"), live_library_items_model)
-        latest_library_items_model = document_controller.create_data_items_model(None, "latest-session")
-        latest_items_controller = LibraryItemController(_("Latest Session"), latest_library_items_model)
+        all_data_items_model = document_controller.create_data_items_model(None, "all")
+        all_items_controller = LibraryItemController(_("All"), all_data_items_model)
+        live_data_items_model = document_controller.create_data_items_model(None, "temporary")
+        live_items_controller = LibraryItemController(_("Live"), live_data_items_model)
+        latest_data_items_model = document_controller.create_data_items_model(None, "latest-session")
+        latest_items_controller = LibraryItemController(_("Latest Session"), latest_data_items_model)
         self.__item_controllers = [all_items_controller, live_items_controller, latest_items_controller]
 
         self.library_model_controller = LibraryModelController(ui, self.__item_controllers)

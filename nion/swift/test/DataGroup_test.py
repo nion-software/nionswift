@@ -199,7 +199,7 @@ class TestDataGroupClass(unittest.TestCase):
             data_group.append_data_item(data_item3)
             document_model.append_data_group(data_group)
             # insert a new one
-            command = document_controller.create_insert_data_group_library_item_command(data_group, 1, data_item2)
+            command = document_controller.create_insert_data_group_data_item_command(data_group, 1, data_item2)
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(3, len(data_group.data_items))
@@ -336,7 +336,7 @@ class TestDataGroupClass(unittest.TestCase):
             data_group.append_data_item(data_item3)
             document_model.append_data_group(data_group)
             # remove the 2nd data item
-            command = document_controller.create_remove_library_items_command([data_item2])
+            command = document_controller.create_remove_data_items_command([data_item2])
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(2, len(document_model.data_items))

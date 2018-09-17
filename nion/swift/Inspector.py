@@ -49,8 +49,8 @@ class InspectorPanel(Panel.Panel):
         self.request_focus = False
 
         # listen for selected display binding changes
-        self.__library_item_will_be_removed_event_listener = None
-        self.__library_item_changed_event_listener = document_controller.focused_library_item_changed_event.listen(self.__library_item_changed)
+        self.__data_item_will_be_removed_event_listener = None
+        self.__data_item_changed_event_listener = document_controller.focused_data_item_changed_event.listen(self.__data_item_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
 
         def scroll_area_focus_changed(focused):
@@ -76,8 +76,8 @@ class InspectorPanel(Panel.Panel):
 
     def close(self):
         # disconnect self as listener
-        self.__library_item_changed_event_listener.close()
-        self.__library_item_changed_event_listener = None
+        self.__data_item_changed_event_listener.close()
+        self.__data_item_changed_event_listener = None
         # close the property controller. note: this will close and create
         # a new data item inspector; so it should go before the final
         # data item inspector close, which is below.
@@ -159,28 +159,28 @@ class InspectorPanel(Panel.Panel):
     # this message is received from the data item binding.
     # mark the data item as needing updating.
     # thread safe.
-    def __library_item_changed(self, library_item):
-        display_specifier = DataItem.DisplaySpecifier.from_library_item(library_item)
-        def library_item_will_be_removed(library_item_to_be_removed):
-            if library_item_to_be_removed == library_item:
+    def __data_item_changed(self, data_item):
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        def data_item_will_be_removed(data_item_to_be_removed):
+            if data_item_to_be_removed == data_item:
                 self.document_controller.clear_task("update_display" + str(id(self)))
                 self.document_controller.clear_task("update_display_inspector" + str(id(self)))
-                if self.__library_item_will_be_removed_event_listener:
-                    self.__library_item_will_be_removed_event_listener.close()
-                    self.__library_item_will_be_removed_event_listener = None
+                if self.__data_item_will_be_removed_event_listener:
+                    self.__data_item_will_be_removed_event_listener.close()
+                    self.__data_item_will_be_removed_event_listener = None
         def update_display():
             self.__set_display_specifier(display_specifier)
-            if self.__library_item_will_be_removed_event_listener:
-                self.__library_item_will_be_removed_event_listener.close()
-                self.__library_item_will_be_removed_event_listener = None
+            if self.__data_item_will_be_removed_event_listener:
+                self.__data_item_will_be_removed_event_listener.close()
+                self.__data_item_will_be_removed_event_listener = None
         # handle the case where the selected display binding changes and then the item is removed before periodic has
         # had a chance to update display. in that case, when periodic finally gets called, we need to make sure that
         # update display has been canceled somehow. this barely passes the smell test.
         if display_specifier.data_item:
-            if self.__library_item_will_be_removed_event_listener:
-                self.__library_item_will_be_removed_event_listener.close()
-                self.__library_item_will_be_removed_event_listener = None
-            self.__library_item_will_be_removed_event_listener = self.document_controller.document_model.library_item_will_be_removed_event.listen(library_item_will_be_removed)
+            if self.__data_item_will_be_removed_event_listener:
+                self.__data_item_will_be_removed_event_listener.close()
+                self.__data_item_will_be_removed_event_listener = None
+            self.__data_item_will_be_removed_event_listener = self.document_controller.document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
         self.document_controller.add_task("update_display" + str(id(self)), update_display)
 
 
@@ -215,59 +215,59 @@ class InspectorSection(Widgets.CompositeWidgetBase):
 
 
 class ChangePropertyCommand(Undo.UndoableCommand):
-    def __init__(self, document_model, library_item: DataItem.LibraryItem, property_name: str, value):
+    def __init__(self, document_model, data_item: DataItem.DataItem, property_name: str, value):
         super().__init__(_("Change Library Item Info"), command_id="change_property_" + property_name, is_mergeable=True)
         self.__document_model = document_model
-        self.__library_item_uuid = library_item.uuid
+        self.__data_item_uuid = data_item.uuid
         self.__property_name = property_name
         self.__new_value = value
-        self.__old_value = getattr(library_item, property_name)
+        self.__old_value = getattr(data_item, property_name)
         self.initialize()
 
     def close(self):
         self.__document_model = None
-        self.__library_item_uuid = None
+        self.__data_item_uuid = None
         self.__property_name = None
         self.__new_value = None
         self.__old_value = None
         super().close()
 
     def perform(self):
-        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        setattr(library_item, self.__property_name, self.__new_value)
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        setattr(data_item, self.__property_name, self.__new_value)
 
     def _get_modified_state(self):
-        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        return library_item.modified_state, self.__document_model.modified_state
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        return data_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        library_item.modified_state, self.__document_model.modified_state = modified_state
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
     def _undo(self) -> None:
-        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        self.__new_value = getattr(library_item, self.__property_name)
-        setattr(library_item, self.__property_name, self.__old_value)
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        self.__new_value = getattr(data_item, self.__property_name)
+        setattr(data_item, self.__property_name, self.__old_value)
 
     def _redo(self) -> None:
         self.perform()
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__library_item_uuid == command.__library_item_uuid
+        return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
 
 
 class ChangePropertyBinding(Binding.PropertyBinding):
-    def __init__(self, document_controller, library_item: DataItem.LibraryItem, property_name: str, converter=None, fallback=None):
-        super().__init__(library_item, property_name, converter=converter, fallback=fallback)
+    def __init__(self, document_controller, data_item: DataItem.DataItem, property_name: str, converter=None, fallback=None):
+        super().__init__(data_item, property_name, converter=converter, fallback=fallback)
         self.__property_name = property_name
         self.__old_source_setter = self.source_setter
 
         def set_value(value):
-            if value != getattr(library_item, property_name):
+            if value != getattr(data_item, property_name):
                 command = ChangePropertyCommand(document_controller.document_model, self.source, self.__property_name, value)
                 command.perform()
                 document_controller.push_undo_command(command)
@@ -550,84 +550,84 @@ class SessionInspectorSection(InspectorSection):
 
 
 class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
-    def __init__(self, document_model, library_item: DataItem.LibraryItem, intensity_calibration: Calibration.Calibration):
+    def __init__(self, document_model, data_item: DataItem.DataItem, intensity_calibration: Calibration.Calibration):
         super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
         self.__document_model = document_model
-        self.__library_item_uuid = library_item.uuid
+        self.__data_item_uuid = data_item.uuid
         self.__new_intensity_calibration = intensity_calibration
-        self.__old_intensity_calibration = library_item.intensity_calibration
+        self.__old_intensity_calibration = data_item.intensity_calibration
         self.initialize()
 
     def close(self):
         self.__document_model = None
-        self.__library_item_uuid = None
+        self.__data_item_uuid = None
         self.__new_intensity_calibration = None
         self.__old_intensity_calibration = None
         super().close()
 
     def perform(self):
-        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        library_item.set_intensity_calibration(self.__new_intensity_calibration)
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item.set_intensity_calibration(self.__new_intensity_calibration)
 
     def _get_modified_state(self):
-        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        return library_item.modified_state, self.__document_model.modified_state
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        return data_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        library_item.modified_state, self.__document_model.modified_state = modified_state
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
     def _undo(self) -> None:
-        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        self.__new_intensity_calibration = library_item.intensity_calibration
-        library_item.set_intensity_calibration(self.__old_intensity_calibration)
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        self.__new_intensity_calibration = data_item.intensity_calibration
+        data_item.set_intensity_calibration(self.__old_intensity_calibration)
 
     def _redo(self) -> None:
         self.perform()
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeIntensityCalibrationCommand) and self.command_id and self.command_id == command.command_id and self.__library_item_uuid == command.__library_item_uuid
+        return isinstance(command, ChangeIntensityCalibrationCommand) and self.command_id and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
 
 
 class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
-    def __init__(self, document_model, library_item: DataItem.LibraryItem, dimensional_calibrations: typing.List[Calibration.Calibration]):
+    def __init__(self, document_model, data_item: DataItem.DataItem, dimensional_calibrations: typing.List[Calibration.Calibration]):
         super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
         self.__document_model = document_model
-        self.__library_item_uuid = library_item.uuid
+        self.__data_item_uuid = data_item.uuid
         self.__new_dimensional_calibrations = dimensional_calibrations
-        self.__old_dimensional_calibrations = library_item.dimensional_calibrations
+        self.__old_dimensional_calibrations = data_item.dimensional_calibrations
         self.initialize()
 
     def perform(self):
-        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        library_item.set_dimensional_calibrations(self.__new_dimensional_calibrations)
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item.set_dimensional_calibrations(self.__new_dimensional_calibrations)
 
     def _get_modified_state(self):
-        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        return library_item.modified_state, self.__document_model.modified_state
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        return data_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        library_item.modified_state, self.__document_model.modified_state = modified_state
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
     def _undo(self) -> None:
-        library_item = self.__document_model.get_data_item_by_uuid(self.__library_item_uuid)
-        self.__new_dimensional_calibrations = library_item.dimensional_calibrations
-        library_item.set_dimensional_calibrations(self.__old_dimensional_calibrations)
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        self.__new_dimensional_calibrations = data_item.dimensional_calibrations
+        data_item.set_dimensional_calibrations(self.__old_dimensional_calibrations)
 
     def _redo(self) -> None:
         self.perform()
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDimensionalCalibrationsCommand) and self.command_id and self.command_id == command.command_id and self.__library_item_uuid == command.__library_item_uuid
+        return isinstance(command, ChangeDimensionalCalibrationsCommand) and self.command_id and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
 
 
 class CalibrationToObservable(Observable.Observable):
@@ -2234,15 +2234,14 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
         self.ui = ui
 
         display_specifier = DataItem.DisplaySpecifier.from_display(display)
-        library_item = display_specifier.library_item
         data_item = display_specifier.data_item
 
         content_widget = self.content_widget
         content_widget.add_spacing(4)
-        if library_item:
+        if data_item:
             title_row = self.ui.create_row_widget()
             title_label_widget = self.ui.create_label_widget(properties={"stylesheet": "font-weight: bold"})
-            title_label_widget.bind_text(Binding.PropertyBinding(library_item, "title"))
+            title_label_widget.bind_text(Binding.PropertyBinding(data_item, "title"))
             title_row.add_spacing(20)
             title_row.add(title_label_widget)
             title_row.add_stretch()
@@ -2294,9 +2293,9 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
                 inspector_sections[0].info_title_label.focused = True
                 inspector_sections[0].info_title_label.request_refocus()
             self.__focus_default = focus_default
-        elif library_item:
-            inspector_sections.append(InfoInspectorSection(document_controller, library_item))
-            inspector_sections.append(SessionInspectorSection(document_controller, library_item))
+        elif data_item:
+            inspector_sections.append(InfoInspectorSection(document_controller, data_item))
+            inspector_sections.append(SessionInspectorSection(document_controller, data_item))
             def focus_default():
                 inspector_sections[0].info_title_label.focused = True
                 inspector_sections[0].info_title_label.request_refocus()

@@ -1194,10 +1194,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return DataItem.DisplaySpecifier.from_display(self.display).data_item
 
     @property
-    def library_item(self):
-        return DataItem.DisplaySpecifier.from_display(self.display).library_item
-
-    @property
     def display(self):
         return self.__display
 
@@ -1209,7 +1205,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
         if self.__display:
-            d["data_item_uuid"] = str(self.library_item.uuid)
+            d["data_item_uuid"] = str(self.data_item.uuid)
         if self.__display_panel_controller is None and self.__horizontal_browser_canvas_item.visible:
             d["browser_type"] = "horizontal"
         if self.__display_panel_controller is None and self.__grid_browser_canvas_item.visible:
@@ -1391,11 +1387,10 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def request_focus(self):
         self.__content_canvas_item.request_focus()
 
-    def set_display_panel_data_item(self, library_item: DataItem.LibraryItem, detect_controller: bool=False) -> None:
-        if library_item:
-            d = {"type": "image", "data_item_uuid": str(library_item.uuid)}
-            if detect_controller and isinstance(library_item, DataItem.DataItem):
-                data_item = library_item
+    def set_display_panel_data_item(self, data_item: DataItem.DataItem, detect_controller: bool=False) -> None:
+        if data_item:
+            d = {"type": "image", "data_item_uuid": str(data_item.uuid)}
+            if detect_controller:
                 d2 = DisplayPanelManager().detect_controller(self.__document_controller.document_model, data_item)
                 if d2:
                     d.update(d2)

@@ -70,7 +70,7 @@ class MemoryStorageSystem:
 
     def __write_properties(self, object):
         persistent_object_parent = object.persistent_object_parent if object else None
-        if object and isinstance(object, DataItem.LibraryItem):
+        if object and isinstance(object, DataItem.DataItem):
             self.__get_storage_for_item(object).rewrite_item(object)
         elif persistent_object_parent:
             self.__write_properties(persistent_object_parent.parent)
@@ -100,7 +100,7 @@ class MemoryStorageSystem:
 
     def __get_storage_dict(self, object):
         persistent_object_parent = object.persistent_object_parent
-        if isinstance(object, DataItem.LibraryItem):
+        if isinstance(object, DataItem.DataItem):
             return self.__get_storage_for_item(object).properties
         if not persistent_object_parent:
             return self.__properties2
@@ -119,7 +119,7 @@ class MemoryStorageSystem:
         return storage_dict
 
     def insert_item(self, parent, name, before_index, item):
-        if isinstance(item, DataItem.LibraryItem):
+        if isinstance(item, DataItem.DataItem):
             item.persistent_object_context = parent.persistent_object_context
             storage_handler = self.make_storage_handler(item)
             self.register_data_item(item.uuid, storage_handler, item.write_to_dict())
@@ -133,7 +133,7 @@ class MemoryStorageSystem:
             self.__write_properties(parent)
 
     def remove_item(self, parent, name, index, item):
-        if isinstance(item, DataItem.LibraryItem):
+        if isinstance(item, DataItem.DataItem):
             item.persistent_object_context = None
             self.unregister_data_item(item)
         else:

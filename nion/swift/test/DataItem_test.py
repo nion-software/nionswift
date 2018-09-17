@@ -490,7 +490,7 @@ class TestDataItemClass(unittest.TestCase):
             data_changed_ref = [False]
             def data_item_content_changed():
                 data_changed_ref[0] = True
-            with contextlib.closing(data_item_inverted.library_item_changed_event.listen(data_item_content_changed)):
+            with contextlib.closing(data_item_inverted.data_item_changed_event.listen(data_item_content_changed)):
                 display_specifier.data_item.set_data(numpy.ones((8, 8), numpy.uint32))
                 document_model.recompute_all()
                 self.assertTrue(data_changed_ref)
@@ -557,7 +557,7 @@ class TestDataItemClass(unittest.TestCase):
             data_changed_ref = [0]
             def data_item_content_changed():
                 data_changed_ref[0] += 1
-            with contextlib.closing(inverted_data_item.library_item_changed_event.listen(data_item_content_changed)):
+            with contextlib.closing(inverted_data_item.data_item_changed_event.listen(data_item_content_changed)):
                 display_specifier.data_item.set_data(numpy.ones((8, 8), numpy.uint32))
                 self.assertTrue(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
                 self.assertEqual(data_changed_ref[0], 0)

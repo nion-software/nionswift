@@ -28,23 +28,23 @@ class MetadataModel:
 
     def __init__(self, document_controller):
         self.__weak_document_controller = weakref.ref(document_controller)
-        self.__library_item = None
+        self.__data_item = None
         # thread safe.
-        def library_item_changed(library_item):
+        def data_item_changed(data_item):
             def update_display_specifier():
-                self.__set_library_item(library_item)
+                self.__set_data_item(data_item)
             self.document_controller.add_task("update_display_specifier" + str(id(self)), update_display_specifier)
-        self.__library_item_changed_event_listener = document_controller.focused_library_item_changed_event.listen(library_item_changed)
-        self.__set_library_item(None)
+        self.__data_item_changed_event_listener = document_controller.focused_data_item_changed_event.listen(data_item_changed)
+        self.__set_data_item(None)
         self.__metadata_changed_event_listener = None
         self.__metadata = None
         self.metadata_changed_event = Event.Event()
 
     def close(self):
         self.document_controller.clear_task("update_display_specifier" + str(id(self)))
-        self.__library_item_changed_event_listener.close()
-        self.__library_item_changed_event_listener = None
-        self.__set_library_item(None)
+        self.__data_item_changed_event_listener.close()
+        self.__data_item_changed_event_listener = None
+        self.__set_data_item(None)
 
     @property
     def document_controller(self):
@@ -54,26 +54,26 @@ class MetadataModel:
     def metadata(self):
         return self.__metadata
 
-    def __metadata_changed(self, library_item):
-        metadata = library_item.metadata if library_item else dict()
+    def __metadata_changed(self, data_item):
+        metadata = data_item.metadata if data_item else dict()
         assert isinstance(metadata, dict)
         if self.__metadata != metadata:
             self.__metadata = metadata if metadata is not None else dict()
             self.metadata_changed_event.fire(self.__metadata)
 
     # not thread safe
-    def __set_library_item(self, library_item):
-        if self.__library_item != library_item:
+    def __set_data_item(self, data_item):
+        if self.__data_item != data_item:
             if self.__metadata_changed_event_listener:
                 self.__metadata_changed_event_listener.close()
                 self.__metadata_changed_event_listener = None
-            self.__library_item = library_item
+            self.__data_item = data_item
             # update the expression text
-            if library_item:
+            if data_item:
                 def metadata_changed():
-                    self.__metadata_changed(library_item)
-                self.__metadata_changed_event_listener = library_item.metadata_changed_event.listen(metadata_changed)
-            self.__metadata_changed(library_item)
+                    self.__metadata_changed(data_item)
+                self.__metadata_changed_event_listener = data_item.metadata_changed_event.listen(metadata_changed)
+            self.__metadata_changed(data_item)
 
 
 class MetadataEditorTreeDelegate:

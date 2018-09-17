@@ -1379,7 +1379,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
                 inverted_data_item = document_model.get_invert_new(data_item)
                 document_model.recompute_all()
-                document_model.assign_variable_to_library_item(data_item)
+                document_model.assign_variable_to_data_item(data_item)
                 file_path = data_item._test_get_file_path()
             file_path_base, file_path_ext = os.path.splitext(file_path)
             # read it back
@@ -3068,7 +3068,7 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", library_dir)
             shutil.rmtree(library_dir)
 
-    def test_auto_migrate_skips_migrated_and_deleted_library_items(self):
+    def test_auto_migrate_skips_migrated_and_deleted_data_items(self):
         current_working_directory = os.getcwd()
         library_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(library_dir)
@@ -3435,7 +3435,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.data_structures))
             self.assertEqual(1, len(document_model.computations))
 
-    def test_library_item_sources_reconnect_after_reload(self):
+    def test_data_item_sources_reconnect_after_reload(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):

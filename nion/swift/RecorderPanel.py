@@ -69,7 +69,7 @@ class Recorder:
             else:
                 self.__recording_error = True
 
-        self.__library_item_changed_event_listener = data_item.library_item_changed_event.listen(data_item_content_changed)
+        self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(data_item_content_changed)
         self.__item_removed_event_listener = self.__document_model.item_removed_event.listen(item_removed)
         self.__data_item_data_changed_event_listener = self.__data_item.data_changed_event.listen(data_changed)
 
@@ -79,8 +79,8 @@ class Recorder:
         data_changed()
 
     def close(self):
-        self.__library_item_changed_event_listener.close()
-        self.__library_item_changed_event_listener = None
+        self.__data_item_changed_event_listener.close()
+        self.__data_item_changed_event_listener = None
         self.__item_removed_event_listener.close()
         self.__item_removed_event_listener = None
         self.__data_item_data_changed_event_listener.close()
@@ -92,32 +92,32 @@ class Recorder:
 
     class RecorderInsertLibraryItemCommandCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller, recorder: "Recorder", library_item_fn: typing.Callable[[], DataItem.LibraryItem]):
+        def __init__(self, document_controller, recorder: "Recorder", data_item_fn: typing.Callable[[], DataItem.DataItem]):
             super().__init__(_("Record Library Item"))
             self.__document_controller = document_controller
             self.__recorder = recorder
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
-            self.__library_item_uuid = None
-            self.__library_item_fn = library_item_fn
-            self.__library_item_index = None
+            self.__data_item_uuid = None
+            self.__data_item_fn = data_item_fn
+            self.__data_item_index = None
             self.initialize()
 
         def close(self):
             self.__document_controller = None
-            self.__library_item_uuid = None
-            self.__library_item_fn = None
-            self.__library_item_index = None
+            self.__data_item_uuid = None
+            self.__data_item_fn = None
+            self.__data_item_index = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             super().close()
 
         def perform(self):
-            self.__library_item_uuid = self.__library_item_fn().uuid
+            self.__data_item_uuid = self.__data_item_fn().uuid
 
         @property
-        def library_item(self):
-            return self.__document_controller.document_model.get_data_item_by_uuid(self.__library_item_uuid)
+        def data_item(self):
+            return self.__document_controller.document_model.get_data_item_by_uuid(self.__data_item_uuid)
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -127,15 +127,15 @@ class Recorder:
 
         def _redo(self):
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
-            self.__library_item_uuid = self.__document_controller.document_model.data_items[self.__library_item_index].uuid
+            self.__data_item_uuid = self.__document_controller.document_model.data_items[self.__data_item_index].uuid
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
         def _undo(self):
-            library_item = self.__document_controller.document_model.get_data_item_by_uuid(self.__library_item_uuid)
+            data_item = self.__document_controller.document_model.get_data_item_by_uuid(self.__data_item_uuid)
             self.__recorder.stop_recording()
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__library_item_index = self.__document_controller.document_model.data_items.index(library_item)
-            self.__undelete_log = self.__document_controller.document_model.remove_data_item(library_item, safe=True)
+            self.__data_item_index = self.__document_controller.document_model.data_items.index(data_item)
+            self.__undelete_log = self.__document_controller.document_model.remove_data_item(data_item, safe=True)
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def continue_recording(self, current_time: float) -> None:

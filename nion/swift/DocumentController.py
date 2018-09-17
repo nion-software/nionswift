@@ -115,9 +115,7 @@ class DocumentController(Window.Window):
 
         self.filter_controller = FilterPanel.FilterController(self)
 
-        self.focused_library_item_changed_event = Event.Event()
         self.focused_data_item_changed_event = Event.Event()
-        self.__focused_library_item = None
         self.__focused_data_item = None
         self.__focused_display = None
         self.notify_focused_display_changed(None)
@@ -734,16 +732,6 @@ class DocumentController(Window.Window):
                 selected_data_items.append(data_item)
         return selected_data_items
 
-    @property
-    def selected_library_items(self) -> typing.List[DataItem.LibraryItem]:
-        selected_displays = self.selected_displays
-        selected_library_items = list()
-        for display in selected_displays:
-            library_item = DataItem.DisplaySpecifier.from_display(display).library_item
-            if library_item and not library_item in selected_library_items:
-                selected_library_items.append(library_item)
-        return selected_library_items
-
     def select_data_items_in_data_panel(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
         displays = self.filtered_displays_model.displays
         associated_displays = {data_item.primary_display_specifier.display for data_item in data_items}
@@ -764,19 +752,10 @@ class DocumentController(Window.Window):
         if self.__focused_display != display:
             self.__focused_display = display
         display_specifier = DataItem.DisplaySpecifier.from_display(display)
-        library_item = display_specifier.library_item
-        if self.__focused_library_item != library_item:
-            self.__focused_library_item = library_item
-            self.focused_library_item_changed_event.fire(library_item)
         data_item = display_specifier.data_item
         if self.__focused_data_item != data_item:
             self.__focused_data_item = data_item
             self.focused_data_item_changed_event.fire(data_item)
-
-    @property
-    def focused_library_item(self) -> DataItem.LibraryItem:
-        """Return the library item with keyboard focus."""
-        return self.__focused_library_item
 
     @property
     def focused_data_item(self) -> DataItem.DataItem:
@@ -815,24 +794,24 @@ class DocumentController(Window.Window):
         return DataItem.DisplaySpecifier.from_data_item(self.selected_display_panel.data_item if self.selected_display_panel else None)
 
     def delete_displays(self, displays: typing.Sequence[Display.Display]) -> None:
-        library_items = list()
+        data_items = list()
         container = self.__data_items_model.container
         if container is self.document_model:
             for display in displays:
-                library_item = DataItem.DisplaySpecifier.from_display(display).library_item
-                if library_item and library_item in self.document_model.data_items and library_item not in library_items:
-                    library_items.append(library_item)
-            if library_items:
-                command = self.create_remove_library_items_command(library_items)
+                data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+                if data_item and data_item in self.document_model.data_items and data_item not in data_items:
+                    data_items.append(data_item)
+            if data_items:
+                command = self.create_remove_data_items_command(data_items)
                 command.perform()
                 self.push_undo_command(command)
         elif isinstance(container, DataGroup.DataGroup):
             for display in displays:
-                library_item = DataItem.DisplaySpecifier.from_display(display).library_item
-                if library_item and library_item in container.data_items and library_item not in library_items:
-                    library_items.append(library_item)
-            if library_items:
-                command = DocumentController.RemoveDataGroupLibraryItemsCommand(self.document_model, container, library_items)
+                data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+                if data_item and data_item in container.data_items and data_item not in data_items:
+                    data_items.append(data_item)
+            if data_items:
+                command = DocumentController.RemoveDataGroupLibraryItemsCommand(self.document_model, container, data_items)
                 command.perform()
                 self.push_undo_command(command)
 
@@ -1105,19 +1084,19 @@ class DocumentController(Window.Window):
         def _redo(self) -> None:
             self.perform()
 
-    def create_insert_data_group_library_item_command(self, data_group: DataGroup.DataGroup, before_index: int, data_item: DataItem) -> InsertDataGroupLibraryItemCommand:
+    def create_insert_data_group_data_item_command(self, data_group: DataGroup.DataGroup, before_index: int, data_item: DataItem) -> InsertDataGroupLibraryItemCommand:
         return DocumentController.InsertDataGroupLibraryItemCommand(self.document_model, data_group, before_index, data_item)
 
     class InsertDataGroupLibraryItemsCommand(Undo.UndoableCommand):
-        def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, library_items: typing.Sequence[DataItem.LibraryItem], index: int):
+        def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):
             super().__init__("Insert Library Items")
             self.__document_controller = document_controller
             self.__data_group_uuid = data_group.uuid
             self.__data_group_indexes = list()
             self.__data_group_uuids = list()
-            self.__library_items = library_items  # only in perform
-            self.__library_item_index = index
-            self.__library_item_indexes = list()
+            self.__data_items = data_items  # only in perform
+            self.__data_item_index = index
+            self.__data_item_indexes = list()
             self.__undelete_logs = None
             self.initialize()
 
@@ -1126,8 +1105,8 @@ class DocumentController(Window.Window):
             self.__data_group_uuid = None
             self.__data_group_indexes = None
             self.__data_group_uuids = None
-            self.__library_items = None
-            self.__library_item_index = None
+            self.__data_items = None
+            self.__data_item_index = None
             self.__undelete_logs = None
             super().close()
 
@@ -1142,42 +1121,42 @@ class DocumentController(Window.Window):
         def perform(self):
             document_model = self.__document_controller.document_model
             data_group = document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            index = self.__library_item_index
-            for library_item in self.__library_items:
-                if not document_model.get_data_item_by_uuid(library_item.uuid):
-                    self.__library_item_indexes.append(len(document_model.data_items))
-                    document_model.append_data_item(library_item)
-            for library_item in self.__library_items:
-                if not library_item in data_group.data_items:
-                    data_group.insert_data_item(index, library_item)
+            index = self.__data_item_index
+            for data_item in self.__data_items:
+                if not document_model.get_data_item_by_uuid(data_item.uuid):
+                    self.__data_item_indexes.append(len(document_model.data_items))
+                    document_model.append_data_item(data_item)
+            for data_item in self.__data_items:
+                if not data_item in data_group.data_items:
+                    data_group.insert_data_item(index, data_item)
                     self.__data_group_indexes.append(index)
-                    self.__data_group_uuids.append(library_item.uuid)
+                    self.__data_group_uuids.append(data_item.uuid)
                     index += 1
-            self.__library_items = None
+            self.__data_items = None
 
         def _undo(self) -> None:
             document_model = self.__document_controller.document_model
             data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
             self.__undelete_logs = list()
-            library_items = [data_group.data_items[index] for index in self.__data_group_indexes]
-            for library_item in library_items:
-                if library_item in data_group.data_items:
-                    data_group.remove_data_item(library_item)
-            library_items = [document_model.data_items[index] for index in self.__library_item_indexes]
-            for library_item in library_items:
-                if library_item in document_model.data_items:
-                    self.__undelete_logs.append(document_model.remove_data_item(library_item, safe=True))
+            data_items = [data_group.data_items[index] for index in self.__data_group_indexes]
+            for data_item in data_items:
+                if data_item in data_group.data_items:
+                    data_group.remove_data_item(data_item)
+            data_items = [document_model.data_items[index] for index in self.__data_item_indexes]
+            for data_item in data_items:
+                if data_item in document_model.data_items:
+                    self.__undelete_logs.append(document_model.remove_data_item(data_item, safe=True))
 
         def _redo(self) -> None:
             document_model = self.__document_controller.document_model
             data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
-            index = self.__library_item_index
-            library_items = [document_model.get_data_item_by_uuid(library_item_uuid) for library_item_uuid in reversed(self.__data_group_uuids)]
-            for library_item in library_items:
-                if not library_item in data_group.data_items:
-                    data_group.insert_data_item(index, library_item)
+            index = self.__data_item_index
+            data_items = [document_model.get_data_item_by_uuid(data_item_uuid) for data_item_uuid in reversed(self.__data_group_uuids)]
+            for data_item in data_items:
+                if not data_item in data_group.data_items:
+                    data_group.insert_data_item(index, data_item)
 
     class RemoveDataGroupLibraryItemsCommand(Undo.UndoableCommand):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem]):
@@ -1546,28 +1525,28 @@ class DocumentController(Window.Window):
 
     class RemoveLibraryItemsCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: "DocumentController", library_items: typing.Sequence[DataItem.LibraryItem]):
+        def __init__(self, document_controller: "DocumentController", data_items: typing.Sequence[DataItem.DataItem]):
             super().__init__(_("Remove Library Items"))
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
-            self.__library_item_indexes = [document_controller.document_model.data_items.index(library_item) for library_item in library_items]
+            self.__data_item_indexes = [document_controller.document_model.data_items.index(data_item) for data_item in data_items]
             self.initialize()
 
         def close(self):
             self.__document_controller = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
-            self.__library_item_indexes = None
+            self.__data_item_indexes = None
             super().close()
 
         def perform(self):
             self.__undelete_logs = list()
             document_model = self.__document_controller.document_model
-            library_items = [document_model.data_items[index] for index in self.__library_item_indexes]
-            for library_item in library_items:
-                if library_item in document_model.data_items:
-                    self.__undelete_logs.append(document_model.remove_data_item(library_item, safe=True))
+            data_items = [document_model.data_items[index] for index in self.__data_item_indexes]
+            for data_item in data_items:
+                if data_item in document_model.data_items:
+                    self.__undelete_logs.append(document_model.remove_data_item(data_item, safe=True))
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -1585,8 +1564,8 @@ class DocumentController(Window.Window):
             self.perform()
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
-    def create_remove_library_items_command(self, library_items: typing.Sequence[DataItem.LibraryItem]) -> Undo.UndoableCommand:
-        return DocumentController.RemoveLibraryItemsCommand(self, library_items)
+    def create_remove_data_items_command(self, data_items: typing.Sequence[DataItem.DataItem]) -> Undo.UndoableCommand:
+        return DocumentController.RemoveLibraryItemsCommand(self, data_items)
 
     def add_data_element(self, data_element, source_data_item=None):
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
@@ -1599,14 +1578,14 @@ class DocumentController(Window.Window):
         return self.add_data_element(data_element)
 
     def display_data_item(self, display_specifier, source_data_item=None, request_focus=True):
-        library_item = display_specifier.library_item
-        assert library_item is not None
+        data_item = display_specifier.data_item
+        assert data_item is not None
         result_display_panel = self.next_result_display_panel()
         if result_display_panel:
-            result_display_panel.set_display_panel_data_item(library_item)
+            result_display_panel.set_display_panel_data_item(data_item)
             if request_focus:
                 result_display_panel.request_focus()
-        self.select_data_item_in_data_panel(library_item)
+        self.select_data_item_in_data_panel(data_item)
         if request_focus:
             self.notify_focused_display_changed(display_specifier.display)
             inspector_panel = self.find_dock_widget("inspector-panel").panel
@@ -1614,32 +1593,32 @@ class DocumentController(Window.Window):
                 inspector_panel.request_focus = True
 
     def _perform_redimension(self, data_item: DataItem.DataItem, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
-        def process() -> DataItem.LibraryItem:
+        def process() -> DataItem.DataItem:
             new_data_item = self.document_model.get_redimension_new(data_item, data_descriptor)
             new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
             self.display_data_item(new_display_specifier)
             return new_data_item
-        command = self.create_insert_library_item_command(process)
+        command = self.create_insert_data_item_command(process)
         command.perform()
         assert isinstance(command, DocumentController.InsertLibraryItemCommand)
-        if command.library_item:
+        if command.data_item:
             self.push_undo_command(command)
-            return command.library_item
+            return command.data_item
         else:
             command.close()
 
     def _perform_squeeze(self, data_item: DataItem.DataItem) -> None:
-        def process() -> DataItem.LibraryItem:
+        def process() -> DataItem.DataItem:
             new_data_item = self.document_model.get_squeeze_new(data_item)
             new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
             self.display_data_item(new_display_specifier)
             return new_data_item
-        command = self.create_insert_library_item_command(process)
+        command = self.create_insert_data_item_command(process)
         command.perform()
         assert isinstance(command, DocumentController.InsertLibraryItemCommand)
-        if command.library_item:
+        if command.data_item:
             self.push_undo_command(command)
-            return command.library_item
+            return command.data_item
         else:
             command.close()
 
@@ -1761,32 +1740,32 @@ class DocumentController(Window.Window):
 
     class InsertLibraryItemCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: "DocumentController", library_item_fn: typing.Callable[[], DataItem.LibraryItem]):
+        def __init__(self, document_controller: "DocumentController", data_item_fn: typing.Callable[[], DataItem.DataItem]):
             super().__init__(_("Insert Library Item"))
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
-            self.__library_item_uuid = None
-            self.__library_item_fn = library_item_fn
-            self.__library_item_index = None
+            self.__data_item_uuid = None
+            self.__data_item_fn = data_item_fn
+            self.__data_item_index = None
             self.initialize()
 
         def close(self):
             self.__document_controller = None
-            self.__library_item_uuid = None
-            self.__library_item_fn = None
-            self.__library_item_index = None
+            self.__data_item_uuid = None
+            self.__data_item_fn = None
+            self.__data_item_index = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             super().close()
 
         def perform(self):
-            data_item = self.__library_item_fn()
-            self.__library_item_uuid = data_item.uuid if data_item else None
+            data_item = self.__data_item_fn()
+            self.__data_item_uuid = data_item.uuid if data_item else None
 
         @property
-        def library_item(self):
-            return self.__document_controller.document_model.get_data_item_by_uuid(self.__library_item_uuid)
+        def data_item(self):
+            return self.__document_controller.document_model.get_data_item_by_uuid(self.__data_item_uuid)
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -1796,33 +1775,33 @@ class DocumentController(Window.Window):
 
         def _redo(self):
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
-            self.__library_item_uuid = self.__document_controller.document_model.data_items[self.__library_item_index].uuid
+            self.__data_item_uuid = self.__document_controller.document_model.data_items[self.__data_item_index].uuid
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
         def _undo(self):
-            library_item = self.__document_controller.document_model.get_data_item_by_uuid(self.__library_item_uuid)
+            data_item = self.__document_controller.document_model.get_data_item_by_uuid(self.__data_item_uuid)
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__library_item_index = self.__document_controller.document_model.data_items.index(library_item)
-            self.__undelete_log = self.__document_controller.document_model.remove_data_item(library_item, safe=True)
+            self.__data_item_index = self.__document_controller.document_model.data_items.index(data_item)
+            self.__undelete_log = self.__document_controller.document_model.remove_data_item(data_item, safe=True)
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
-    def create_insert_library_item_command(self, library_item_fn: typing.Callable[[], DataItem.LibraryItem]) -> Undo.UndoableCommand:
-        return DocumentController.InsertLibraryItemCommand(self, library_item_fn)
+    def create_insert_data_item_command(self, data_item_fn: typing.Callable[[], DataItem.DataItem]) -> Undo.UndoableCommand:
+        return DocumentController.InsertLibraryItemCommand(self, data_item_fn)
 
-    def _perform_duplicate(self, library_item: DataItem.LibraryItem) -> None:
-        def process() -> DataItem.LibraryItem:
-            new_data_item = self.document_model.copy_data_item(library_item)
-            new_data_item.title = _("Clone of ") + library_item.title
-            new_data_item.category = library_item.category
+    def _perform_duplicate(self, data_item: DataItem.DataItem) -> None:
+        def process() -> DataItem.DataItem:
+            new_data_item = self.document_model.copy_data_item(data_item)
+            new_data_item.title = _("Clone of ") + data_item.title
+            new_data_item.category = data_item.category
             self.select_data_item_in_data_panel(new_data_item)
             self.notify_focused_display_changed(new_data_item.primary_display_specifier.display)
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
             display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
-            self.display_data_item(display_specifier, source_data_item=library_item)
+            self.display_data_item(display_specifier, source_data_item=data_item)
             return new_data_item
-        command = self.create_insert_library_item_command(process)
+        command = self.create_insert_data_item_command(process)
         command.perform()
         self.push_undo_command(command)
 
@@ -1831,10 +1810,10 @@ class DocumentController(Window.Window):
         if data_item:
             self._perform_duplicate(data_item)
 
-    def _perform_snapshot(self, library_item: DataItem.LibraryItem) -> None:
-        request_focus = not library_item.is_live
-        def process() -> DataItem.LibraryItem:
-            data_item_copy = self.document_model.get_snapshot_new(library_item)
+    def _perform_snapshot(self, data_item: DataItem.DataItem) -> None:
+        request_focus = not data_item.is_live
+        def process() -> DataItem.DataItem:
+            data_item_copy = self.document_model.get_snapshot_new(data_item)
             if request_focus:
                 # see https://github.com/nion-software/nionswift/issues/145
                 self.select_data_item_in_data_panel(data_item_copy)
@@ -1843,9 +1822,9 @@ class DocumentController(Window.Window):
                 if inspector_panel is not None:
                     inspector_panel.request_focus = True
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_copy)
-            self.display_data_item(display_specifier, source_data_item=library_item, request_focus=request_focus)
+            self.display_data_item(display_specifier, source_data_item=data_item, request_focus=request_focus)
             return data_item_copy
-        command = self.create_insert_library_item_command(process)
+        command = self.create_insert_data_item_command(process)
         command.perform()
         self.push_undo_command(command)
 
@@ -1928,17 +1907,17 @@ class DocumentController(Window.Window):
         return None
 
     def _perform_processing2(self, data_item1: DataItem.DataItem, data_item2: DataItem.DataItem, crop_graphic1: typing.Optional[Graphics.Graphic], crop_graphic2: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
-        def process() -> DataItem.LibraryItem:
+        def process() -> DataItem.DataItem:
             new_data_item = fn(data_item1, data_item2, crop_graphic1, crop_graphic2)
             new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
             self.display_data_item(new_display_specifier)
             return new_data_item
-        command = self.create_insert_library_item_command(process)
+        command = self.create_insert_data_item_command(process)
         command.perform()
         assert isinstance(command, DocumentController.InsertLibraryItemCommand)
-        if command.library_item:
+        if command.data_item:
             self.push_undo_command(command)
-            return command.library_item
+            return command.data_item
         else:
             command.close()
         return None
@@ -1954,18 +1933,18 @@ class DocumentController(Window.Window):
         return self.__processing_new2(self.document_model.get_cross_correlate_new)
 
     def _perform_processing(self, data_item: DataItem.DataItem, crop_graphic: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
-        def process() -> DataItem.LibraryItem:
+        def process() -> DataItem.DataItem:
             new_data_item = fn(data_item, crop_graphic)
             if new_data_item:
                 new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
                 self.display_data_item(new_display_specifier)
             return new_data_item
-        command = self.create_insert_library_item_command(process)
+        command = self.create_insert_data_item_command(process)
         command.perform()
         assert isinstance(command, DocumentController.InsertLibraryItemCommand)
-        if command.library_item:
+        if command.data_item:
             self.push_undo_command(command)
-            return command.library_item
+            return command.data_item
         else:
             command.close()
         return None
@@ -2018,12 +1997,12 @@ class DocumentController(Window.Window):
         self.workspace_controller.filter_row.visible = not self.workspace_controller.filter_row.visible
 
     def prepare_data_item_script(self, *, do_log: bool=True) -> None:
-        library_item = self.focused_library_item
-        if library_item:
-            library_item_var = self.document_model.assign_variable_to_library_item(library_item)
-            if do_log: logging.debug("{} = Library Item with UUID {}".format(library_item_var, library_item.uuid))
+        data_item = self.focused_data_item
+        if data_item:
+            data_item_var = self.document_model.assign_variable_to_data_item(data_item)
+            if do_log: logging.debug("{} = Data Item with UUID {}".format(data_item_var, data_item.uuid))
             for console in self.__consoles:
-                console.assign_library_item_var(library_item_var, library_item)
+                console.assign_data_item_var(data_item_var, data_item)
 
     def copy_uuid(self):
         display_specifier = self.selected_display_specifier
@@ -2042,14 +2021,14 @@ class DocumentController(Window.Window):
             return
 
     def _perform_create_empty_data_item(self) -> None:
-        def process() -> DataItem.LibraryItem:
+        def process() -> DataItem.DataItem:
             new_data_item = DataItem.DataItem()
             new_data_item.title = _("Untitled")
             self.document_model.append_data_item(new_data_item)
             new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
             self.display_data_item(new_display_specifier)
             return new_data_item
-        command = self.create_insert_library_item_command(process)
+        command = self.create_insert_data_item_command(process)
         command.perform()
         self.push_undo_command(command)
 
@@ -2058,14 +2037,14 @@ class DocumentController(Window.Window):
 
     class InsertLibraryItemsCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: "DocumentController", library_items: typing.Sequence[DataItem.LibraryItem], index: int, display_panel: DisplayPanel.DisplayPanel=None):
+        def __init__(self, document_controller: "DocumentController", data_items: typing.Sequence[DataItem.DataItem], index: int, display_panel: DisplayPanel.DisplayPanel=None):
             super().__init__(_("Insert Library Items"))
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
-            self.__library_items = library_items  # only used in perform
-            self.__library_item_index = index
-            self.__library_item_indexes = list()
+            self.__data_items = data_items  # only used in perform
+            self.__data_item_index = index
+            self.__data_item_indexes = list()
             self.__display_panel = display_panel  # only used in perform
             self.__undelete_logs = None
             self.initialize()
@@ -2074,21 +2053,21 @@ class DocumentController(Window.Window):
             self.__document_controller = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
-            self.__library_items = None
-            self.__library_item_index = None
+            self.__data_items = None
+            self.__data_item_index = None
             self.__undelete_logs = None
             super().close()
 
         def perform(self):
             document_model = self.__document_controller.document_model
-            index = self.__library_item_index
-            for library_item in self.__library_items:
-                if not document_model.get_data_item_by_uuid(library_item.uuid):
-                    document_model.insert_data_item(index, library_item)
-                    self.__library_item_indexes.append(index)
+            index = self.__data_item_index
+            for data_item in self.__data_items:
+                if not document_model.get_data_item_by_uuid(data_item.uuid):
+                    document_model.insert_data_item(index, data_item)
+                    self.__data_item_indexes.append(index)
                     index += 1
-            if self.__display_panel and self.__library_items:
-                self.__display_panel.set_display_panel_data_item(self.__library_items[-1])
+            if self.__display_panel and self.__data_items:
+                self.__display_panel.set_display_panel_data_item(self.__data_items[-1])
                 self.__display_panel.request_focus()
 
         def _get_modified_state(self):
@@ -2106,10 +2085,10 @@ class DocumentController(Window.Window):
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__undelete_logs = list()
             document_model = self.__document_controller.document_model
-            library_items = [document_model.data_items[index] for index in self.__library_item_indexes]
-            for library_item in library_items:
-                if library_item in document_model.data_items:
-                    self.__undelete_logs.append(document_model.remove_data_item(library_item, safe=True))
+            data_items = [document_model.data_items[index] for index in self.__data_item_indexes]
+            for data_item in data_items:
+                if data_item in document_model.data_items:
+                    self.__undelete_logs.append(document_model.remove_data_item(data_item, safe=True))
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
     # receive files into the document model. data_group and index can optionally
@@ -2175,27 +2154,27 @@ class DocumentController(Window.Window):
 
     def create_context_menu_for_display(self, display: Display.Display, container=None):
         menu = self.create_context_menu()
-        library_item = DataItem.DisplaySpecifier.from_display(display).library_item
-        if library_item:
+        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+        if data_item:
             data_item = DataItem.DisplaySpecifier.from_display(display).data_item
 
             if not container:
                 container = self.data_items_model.container
-                container = DataGroup.get_data_item_container(container, library_item)
+                container = DataGroup.get_data_item_container(container, data_item)
 
             def delete():
-                selected_library_items = self.selected_library_items
-                if not library_item in selected_library_items:
+                selected_data_items = self.selected_data_items
+                if not data_item in selected_data_items:
                     if isinstance(container, DocumentModel.DocumentModel):
-                        command = self.create_remove_library_items_command([library_item])
+                        command = self.create_remove_data_items_command([data_item])
                         command.perform()
                         self.push_undo_command(command)
                     elif isinstance(container, DataGroup.DataGroup):
-                        command = DocumentController.RemoveDataGroupLibraryItemsCommand(self.document_model, container, [library_item])
+                        command = DocumentController.RemoveDataGroupLibraryItemsCommand(self.document_model, container, [data_item])
                         command.perform()
                         self.push_undo_command(command)
                 else:
-                    command = self.create_remove_library_items_command(selected_library_items)
+                    command = self.create_remove_data_items_command(selected_data_items)
                     command.perform()
                     self.push_undo_command(command)
 
@@ -2207,7 +2186,7 @@ class DocumentController(Window.Window):
                 menu.add_menu_item(_("Open in New Window"), show_in_new_window)
 
             def show():
-                self.select_data_item_in_data_panel(library_item)
+                self.select_data_item_in_data_panel(data_item)
             menu.add_menu_item(_("Reveal"), show)
 
             menu.add_menu_item(_("Delete Library Item"), delete)
@@ -2225,7 +2204,7 @@ class DocumentController(Window.Window):
 
                 menu.add_menu_item(_("Export..."), functools.partial(self.queue_task, export_files))  # queued to avoid pop-up menu issue
 
-            source_data_items = self.document_model.get_source_data_items(library_item)
+            source_data_items = self.document_model.get_source_data_items(data_item)
             if len(source_data_items) > 0:
                 menu.add_separator()
                 for source_data_item in source_data_items:
@@ -2235,7 +2214,7 @@ class DocumentController(Window.Window):
                     menu.add_menu_item("{0} \"{1}\"".format(_("Go to Source "), source_data_item.title),
                                        functools.partial(show_source_data_item, source_data_item))
 
-            dependent_data_items = self.document_model.get_dependent_data_items(library_item)
+            dependent_data_items = self.document_model.get_dependent_data_items(data_item)
             if len(dependent_data_items) > 0:
                 menu.add_separator()
                 for dependent_data_item in dependent_data_items:

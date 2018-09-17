@@ -87,8 +87,8 @@ class FilterController:
         # will be called.
         self.__data_items_model = document_controller.data_items_model
 
-        self.__library_item_inserted_listener = self.__data_items_model.item_inserted_event.listen(data_item_inserted)
-        self.__library_item_removed_listener = self.__data_items_model.item_removed_event.listen(data_item_removed)
+        self.__data_item_inserted_listener = self.__data_items_model.item_inserted_event.listen(data_item_inserted)
+        self.__data_item_removed_listener = self.__data_items_model.item_removed_event.listen(data_item_removed)
 
         self.__mapping = dict()
         self.__mapping[id(self.__data_item_tree)] = self.item_model_controller.root
@@ -102,10 +102,10 @@ class FilterController:
 
     def close(self):
         # Close the data model controller. Un-listen to the data item list model and close the item model controller.
-        self.__library_item_inserted_listener.close()
-        self.__library_item_inserted_listener = None
-        self.__library_item_removed_listener.close()
-        self.__library_item_removed_listener = None
+        self.__data_item_inserted_listener.close()
+        self.__data_item_inserted_listener = None
+        self.__data_item_removed_listener.close()
+        self.__data_item_removed_listener = None
         self.__periodic_listener.close()
         self.__periodic_listener = None
         self.item_model_controller.close()

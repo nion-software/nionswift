@@ -1736,7 +1736,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(1, len(data_item.displays[0].graphics))
             self.assertEqual(line_plot_data_item, display_panel.data_item)
             # do the delete
-            command = document_controller.create_remove_library_items_command([line_plot_data_item])
+            command = document_controller.create_remove_data_items_command([line_plot_data_item])
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(0, len(data_item.displays[0].graphics))

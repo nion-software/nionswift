@@ -23,7 +23,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_data_item_display_thumbnail_source_produces_library_item_mime_data(self):
+    def test_data_item_display_thumbnail_source_produces_data_item_mime_data(self):
         app = Application.Application(TestUI.UserInterface(), set_global=False)
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
