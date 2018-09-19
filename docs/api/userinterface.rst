@@ -36,3 +36,20 @@ Best Practices
     Panel
     -----
     N/A
+
+    Declarative UI
+    --------------
+
+    * model stored in properties, model objects, or the widgets.
+    * binding vs. explicit get/set/event.
+    * model objects for binding vs. get/set/notify methods.
+    * items that have content have margins and spacing
+    * splitting into design, handler, hardware abstraction
+    * testing strategies: nui, test-ui, logging
+
+    * TODO: validations
+    * TODO: consider whether to have an initialize component call in the handler
+    * TODO: decide on class naming
+    * TODO: creator application, running without any models
+    * TODO: a web based version, how does application, windows, dialogs, etc. fit together
+    * TODO: custom canvas items

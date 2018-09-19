@@ -6,21 +6,20 @@ Nion Swift is open source scientific image processing software integrating hardw
 visualization, processing, and analysis using Python. Nion Swift is easily extended using Python. It runs on
 Windows, Linux, and macOS.
 
-Nion Swift is being developed for the operation of Nion electron microscopes and also as an offline tool to visualize,
-process, and analyze scientific data from electron microscopes, other instrumentation, and other scientific fields.
+Nion Swift has been primarily developed for the operation of Nion electron microscopes and also as an offline tool to
+visualize, process, and analyze scientific data from electron microscopes, other instrumentation, and other scientific
+fields.
 
 Nion Swift is open source. You can find the source code on
 `GitHub Nion Swift <https://github.com/nion-software/nionswift/>`_.
 
-Nion Swift should currently be considered **beta** level software.
-
 Installation
 ------------
-To install Nion Swift, you will need to install a Python environment with some specific Python packages. When you
-initially launch the application, it will ask you for the directory of that Python environment.
+To install Nion Swift, you will need to install a Python environment and then install Python packages required for Nion
+Swift.
 
-For specific installation details and download links, see the installation link below. Instructions to install
-additional packages to extend Nion Swift are also covered in that link.
+For specific installation details and download links, follow link below. Instructions to install additional packages to
+extend Nion Swift are also covered.
 
 * :ref:`installation`
 * :ref:`release-notes`
@@ -43,6 +42,9 @@ its intrinsic capabilities. Fortunately it is easy to extend the functionality u
 
 * :ref:`scripting`
 
+Nion Swift Links
+----------------
+`Nion Swift Google Group <https://groups.google.com/forum/#!forum/nionswift>`_ News and Announcements.
 
 Indices and Tables
 ==================
@@ -57,11 +59,18 @@ Contents
     data_management
     coordinates
     python_console
-    python_interactive
-    python_external
-    python_extensions
     scripting
-    api/api_index
+    api/architecture.rst
+    api/concepts.rst
+    api/extended_data.rst
+    api/external.rst
+    api/hardware.rst
+    api/interactive.rst
+    api/plugins.rst
+    api/quick.rst
+    api/reference.rst
+    api/scripting.rst
+    api/userinterface.rst
     :maxdepth: 1
     :caption: Contents:
 
@@ -70,3 +79,7 @@ Links
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+..
+  Docs environment:
+  conda create -n docs pip sphinx scipy h5py imageio pytz tzlocal pillow

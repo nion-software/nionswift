@@ -16,7 +16,7 @@ automatically configures the ``api`` variable for you. ::
    (512, 1024)
 
 The Python console assigns the ``api.show`` method to ``show`` making it easy to quickly display new items. Remember to
-make sure there is a blank display panel available to show the new item (right click on a display panel, choose ``None``). ::
+have an empty display panel available to show the new item (right click on a display panel, choose ``Empty``). ::
 
     >>> d = numpy.random.randn(20, 20)
     >>> show(d)

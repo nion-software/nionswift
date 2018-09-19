@@ -3,6 +3,17 @@
 Scripting Concepts
 ==================
 
+Nion Swift API
+--------------
+The Nion Swift API allows developers the ability to control and extend Nion Swift and its extensions and plug-ins.
+
+The API is a versioned API. This allows developers to write to a specific version of the API and know that their
+scripts and extensions will work across different versions of Nion Swift that support their required API version.
+
+.. note::
+    Until Nion Swift reaches version 1.0, the API may change slightly. We will do our best to keep it stable and
+    backwards compatible until then, though.
+
 For detailed class and method references, see :ref:`api-architecture`.
 
 Understanding Data Items, Data, and Metadata
@@ -82,7 +93,7 @@ Python scripts in the interactive windows run on the their own thread. However, 
 call from interactive scripts because they are *marshalled* to the UI thread when they are called, which means the
 interactive window temporarily suspends its execution until the API call completes.
 
-See :ref:`python-interactive`.
+See :ref:`interactive-guide`.
 
 External Scripts
 ++++++++++++++++
@@ -91,3 +102,24 @@ entirely separate Python environment. When they call API functions, the API func
 UI thread unless otherwise noted in the API reference.
 
 See :ref:`python-external`.
+
+API Notes
+---------
+Versions numbering follows `Semantic Version Numbering <http://semver.org/>`_.
+
+:samp:`on_xyz` methods are used when a callback needs a return value and has only a single listener.
+
+:samp:`xyz_event` methods are used when a callback is optional and may have multiple listeners.
+
+Nion Swift uses c-indexing for NumPy (fastest changing index in memory is last). This means that sizes are usually
+specified in height, width and coordinates are specified in :samp:`y, x`.
+
+Coordinates used with overlay graphics are specified in data-relative coordinates, which means that the values range
+from 0.0 to 1.0 for each dimension with 0.0, 0.0 being the top left corner.
+
+Two dimensional points are represented as :samp:`y, x`. Three dimensional points are represented as :samp:`z, y, x`.
+
+Two dimensional sizes are represented as :samp:`height, width`.
+
+Rectangles are specified by the tuple :samp:`top_left, size` where :samp:`top_left` is a point and :samp:`size` is a
+size.

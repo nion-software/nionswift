@@ -161,6 +161,10 @@ or ::
 
 After restarting Nion Swift, the microscope simulator would be available within Nion Swift.
 
+You can search for additional Nion Swift extensions using the command::
+
+    $ pip search nionswift
+
 Here are several extensions that may prove useful:
 
 =======================  =====  ===  =================================================================
