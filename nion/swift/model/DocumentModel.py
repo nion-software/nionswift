@@ -1337,18 +1337,21 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             #logging.debug("Looking in %s", samples_dir)
             def is_ndata(file_path):
                 #logging.debug("Checking %s", file_path)
-                _, extension = os.path.splitext(file_path)
-                return extension == ".ndata1"
+                base, extension = os.path.splitext(file_path)
+                return extension == ".ndata1" and not os.path.basename(base).startswith(".")
             if os.path.isdir(samples_dir):
                 sample_paths = [os.path.normpath(os.path.join(samples_dir, d)) for d in os.listdir(samples_dir) if is_ndata(os.path.join(samples_dir, d))]
             else:
                 sample_paths = []
             for sample_path in sorted(sample_paths):
-                data_items = handler.read_data_items(None, "ndata1", sample_path)
-                for data_item in data_items:
-                    if not self.get_data_item_by_uuid(data_item.uuid):
-                        self.append_data_item(data_item)
-                        data_group.append_data_item(data_item)
+                try:
+                    data_items = handler.read_data_items(None, "ndata1", sample_path)
+                    for data_item in data_items:
+                        if not self.get_data_item_by_uuid(data_item.uuid):
+                            self.append_data_item(data_item)
+                            data_group.append_data_item(data_item)
+                except Exception as e:
+                    logging.debug("Error reading %s", sample_path)
         else:
             # for testing, add a checkerboard image data item
             checkerboard_data_item = DataItem.DataItem(Image.create_checkerboard((512, 512)))
