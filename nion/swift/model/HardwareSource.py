@@ -789,21 +789,21 @@ class HardwareSource:
 
     # call this to start acquisition
     # not thread safe
-    def start_playing(self, sync_timeout=None):
+    def start_playing(self, *args, **kwargs):
         if not self.is_playing:
             view_task = self._create_acquisition_view_task()
             view_task._test_acquire_hook = self._test_acquire_hook
             self._view_task_updated(view_task)
             self.start_task('view', view_task)
-        if sync_timeout is not None:
+        if "sync_timeout" in kwargs:
             start = time.time()
             while not self.is_playing:
                 time.sleep(0.01)  # 10 msec
-                assert time.time() - start < float(sync_timeout)
+                assert time.time() - start < float(kwargs["sync_timeout"])
 
     # call this to stop acquisition immediately
     # not thread safe
-    def abort_playing(self, sync_timeout=None):
+    def abort_playing(self, *, sync_timeout=None):
         if self.is_playing:
             self.abort_task('view')
             self._view_task_updated(None)
@@ -815,7 +815,7 @@ class HardwareSource:
 
     # call this to stop acquisition gracefully
     # not thread safe
-    def stop_playing(self, sync_timeout=None):
+    def stop_playing(self, *, sync_timeout=None):
         if self.is_playing:
             self.stop_task('view')
             self._view_task_updated(None)
