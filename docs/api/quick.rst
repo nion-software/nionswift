@@ -154,6 +154,7 @@ class :py:class:`nion.typeshed.API_1_0.DocumentWindow`
    - :py:meth:`queue_task <nion.typeshed.API_1_0.DocumentWindow.queue_task>`
    - :py:meth:`show_confirmation_message_box <nion.typeshed.API_1_0.DocumentWindow.show_confirmation_message_box>`
    - :py:meth:`show_get_string_message_box <nion.typeshed.API_1_0.DocumentWindow.show_get_string_message_box>`
+   - :py:meth:`show_modeless_dialog <nion.typeshed.API_1_0.DocumentWindow.show_modeless_dialog>`
 
 **Properties**
    - :py:attr:`all_display_panels <nion.typeshed.API_1_0.DocumentWindow.all_display_panels>`
@@ -269,6 +270,7 @@ class :py:class:`nion.typeshed.API_1_0.Library`
    - :py:meth:`delete_library_value <nion.typeshed.API_1_0.Library.delete_library_value>`
    - :py:meth:`get_data_item_by_uuid <nion.typeshed.API_1_0.Library.get_data_item_by_uuid>`
    - :py:meth:`get_data_item_for_hardware_source <nion.typeshed.API_1_0.Library.get_data_item_for_hardware_source>`
+   - :py:meth:`get_data_item_for_reference_key <nion.typeshed.API_1_0.Library.get_data_item_for_reference_key>`
    - :py:meth:`get_dependent_data_items <nion.typeshed.API_1_0.Library.get_dependent_data_items>`
    - :py:meth:`get_graphic_by_uuid <nion.typeshed.API_1_0.Library.get_graphic_by_uuid>`
    - :py:meth:`get_library_value <nion.typeshed.API_1_0.Library.get_library_value>`

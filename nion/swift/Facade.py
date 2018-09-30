@@ -2125,7 +2125,7 @@ class Library(metaclass=SharedInstance):
     release = ["uuid", "data_item_count", "data_items", "create_data_item", "create_data_item_from_data",
                "create_data_item_from_data_and_metadata",
                "get_or_create_data_group", "data_ref_for_data_item", "get_data_item_for_hardware_source",
-               "get_data_item_by_uuid", "get_graphic_by_uuid",
+               "get_data_item_for_reference_key", "get_data_item_by_uuid", "get_graphic_by_uuid",
                "get_source_data_items", "get_dependent_data_items", "has_library_value", "get_library_value",
                "set_library_value", "delete_library_value",
                "copy_data_item", "snapshot_data_item"]
@@ -2342,6 +2342,21 @@ class Library(metaclass=SharedInstance):
         hardware_source_id = hardware_source._hardware_source.hardware_source_id
         document_model = self._document_model
         data_item_reference_key = document_model.make_data_item_reference_key(hardware_source_id, channel_id, processor_id)
+        return self.get_data_item_for_reference_key(data_item_reference_key, create_if_needed=create_if_needed, large_format=large_format)
+
+    def get_data_item_for_reference_key(self, data_item_reference_key: str=None, create_if_needed: bool=False, large_format: bool=False) -> DataItem:
+        """Get the data item associated with data item reference key. Optionally create if missing.
+
+        :param data_item_reference_key: The data item reference key.
+        :param create_if_needed: Whether to create a new data item if none is found.
+        :return: The associated data item. May be None.
+
+        .. versionadded:: 1.0
+
+        Status: Provisional
+        Scriptable: Yes
+        """
+        document_model = self._document_model
         data_item_reference = document_model.get_data_item_reference(data_item_reference_key)
         data_item = data_item_reference.data_item
         if data_item is None and create_if_needed:

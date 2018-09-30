@@ -354,6 +354,9 @@ class Library:
     def get_data_item_for_hardware_source(self, hardware_source, channel_id=None, processor_id=None, create_if_needed=False, large_format=False):
         return call_method(self, 'get_data_item_for_hardware_source', hardware_source, channel_id=channel_id, processor_id=processor_id, create_if_needed=create_if_needed, large_format=large_format)
 
+    def get_data_item_for_reference_key(self, data_item_reference_key=None, create_if_needed=False, large_format=False):
+        return call_method(self, 'get_data_item_for_reference_key', data_item_reference_key=data_item_reference_key, create_if_needed=create_if_needed, large_format=large_format)
+
     def get_dependent_data_items(self, data_item):
         return call_method(self, 'get_dependent_data_items', data_item)
 

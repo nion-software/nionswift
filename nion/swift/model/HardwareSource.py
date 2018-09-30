@@ -497,7 +497,10 @@ class DataChannel:
         hardware_source_metadata["hardware_source_id"] = hardware_source_id
         hardware_source_metadata["channel_index"] = channel_index
         if channel_id is not None:
+            hardware_source_metadata["reference_key"] = "_".join([hardware_source_id, channel_id])
             hardware_source_metadata["channel_id"] = channel_id
+        else:
+            hardware_source_metadata["reference_key"] = hardware_source_id
         if channel_name is not None:
             hardware_source_metadata["channel_name"] = channel_name
         if view_id:

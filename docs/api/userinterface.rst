@@ -13,7 +13,7 @@ technique for height is to add a 'max-height' if needed. A minimum height can be
 not usually needed since the content almost always determines the preferred height.
 
 Within the overall layout, children will expand to take up as much space as possible. You can add ``spacing`` and
-``stetches`` to rows and coluns to modify this behavior. If a ``stretch`` is present within a row or column, the rest of
+``stretches`` to rows and coluns to modify this behavior. If a ``stretch`` is present within a row or column, the rest of
 the items will be decreased to their preferred size and possibly further to their minimum size.
 
 For instance, if you add a button to a row, the button will expand to the size of the row. If you add a button and a
