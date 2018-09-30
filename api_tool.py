@@ -1,6 +1,7 @@
-# python api_tool.py --classes api_public --level release > ../typeshed/nion/typeshed/API_1_0.py
-# python api_tool.py --classes api_public --level release prerelease > ../typeshed/nion/typeshed/API_1_0_prerelease.py
-# python api_tool.py --classes hardware_source_public --level release > ../typeshed/nion/typeshed/HardwareSource_1_0.py
+# run from the nionswift directory
+# python api_tool.py --classes api_public --level release > ./nion/typeshed/API_1_0.py
+# python api_tool.py --classes api_public --level release prerelease > ./nion/typeshed/API_1_0_prerelease.py
+# python api_tool.py --classes hardware_source_public --level release > ./nion/typeshed/HardwareSource_1_0.py
 # python api_tool.py --classes nionlib_public --level release --proxy > ./nionlib/Classes.py
 # python api_tool.py --classes nionlib_public --level release --summary > ./docs/api/quick.rst
 
@@ -73,7 +74,8 @@ def annotation_to_str(annotation):
     if annotation is None:
         return "None"
 
-    annotation_name = getattr(annotation, "__name__", None)
+    annotation_name = getattr(annotation, "_name", None)
+    annotation_name = getattr(annotation, "__name__", annotation_name)
 
     if type(annotation) == str:
         annotation = getattr(module, annotation)
@@ -106,11 +108,11 @@ def annotation_to_str(annotation):
 
     if annotation_name == "ndarray":
         return "numpy.ndarray"
-    if annotation_name == typing.List.__name__:
+    if annotation_name == typing.List._name:
         return "typing.List[{}]".format(annotation_to_str(annotation.__args__[0]))
-    if annotation_name == typing.Sequence.__name__:
+    if annotation_name == typing.Sequence._name:
         return "typing.Sequence[{}]".format(annotation_to_str(annotation.__args__[0]))
-    if annotation_name == typing.Tuple.__name__:
+    if annotation_name == typing.Tuple._name:
         return "typing.Tuple[{}]".format(", ".join(annotation_to_str(tuple_param) for tuple_param in annotation.__args__))
     if annotation_name == "Union":
         return "typing.Union[{}]".format(", ".join(annotation_to_str(union_param) for union_param in annotation.__union_params__))
