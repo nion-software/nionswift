@@ -362,7 +362,7 @@ class RunScriptDialog(Dialog.ActionDialog):
             while len(self.__output_queue) > 0:
                 self.__output_widget.move_cursor_position("end")
                 self.__output_widget.append_text(self.__output_queue.popleft())
-            while len(self.__q) > 0:
+            if len(self.__q) > 0:
                 func = self.__q.popleft()
         if callable(func):
             func()
@@ -419,6 +419,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
     def show_ndarray(self, data: numpy.ndarray, title:str = None) -> None:
         accept_event = threading.Event()
+
         def perform():
             data_item = self.document_controller.add_data(data, title)
             result_display_panel = self.document_controller.next_result_display_panel()
