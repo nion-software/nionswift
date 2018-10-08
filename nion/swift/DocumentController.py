@@ -1781,7 +1781,8 @@ class DocumentController(Window.Window):
             super().close()
 
         def perform(self):
-            self.__library_item_uuid = self.__library_item_fn().uuid
+            data_item = self.__library_item_fn()
+            self.__library_item_uuid = data_item.uuid if data_item else None
 
         @property
         def library_item(self):
@@ -1955,8 +1956,9 @@ class DocumentController(Window.Window):
     def _perform_processing(self, data_item: DataItem.DataItem, crop_graphic: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
         def process() -> DataItem.LibraryItem:
             new_data_item = fn(data_item, crop_graphic)
-            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
-            self.display_data_item(new_display_specifier)
+            if new_data_item:
+                new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
+                self.display_data_item(new_display_specifier)
             return new_data_item
         command = self.create_insert_library_item_command(process)
         command.perform()

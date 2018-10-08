@@ -1035,6 +1035,14 @@ class TestProcessingClass(unittest.TestCase):
             self.assertEqual(squeezed_data_item.xdata.data_descriptor, DataAndMetadata.DataDescriptor(False, 1, 1))
             self.assertEqual(squeezed_data_item.xdata.dimensional_calibrations, [Calibration.Calibration(2), Calibration.Calibration(5)])
 
+    def test_invalid_processing_produces_no_output(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((3, 3)))
+            document_model.append_data_item(data_item)
+            document_controller._perform_processing(data_item, None, document_model.get_pick_new)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
