@@ -103,12 +103,11 @@ class Application(UIApplication.Application):
         logger.setLevel(old_level)
         # configure app data
         if load_plug_ins:
+            logging.info("Python version " + str(sys.version.replace('\n', '')))
+            logging.info("User interface class " + type(self.ui).__name__ + " / " + type(self.ui.proxy).__name__)
             app_data_file_path = self.ui.get_configuration_location() / pathlib.Path("nionswift_appdata.json")
             ApplicationData.set_file_path(app_data_file_path)
-            if load_plug_ins:
-                logging.info("Application data: " + str(app_data_file_path))
-        # load plug-ins
-        if load_plug_ins:
+            logging.info("Application data: " + str(app_data_file_path))
             PlugInManager.load_plug_ins(self, get_root_dir() if use_root_dir else None)
             color_maps_dir = self.ui.get_configuration_location() / pathlib.Path("Color Maps")
             if color_maps_dir.exists():
