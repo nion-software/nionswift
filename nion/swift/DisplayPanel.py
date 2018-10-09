@@ -1009,7 +1009,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             return False
 
         def map_display_to_display_item(display):
-            return DataPanel.DisplayItem(display, ui)
+            return DataPanel.DisplayItemAdapter(display, ui)
 
         def unmap_display_to_display_item(display_item):
             display_item.close()

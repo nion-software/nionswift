@@ -37,23 +37,99 @@ _ = gettext.gettext
     or the whole document. If the whole document, then an optional filter may also be applied.
     "within the last 24 hours" would be an example filter.
 
-    (2) the list of data items from the collection. the user may further refine the list of
+    (2) the list of display items from the collection. the user may further refine the list of
     items by filtering by additional criteria. the user also chooses the sorting on the list of
-    data items.
+    display items.
 
 """
 
 
 class DisplayItem:
-    """ Provide a simplified interface to a data item for the purpose of display.
 
-        The data_item property is always valid.
+    class DisplayItem:
+        def __init__(self, data_item: DataItem.DataItem):
+            self.__data_item = data_item
 
-        There is typically one display item associated with each data item.
+        @property
+        def data_item(self) -> DataItem.DataItem:
+            return self.__data_item
+
+        @property
+        def uuid(self) -> uuid.UUID:
+            return self.__data_item.uuid
+
+        @property
+        def size_and_data_format_as_string(self) -> str:
+            return self.__data_item.size_and_data_format_as_string
+
+        @property
+        def date_for_sorting_local_as_string(self) -> str:
+            return self.__data_item.date_for_sorting_local_as_string
+
+        @property
+        def status_str(self) -> str:
+            if self.__data_item.is_live:
+                live_metadata = self.__data_item.metadata.get("hardware_source", dict())
+                frame_index_str = str(live_metadata.get("frame_index", str()))
+                partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), self.__data_item.dimensional_shape[0]) if "valid_rows" in live_metadata else str()
+                return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
+            return str()
+
+
+class DisplayItemListModel(ListModel.MappedListModel):
+
+    def __init__(self, filtered_displays_model):
+
+        def map_data_item_to_display_item(data_item):
+            return DisplayItem.DisplayItem(data_item)
+
+        def unmap_data_item_to_display_item(display_item):
+            return display_item.data_item
+
+        super().__init__(container=filtered_displays_model, master_items_key="data_items", items_key="display_items", map_fn=map_data_item_to_display_item, unmap_fn=unmap_data_item_to_display_item)
+
+    def close(self):
+        self.container.close()
+        super().close()
+
+
+def create_display_items_model(document_controller, data_group, filter_id) -> ListModel.MappedListModel:
+    return DisplayItemListModel(document_controller.create_data_items_model(data_group, filter_id))
+
+
+def get_display_item_by_uuid(document_model, display_item_uuid: uuid.UUID) -> typing.Optional[DisplayItem.DisplayItem]:
+    data_item = document_model.get_data_item_by_key(display_item_uuid)
+    if data_item:
+        return DisplayItem.DisplayItem(data_item)
+    return None
+
+
+# support the 'count' display for data groups. count the display items that are children of the container (which
+# can be a data group or a document controller) and also display items in all of their child groups.
+def get_display_item_count_flat(container) -> int:
+
+    def append_display_item_flat(container, display_items):
+        if isinstance(container, DataItem.DataItem):
+            display_items.append(DisplayItem.DisplayItem(container))
+        if hasattr(container, "data_items"):
+            for data_item in container.data_items:
+                append_display_item_flat(data_item, display_items)
+
+    display_items = []
+    append_display_item_flat(container, display_items)
+    return len(display_items)
+
+
+class DisplayItemAdapter:
+    """ Provide a simplified interface to a display item for the purpose of display.
+
+        The display_item property is always valid.
+
+        There is typically one display item associated with each display item.
 
         Provides the following interface:
             (method) close()
-            (property, read-only) data_item
+            (property, read-only) display_item
             (property, read-only) title_str
             (property, read-only) datetime_str
             (property, read-only) format_str
@@ -92,7 +168,11 @@ class DisplayItem:
         return self.__display
 
     @property
-    def data_item(self) -> DataItem.DataItem:
+    def display_item(self) -> DisplayItem.DisplayItem:
+        return DisplayItem.DisplayItem(DataItem.DisplaySpecifier.from_display(self.__display).data_item)
+
+    @property
+    def data_item(self) -> DisplayItem.DisplayItem:
         return DataItem.DisplaySpecifier.from_display(self.__display).data_item
 
     def __create_thumbnail_source(self):
@@ -121,30 +201,27 @@ class DisplayItem:
 
     @property
     def format_str(self) -> str:
-        data_item = self.data_item
-        return data_item.size_and_data_format_as_string if data_item else str()
+        display_item = self.display_item
+        return display_item.size_and_data_format_as_string if display_item else str()
 
     @property
     def datetime_str(self) -> str:
-        data_item = self.data_item
-        return data_item.date_for_sorting_local_as_string if data_item else str()
+        display_item = self.display_item
+        return display_item.date_for_sorting_local_as_string if display_item else str()
 
     @property
     def status_str(self) -> str:
-        data_item = self.data_item
-        if data_item and data_item.is_live:
-            live_metadata = data_item.metadata.get("hardware_source", dict())
-            frame_index_str = str(live_metadata.get("frame_index", str()))
-            partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), data_item.dimensional_shape[0]) if "valid_rows" in live_metadata else str()
-            return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
+        display_item = self.display_item
+        if display_item:
+            return display_item.status_str
         return str()
 
     def drag_started(self, ui, x, y, modifiers):
         if self.__display:
-            display_specifier = DataItem.DisplaySpecifier.from_display(self.__display)
+            display_item = self.display_item
             mime_data = self.ui.create_mime_data()
-            if display_specifier.data_item:
-                mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
+            if display_item:
+                mime_data.set_data_as_string("text/data_item_uuid", str(display_item.uuid))
             self.__create_thumbnail_source()
             thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
             return mime_data, thumbnail_data
@@ -260,7 +337,7 @@ class DataListController:
         self.on_focus_changed = None
         self.on_drag_started = None
 
-        # changed data items keep track of items whose content has changed
+        # changed display items keep track of items whose content has changed
         # the content changed messages may come from a thread so have to be
         # moved to the main thread via this object.
         self.__changed_display_items = False
@@ -479,7 +556,7 @@ class DataGridController:
         self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
 
-        # changed data items keep track of items whose content has changed
+        # changed display items keep track of items whose content has changed
         # the content changed messages may come from a thread so have to be
         # moved to the main thread via this object.
         self.__changed_display_items = False
@@ -707,8 +784,8 @@ class DataGroupModelController:
         self.item_model_controller.on_remove_rows = self.remove_rows
         self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
         self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid", "text/data_group_uuid"]
-        self.__document_model_item_inserted_listener = self.__document_model.item_inserted_event.listen(functools.partial(self.item_inserted, self.__document_model))
-        self.__document_model_item_removed_listener = self.__document_model.item_removed_event.listen(functools.partial(self.item_removed, self.__document_model))
+        self.__document_model_item_inserted_listener = self.__document_model.item_inserted_event.listen(functools.partial(self.__item_inserted, self.__document_model))
+        self.__document_model_item_removed_listener = self.__document_model.item_removed_event.listen(functools.partial(self.__item_removed, self.__document_model))
         self.__mapping = { self.__document_model: self.item_model_controller.root }
         self.on_receive_files = None
         self.on_item_count_changed = None
@@ -720,7 +797,7 @@ class DataGroupModelController:
         self.__data_group_data_item_removed_listeners = dict()
         data_groups = self.__document_model.data_groups
         for index, data_group in enumerate(data_groups):
-            self.item_inserted(self.__document_model, "data_groups", data_group, index)
+            self.__item_inserted(self.__document_model, "data_groups", data_group, index)
 
     def close(self):
         # cheap way to unlisten to everything
@@ -752,29 +829,17 @@ class DataGroupModelController:
             logging.debug(indent + str(index) + ": (" + str(child.id) + ") " + value)
             self.log(child.id, indent + "  ")
 
-    # these two methods support the 'count' display for data groups. they count up
-    # the data items that are children of the container (which can be a data group
-    # or a document controller) and also data items in all of their child groups.
-    def __append_data_item_flat(self, container, data_items):
-        if isinstance(container, DataItem.DataItem):
-            data_items.append(container)
-        if hasattr(container, "data_items"):
-            for child_data_item in container.data_items:
-                self.__append_data_item_flat(child_data_item, data_items)
+    def __get_display_item_count_flat(self, container) -> int:
+        return get_display_item_count_flat(container)
 
-    def __get_data_item_count_flat(self, container):
-        data_items = []
-        self.__append_data_item_flat(container, data_items)
-        return len(data_items)
-
-    # this message is received when a data item is inserted into one of the
+    # this message is received when a display item is inserted into one of the
     # groups we're observing.
-    def item_inserted(self, container, key, object, before_index):
+    def __item_inserted(self, container, key, object, before_index):
         if key == "data_groups":
             # manage the item model
             parent_item = self.__mapping[container]
             self.item_model_controller.begin_insert(before_index, before_index, parent_item.row, parent_item.id)
-            count = self.__get_data_item_count_flat(object)
+            count = self.__get_display_item_count_flat(object)
             properties = {
                 "display": str(object) + (" (%i)" % count),
                 "edit": object.title,
@@ -787,21 +852,21 @@ class DataGroupModelController:
                 if key == "title":
                     self.__update_item_count(object)
             self.__data_group_property_changed_listeners[object.uuid] = object.property_changed_event.listen(property_changed)
-            self.__data_group_item_inserted_listeners[object.uuid] = object.item_inserted_event.listen(functools.partial(self.item_inserted, object))
-            self.__data_group_item_removed_listeners[object.uuid] = object.item_removed_event.listen(functools.partial(self.item_removed, object))
-            self.__data_group_data_item_inserted_listeners[object.uuid] = object.data_item_inserted_event.listen(self.data_item_inserted)
-            self.__data_group_data_item_removed_listeners[object.uuid] = object.data_item_removed_event.listen(self.data_item_removed)
+            self.__data_group_item_inserted_listeners[object.uuid] = object.item_inserted_event.listen(functools.partial(self.__item_inserted, object))
+            self.__data_group_item_removed_listeners[object.uuid] = object.item_removed_event.listen(functools.partial(self.__item_removed, object))
+            self.__data_group_data_item_inserted_listeners[object.uuid] = object.data_item_inserted_event.listen(self.__data_item_inserted)
+            self.__data_group_data_item_removed_listeners[object.uuid] = object.data_item_removed_event.listen(self.__data_item_removed)
             self.item_model_controller.end_insert()
             # recursively insert items that already exist
             data_groups = object.data_groups
             for index, child_data_group in enumerate(data_groups):
-                self.item_inserted(object, "data_groups", child_data_group, index)
+                self.__item_inserted(object, "data_groups", child_data_group, index)
             if callable(self.on_item_count_changed):
                 self.on_item_count_changed()
 
-    # this message is received when a data item is removed from one of the
+    # this message is received when a display item is removed from one of the
     # groups we're observing.
-    def item_removed(self, container, key, object, index):
+    def __item_removed(self, container, key, object, index):
         if key == "data_groups":
             assert isinstance(object, DataGroup.DataGroup)
             # get parent and item
@@ -826,18 +891,18 @@ class DataGroupModelController:
 
     def __update_item_count(self, data_group):
         assert isinstance(data_group, DataGroup.DataGroup)
-        count = self.__get_data_item_count_flat(data_group)
+        count = self.__get_display_item_count_flat(data_group)
         item = self.__mapping[data_group]
         item.data["display"] = str(data_group) + (" (%i)" % count)
         item.data["edit"] = data_group.title
         self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
 
     # this method if called when one of our listened to data groups changes
-    def data_item_inserted(self, container, data_item, before_index, moving):
+    def __data_item_inserted(self, container, data_item, before_index, moving):
         self.__update_item_count(container)
 
     # this method if called when one of our listened to data groups changes
-    def data_item_removed(self, container, data_item, index, moving):
+    def __data_item_removed(self, container, data_item, index, moving):
         self.__update_item_count(container)
 
     def item_set_data(self, data, index, parent_row, parent_id):
@@ -878,12 +943,12 @@ class DataGroupModelController:
         if data_group and (mime_data.has_format("text/data_item_uuid")):
             if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                 return False
-            # if the data item exists in this document, then it is copied to the
+            # if the display item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-            data_item = self.__document_model.get_data_item_by_key(data_item_uuid)
-            if data_item:
+            display_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+            display_item = get_display_item_by_uuid(self.__document_model, display_item_uuid)
+            if display_item:
                 return True
             return False
         if mime_data.has_format("text/data_group_uuid"):
@@ -905,13 +970,13 @@ class DataGroupModelController:
         if data_group and (mime_data.has_format("text/data_item_uuid")):
             if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                 return self.item_model_controller.NONE
-            # if the data item exists in this document, then it is copied to the
+            # if the display item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-            data_item = self.__document_model.get_data_item_by_key(data_item_uuid)
-            if data_item:
-                command = self.__document_controller.create_insert_data_group_data_item_command(data_group, len(data_group.data_items), data_item)
+            display_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+            display_item = get_display_item_by_uuid(self.__document_model, display_item_uuid)
+            if display_item:
+                command = self.__document_controller.create_insert_data_group_library_item_command(data_group, len(data_group.display_items), display_item.data_item)
                 command.perform()
                 self.__document_controller.push_undo_command(command)
                 return action
@@ -953,48 +1018,45 @@ class DataPanel(Panel.Panel):
 
         self.__filter_changed_event_listener = document_controller.filter_changed_event.listen(self.__data_panel_filter_changed)
 
-        class LibraryItemController:
+        class DisplayItemController:
 
-            def __init__(self, base_title, data_items_model):
+            def __init__(self, base_title, display_items_model):
                 self.__base_title = base_title
                 self.__count = 0
-                self.__data_items_model = data_items_model
+                self.__display_items_model = display_items_model
                 self.on_title_changed = None
 
                 # not thread safe. must be called on ui thread.
-                def data_item_inserted(key, data_item, before_index):
+                def display_item_inserted(key, display_item, before_index):
                     self.__count += 1
                     if self.on_title_changed:
                         document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
 
                 # not thread safe. must be called on ui thread.
-                def data_item_removed(key, data_item, index):
+                def display_item_removed(key, display_item, index):
                     self.__count -= 1
                     if self.on_title_changed:
                         document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
 
-                self.__data_item_inserted_listener = self.__data_items_model.item_inserted_event.listen(data_item_inserted)
-                self.__data_item_removed_listener = self.__data_items_model.item_removed_event.listen(data_item_removed)
+                self.__display_item_inserted_listener = self.__display_items_model.item_inserted_event.listen(display_item_inserted)
+                self.__display_item_removed_listener = self.__display_items_model.item_removed_event.listen(display_item_removed)
 
-                self.__count = len(self.__data_items_model.data_items)
+                self.__count = len(self.__display_items_model.display_items)
 
             @property
             def title(self):
                 return self.__base_title + (" (%i)" % self.__count)
 
             def close(self):
-                self.__data_item_inserted_listener.close()
-                self.__data_item_inserted_listener = None
-                self.__data_item_removed_listener.close()
-                self.__data_item_removed_listener = None
-                self.__data_items_model.close()
+                self.__display_item_inserted_listener.close()
+                self.__display_item_inserted_listener = None
+                self.__display_item_removed_listener.close()
+                self.__display_item_removed_listener = None
+                self.__display_items_model.close()
 
-        all_data_items_model = document_controller.create_data_items_model(None, "all")
-        all_items_controller = LibraryItemController(_("All"), all_data_items_model)
-        live_data_items_model = document_controller.create_data_items_model(None, "temporary")
-        live_items_controller = LibraryItemController(_("Live"), live_data_items_model)
-        latest_data_items_model = document_controller.create_data_items_model(None, "latest-session")
-        latest_items_controller = LibraryItemController(_("Latest Session"), latest_data_items_model)
+        all_items_controller = DisplayItemController(_("All"), create_display_items_model(document_controller, None, "all"))
+        live_items_controller = DisplayItemController(_("Live"), create_display_items_model(document_controller, None, "temporary"))
+        latest_items_controller = DisplayItemController(_("Latest Session"), create_display_items_model(document_controller, None, "latest-session"))
         self.__item_controllers = [all_items_controller, live_items_controller, latest_items_controller]
 
         self.library_model_controller = LibraryModelController(ui, self.__item_controllers)
@@ -1088,7 +1150,7 @@ class DataPanel(Panel.Panel):
             return True
 
         def map_display_to_display_item(display):
-            return DisplayItem(display, ui)
+            return DisplayItemAdapter(display, ui)
 
         def unmap_display_to_display_item(display_item):
             display_item.close()
@@ -1100,7 +1162,7 @@ class DataPanel(Panel.Panel):
         self.__focused = False
 
         def selection_changed():
-            # called when the selection changes; notify selected data item changed if focused.
+            # called when the selection changes; notify selected display item changed if focused.
             self.__notify_focus_changed()
 
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(selection_changed)
@@ -1181,7 +1243,7 @@ class DataPanel(Panel.Panel):
         self.splitter.orientation = "vertical"
         self.splitter.add(library_section_widget)
         self.splitter.add(slave_widget)
-        self.splitter.set_sizes([1, 9999])  # minimum library section; maximum data item section
+        self.splitter.set_sizes([1, 9999])  # minimum library section; maximum display item section
         self.splitter.restore_state("window/v1/data_panel_splitter")
 
         self.widget = self.splitter
@@ -1193,7 +1255,7 @@ class DataPanel(Panel.Panel):
         self.__data_panel_filter_changed(data_group, filter_id)
 
     def close(self):
-        # data items model should not be closed since it isn't created in this object
+        # display items model should not be closed since it isn't created in this object
         self.splitter.save_state("window/v1/data_panel_splitter")
         # close the widget to stop repainting the widgets before closing the controllers.
         super().close()
