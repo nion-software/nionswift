@@ -508,12 +508,12 @@ class HistogramPanel(Panel.Panel):
             display_data_and_metadata = display_data_and_metadata_func()
             display_data = display_data_and_metadata.data if display_data_and_metadata else None
             if display_data is not None:
-                total_pixels = numpy.product(display_data.shape)
+                total_pixels = numpy.product(display_data.shape, dtype=numpy.uint64)
                 if not subsample and subsample_fraction:
                     subsample = min(max(total_pixels * subsample_fraction, subsample_min), total_pixels)
                 if subsample:
                     factor = total_pixels / subsample
-                    data_sample = numpy.random.choice(display_data.reshape(numpy.product(display_data.shape)), subsample)
+                    data_sample = numpy.random.choice(display_data.reshape(numpy.product(display_data.shape, dtype=numpy.uint64)), subsample)
                 else:
                     factor = 1.0
                     data_sample = numpy.copy(display_data)
