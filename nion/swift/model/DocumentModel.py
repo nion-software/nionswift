@@ -555,7 +555,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item.about_to_be_inserted(self)
             data_item.set_storage_cache(self.storage_cache)
             # persistent storage facilitates writing properties and relationships to the storage handler
-            data_item.persistent_storage = self.__storage_system
             self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
         for data_item in data_items:
             self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
@@ -719,7 +718,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         assert before_index <= len(self.data_items) and before_index >= 0
         assert data_item.uuid not in self.__uuid_to_data_item
         # ensure the data item has a new persistent storage
-        assert not data_item.persistent_storage
+        assert not self.persistent_object_context._get_persistent_storage_for_object(data_item)
         do_write = True
         # update the session
         data_item.session_id = self.session_id
@@ -734,10 +733,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.set_storage_cache(self.storage_cache)
         # persistent storage facilitates writing properties and relationships to the storage handler
         # persistent object context tracks the persistent storage for each object in the system
-        data_item.persistent_storage = self.__storage_system
         data_item.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
-        data_item.persistent_object_context_changed()
-        if do_write and not self.__storage_system.is_write_delayed(data_item):
+        if do_write and not self.persistent_object_context.is_write_delayed(data_item):
             # don't directly write data item, or else write_pending is not cleared on data item
             # call finish pending write instead
             data_item._finish_pending_write()  # initially write to disk
@@ -803,9 +800,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             del data_item_variables[data_item.r_var]
             self._set_persistent_property_value("data_item_variables", data_item_variables)
             data_item.r_var = None
-        # keep storage up-to-date
-        persistent_storage = data_item.persistent_storage
-        persistent_storage.delete_item(data_item, safe=safe)
         data_item.__storage_cache = None
         # update data item count
         for data_item_reference in self.__data_item_references.values():

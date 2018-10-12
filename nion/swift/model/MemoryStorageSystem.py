@@ -50,6 +50,7 @@ class MemoryStorageSystem:
         self.__properties2 = dict()
         self.__properties2_lock = threading.RLock()
         self.__data_item_storage = dict()
+        self.__write_delay_counts = dict()
         self.__auto_migrations = auto_migrations or list()
         for auto_migration in self.__auto_migrations:
             auto_migration.storage_system = self
@@ -122,7 +123,7 @@ class MemoryStorageSystem:
         if isinstance(item, DataItem.DataItem):
             item.persistent_object_context = parent.persistent_object_context
             storage_handler = self.make_storage_handler(item)
-            self.register_data_item(item.uuid, storage_handler, item.write_to_dict())
+            self.register_data_item(item, item.uuid, storage_handler, item.write_to_dict())
         else:
             storage_dict = self.__update_modified_and_get_storage_dict(parent)
             with self.__properties2_lock:
@@ -134,6 +135,7 @@ class MemoryStorageSystem:
 
     def remove_item(self, parent, name, index, item):
         if isinstance(item, DataItem.DataItem):
+            self.delete_item(item, safe=True)
             item.persistent_object_context = None
             self.unregister_data_item(item)
         else:
@@ -207,9 +209,12 @@ class MemoryStorageSystem:
     def prune(self):
         pass
 
-    def register_data_item(self, item_uuid: uuid.UUID, storage_handler, properties: dict) -> None:
+    def register_data_item(self, item, item_uuid, storage_handler, properties: dict) -> None:
         assert item_uuid not in self.__data_item_storage
-        self.__data_item_storage[item_uuid] = FileStorageSystem.DataItemStorageAdapter(self, storage_handler, properties)
+        storage = FileStorageSystem.DataItemStorageAdapter(self, storage_handler, properties)
+        self.__data_item_storage[item_uuid] = storage
+        if item and self.is_write_delayed(item):
+            storage.set_write_delayed(item, True)
 
     def unregister_data_item(self, item: DataItem) -> None:
         assert item.uuid in self.__data_item_storage
@@ -218,36 +223,60 @@ class MemoryStorageSystem:
     def __get_storage_for_item(self, item: DataItem) -> FileStorageSystem.DataItemStorageAdapter:
         if not item.uuid in self.__data_item_storage:
             storage_handler = self.make_storage_handler(item)
-            self.register_data_item(item.uuid, storage_handler, item.write_to_dict())
+            self.register_data_item(item, item.uuid, storage_handler, item.write_to_dict())
         return self.__data_item_storage.get(item.uuid)
 
-    def _get_file_path(self, data_item: DataItem) -> typing.Optional[str]:
-        storage = self.__get_storage_for_item(data_item)
-        return storage._storage_handler.reference if storage else None
+    def get_storage_property(self, data_item: DataItem.DataItem, name: str) -> typing.Optional[str]:
+        if name == "file_path":
+            storage = self.__get_storage_for_item(data_item)
+            return storage._storage_handler.reference if storage else None
+        return None
 
-    def update_data(self, item, data):
+    def read_external_data(self, item, name):
         if isinstance(item, DataItem.BufferedDataSource):
             item = item.persistent_object_parent.parent
-        storage = self.__get_storage_for_item(item)
-        storage.update_data(item, data)
+        if isinstance(item, DataItem.DataItem) and name == "data":
+            storage = self.__get_storage_for_item(item)
+            return storage.load_data(item)
+        return None
 
-    def load_data(self, item):
+    def write_external_data(self, item, name, value) -> None:
         if isinstance(item, DataItem.BufferedDataSource):
             item = item.persistent_object_parent.parent
-        storage = self.__get_storage_for_item(item)
-        return storage.load_data(item)
+        if isinstance(item, DataItem.DataItem) and name == "data":
+            storage = self.__get_storage_for_item(item)
+            storage.update_data(item, value)
 
     def delete_item(self, data_item, safe: bool=False) -> None:
         storage = self.__get_storage_for_item(data_item)
         self.remove_storage_handler(storage._storage_handler, safe=safe)
 
+    def enter_write_delay(self, object) -> None:
+        if isinstance(object, DataItem.DataItem):
+            count = self.__write_delay_counts.setdefault(object, 0)
+            if count == 0:
+                self.set_write_delayed(object, True)
+            self.__write_delay_counts[object] = count + 1
+
+    def exit_write_delay(self, object) -> None:
+        if isinstance(object, DataItem.DataItem):
+            count = self.__write_delay_counts.setdefault(object, 0)
+            count -= 1
+            if count == 0:
+                self.set_write_delayed(object, False)
+                self.__write_delay_counts.pop(object)
+            else:
+                self.__write_delay_counts[object] = count
+
     def set_write_delayed(self, data_item, write_delayed: bool) -> None:
-        storage = self.__get_storage_for_item(data_item)
-        storage.set_write_delayed(data_item, write_delayed)
+        storage = self.__data_item_storage.get(data_item.uuid)
+        if storage:
+            storage.set_write_delayed(data_item, write_delayed)
 
     def is_write_delayed(self, data_item) -> bool:
-        storage = self.__get_storage_for_item(data_item)
-        return storage.is_write_delayed(data_item)
+        if isinstance(data_item, DataItem.DataItem):
+            return self.__write_delay_counts.get(data_item, 0) > 0
+        return False
 
     def rewrite_item(self, data_item) -> None:
         storage = self.__get_storage_for_item(data_item)
