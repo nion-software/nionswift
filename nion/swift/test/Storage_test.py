@@ -3013,7 +3013,7 @@ class TestStorageClass(unittest.TestCase):
             data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
             auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=[auto_migration])
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.data_items[0].uuid, uuid.UUID(data_item_dict["uuid"]))
@@ -3059,7 +3059,7 @@ class TestStorageClass(unittest.TestCase):
             auto_migration1 = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
             auto_migration2 = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=[auto_migration1, auto_migration2])
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.data_items[0].uuid, uuid.UUID(data_item_dict["uuid"]))
@@ -3103,7 +3103,7 @@ class TestStorageClass(unittest.TestCase):
             auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=[auto_migration])
             file_persistent_storage_system._set_properties({"data_item_deletions": [src_uuid_str, str(uuid.uuid4())]})
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 0)
                 self.assertTrue(uuid.UUID(src_uuid_str) in document_model.data_item_deletions)
@@ -3158,7 +3158,7 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_properties(data_item.write_to_dict(), datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
 
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(len(file_persistent_storage_system.find_data_items()), 1)
@@ -3203,7 +3203,7 @@ class TestStorageClass(unittest.TestCase):
             auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=[auto_migration])
             file_persistent_storage_system._set_properties({"data_item_references": {"key": src_uuid_str}})
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.get_data_item_reference("key").data_item, document_model.data_items[0])
@@ -3270,7 +3270,7 @@ class TestStorageClass(unittest.TestCase):
             data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
             auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=[auto_migration])
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
 
@@ -3278,7 +3278,7 @@ class TestStorageClass(unittest.TestCase):
             data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
             auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=[auto_migration])
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
 
