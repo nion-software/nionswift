@@ -508,8 +508,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__storage_system.set_property(self, "uuid", str(self.uuid))
         self.__storage_system.set_property(self, "version", 0)
 
-        self.displays_list_model = ListModel.FlattenedListModel(container=self, master_items_key="data_items", child_items_key="displays")
-
         self.__data_channel_updated_listeners = dict()
         self.__data_channel_start_listeners = dict()
         self.__data_channel_stop_listeners = dict()
@@ -559,7 +557,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for data_item in data_items:
             self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
         for data_item in data_items:
-            data_item.connect_data_items(self.get_data_item_by_uuid)
             data_item.set_session_manager(self)
         # this loop reestablishes dependencies now that everything is loaded.
         # the change listener for the computation will already have been established via the regular
@@ -641,8 +638,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         self.__thread_pool.close()
         self.__computation_thread_pool.close()
-        self.displays_list_model.close()
-        self.displays_list_model = None
         for data_item in self.data_items:
             data_item.about_to_close()
         for data_item in self.data_items:
@@ -739,7 +734,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # call finish pending write instead
             data_item._finish_pending_write()  # initially write to disk
         self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
-        data_item.connect_data_items(self.get_data_item_by_uuid)
         data_item.set_session_manager(self)
         self.data_item_inserted_event.fire(self, data_item, before_index, False)
         self.notify_insert_item("data_items", data_item, before_index)

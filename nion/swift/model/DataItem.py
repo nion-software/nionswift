@@ -714,13 +714,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
             libary_item.add_display(copy.deepcopy(display))
         return libary_item
 
-    @property
-    def data_items(self):
-        return tuple()
-
-    def connect_data_items(self, lookup_data_item):
-        pass
-
     def set_storage_cache(self, storage_cache):
         self.__suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
         for display in self.displays:

@@ -570,8 +570,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         assert self.__container_weak_ref is None
         self.__container_weak_ref = weakref.ref(container)
 
-        # child displays model will watch the container for data items and make a new list with each of the displays in each data item.
-        self.__child_displays_model = ListModel.FlattenedListModel(container=container, master_items_key="data_items", child_items_key="displays")
+        # leave this infrastructure for child displays here for future work, but use an empty one.
+        self.__child_displays_model = ListModel.ListModel("displays")
 
         def handle_display_changed(display):
             self.display_changed_event.fire()
