@@ -44,44 +44,12 @@ _ = gettext.gettext
 """
 
 
-class DisplayItem:
-
-    class DisplayItem:
-        def __init__(self, data_item: DataItem.DataItem):
-            self.__data_item = data_item
-
-        @property
-        def data_item(self) -> DataItem.DataItem:
-            return self.__data_item
-
-        @property
-        def uuid(self) -> uuid.UUID:
-            return self.__data_item.uuid
-
-        @property
-        def size_and_data_format_as_string(self) -> str:
-            return self.__data_item.size_and_data_format_as_string
-
-        @property
-        def date_for_sorting_local_as_string(self) -> str:
-            return self.__data_item.date_for_sorting_local_as_string
-
-        @property
-        def status_str(self) -> str:
-            if self.__data_item.is_live:
-                live_metadata = self.__data_item.metadata.get("hardware_source", dict())
-                frame_index_str = str(live_metadata.get("frame_index", str()))
-                partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), self.__data_item.dimensional_shape[0]) if "valid_rows" in live_metadata else str()
-                return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
-            return str()
-
-
 class DisplayItemListModel(ListModel.MappedListModel):
 
     def __init__(self, filtered_displays_model):
 
         def map_data_item_to_display_item(data_item):
-            return DisplayItem.DisplayItem(data_item)
+            return DataItem.DisplayItem(data_item)
 
         def unmap_data_item_to_display_item(display_item):
             return display_item.data_item
@@ -97,10 +65,10 @@ def create_display_items_model(document_controller, data_group, filter_id) -> Li
     return DisplayItemListModel(document_controller.create_data_items_model(data_group, filter_id))
 
 
-def get_display_item_by_uuid(document_model, display_item_uuid: uuid.UUID) -> typing.Optional[DisplayItem.DisplayItem]:
+def get_display_item_by_uuid(document_model, display_item_uuid: uuid.UUID) -> typing.Optional[DataItem.DisplayItem]:
     data_item = document_model.get_data_item_by_key(display_item_uuid)
     if data_item:
-        return DisplayItem.DisplayItem(data_item)
+        return DataItem.DisplayItem(data_item)
     return None
 
 
@@ -110,7 +78,7 @@ def get_display_item_count_flat(container) -> int:
 
     def append_display_item_flat(container, display_items):
         if isinstance(container, DataItem.DataItem):
-            display_items.append(DisplayItem.DisplayItem(container))
+            display_items.append(DataItem.DisplayItem(container))
         if hasattr(container, "data_items"):
             for data_item in container.data_items:
                 append_display_item_flat(data_item, display_items)
@@ -168,11 +136,11 @@ class DisplayItemAdapter:
         return self.__display
 
     @property
-    def display_item(self) -> DisplayItem.DisplayItem:
-        return DisplayItem.DisplayItem(DataItem.DisplaySpecifier.from_display(self.__display).data_item)
+    def display_item(self) -> DataItem.DisplayItem:
+        return DataItem.DisplayItem(DataItem.DisplaySpecifier.from_display(self.__display).data_item)
 
     @property
-    def data_item(self) -> DisplayItem.DisplayItem:
+    def data_item(self) -> DataItem.DisplayItem:
         return DataItem.DisplaySpecifier.from_display(self.__display).data_item
 
     def __create_thumbnail_source(self):

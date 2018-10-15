@@ -1409,6 +1409,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def get_data_item_by_uuid(self, uuid: uuid.UUID) -> DataItem.DataItem:
         return self.__uuid_to_data_item.get(uuid)
 
+    def get_display_items_for_data_item(self, data_item: DataItem.DataItem) -> typing.Sequence[DataItem.DisplayItem]:
+        return [DataItem.DisplayItem(data_item)]
+
+    def get_display_item_for_data_item(self, data_item: DataItem.DataItem) -> DataItem.DisplayItem:
+        return DataItem.DisplayItem(data_item)
+
     def get_or_create_data_group(self, group_name):
         data_group = DataGroup.get_data_group_in_container_by_title(self, group_name)
         if data_group is None:
@@ -2094,7 +2100,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id))
             data_item = data_item_reference.data_item
             if data_item:
-                hardware_source.clean_data_item(data_item, data_channel)
+                hardware_source.clean_display_items(self, self.get_display_items_for_data_item(data_item))
 
     def __hardware_source_removed(self, hardware_source):
         self.__hardware_source_call_soon_event_listeners[hardware_source.hardware_source_id].close()

@@ -41,6 +41,7 @@ from nion.swift.model import Utility
 from nion.ui import Application as UIApplication
 from nion.ui import Dialog
 from nion.ui import Widgets
+from nion.utils import Event
 from nion.utils import Selection
 
 _ = gettext.gettext
@@ -62,6 +63,8 @@ class Application(UIApplication.Application):
         self.__resources_path = resources_path
         self.version_str = "0.13.9"
         self.workspace_dir = None
+
+        self.document_model_available_event = Event.Event()
 
         self.__event_loop = None
 
@@ -617,6 +620,7 @@ class Application(UIApplication.Application):
         self.__did_close_event_listeners[document_controller] = document_controller.did_close_event.listen(self.__document_controller_did_close)
         self.__create_new_event_listeners[document_controller] = document_controller.create_new_document_controller_event.listen(self.create_document_controller)
         self.__register_document_controller(document_controller)
+        self.document_model_available_event.fire(document_model)
         # attempt to set data item / group
         if data_item:
             display_panel = document_controller.selected_display_panel

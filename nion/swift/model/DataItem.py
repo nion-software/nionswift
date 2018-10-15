@@ -1596,6 +1596,74 @@ class DataItem(LibraryItem):
         Metadata.delete_metadata_value(self, key)
 
 
+class DisplayItem:
+    def __init__(self, data_item: DataItem):
+        self.about_to_be_removed_event = Event.Event()
+        self.__data_item = data_item
+        self.__display_about_to_be_removed_listener = self.__data_item.displays[0].about_to_be_removed_event.listen(self.about_to_be_removed_event.fire)
+
+    def close(self):
+        self.__display_about_to_be_removed_listener.close()
+        self.__display_about_to_be_removed_listener = None
+
+    @property
+    def data_item(self) -> DataItem:
+        return self.__data_item
+
+    @property
+    def uuid(self) -> uuid.UUID:
+        return self.__data_item.uuid
+
+    @property
+    def graphics(self) -> typing.Sequence[Graphics.Graphic]:
+        return self.__data_item.displays[0].graphics
+
+    def insert_graphic(self, before_index: int, graphic: Graphics.Graphic) -> None:
+        self.__data_item.displays[0].insert_graphic(before_index, graphic)
+
+    def add_graphic(self, graphic: Graphics.Graphic) -> None:
+        self.__data_item.displays[0].add_graphic(graphic)
+
+    def remove_graphic(self, graphic: Graphics.Graphic, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+        return self.__data_item.displays[0].remove_graphic(graphic, safe=safe)
+
+    @property
+    def size_and_data_format_as_string(self) -> str:
+        return self.__data_item.size_and_data_format_as_string
+
+    @property
+    def date_for_sorting_local_as_string(self) -> str:
+        return self.__data_item.date_for_sorting_local_as_string
+
+    @property
+    def status_str(self) -> str:
+        if self.__data_item.is_live:
+            live_metadata = self.__data_item.metadata.get("hardware_source", dict())
+            frame_index_str = str(live_metadata.get("frame_index", str()))
+            partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), self.__data_item.dimensional_shape[0]) if "valid_rows" in live_metadata else str()
+            return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
+        return str()
+
+    @property
+    def display_type(self) -> str:
+        return self.__data_item.displays[0].dislay_type
+    
+    @display_type.setter
+    def display_type(self, value: str) -> None:
+        self.__data_item.displays[0].display_type = value
+
+    @property
+    def legend_labels(self) -> typing.Sequence[str]:
+        return self.__data_item.displays[0].legend_labels
+
+    @legend_labels.setter
+    def legend_labels(self, value: typing.Sequence[str]) -> None:
+        self.__data_item.displays[0].legend_labels = value
+
+    def view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
+        self.__data_item.displays[0].view_to_intervals(data_and_metadata, intervals)
+
+
 class DisplaySpecifier:
     """Specify a Display contained within a DataItem."""
 

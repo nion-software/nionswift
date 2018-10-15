@@ -793,6 +793,18 @@ class DocumentController(Window.Window):
         # if not found, check for focused or selected image panel
         return DataItem.DisplaySpecifier.from_data_item(self.selected_display_panel.data_item if self.selected_display_panel else None)
 
+    @property
+    def selected_display_item(self) -> typing.Optional[DataItem.DisplayItem]:
+        data_item = self.focused_data_item
+        if not data_item:
+            data_item = self.selected_display_panel.data_item if self.selected_display_panel else None
+        return self.document_model.get_display_item_from_data_item(data_item) if data_item else None
+
+    @property
+    def selected_data_item(self) -> typing.Optional[DataItem.DataItem]:
+        selected_display_item = self.selected_display_item
+        return selected_display_item.data_item if selected_display_item else None
+
     def delete_displays(self, displays: typing.Sequence[Display.Display]) -> None:
         data_items = list()
         container = self.__data_items_model.container
@@ -1591,6 +1603,9 @@ class DocumentController(Window.Window):
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
+
+    def show_display_item(self, display_item: DataItem.DisplayItem) -> None:
+        self.display_data_item(DataItem.DisplaySpecifier(display_item.data_item, display_item.data_item.displays[0]))
 
     def _perform_redimension(self, data_item: DataItem.DataItem, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
         def process() -> DataItem.DataItem:
