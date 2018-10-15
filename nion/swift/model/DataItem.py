@@ -864,12 +864,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         return self.remove_model_item(self, "displays", display)
 
     @property
-    def primary_display_specifier(self):
-        if len(self.displays) > 0:
-            return DisplaySpecifier(self, self.displays[0])
-        return DisplaySpecifier()
-
-    @property
     def is_live(self):
         """Return whether this library item represents live acquisition."""
         return self.__is_live
@@ -1302,15 +1296,6 @@ class DataItem(LibraryItem):
         if data_source:
             data_source.decrement_data_ref_count()
 
-    # primary display
-
-    @property
-    def primary_display_specifier(self):
-        data_source = self.data_source
-        if data_source:
-            return DisplaySpecifier(self, self.displays[0])
-        return DisplaySpecifier()
-
     def _update_timezone(self):
         with self.data_source_changes():
             data_source = self.data_source
@@ -1609,6 +1594,10 @@ class DisplayItem:
     @property
     def data_item(self) -> DataItem:
         return self.__data_item
+
+    @property
+    def display(self) -> Display.Display:
+        return self.__data_item.displays[0]
 
     @property
     def uuid(self) -> uuid.UUID:

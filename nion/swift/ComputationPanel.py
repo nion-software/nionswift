@@ -741,7 +741,8 @@ def make_image_chooser(document_controller, computation, variable, drag_fn):
         command.perform()
         document_controller.push_undo_command(command)
 
-    data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, data_item=data_item)
+    display_item = document_model.get_display_item_for_data_item(data_item)
+    data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, display_item=display_item)
     data_item_chooser_widget = DataItemThumbnailWidget.ThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(80, 80))
 
     def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
@@ -757,7 +758,8 @@ def make_image_chooser(document_controller, computation, variable, drag_fn):
             base_variable_specifier = copy.copy(variable.specifier)
             bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
             data_item = bound_data_item.value if bound_data_item else None
-            data_item_thumbnail_source.set_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            data_item_thumbnail_source.set_display_item(display_item)
 
     property_changed_listener = variable.property_changed_event.listen(property_changed)
     column.add_spacing(4)
@@ -906,7 +908,8 @@ class EditComputationDialog(Dialog.ActionDialog):
                 # use this convoluted base object for drag so that it doesn't disappear after the drag.
                 self.content.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
-            data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, data_item=data_item)  # TODO: never closed
+            display_item = document_controller.document_model.get_display_item_for_data_item(data_item)
+            data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, display_item=display_item)  # TODO: never closed
             data_item_chooser_widget = DataItemThumbnailWidget.ThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(80, 80))
             data_item_chooser_widget.on_drag = thumbnail_widget_drag
             target_column.add_spacing(4)

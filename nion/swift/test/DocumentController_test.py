@@ -588,7 +588,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
-            context_menu = document_controller.create_context_menu_for_display(source_data_item.primary_display_specifier.display)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
+            context_menu = document_controller.create_context_menu_for_display(source_display_item.display)
             context_menu_items = context_menu.items
             delete_item = next(x for x in context_menu_items if x.title == "Delete Library Item")
             delete_item.callback()

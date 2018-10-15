@@ -733,15 +733,16 @@ class DocumentController(Window.Window):
         return selected_data_items
 
     def select_data_items_in_data_panel(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
+        document_model = self.document_model
         displays = self.filtered_displays_model.displays
-        associated_displays = {data_item.primary_display_specifier.display for data_item in data_items}
+        associated_displays = [document_model.get_display_item_for_data_item(data_item).display for data_item in data_items]
         indexes = set()
         for index, display in enumerate(displays):
             if display in associated_displays:
                 indexes.add(index)
         self.selection.set_multiple(indexes)
         if len(associated_displays) > 0:
-            display = data_items[0].primary_display_specifier.display
+            display = associated_displays[0]
             if display in displays:
                 self.selection.anchor_index = displays.index(display)
 
@@ -798,7 +799,7 @@ class DocumentController(Window.Window):
         data_item = self.focused_data_item
         if not data_item:
             data_item = self.selected_display_panel.data_item if self.selected_display_panel else None
-        return self.document_model.get_display_item_from_data_item(data_item) if data_item else None
+        return self.document_model.get_display_item_for_data_item(data_item) if data_item else None
 
     @property
     def selected_data_item(self) -> typing.Optional[DataItem.DataItem]:
@@ -1809,7 +1810,8 @@ class DocumentController(Window.Window):
             new_data_item.title = _("Clone of ") + data_item.title
             new_data_item.category = data_item.category
             self.select_data_item_in_data_panel(new_data_item)
-            self.notify_focused_display_changed(new_data_item.primary_display_specifier.display)
+            new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
+            self.notify_focused_display_changed(new_display_item.display)
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
@@ -1832,7 +1834,8 @@ class DocumentController(Window.Window):
             if request_focus:
                 # see https://github.com/nion-software/nionswift/issues/145
                 self.select_data_item_in_data_panel(data_item_copy)
-                self.notify_focused_display_changed(data_item_copy.primary_display_specifier.display)
+                new_display_item = self.document_model.get_display_item_for_data_item(data_item_copy)
+                self.notify_focused_display_changed(new_display_item.display)
                 inspector_panel = self.find_dock_widget("inspector-panel").panel
                 if inspector_panel is not None:
                     inspector_panel.request_focus = True

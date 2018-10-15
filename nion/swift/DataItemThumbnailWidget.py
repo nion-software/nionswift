@@ -256,14 +256,14 @@ class DataItemBitmapOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class DataItemThumbnailSource(AbstractThumbnailSource):
 
-    def __init__(self, ui, *, data_item=None, display=None):
+    def __init__(self, ui, *, display_item=None, display=None):
         super().__init__()
         self.ui = ui
         self.__thumbnail_source = None
         self.__thumbnail_updated_event_listener = None
         self.overlay_canvas_item = DataItemBitmapOverlayCanvasItem()
-        if data_item:
-            self.set_data_item(data_item)
+        if display_item:
+            self.set_display_item(display_item)
         if display:
             self.set_display(display)
 
@@ -285,8 +285,8 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
         if callable(self.on_thumbnail_data_changed):
             self.on_thumbnail_data_changed(self.thumbnail_data)
 
-    def set_data_item(self, data_item: DataItem.DataItem) -> None:
-        display = data_item.primary_display_specifier.display if data_item else None
+    def set_display_item(self, display_item: DataItem.DisplayItem) -> None:
+        display = display_item.display if display_item else None
         self.set_display(display)
 
     def set_display(self, display: Display.Display) -> None:
@@ -313,11 +313,14 @@ class DataItemReferenceThumbnailSource(DataItemThumbnailSource):
 
     Useful, for instance, for displaying a live update thumbnail that can be dragged to other locations."""
 
-    def __init__(self, ui, data_item_reference: DocumentModel.DocumentModel.DataItemReference):
-        super().__init__(ui, data_item=data_item_reference.data_item)
+    def __init__(self, ui, document_model, data_item_reference: DocumentModel.DocumentModel.DataItemReference):
+        display_item = document_model.get_display_item_for_data_item(data_item_reference.data_item)
+
+        super().__init__(ui, display_item=display_item)
 
         def data_item_changed():
-            self.set_data_item(data_item_reference.data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item_reference.data_item)
+            self.set_display_item(display_item)
 
         self.__data_item_changed_event_listener = data_item_reference.data_item_changed_event.listen(data_item_changed)
 

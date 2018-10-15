@@ -1079,7 +1079,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.dependency_removed_event.fire(source_item, target_item)
         # fire the display messages
         if isinstance(source_item, DataItem.DataItem):
-            display = source_item.primary_display_specifier.display
+            display_item = self.get_display_item_for_data_item(source_item)
+            display = display_item.display
             source_displays = self.get_source_displays(display) if display else list()
             dependent_displays = self.get_dependent_displays(display) if display else list()
             self.related_items_changed.fire(display, source_displays, dependent_displays)
@@ -1096,7 +1097,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.dependency_added_event.fire(source_item, target_item)
         # fire the display messages
         if isinstance(source_item, DataItem.DataItem):
-            display = source_item.primary_display_specifier.display
+            display_item = self.get_display_item_for_data_item(source_item)
+            display = display_item.display
             source_displays = self.get_source_displays(display) if display else list()
             dependent_displays = self.get_dependent_displays(display) if display else list()
             self.related_items_changed.fire(display, source_displays, dependent_displays)
@@ -1219,14 +1221,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item = DataItem.DisplaySpecifier.from_display(display).data_item
         if data_item:
             data_items = self.get_source_data_items(data_item)
-            return [data_item.primary_display_specifier.display for data_item in data_items]
+            return [self.get_display_item_for_data_item(data_item).display for data_item in data_items]
         return list()
 
     def get_dependent_displays(self, display: Display.Display) -> typing.List[Display.Display]:
         data_item = DataItem.DisplaySpecifier.from_display(display).data_item
         if data_item:
             data_items = self.get_dependent_data_items(data_item)
-            return [data_item.primary_display_specifier.display for data_item in data_items]
+            return [self.get_display_item_for_data_item(data_item).display for data_item in data_items]
         return list()
 
     def item_transaction(self, item) -> Transaction:
@@ -1410,10 +1412,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return self.__uuid_to_data_item.get(uuid)
 
     def get_display_items_for_data_item(self, data_item: DataItem.DataItem) -> typing.Sequence[DataItem.DisplayItem]:
-        return [DataItem.DisplayItem(data_item)]
+        return [DataItem.DisplayItem(data_item)] if data_item else []
 
     def get_display_item_for_data_item(self, data_item: DataItem.DataItem) -> DataItem.DisplayItem:
-        return DataItem.DisplayItem(data_item)
+        return DataItem.DisplayItem(data_item) if data_item else None
 
     def get_or_create_data_group(self, group_name):
         data_group = DataGroup.get_data_group_in_container_by_title(self, group_name)

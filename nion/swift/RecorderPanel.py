@@ -250,7 +250,8 @@ class RecorderDialog(Dialog.ActionDialog):
             # use this convoluted base object for drag so that it doesn't disappear after the drag.
             self.content.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
-        data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, data_item=data_item)
+        display_item = document_controller.document_model.get_display_item_for_data_item(data_item)
+        data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, display_item=display_item)
         data_item_chooser_widget = DataItemThumbnailWidget.ThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(48, 48))
         data_item_chooser_widget.on_drag = thumbnail_widget_drag
 

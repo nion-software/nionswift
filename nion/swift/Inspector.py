@@ -2072,7 +2072,8 @@ def make_image_chooser(document_controller, computation, variable):
         command.perform()
         document_controller.push_undo_command(command)
 
-    data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, data_item=data_item)
+    display_item = document_model.get_display_item_for_data_item(data_item)
+    data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, display_item=display_item)
     data_item_chooser_widget = DataItemThumbnailWidget.ThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(80, 80))
 
     def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
@@ -2088,7 +2089,8 @@ def make_image_chooser(document_controller, computation, variable):
             base_variable_specifier = copy.copy(variable.specifier)
             bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
             data_item = bound_data_item.value.data_item if bound_data_item else None
-            data_item_thumbnail_source.set_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            data_item_thumbnail_source.set_display_item(display_item)
 
     property_changed_listener = variable.property_changed_event.listen(property_changed)
     row.add(data_item_chooser_widget)
