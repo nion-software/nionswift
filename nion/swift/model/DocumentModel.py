@@ -1080,10 +1080,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # fire the display messages
         if isinstance(source_item, DataItem.DataItem):
             display_item = self.get_display_item_for_data_item(source_item)
-            display = display_item.display
-            source_displays = self.get_source_displays(display) if display else list()
-            dependent_displays = self.get_dependent_displays(display) if display else list()
-            self.related_items_changed.fire(display, source_displays, dependent_displays)
+            source_display_items = self.get_source_display_items(display_item) if display_item else list()
+            dependent_display_items = self.get_dependent_display_items(display_item) if display_item else list()
+            self.related_items_changed.fire(display_item, source_display_items, dependent_display_items)
 
     def __add_dependency(self, source_item, target_item):
         # print(f"add dependency {source_item} {target_item}")
@@ -1098,10 +1097,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # fire the display messages
         if isinstance(source_item, DataItem.DataItem):
             display_item = self.get_display_item_for_data_item(source_item)
-            display = display_item.display
-            source_displays = self.get_source_displays(display) if display else list()
-            dependent_displays = self.get_dependent_displays(display) if display else list()
-            self.related_items_changed.fire(display, source_displays, dependent_displays)
+            source_display_items = self.get_source_display_items(display_item) if display_item else list()
+            dependent_display_items = self.get_dependent_display_items(display_item) if display_item else list()
+            self.related_items_changed.fire(display_item, source_display_items, dependent_display_items)
 
     def __computation_needs_update(self, data_item, computation):
         # When the computation for a data item is set or mutated, this function will be called.
@@ -1217,18 +1215,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         with self.__dependency_tree_lock:
             return [data_item for data_item in self.__dependency_tree_source_to_target_map.get(weakref.ref(data_item), list()) if isinstance(data_item, DataItem.DataItem)]
 
-    def get_source_displays(self, display: Display.Display) -> typing.List[Display.Display]:
-        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+    def get_source_display_items(self, display_item: DataItem.DisplayItem) -> typing.List[DataItem.DisplayItem]:
+        data_item = display_item.data_item
         if data_item:
             data_items = self.get_source_data_items(data_item)
-            return [self.get_display_item_for_data_item(data_item).display for data_item in data_items]
+            return [self.get_display_item_for_data_item(data_item) for data_item in data_items]
         return list()
 
-    def get_dependent_displays(self, display: Display.Display) -> typing.List[Display.Display]:
-        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+    def get_dependent_display_items(self, display_item: DataItem.DisplayItem) -> typing.List[DataItem.DisplayItem]:
+        data_item = display_item.data_item
         if data_item:
             data_items = self.get_dependent_data_items(data_item)
-            return [self.get_display_item_for_data_item(data_item).display for data_item in data_items]
+            return [self.get_display_item_for_data_item(data_item) for data_item in data_items]
         return list()
 
     def item_transaction(self, item) -> Transaction:
@@ -1416,6 +1414,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def get_display_item_for_data_item(self, data_item: DataItem.DataItem) -> DataItem.DisplayItem:
         return DataItem.DisplayItem(data_item) if data_item else None
+
+    def are_display_items_equal(self, display_item1: DataItem.DisplayItem, display_item2: DataItem.DisplayItem) -> bool:
+        # necessary until display items are persistent
+        if (display_item1 is None) != (display_item2 is None):
+            return False
+        if display_item1 is None and display_item2 is None:
+            return True
+        return display_item1.data_item == display_item2.data_item
 
     def get_or_create_data_group(self, group_name):
         data_group = DataGroup.get_data_group_in_container_by_title(self, group_name)

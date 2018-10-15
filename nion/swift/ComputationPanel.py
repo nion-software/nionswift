@@ -37,8 +37,8 @@ class ComputationModel:
 
     def __init__(self, document_controller):
         self.__weak_document_controller = weakref.ref(document_controller)
-        self.__display_specifier = DataItem.DisplaySpecifier()
-        self.__set_display_specifier(DataItem.DisplaySpecifier())
+        self.__display_item = None
+        self.__set_display_item(None)
         self.__computation_changed_or_mutated_event_listener = None
         self.__computation_variable_inserted_event_listener = None
         self.__computation_variable_removed_event_listener = None
@@ -56,28 +56,30 @@ class ComputationModel:
         self.variable_property_changed_event = Event.Event()
 
     def close(self):
-        self.__set_display_specifier(DataItem.DisplaySpecifier())
+        self.__set_display_item(None)
 
     @property
     def document_controller(self):
         return self.__weak_document_controller()
 
     @property
-    def display_specifier(self):
-        return self.__display_specifier
+    def display_item(self):
+        return self.__display_item
+
+    def __get_data_item(self):
+        return self.__display_item.data_item if self.__display_item else None
 
     @property
     def __computation(self):
-        if self.__display_specifier.data_item:
-            return self.document_controller.document_model.get_data_item_computation(self.__display_specifier.data_item)
-        return None
+        data_item = self.__get_data_item()
+        return self.document_controller.document_model.get_data_item_computation(data_item) if data_item else None
 
     @property
     def computation(self):
         return self.__computation
 
     def set_data_item(self, data_item):
-        self.__set_display_specifier(DataItem.DisplaySpecifier.from_data_item(data_item))
+        self.__set_display_item(self.document_controller.document_model.get_display_item_for_data_item(data_item))
 
     class AddVariableCommand(Undo.UndoableCommand):
 
@@ -328,7 +330,7 @@ class ComputationModel:
 
     @computation_label.setter
     def computation_label(self, label):
-        data_item = self.__display_specifier.data_item
+        data_item = self.__get_data_item()
         if data_item:
             computation = self.document_controller.document_model.get_data_item_computation(data_item)
             if not computation:
@@ -346,7 +348,7 @@ class ComputationModel:
 
     @computation_text.setter
     def computation_text(self, computation_text):
-        data_item = self.__display_specifier.data_item
+        data_item = self.__get_data_item()
         if data_item:
             computation = self.document_controller.document_model.get_data_item_computation(data_item)
             if not computation:
@@ -379,7 +381,7 @@ class ComputationModel:
 
     def clear(self):
         document_model = self.document_controller.document_model
-        document_model.set_data_item_computation(self.__display_specifier.data_item, None)
+        document_model.set_data_item_computation(self.__get_data_item(), None)
 
     def __update_computation_display(self) -> None:
         def update_computation_display():
@@ -409,8 +411,8 @@ class ComputationModel:
         del self.__variable_property_changed_event_listeners[variable.uuid]
 
     # not thread safe
-    def __set_display_specifier(self, display_specifier):
-        if self.__display_specifier != display_specifier:
+    def __set_display_item(self, display_item):
+        if self.__display_item != display_item:
             if self.__computation_changed_or_mutated_event_listener:
                 self.__computation_changed_or_mutated_event_listener.close()
                 self.__computation_changed_or_mutated_event_listener = None
@@ -427,12 +429,12 @@ class ComputationModel:
             if computation:
                 for index, variable in enumerate(computation.variables):
                     self.__variable_removed(0, variable)
-            self.__display_specifier = copy.copy(display_specifier)
+            self.__display_item = display_item
             computation = self.__computation
             if computation:
                 document_model = self.document_controller.document_model
                 def computation_updated(data_item, computation):
-                    if data_item == self.__display_specifier.data_item:
+                    if data_item == self.__get_data_item():
                         self.__update_computation_display()
                 def property_changed(property):
                     if property == "error_text":

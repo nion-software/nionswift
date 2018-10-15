@@ -256,7 +256,7 @@ class DataItemBitmapOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class DataItemThumbnailSource(AbstractThumbnailSource):
 
-    def __init__(self, ui, *, display_item=None, display=None):
+    def __init__(self, ui, *, display_item=None):
         super().__init__()
         self.ui = ui
         self.__thumbnail_source = None
@@ -264,8 +264,6 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
         self.overlay_canvas_item = DataItemBitmapOverlayCanvasItem()
         if display_item:
             self.set_display_item(display_item)
-        if display:
-            self.set_display(display)
 
     def close(self):
         self.__detach_listeners()
@@ -280,28 +278,25 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
             self.__thumbnail_source = None
 
     def __update_thumbnail(self) -> None:
-        self._set_thumbnail_data(Thumbnails.ThumbnailManager().thumbnail_data_for_display(self.__display))
-        self.overlay_canvas_item.active = self.__display.is_live if self.__display else False
+        display = self.__display_item.display
+        self._set_thumbnail_data(Thumbnails.ThumbnailManager().thumbnail_data_for_display(display))
+        self.overlay_canvas_item.active = display.is_live if display else False
         if callable(self.on_thumbnail_data_changed):
             self.on_thumbnail_data_changed(self.thumbnail_data)
 
     def set_display_item(self, display_item: DataItem.DisplayItem) -> None:
-        display = display_item.display if display_item else None
-        self.set_display(display)
-
-    def set_display(self, display: Display.Display) -> None:
         self.__detach_listeners()
-        self.__display = display
-        if display:
-            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.ui, display)
+        self.__display_item = display_item
+        if display_item.display:
+            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.ui, display_item.display)
             self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(self.__update_thumbnail)
         self.__update_thumbnail()
 
     def populate_mime_data_for_drag(self, mime_data, size: Geometry.IntSize):
-        if self.__display:
-            display_specifier = DataItem.DisplaySpecifier.from_display(self.__display)
-            if display_specifier.data_item:
-                mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
+        data_item = self.__display_item.data_item
+        if data_item:
+            if data_item:
+                mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
             rgba_image_data = self.__thumbnail_source.thumbnail_data
             thumbnail = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(rgba_image_data), (size.width, size.height))) if rgba_image_data is not None else None
             return True, thumbnail

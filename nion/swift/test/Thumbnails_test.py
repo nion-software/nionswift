@@ -29,14 +29,15 @@ class TestDisplayPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.random.randn(8, 8))
-            data_item.displays[0].display_type = "image"
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "image"
             document_model.append_data_item(data_item)
             thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(app.ui)
             finished = threading.Event()
             def thumbnail_data_changed(data):
                 finished.set()
             thumbnail_source.on_thumbnail_data_changed = thumbnail_data_changed
-            thumbnail_source.set_display(data_item.displays[0])
+            thumbnail_source.set_display_item(display_item)
             finished.wait(1.0)
             finished.clear()
             finished.wait(1.0)
