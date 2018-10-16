@@ -180,26 +180,29 @@ def create_data_item_from_data_element(data_element, data_file_path=None):
     uuid_ = uuid.UUID(uuid_str) if uuid_str else None
     large_format = data_element.get("large_format", False)
     data_item = DataItem.DataItem(item_uuid=uuid_, large_format=large_format)
-    update_data_item_from_data_element(data_item, data_element, data_file_path)
+    display_item = DataItem.DisplayItem(data_item)
+    update_display_item_from_data_element(display_item, data_element, data_file_path)
     return data_item
 
 
 # update an existing data item with a data element.
 # data element is a dict which can be processed into a data item
 # the existing data item may have a new size and dtype after returning.
-def update_data_item_from_data_element(data_item, data_element, data_file_path=None):
+def update_display_item_from_data_element(display_item: DataItem.DisplayItem, data_element, data_file_path=None):
+    data_item = display_item.data_item if display_item else None
     data_item.ensure_data_source()
     version = data_element["version"] if "version" in data_element else 1
     if version == 1:
-        update_data_item_from_data_element_1(data_item, data_element, data_file_path)
+        update_display_item_from_data_element_1(display_item, data_element, data_file_path)
     else:
         raise NotImplementedError("Data element version {:d} not supported.".format(version))
 
 
-def update_data_item_from_data_element_1(data_item, data_element, data_file_path=None):
-    display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-    assert display_specifier.data_item and display_specifier.display
-    with data_item.data_item_changes(), display_specifier.data_item.data_source_changes():
+def update_display_item_from_data_element_1(display_item: DataItem.DisplayItem, data_element, data_file_path=None):
+    data_item = display_item.data_item if display_item else None
+    display = display_item.display if display_item else None
+    assert data_item and display
+    with data_item.data_item_changes(), data_item.data_source_changes():
         # file path
         # master data
         if data_file_path is not None:
@@ -212,9 +215,9 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         collection_dimension_count = data_and_metadata.collection_dimension_count
         datum_dimension_count = data_and_metadata.datum_dimension_count
         data_shape_data_dtype = data_and_metadata.data_shape_and_dtype
-        is_same_shape = display_specifier.data_item.data_shape == data_shape_data_dtype[0] and display_specifier.data_item.data_dtype == data_shape_data_dtype[1] and display_specifier.data_item.is_sequence == is_sequence and display_specifier.data_item.collection_dimension_count == collection_dimension_count and display_specifier.data_item.datum_dimension_count == datum_dimension_count
+        is_same_shape = data_item.data_shape == data_shape_data_dtype[0] and data_item.data_dtype == data_shape_data_dtype[1] and data_item.is_sequence == is_sequence and data_item.collection_dimension_count == collection_dimension_count and data_item.datum_dimension_count == datum_dimension_count
         if is_same_shape:
-            with display_specifier.data_item.data_ref() as data_ref:
+            with data_item.data_ref() as data_ref:
                 sub_area = data_element.get("sub_area")
                 if sub_area is not None:
                     top = sub_area[0][0]
@@ -227,12 +230,12 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
                 data_ref.data_updated()  # trigger change notifications
             if dimensional_calibrations is not None:
                 for dimension, dimensional_calibration in enumerate(dimensional_calibrations):
-                    display_specifier.data_item.set_dimensional_calibration(dimension, dimensional_calibration)
+                    data_item.set_dimensional_calibration(dimension, dimensional_calibration)
             if intensity_calibration:
-                display_specifier.data_item.set_intensity_calibration(intensity_calibration)
+                data_item.set_intensity_calibration(intensity_calibration)
             data_item.metadata = data_and_metadata.metadata
         else:
-            display_specifier.data_item.set_xdata(data_and_metadata)
+            data_item.set_xdata(data_and_metadata)
         # title
         if "title" in data_element:
             data_item.title = data_element["title"]
@@ -266,12 +269,12 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         if "arrows" in data_element:
             for arrow_coordinates in data_element["arrows"]:
                 start, end = arrow_coordinates
-                dimensional_shape = display_specifier.data_item.dimensional_shape
+                dimensional_shape = data_item.dimensional_shape
                 line_graphic = Graphics.LineGraphic()
                 line_graphic.start = (float(start[0]) / dimensional_shape[0], float(start[1]) / dimensional_shape[1])
                 line_graphic.end = (float(end[0]) / dimensional_shape[0], float(end[1]) / dimensional_shape[1])
                 line_graphic.end_arrow_enabled = True
-                display_specifier.display.add_graphic(line_graphic)
+                display.add_graphic(line_graphic)
 
 
 def convert_data_element_to_data_and_metadata(data_element) -> DataAndMetadata.DataAndMetadata:
@@ -481,8 +484,8 @@ class StandardImportExportHandler(ImportExportHandler):
         return len(data_and_metadata.dimensional_shape) == 2
 
     def write(self, ui, data_item, path, extension):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        data = display_specifier.display.get_calculated_display_values(True).display_rgba  # export the display rather than the data for these types
+        display_item = DataItem.DisplayItem(data_item)
+        data = display_item.display.get_calculated_display_values(True).display_rgba  # export the display rather than the data for these types
         if data is not None:
             ui.save_rgba_data_to_file(data, path, extension)
 

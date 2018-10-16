@@ -759,7 +759,8 @@ class TestHardwareSourceClass(unittest.TestCase):
         data_element = ScanAcquisitionTask(False, 0).make_data_element()
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         data_item.created = datetime.datetime(2000, 6, 30)
-        ImportExportManager.update_data_item_from_data_element(data_item, data_element)
+        display_item = DataItem.DisplayItem(data_item)
+        ImportExportManager.update_display_item_from_data_element(display_item, data_element)
         self.assertEqual(data_item.created.year, datetime.datetime.utcnow().year)
 
     def test_channel_id_and_name_and_index_are_empty_for_simple_hardware_source(self):

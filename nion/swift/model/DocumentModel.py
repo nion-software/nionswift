@@ -2335,9 +2335,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         region_map = dict()
         for i, (src_dict, input) in enumerate(zip(src_dicts, inputs)):
 
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(input[0])
-            data_item = display_specifier.data_item
-            display = display_specifier.display
+            display_item = self.get_display_item_for_data_item(input[0])
+            data_item = display_item.data_item if display_item else None
+            display = display_item.display if display_item else None
 
             if not data_item:
                 return None
@@ -2488,11 +2488,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         computation.processing_id = processing_id
         # process the data item inputs
         for src_dict, src_name, src_label, input in zip(src_dicts, src_names, src_labels, inputs):
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(input[0])
+            display_item = self.get_display_item_for_data_item(input[0])
+            data_item = display_item.data_item if display_item else None
             secondary_specifier = None
             if src_dict.get("croppable", False):
                 secondary_specifier = self.get_object_specifier(input[1])
-            computation.create_object(src_name, self.get_object_specifier(display_specifier.data_item), label=src_label, secondary_specifier=secondary_specifier)
+            computation.create_object(src_name, self.get_object_specifier(data_item), label=src_label, secondary_specifier=secondary_specifier)
         # process the regions
         for region_name, region, region_label in regions:
             computation.create_object(region_name, self.get_object_specifier(region), label=region_label)
@@ -2511,8 +2512,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         self.append_data_item(new_data_item)
 
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
-        display = display_specifier.display
+        display_item = self.get_display_item_for_data_item(new_data_item)
+        display = display_item.display if display_item else None
 
         # next come the output regions that get created on the target itself
         new_regions = dict()
