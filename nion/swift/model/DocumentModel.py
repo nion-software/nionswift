@@ -1240,11 +1240,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return self.__transaction_manager.transaction_count
 
     def begin_display_transaction(self, display: Display.Display) -> Transaction:
-        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+        display_item = self._get_display_item_for_display(display)
+        data_item = display_item.data_item if display_item else None
         if data_item:
             return self.item_transaction(data_item)
         else:
-            return Transaction(self.__transaction_manager, set())
+            return Transaction(self.__transaction_manager, set(), list())
 
     def data_item_live(self, data_item):
         """ Return a context manager to put the data item in a 'live state'. """
@@ -1871,6 +1872,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__document_model = document_model
             self.__key = key
             self.__data_item = data_item
+            self.__display_item = self.__document_model.get_display_item_for_data_item(data_item)
             self.__starts = 0
             self.__pending_starts = 0
             self.__data_item_transaction = None
@@ -1939,17 +1941,24 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     self.__pending_starts = self.__starts
                     self.__starts = 0
                     self.__data_item = None
+                    self.__display_item = None
 
         @property
         def data_item(self):
             with self.mutex:
                 return self.__data_item
 
+        @property
+        def display_item(self):
+            with self.mutex:
+                return self.__display_item
+
         @data_item.setter
         def data_item(self, value):
             with self.mutex:
                 if self.__data_item != value:
                     self.__data_item = value
+                    self.__display_item = self.__document_model.get_display_item_for_data_item(value)
                     # start (internal) for each pending start.
                     for i in range(self.__pending_starts):
                         self.__start()
@@ -2055,7 +2064,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if data_channel.processor:
                     src_data_channel = hardware_source.data_channels[data_channel.src_channel_index]
                     src_data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, src_data_channel.channel_id))
-                    data_channel.processor.connect(src_data_item_reference)
+                    data_channel.processor.connect_data_item_reference(src_data_item_reference)
 
             self.__call_soon(update_session)
             return data_item_reference

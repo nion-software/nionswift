@@ -997,26 +997,27 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
         else:
             return copy.deepcopy(data_and_metadata)
 
-    def connect(self, data_item_reference):
+    def connect_data_item_reference(self, data_item_reference):
         """Connect to the data item reference, creating a crop graphic if necessary.
 
         If the data item reference does not yet have an associated data item, add a
         listener and wait for the data item to be set, then connect.
         """
-        data_item = data_item_reference.data_item
-        if data_item:
-            self.__connect_data_item(data_item)
+        display_item = data_item_reference.display_item
+        data_item = display_item.data_item if display_item else None
+        display = display_item.display if display_item else None
+        if data_item and display:
+            self.__connect_display(display)
         else:
             def data_item_changed():
                 self.__data_item_changed_event_listener.close()
-                self.connect(data_item_reference)  # ugh. recursive mess.
+                self.connect_data_item_reference(data_item_reference)  # ugh. recursive mess.
             self.__data_item_changed_event_listener = data_item_reference.data_item_changed_event.listen(data_item_changed)
 
-    def __connect_data_item(self, data_item):
+    def __connect_display(self, display):
         assert threading.current_thread() == threading.main_thread()
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         crop_graphic = None
-        for graphic in display_specifier.display.graphics:
+        for graphic in display.graphics:
             if graphic.graphic_id == self.__processor_id:
                 crop_graphic = graphic
                 break
@@ -1035,7 +1036,7 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
             crop_graphic.is_bounds_constrained = True
             crop_graphic.graphic_id = self.__processor_id
             crop_graphic.label = _("Crop")
-            display_specifier.display.add_graphic(crop_graphic)
+            display.add_graphic(crop_graphic)
         if not self.__crop_listener:
             def property_changed(k):
                 if k == "bounds":
@@ -1044,7 +1045,7 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
                 if v == crop_graphic:
                     close_all()
             self.__crop_listener = crop_graphic.property_changed_event.listen(property_changed)
-            self.__remove_listener = display_specifier.display.item_removed_event.listen(graphic_removed)
+            self.__remove_listener = display.item_removed_event.listen(graphic_removed)
             self.__crop_graphic = crop_graphic
 
 

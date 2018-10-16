@@ -1189,8 +1189,7 @@ class DataItem(metaclass=SharedInstance):
 
     @property
     def display(self) -> "Display":
-        display_specifier = DataItemModule.DisplaySpecifier.from_data_item(self.__data_item)
-        return Display(display_specifier.display)
+        return Display(self.__data_item.displays[0])
 
     def add_point_region(self, y: float, x: float) -> Graphic:
         """Add a point graphic to the data item.
@@ -1261,7 +1260,7 @@ class DataItem(metaclass=SharedInstance):
 
     def data_item_to_svg(self):
 
-        display_specifier = DataItemModule.DisplaySpecifier.from_data_item(self.__data_item)
+        display = self.__data_item.displays[0]
 
         FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
 
@@ -1269,8 +1268,6 @@ class DataItem(metaclass=SharedInstance):
             return FontMetrics(width=6.5 * len(text), height=15, ascent=12, descent=3, leading=0)
 
         aspect_ratio = None
-
-        display = display_specifier.display
 
         display_canvas_item = DisplayPanelModule.create_display_canvas_item(display.actual_display_type, None, None, None, draw_background=False)
         aspect_ratio = display_canvas_item.default_aspect_ratio if not aspect_ratio else aspect_ratio
@@ -2579,11 +2576,13 @@ class DocumentWindow(metaclass=SharedInstance):
 
     @property
     def target_display(self) -> Display:
-        return Display(self.__document_controller.selected_display_specifier.display)
+        display_item = self.__document_controller.selected_display_item
+        display = display_item.display if display_item else None
+        return Display(display)
 
     @property
     def target_data_item(self) -> DataItem:
-        data_item = self.__document_controller.selected_display_specifier.data_item
+        data_item = self.__document_controller.selected_data_item
         return DataItem(data_item) if data_item else None
 
     def create_task_context_manager(self, title, task_type):

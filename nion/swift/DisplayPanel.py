@@ -1009,7 +1009,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             return False
 
         def map_display_to_display_item(display):
-            return DataPanel.DisplayItemAdapter(display, ui)
+            display_item = document_controller.document_model._get_display_item_for_display(display)
+            return DataPanel.DisplayItemAdapter(display_item, ui)
 
         def unmap_display_to_display_item(display_item):
             display_item.close()
@@ -1509,7 +1510,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.show_context_menu(menu, gx, gy)
 
     def __handle_context_menu_for_display(self, display_item, x, y, gx, gy):
-        menu = self.__document_controller.create_context_menu_for_display(display_item.display if display_item else None)
+        menu = self.__document_controller.create_context_menu_for_display(display_item)
         return self.show_context_menu(menu, gx, gy)
 
     def perform_action(self, fn, *args, **keywords):
@@ -1608,7 +1609,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def show_display_context_menu(self, gx, gy) -> bool:
         document_controller = self.__document_controller
-        menu = document_controller.create_context_menu_for_display(self.__get_display(), container=document_controller.document_model)
+        menu = document_controller.create_context_menu_for_display(self.__display_item, container=document_controller.document_model)
         return self.show_context_menu(menu, gx, gy)
 
     def begin_mouse_tracking(self):
@@ -1649,7 +1650,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             self.__document_controller.cursor_changed(None)
 
     def drag_graphics(self, graphics):
-        data_item = DataItem.DisplaySpecifier.from_display(self.__get_display()).data_item
+        data_item = self.data_item
         if data_item:
             mime_data = self.ui.create_mime_data()
             mime_data_content = dict()
@@ -1722,7 +1723,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def create_line_profile(self, pos):
         display = self.__get_display()
-        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+        data_item = self.data_item
         if data_item:
             pos = tuple(pos)
             display.graphic_selection.clear()

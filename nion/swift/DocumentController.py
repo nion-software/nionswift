@@ -257,8 +257,8 @@ class DocumentController(Window.Window):
                 self.export_files(selected_data_items)
             elif len(selected_data_items) == 1:
                 self.export_file(selected_data_items[0])
-            elif self.selected_display_specifier.data_item:
-                self.export_file(self.selected_display_specifier.data_item)
+            elif self.selected_data_item:
+                self.export_file(self.selected_data_item)
         self._export_action = self._file_menu.add_menu_item(_("Export..."), export_files)
         #self._file_menu.add_separator()
         #self._save_action = self._file_menu.add_menu_item(_("Save"), self.no_operation, key_sequence="save")
@@ -727,7 +727,8 @@ class DocumentController(Window.Window):
         selected_displays = self.selected_displays
         selected_data_items = list()
         for display in selected_displays:
-            data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+            display_item = self.document_model._get_display_item_for_display(display)
+            data_item = display_item.data_item if display_item else None
             if data_item and not data_item in selected_data_items:
                 selected_data_items.append(data_item)
         return selected_data_items
@@ -782,19 +783,6 @@ class DocumentController(Window.Window):
         self.set_filter(filter_id)
 
     @property
-    def selected_display_specifier(self):
-        """Return the selected display specifier (data_item, display).
-
-        The selected display is the display that has keyboard focus in the data panel or a display panel.
-        """
-        # first check for the [focused] data browser
-        data_item = self.focused_data_item
-        if data_item:
-            return DataItem.DisplaySpecifier.from_data_item(data_item)
-        # if not found, check for focused or selected image panel
-        return DataItem.DisplaySpecifier.from_data_item(self.selected_display_panel.data_item if self.selected_display_panel else None)
-
-    @property
     def selected_display_item(self) -> typing.Optional[DataItem.DisplayItem]:
         """Return the selected display item.
 
@@ -817,7 +805,8 @@ class DocumentController(Window.Window):
         container = self.__data_items_model.container
         if container is self.document_model:
             for display in displays:
-                data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+                display_item = self.document_model._get_display_item_for_display(display)
+                data_item = display_item.data_item if display_item else None
                 if data_item and data_item in self.document_model.data_items and data_item not in data_items:
                     data_items.append(data_item)
             if data_items:
@@ -826,7 +815,8 @@ class DocumentController(Window.Window):
                 self.push_undo_command(command)
         elif isinstance(container, DataGroup.DataGroup):
             for display in displays:
-                data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+                display_item = self.document_model._get_display_item_for_display(display)
+                data_item = display_item.data_item if display_item else None
                 if data_item and data_item in container.data_items and data_item not in data_items:
                     data_items.append(data_item)
             if data_items:
@@ -988,7 +978,7 @@ class DocumentController(Window.Window):
 
     def new_edit_computation_dialog(self, data_item=None):
         if not data_item:
-            data_item = self.selected_display_specifier.data_item
+            data_item = self.selected_data_item
         if data_item:
             interactive_dialog = ComputationPanel.EditComputationDialog(self, data_item)
             interactive_dialog.show()
@@ -996,7 +986,7 @@ class DocumentController(Window.Window):
 
     def new_display_editor_dialog(self, data_item=None):
         if not data_item:
-            data_item = self.selected_display_specifier.data_item
+            data_item = self.selected_data_item
         if data_item:
             interactive_dialog = DisplayEditorPanel.DisplayEditorDialog(self, data_item)
             interactive_dialog.show()
@@ -1004,7 +994,7 @@ class DocumentController(Window.Window):
 
     def new_recorder_dialog(self, data_item=None):
         if not data_item:
-            data_item = self.selected_display_specifier.data_item
+            data_item = self.selected_data_item
         if data_item:
             interactive_dialog = RecorderPanel.RecorderDialog(self, data_item)
             interactive_dialog.show()
@@ -1731,32 +1721,32 @@ class DocumentController(Window.Window):
                     mask_graphics.append(graphic)
         return mask_graphics
 
-    def processing_fft(self):
-        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_fft_new))
+    def processing_fft(self) -> DataItem.DisplayItem:
+        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_fft_new))
 
-    def processing_ifft(self):
-        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_ifft_new))
+    def processing_ifft(self) -> DataItem.DisplayItem:
+        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_ifft_new))
 
-    def processing_gaussian_blur(self):
-        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_gaussian_blur_new))
+    def processing_gaussian_blur(self) -> DataItem.DisplayItem:
+        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_gaussian_blur_new))
 
-    def processing_resample(self):
-        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_resample_new))
+    def processing_resample(self) -> DataItem.DisplayItem:
+        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_resample_new))
 
-    def processing_crop(self):
-        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_crop_new))
+    def processing_crop(self) -> DataItem.DisplayItem:
+        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_crop_new))
 
-    def processing_slice(self):
-        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_slice_sum_new))
+    def processing_slice(self) -> DataItem.DisplayItem:
+        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_slice_sum_new))
 
-    def processing_projection(self):
-        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_projection_new))
+    def processing_projection(self) -> DataItem.DisplayItem:
+        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_projection_new))
 
-    def processing_line_profile(self):
-        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_line_profile_new))
+    def processing_line_profile(self) -> DataItem.DisplayItem:
+        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_line_profile_new))
 
-    def processing_invert(self):
-        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_invert_new))
+    def processing_invert(self) -> DataItem.DisplayItem:
+        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_invert_new))
 
     class InsertLibraryItemCommand(Undo.UndoableCommand):
 
@@ -1827,7 +1817,7 @@ class DocumentController(Window.Window):
         self.push_undo_command(command)
 
     def processing_duplicate(self):
-        data_item = self.selected_display_specifier.data_item
+        data_item = self.selected_data_item
         if data_item:
             self._perform_duplicate(data_item)
 
@@ -1851,7 +1841,7 @@ class DocumentController(Window.Window):
         self.push_undo_command(command)
 
     def processing_snapshot(self):
-        data_item = self.selected_display_specifier.data_item
+        data_item = self.selected_data_item
         if data_item:
             self._perform_snapshot(data_item)
 
@@ -1921,12 +1911,12 @@ class DocumentController(Window.Window):
                 crop_graphic2 = crop_graphic1
             return (data_item, crop_graphic1), (data_item, crop_graphic2)
         if len(selected_data_items) == 2:
-            display_specifier1 = DataItem.DisplaySpecifier.from_data_item(selected_data_items[0])
-            data_item1 = display_specifier1.data_item
-            crop_graphic1 = self.__get_crop_graphic(display_specifier1)
-            display_specifier2 = DataItem.DisplaySpecifier.from_data_item(selected_data_items[1])
-            data_item2 = display_specifier2.data_item
-            crop_graphic2 = self.__get_crop_graphic(display_specifier2)
+            display_item1 = self.document_model.get_display_item_for_data_item(selected_data_items[0])
+            data_item1 = display_item1.data_item if display_item1 else None
+            crop_graphic1 = self.__get_crop_graphic(display_item1)
+            display_item2 = self.document_model.get_display_item_for_data_item(selected_data_items[1])
+            data_item2 = display_item2.data_item if display_item2 else None
+            crop_graphic2 = self.__get_crop_graphic(display_item2)
             return (data_item1, crop_graphic1), (data_item2, crop_graphic2)
         return None
 
@@ -2176,12 +2166,10 @@ class DocumentController(Window.Window):
         else:
             return receive_files_on_thread(file_paths, data_group, index, functools.partial(receive_files_complete, index))
 
-    def create_context_menu_for_display(self, display: Display.Display, container=None):
+    def create_context_menu_for_display(self, display_item: DataItem.DisplayItem, container=None):
         menu = self.create_context_menu()
-        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+        data_item = display_item.data_item if display_item else None
         if data_item:
-            data_item = DataItem.DisplaySpecifier.from_display(display).data_item
-
             if not container:
                 container = self.data_items_model.container
                 container = DataGroup.get_data_item_container(container, data_item)

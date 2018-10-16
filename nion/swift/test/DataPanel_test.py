@@ -211,7 +211,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.selection.set(1)
             document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
             document_controller.selection.set(0)
-            self.assertEqual(document_controller.selected_display_specifier.data_item, data_item1)
+            self.assertEqual(document_controller.selected_data_item, data_item1)
             self.assertEqual(data_panel.data_group_widget.parent_id, 1)
             self.assertEqual(data_panel.data_group_widget.parent_row, 0)
             self.assertEqual(data_panel.data_group_widget.index, 0)
@@ -222,7 +222,7 @@ class TestDataPanelClass(unittest.TestCase):
             self.assertEqual(data_panel.data_group_widget.index, 1)
             self.assertEqual(document_controller.selection.indexes, set([1]))
             document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
-            self.assertEqual(document_controller.selected_display_specifier.data_item, data_item1)
+            self.assertEqual(document_controller.selected_data_item, data_item1)
             self.assertEqual(data_panel.data_group_widget.parent_id, 1)
             self.assertEqual(data_panel.data_group_widget.parent_row, 0)
             self.assertEqual(data_panel.data_group_widget.index, 0)
@@ -231,7 +231,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
             data_panel.data_group_widget.on_selection_changed([(1, 0, 1)])  # data_group1 now has data_group2 selected
             document_controller.selection.clear()  # data_group1 now has no data item selected
-            self.assertIsNone(document_controller.selected_display_specifier.data_item)
+            self.assertIsNone(document_controller.selected_data_item)
             self.assertEqual(data_panel.data_group_widget.parent_id, 1)
             self.assertEqual(data_panel.data_group_widget.parent_row, 0)
             self.assertEqual(data_panel.data_group_widget.index, 1)
@@ -242,7 +242,7 @@ class TestDataPanelClass(unittest.TestCase):
             self.assertEqual(data_panel.data_group_widget.index, 1)
             self.assertEqual(document_controller.selection.indexes, set([1]))
             document_controller.select_data_group_in_data_panel(data_group=data_group2)
-            self.assertIsNone(document_controller.selected_display_specifier.data_item)
+            self.assertIsNone(document_controller.selected_data_item)
             self.assertEqual(data_panel.data_group_widget.parent_id, 1)
             self.assertEqual(data_panel.data_group_widget.parent_row, 0)
             self.assertEqual(data_panel.data_group_widget.index, 1)
@@ -331,18 +331,18 @@ class TestDataPanelClass(unittest.TestCase):
             data_panel.focused = True
             document_controller.select_data_item_in_data_panel(data_item=data_item1)
             # make sure our preconditions are right
-            self.assertEqual(document_controller.selected_display_specifier.data_item, data_item1)
+            self.assertEqual(document_controller.selected_data_item, data_item1)
             self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
             # add processing and make sure it appeared
-            self.assertEqual(document_controller.selected_display_specifier.data_item, data_item1)
+            self.assertEqual(document_controller.selected_data_item, data_item1)
             inverted_data_item = document_controller.processing_invert().data_item
             self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
             # now make sure data panel shows it as selected
-            self.assertEqual(document_controller.selected_display_specifier.data_item, inverted_data_item)
+            self.assertEqual(document_controller.selected_data_item, inverted_data_item)
             # switch away and back and make sure selection is still correct
             document_controller.select_data_item_in_data_panel(data_item=data_item2)
             document_controller.select_data_item_in_data_panel(data_item=inverted_data_item)
-            self.assertEqual(document_controller.selected_display_specifier.data_item, inverted_data_item)
+            self.assertEqual(document_controller.selected_data_item, inverted_data_item)
 
     def test_existing_item_gets_initially_added_to_binding_data_items(self):
         document_model = DocumentModel.DocumentModel()
@@ -465,9 +465,9 @@ class TestDataPanelClass(unittest.TestCase):
             data_group.append_data_item(data_item)
             data_panel = document_controller.find_dock_widget("data-panel").panel
             data_panel.focused = True
-            self.assertIsNone(document_controller.selected_display_specifier.data_item)
+            self.assertIsNone(document_controller.selected_data_item)
             data_panel.data_group_model_receive_files([":/app/scroll_gem.png"], data_group, index=0, threaded=False)
-            self.assertEqual(document_controller.selected_display_specifier.data_item, data_group.data_items[0])
+            self.assertEqual(document_controller.selected_data_item, data_group.data_items[0])
 
     def test_setting_data_browser_selection_to_multiple_items_via_document_controller_updates_selection_object(self):
         document_model = DocumentModel.DocumentModel()

@@ -711,18 +711,18 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
             expected_inspector_section_count = len(inspector_panel._get_inspector_sections())
             # add the point graphic, ensure that inspector is updated with just a section for point graphic
-            self.assertEqual(len(document_controller.selected_display_specifier.display.graphic_selection.indexes), 0)  # make sure graphic is not selected
+            self.assertEqual(len(document_controller.selected_display_item.display.graphic_selection.indexes), 0)  # make sure graphic is not selected
             document_model.get_pick_new(data_item)
-            self.assertEqual(document_controller.selected_display_specifier.data_item, data_item)
-            document_controller.selected_display_specifier.display.graphic_selection.add(0)
+            self.assertEqual(document_controller.selected_data_item, data_item)
+            document_controller.selected_display_item.display.graphic_selection.add(0)
             document_controller.periodic()
             graphic_inspector_section_count = len(inspector_panel._get_inspector_sections())
             self.assertNotEqual(expected_inspector_section_count, graphic_inspector_section_count)
             # now remove the point graphic and ensure that inspector inspecting data item again
-            self.assertEqual(len(document_controller.selected_display_specifier.display.graphic_selection.indexes), 1)  # make sure graphic is selected
+            self.assertEqual(len(document_controller.selected_display_item.display.graphic_selection.indexes), 1)  # make sure graphic is selected
             document_controller.remove_selected_graphics()
             document_controller.periodic()
-            self.assertEqual(len(document_controller.selected_display_specifier.display.graphic_selection.indexes), 0)  # make sure graphic is not selected
+            self.assertEqual(len(document_controller.selected_display_item.display.graphic_selection.indexes), 0)  # make sure graphic is not selected
             actual_inspector_section_count = len(inspector_panel._get_inspector_sections())
             self.assertEqual(expected_inspector_section_count, actual_inspector_section_count)
 

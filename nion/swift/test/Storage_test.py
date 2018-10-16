@@ -107,13 +107,13 @@ class TestStorageClass(unittest.TestCase):
         display_panel = document_controller.workspace_controller.display_panels[0]
         document_controller.selected_display_panel = display_panel
         display_panel.set_display_panel_data_item(data_item)
-        self.assertEqual(document_controller.selected_display_specifier.data_item, data_item)
+        self.assertEqual(document_controller.selected_data_item, data_item)
         document_controller.add_line_graphic()
         document_controller.add_rectangle_graphic()
         document_controller.add_ellipse_graphic()
         document_controller.add_point_graphic()
         display_panel.set_display_panel_data_item(data_item)
-        self.assertEqual(document_controller.selected_display_specifier.data_item, data_item)
+        self.assertEqual(document_controller.selected_data_item, data_item)
         document_controller.processing_gaussian_blur()
         display_panel.set_display_panel_data_item(data_item)
         document_controller.processing_resample()
@@ -122,7 +122,7 @@ class TestStorageClass(unittest.TestCase):
         display_panel.set_display_panel_data_item(data_item)
         document_controller.processing_crop()
         display_panel.set_display_panel_data_item(data_item2)
-        self.assertEqual(document_controller.selected_display_specifier.data_item, data_item2)
+        self.assertEqual(document_controller.selected_data_item, data_item2)
         document_controller.processing_fft()
         document_controller.processing_ifft()
 

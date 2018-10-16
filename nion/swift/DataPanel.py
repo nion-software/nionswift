@@ -106,10 +106,12 @@ class DisplayItemAdapter:
             (event) needs_update_event
     """
 
-    def __init__(self, display: Display.Display, ui):
-        self.__display = display
+    def __init__(self, display_item: DataItem.DisplayItem, ui):
+        self.__display_item = display_item
         self.ui = ui
         self.needs_update_event = Event.Event()
+
+        display = self.__display_item.display if self.__display_item else None
 
         def display_changed():
             self.needs_update_event.fire()
@@ -133,20 +135,21 @@ class DisplayItemAdapter:
 
     @property
     def display(self) -> Display.Display:
-        return self.__display
+        return self.__display_item.display if self.__display_item else None
 
     @property
     def display_item(self) -> DataItem.DisplayItem:
-        return DataItem.DisplayItem(DataItem.DisplaySpecifier.from_display(self.__display).data_item)
+        return self.__display_item
 
     @property
-    def data_item(self) -> DataItem.DisplayItem:
-        return DataItem.DisplaySpecifier.from_display(self.__display).data_item
+    def data_item(self) -> DataItem.DataItem:
+        return self.__display_item.data_item if self.__display_item else None
 
     def __create_thumbnail_source(self):
         # grab the display specifier and if there is a display, handle thumbnail updating.
-        if self.__display and not self.__thumbnail_source:
-            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.ui, self.__display)
+        display = self.display
+        if display and not self.__thumbnail_source:
+            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.ui, display)
 
             def thumbnail_updated():
                 self.needs_update_event.fire()
@@ -155,7 +158,8 @@ class DisplayItemAdapter:
 
     def __create_thumbnail(self, draw_rect):
         drawing_context = DrawingContext.DrawingContext()
-        if self.__display:
+        display = self.display
+        if display:
             self.__create_thumbnail_source()
             thumbnail_data = self.__thumbnail_source.thumbnail_data
             if thumbnail_data is not None:
@@ -165,7 +169,8 @@ class DisplayItemAdapter:
 
     @property
     def title_str(self) -> str:
-        return self.__display.title if self.__display else str()
+        display = self.display
+        return display.title if display else str()
 
     @property
     def format_str(self) -> str:
@@ -185,7 +190,8 @@ class DisplayItemAdapter:
         return str()
 
     def drag_started(self, ui, x, y, modifiers):
-        if self.__display:
+        display = self.display
+        if display:
             display_item = self.display_item
             mime_data = self.ui.create_mime_data()
             if display_item:
@@ -1113,12 +1119,13 @@ class DataPanel(Panel.Panel):
         library_section_widget.add_stretch()
 
         def show_context_menu(display_item, x, y, gx, gy):
-            menu = document_controller.create_context_menu_for_display(display_item.display if display_item else None)
+            menu = document_controller.create_context_menu_for_display(display_item)
             menu.popup(gx, gy)
             return True
 
         def map_display_to_display_item(display):
-            return DisplayItemAdapter(display, ui)
+            display_item = document_controller.document_model._get_display_item_for_display(display)
+            return DisplayItemAdapter(display_item, ui)
 
         def unmap_display_to_display_item(display_item):
             display_item.close()
