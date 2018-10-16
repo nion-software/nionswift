@@ -211,21 +211,21 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_item = document_model.get_display_item_for_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
         display_panel.set_display_panel_data_item(data_item)
         line_graphic = document_controller.add_line_graphic()
         # make sure assumptions are correct
-        self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 1)
-        self.assertTrue(0 in display_specifier.display.graphic_selection.indexes)
-        self.assertEqual(len(display_specifier.display.graphics), 1)
-        self.assertEqual(display_specifier.display.graphics[0], line_graphic)
+        self.assertEqual(len(display_item.display.graphic_selection.indexes), 1)
+        self.assertTrue(0 in display_item.display.graphic_selection.indexes)
+        self.assertEqual(len(display_item.display.graphics), 1)
+        self.assertEqual(display_item.display.graphics[0], line_graphic)
         # remove the graphic and make sure things are as expected
         display_panel.set_display_panel_data_item(data_item)
         document_controller.remove_selected_graphics()
-        self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)
-        self.assertEqual(len(display_specifier.display.graphics), 0)
+        self.assertEqual(len(display_item.display.graphic_selection.indexes), 0)
+        self.assertEqual(len(display_item.display.graphics), 0)
         # clean up
         document_controller.close()
 
@@ -233,15 +233,15 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_item = document_model.get_display_item_for_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
         display_panel.set_display_panel_data_item(data_item)
         line_profile_data_item = document_controller.processing_line_profile().data_item
         document_controller.periodic()  # TODO: remove need to let the inspector catch up
         display_panel.set_display_panel_data_item(data_item)
-        display_specifier.display.graphic_selection.clear()
-        display_specifier.display.graphic_selection.add(0)
+        display_item.display.graphic_selection.clear()
+        display_item.display.graphic_selection.add(0)
         # make sure assumptions are correct
         self.assertEqual(document_model.get_source_data_items(line_profile_data_item)[0], data_item)
         self.assertTrue(line_profile_data_item in document_model.data_items)
@@ -260,7 +260,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             # add a data item
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
-            display = DataItem.DisplaySpecifier.from_data_item(data_item).display
+            display = document_model.get_display_item_for_data_item(data_item).display
             # ensure first data item is displayed
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
@@ -299,8 +299,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.ones((h, w), numpy.float32))
         crop_region = Graphics.RectangleGraphic()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display_specifier.display.add_graphic(crop_region)
+        display_item = document_model.get_display_item_for_data_item(data_item)
+        display_item.display.add_graphic(crop_region)
         document_model.append_data_item(data_item)
         display_panel = document_controller.selected_display_panel
         display_panel.set_display_panel_data_item(data_item)
@@ -317,7 +317,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
         crop_region = Graphics.RectangleGraphic()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
-        DataItem.DisplaySpecifier.from_data_item(data_item).display.add_graphic(crop_region)
+        document_model.get_display_item_for_data_item(data_item).display.add_graphic(crop_region)
         document_model.append_data_item(data_item)
         new_data_item = document_model.get_invert_new(data_item, crop_region)
         self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(document_model.get_data_item_computation(new_data_item).variables[0].secondary_specifier).value.bounds)
@@ -331,7 +331,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
         crop_region = Graphics.RectangleGraphic()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
-        DataItem.DisplaySpecifier.from_data_item(data_item).display.add_graphic(crop_region)
+        document_model.get_display_item_for_data_item(data_item).display.add_graphic(crop_region)
         document_model.append_data_item(data_item)
         cropped_data_item = document_model.get_invert_new(data_item, crop_region)
         document_model.recompute_all()
@@ -378,7 +378,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
         crop_region = Graphics.RectangleGraphic()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
-        DataItem.DisplaySpecifier.from_data_item(data_item).display.add_graphic(crop_region)
+        document_model.get_display_item_for_data_item(data_item).display.add_graphic(crop_region)
         document_model.append_data_item(data_item)
         display_panel = document_controller.selected_display_panel
         display_panel.set_display_panel_data_item(data_item)
@@ -394,7 +394,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             target_data_item = document_model.get_line_profile_new(source_data_item, None)
-            display = DataItem.DisplaySpecifier.from_data_item(source_data_item).display
+            display = document_model.get_display_item_for_data_item(source_data_item).display
             self.assertIn(target_data_item, document_model.data_items)
             display.remove_graphic(display.graphics[0])
             self.assertNotIn(target_data_item, document_model.data_items)
@@ -417,7 +417,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             target_data_item = document_model.get_line_profile_new(source_data_item, None)
-            display = DataItem.DisplaySpecifier.from_data_item(source_data_item).display
+            display = document_model.get_display_item_for_data_item(source_data_item).display
             self.assertIn(target_data_item, document_model.data_items)
             self.assertEqual(len(display.graphics), 1)
             document_model.remove_data_item(target_data_item)
@@ -533,8 +533,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
         document_model.append_data_item(data_item)
         crop_region = Graphics.RectangleGraphic()
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display_specifier.display.add_graphic(crop_region)
+        display_item = document_model.get_display_item_for_data_item(data_item)
+        display_item.display.add_graphic(crop_region)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
         display_panel.set_display_panel_data_item(data_item)

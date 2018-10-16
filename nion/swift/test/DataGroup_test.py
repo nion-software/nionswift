@@ -68,7 +68,6 @@ class TestDataGroupClass(unittest.TestCase):
             # add a child data item to the child and make sure top level and data_group match.
             # also check data items.
             data_item1a1 = document_model.get_resample_new(data_item1a)
-            display_specifier1a1 = DataItem.DisplaySpecifier.from_data_item(data_item1a1)
             data_group.append_data_item(data_item1a1)
             self.assertEqual(len(document_model.data_items), 3)
             self.assertEqual(len(data_group.counted_data_items), 3)

@@ -32,9 +32,9 @@ class MetadataModel:
         # thread safe.
         def display_item_changed(display_item):
             data_item = display_item.data_item if display_item else None
-            def update_display_specifier():
+            def update_data_item():
                 self.__set_data_item(data_item)
-            self.document_controller.add_task("update_display_specifier" + str(id(self)), update_display_specifier)
+            self.document_controller.add_task("update_data_item" + str(id(self)), update_data_item)
         self.__display_item_changed_event_listener = document_controller.focused_display_item_changed_event.listen(display_item_changed)
         self.__set_data_item(None)
         self.__metadata_changed_event_listener = None
@@ -42,7 +42,7 @@ class MetadataModel:
         self.metadata_changed_event = Event.Event()
 
     def close(self):
-        self.document_controller.clear_task("update_display_specifier" + str(id(self)))
+        self.document_controller.clear_task("update_data_item" + str(id(self)))
         self.__display_item_changed_event_listener.close()
         self.__display_item_changed_event_listener = None
         self.__set_data_item(None)

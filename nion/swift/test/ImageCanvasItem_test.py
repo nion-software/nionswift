@@ -132,11 +132,11 @@ class TestImageCanvasItemClass(unittest.TestCase):
             # draws line, then rect
             data_item.displays[0].add_graphic(line_region)
             data_item.displays[0].add_graphic(rect_region)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.display_canvas_item.simulate_click((50, 950))
-            self.assertEqual(display_specifier.display.graphic_selection.indexes, set((0, )))
+            self.assertEqual(display_item.display.graphic_selection.indexes, set((0, )))
             display_panel.display_canvas_item.simulate_click((500, 500))
-            self.assertEqual(display_specifier.display.graphic_selection.indexes, set((0, )))
+            self.assertEqual(display_item.display.graphic_selection.indexes, set((0, )))
 
     def test_specific_parts_take_priority_over_all_part(self):
         # setup
@@ -158,10 +158,10 @@ class TestImageCanvasItemClass(unittest.TestCase):
             # draws line, then rect
             data_item.displays[0].add_graphic(line_region)
             data_item.displays[0].add_graphic(rect_region)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             # clicking on line should select it
             display_panel.display_canvas_item.simulate_click((500, 600))
-            self.assertEqual(display_specifier.display.graphic_selection.indexes, set((0, )))
+            self.assertEqual(display_item.display.graphic_selection.indexes, set((0, )))
 
     def test_specific_parts_take_priority_when_another_selected(self):
         # setup
@@ -181,12 +181,12 @@ class TestImageCanvasItemClass(unittest.TestCase):
             rect_region2.bounds = (0.4, 0.4), (0.4, 0.4)
             data_item.displays[0].add_graphic(rect_region1)
             data_item.displays[0].add_graphic(rect_region2)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             # clicking on line should select it
             display_panel.display_canvas_item.simulate_click((700, 700))
-            self.assertEqual(display_specifier.display.graphic_selection.indexes, set((1, )))
+            self.assertEqual(display_item.display.graphic_selection.indexes, set((1, )))
             display_panel.display_canvas_item.simulate_click((600, 200))
-            self.assertEqual(display_specifier.display.graphic_selection.indexes, set((0, )))
+            self.assertEqual(display_item.display.graphic_selection.indexes, set((0, )))
 
     def test_hit_testing_occurs_same_as_draw_order(self):
         # draw order occurs from 0 -> n
@@ -207,9 +207,9 @@ class TestImageCanvasItemClass(unittest.TestCase):
             rect_region2.bounds = (0.4, 0.4), (0.4, 0.4)
             data_item.displays[0].add_graphic(rect_region1)
             data_item.displays[0].add_graphic(rect_region2)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.display_canvas_item.simulate_click((500, 500))
-            self.assertEqual(display_specifier.display.graphic_selection.indexes, set((1, )))
+            self.assertEqual(display_item.display.graphic_selection.indexes, set((1, )))
 
     def test_1d_data_displayed_as_2d(self):
         # setup
@@ -220,7 +220,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((10, )))
             document_model.append_data_item(data_item)
             display_panel.set_display_panel_data_item(data_item)
-            DataItem.DisplaySpecifier.from_data_item(data_item).display.display_type = "image"
+            document_model.get_display_item_for_data_item(data_item).display.display_type = "image"
             header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
 

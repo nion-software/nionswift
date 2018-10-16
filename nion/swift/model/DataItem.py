@@ -1653,30 +1653,6 @@ class DisplayItem:
         self.__data_item.displays[0].view_to_intervals(data_and_metadata, intervals)
 
 
-class DisplaySpecifier:
-    """Specify a Display contained within a DataItem."""
-
-    def __init__(self, data_item: DataItem=None, display: Display.Display=None):
-        self.data_item = data_item
-        self.display = display
-
-    def __eq__(self, other):
-        return self.data_item == other.data_item and self.display == other.display
-
-    def __ne__(self, other):
-        return self.data_item != other.data_item or self.display != other.display
-
-    @classmethod
-    def from_display(cls, display):
-        data_item = display.container if display else None
-        return cls(data_item, display)
-
-    @classmethod
-    def from_data_item(cls, data_item):
-        display = data_item.displays[0] if data_item and len(data_item.displays) > 0 else None
-        return cls(data_item, display)
-
-
 def sort_by_date_key(data_item):
     """ A sort key to for the created field of a data item. The sort by uuid makes it determinate. """
     return data_item.title + str(data_item.uuid) if data_item.is_live else str(), data_item.date_for_sorting, str(data_item.uuid)

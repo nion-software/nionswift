@@ -579,12 +579,12 @@ class TestDataPanelClass(unittest.TestCase):
     def test_changing_display_limits_causes_display_changed_message(self):
         # necessary to make the thumbnails update in the data panel
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_item = DataItem.DisplayItem(data_item)
         display_changed_ref = [False]
         def display_changed():
             display_changed_ref[0] = True
-        with contextlib.closing(display_specifier.display.display_changed_event.listen(display_changed)):
-            display_specifier.display.display_limits = (0.25, 0.75)
+        with contextlib.closing(display_item.display.display_changed_event.listen(display_changed)):
+            display_item.display.display_limits = (0.25, 0.75)
             self.assertTrue(display_changed_ref[0])
 
     def test_change_from_group_with_selected_items_to_group_with_no_items_updates_data_items_correctly(self):

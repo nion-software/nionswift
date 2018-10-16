@@ -34,15 +34,14 @@ class TestConnectionClass(unittest.TestCase):
             data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
             document_model.append_data_item(data_item_3d)
             document_model.append_data_item(data_item_1d)
-            display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
-            display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
+            display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
+            display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
             interval = Graphics.IntervalGraphic()
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
-            display_specifier.display.add_graphic(interval)
-            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start", parent=data_item_1d)
+            display_item_1d.display.add_graphic(interval)
+            connection = Connection.PropertyConnection(display_item_3d.display, "slice_center", interval, "start", parent=data_item_1d)
             document_model.append_connection(connection)
             # test to see if connection updates target when source changes
-            display_specifier_3d.display.slice_center = 12
+            display_item_3d.display.slice_center = 12
             self.assertEqual(interval.start, 12)
 
     def test_connection_updates_source_when_target_changes(self):
@@ -53,15 +52,15 @@ class TestConnectionClass(unittest.TestCase):
             data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
             document_model.append_data_item(data_item_3d)
             document_model.append_data_item(data_item_1d)
-            display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
-            display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
+            display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
+            display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
             interval = Graphics.IntervalGraphic()
-            display_specifier_1d.display.add_graphic(interval)
-            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start", parent=data_item_1d)
+            display_item_1d.display.add_graphic(interval)
+            connection = Connection.PropertyConnection(display_item_3d.display, "slice_center", interval, "start", parent=data_item_1d)
             document_model.append_connection(connection)
             # test to see if connection updates target when source changes
             interval.start = 9
-            self.assertEqual(display_specifier_3d.display.slice_center, 9)
+            self.assertEqual(display_item_3d.display.slice_center, 9)
 
     def test_connection_saves_and_restores(self):
         # setup document
@@ -72,11 +71,11 @@ class TestConnectionClass(unittest.TestCase):
             data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
             document_model.append_data_item(data_item_3d)
             document_model.append_data_item(data_item_1d)
-            display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
-            display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
+            display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
+            display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
             interval = Graphics.IntervalGraphic()
-            display_specifier_1d.display.add_graphic(interval)
-            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start", parent=data_item_1d)
+            display_item_1d.display.add_graphic(interval)
+            connection = Connection.PropertyConnection(display_item_3d.display, "slice_center", interval, "start", parent=data_item_1d)
             document_model.append_connection(connection)
         # read it back
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
@@ -84,15 +83,15 @@ class TestConnectionClass(unittest.TestCase):
             # verify it read back
             data_item_3d = document_model.data_items[0]
             data_item_1d = document_model.data_items[1]
-            display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
-            display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
-            interval = display_specifier_1d.display.graphics[0]
+            display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
+            display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
+            interval = display_item_1d.display.graphics[0]
             self.assertEqual(1, len(document_model.connections))
             # verify connection is working in both directions
-            display_specifier_3d.display.slice_center = 11
+            display_item_3d.display.slice_center = 11
             self.assertEqual(interval.start, 11)
             interval.start = 7
-            self.assertEqual(display_specifier_3d.display.slice_center, 7)
+            self.assertEqual(display_item_3d.display.slice_center, 7)
 
     def test_connection_closed_when_removed_from_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -101,11 +100,11 @@ class TestConnectionClass(unittest.TestCase):
             data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
             document_model.append_data_item(data_item_3d)
             document_model.append_data_item(data_item_1d)
-            display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
-            display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
+            display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
+            display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
             interval = Graphics.IntervalGraphic()
-            display_specifier_1d.display.add_graphic(interval)
-            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start", parent=data_item_1d)
+            display_item_1d.display.add_graphic(interval)
+            connection = Connection.PropertyConnection(display_item_3d.display, "slice_center", interval, "start", parent=data_item_1d)
             document_model.append_connection(connection)
             self.assertFalse(connection._closed)
             document_model.remove_connection(connection)
@@ -118,11 +117,11 @@ class TestConnectionClass(unittest.TestCase):
             data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
             document_model.append_data_item(data_item_3d)
             document_model.append_data_item(data_item_1d)
-            display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
-            display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
+            display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
+            display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
             interval = Graphics.IntervalGraphic()
-            display_specifier_1d.display.add_graphic(interval)
-            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start", parent=data_item_1d)
+            display_item_1d.display.add_graphic(interval)
+            connection = Connection.PropertyConnection(display_item_3d.display, "slice_center", interval, "start", parent=data_item_1d)
             document_model.append_connection(connection)
             self.assertFalse(connection._closed)
             document_model.remove_data_item(data_item_1d)
@@ -134,7 +133,7 @@ class TestConnectionClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             line_profile_display = document_controller.processing_line_profile().display
@@ -142,7 +141,7 @@ class TestConnectionClass(unittest.TestCase):
             interval = 0.2, 0.3
             interval_region.interval = interval
             line_profile_display.add_graphic(interval_region)
-            line_profile_graphic = display_specifier.display.graphics[0]
+            line_profile_graphic = display_item.display.graphics[0]
             interval_descriptors = line_profile_graphic.interval_descriptors
             self.assertEqual(len(interval_descriptors), 1)
             self.assertEqual(interval_descriptors[0]["interval"], interval)
@@ -153,7 +152,7 @@ class TestConnectionClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             line_profile_display = document_controller.processing_line_profile().display
@@ -161,7 +160,7 @@ class TestConnectionClass(unittest.TestCase):
             line_profile_display.add_graphic(interval_region)
             interval = 0.2, 0.3
             interval_region.interval = interval
-            line_profile_graphic = display_specifier.display.graphics[0]
+            line_profile_graphic = display_item.display.graphics[0]
             interval_descriptors = line_profile_graphic.interval_descriptors
             self.assertEqual(len(interval_descriptors), 1)
             self.assertEqual(interval_descriptors[0]["interval"], interval)

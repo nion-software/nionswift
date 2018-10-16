@@ -1067,7 +1067,7 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertTrue(display_panel0.content_canvas_item.focused)
             self.assertFalse(display_panel1.content_canvas_item.focused)
 
-    def test_browser_does_not_reset_selected_display_specifier_when_root_loses_focus(self):
+    def test_browser_does_not_reset_selected_display_item_when_root_loses_focus(self):
         # make sure the inspector doesn't disappear when focus changes to one of its fields
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

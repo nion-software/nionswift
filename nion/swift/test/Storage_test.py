@@ -75,18 +75,18 @@ class TestStorageClass(unittest.TestCase):
         data[:] = 50
         data[8, 8] = 2020
         data_item = DataItem.DataItem(data)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display_specifier.display.display_limits = (500, 1000)
-        display_specifier.data_item.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "three"))
         metadata = data_item.metadata
         metadata.setdefault("test", dict())["one"] = 1
         data_item.metadata = metadata
-        display = DataItem.DisplaySpecifier.from_data_item(data_item).display
+        document_controller.document_model.append_data_item(data_item)
+        display_item = document_controller.document_model.get_display_item_for_data_item(data_item)
+        display = display_item.display
         display.add_graphic(Graphics.PointGraphic())
         display.add_graphic(Graphics.LineGraphic())
         display.add_graphic(Graphics.RectangleGraphic())
         display.add_graphic(Graphics.EllipseGraphic())
-        document_controller.document_model.append_data_item(data_item)
+        display_item.display.display_limits = (500, 1000)
+        display_item.data_item.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "three"))
         data_group = DataGroup.DataGroup()
         data_group.append_data_item(data_item)
         document_controller.document_model.append_data_group(data_group)
@@ -187,15 +187,15 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
-                display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-                data_range = display_specifier.display.get_calculated_display_values(True).data_range
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_range = display_item.display.get_calculated_display_values(True).data_range
             # read it back
             storage_cache = Cache.DictStorageCache()
             document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
-                read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
-                self.assertEqual(read_display_specifier.display.get_calculated_display_values(True).data_range, data_range)
+                read_display_item = document_model.get_display_item_for_data_item(read_data_item)
+                self.assertEqual(read_display_item.display.get_calculated_display_values(True).data_range, data_range)
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -214,17 +214,17 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
-                display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-                storage_cache.set_cached_value(display_specifier.display, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
-                self.assertFalse(storage_cache.is_cached_value_dirty(display_specifier.display, "thumbnail_data"))
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                storage_cache.set_cached_value(display_item.display, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
+                self.assertFalse(storage_cache.is_cached_value_dirty(display_item.display, "thumbnail_data"))
             # read it back
             storage_cache = Cache.DbStorageCache(cache_name)
             document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
-                read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
+                read_display_item = document_model.get_display_item_for_data_item(read_data_item)
                 # thumbnail data should still be valid
-                self.assertFalse(storage_cache.is_cached_value_dirty(read_display_specifier.display, "thumbnail_data"))
+                self.assertFalse(storage_cache.is_cached_value_dirty(read_display_item.display, "thumbnail_data"))
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -237,20 +237,20 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            storage_cache.set_cached_value(display_specifier.display, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
-            self.assertFalse(storage_cache.is_cached_value_dirty(display_specifier.display, "thumbnail_data"))
-            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display_specifier.display)) as thumbnail_source:
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            storage_cache.set_cached_value(display_item.display, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
+            self.assertFalse(storage_cache.is_cached_value_dirty(display_item.display, "thumbnail_data"))
+            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display_item.display)) as thumbnail_source:
                 thumbnail_source.recompute_data()
         # read it back
         storage_cache = storage_cache.clone()
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         with contextlib.closing(document_model):
             read_data_item = document_model.data_items[0]
-            read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
+            read_display_item = document_model.get_display_item_for_data_item(read_data_item)
             # thumbnail data should still be valid
-            self.assertFalse(storage_cache.is_cached_value_dirty(read_display_specifier.display, "thumbnail_data"))
-            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, read_display_specifier.display)) as thumbnail_source:
+            self.assertFalse(storage_cache.is_cached_value_dirty(read_display_item.display, "thumbnail_data"))
+            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, read_display_item.display)) as thumbnail_source:
                 self.assertFalse(thumbnail_source._is_thumbnail_dirty)
 
     def test_reload_data_item_initializes_display_data_range(self):
@@ -259,13 +259,13 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-            self.assertIsNotNone(display_specifier.display.get_calculated_display_values(True).data_range)
+            display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
+            self.assertIsNotNone(display_item.display.get_calculated_display_values(True).data_range)
         # read it back
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-            self.assertIsNotNone(display_specifier.display.get_calculated_display_values(True).data_range)
+            display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
+            self.assertIsNotNone(display_item.display.get_calculated_display_values(True).data_range)
 
     @unittest.expectedFailure
     def test_reload_data_item_does_not_recalculate_display_data_range(self):
@@ -275,14 +275,14 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
-            display_uuid = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0]).display.uuid
+            display_uuid = document_model.get_display_item_for_data_item(document_model.data_items[0]).display.uuid
         # read it back
         data_range = 1, 4
         storage_cache.cache[display_uuid]["data_range"] = data_range
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         with contextlib.closing(document_model):
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-            self.assertEqual(display_specifier.display.get_calculated_display_values(True).data_range, data_range)
+            display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
+            self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, data_range)
 
     def test_reload_data_item_does_not_load_actual_data(self):
         # reloading data from disk should not have to load the data, otherwise bad performance ensues
@@ -308,15 +308,15 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((4, 4, 8), numpy.uint32))
             document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-            display_specifier.display.slice_center = 5
-            display_specifier.display.slice_width = 3
+            display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
+            display_item.display.slice_center = 5
+            display_item.display.slice_width = 3
         # read it back
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-            self.assertEqual(display_specifier.display.slice_center, 5)
-            self.assertEqual(display_specifier.display.slice_width, 3)
+            display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
+            self.assertEqual(display_item.display.slice_center, 5)
+            self.assertEqual(display_item.display.slice_width, 3)
 
     def test_reload_data_item_validates_display_slice_and_has_valid_data_and_stats(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
@@ -326,20 +326,20 @@ class TestStorageClass(unittest.TestCase):
             data[..., 7] = 1
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-            display_specifier.display.slice_center = 5
-            display_specifier.display.slice_width = 1
-            self.assertEqual(display_specifier.display.get_calculated_display_values(True).data_range, (0, 0))
+            display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
+            display_item.display.slice_center = 5
+            display_item.display.slice_width = 1
+            self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (0, 0))
         # make the slice_center be out of bounds
         memory_persistent_storage_system.persistent_storage_properties[str(data_item.uuid)]["displays"][0]["slice_center"] = 20
         # read it back
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-            self.assertEqual(display_specifier.display.slice_center, 7)
-            self.assertEqual(display_specifier.display.slice_width, 1)
+            display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
+            self.assertEqual(display_item.display.slice_center, 7)
+            self.assertEqual(display_item.display.slice_width, 1)
             self.assertIsNotNone(document_model.data_items[0].data)
-            self.assertEqual(display_specifier.display.get_calculated_display_values(True).data_range, (1, 1))
+            self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (1, 1))
 
     def test_save_load_document_to_files(self):
         current_working_directory = os.getcwd()
@@ -386,8 +386,8 @@ class TestStorageClass(unittest.TestCase):
         data_item1 = document_controller.document_model.data_items[1]
         data_item0_uuid = data_item0.uuid
         data_item1_uuid = data_item1.uuid
-        data_item0_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item0)
-        data_item0_calibration_len = len(data_item0_display_specifier.data_item.dimensional_calibrations)
+        data_item0_display_item = document_model.get_display_item_for_data_item(data_item0)
+        data_item0_calibration_len = len(data_item0_display_item.data_item.dimensional_calibrations)
         data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(data_item1))
         document_controller.close()
         # read it back
@@ -395,23 +395,23 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         new_data_item0 = document_controller.document_model.get_data_item_by_uuid(data_item0_uuid)
-        new_data_item0_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item0)
+        new_data_item0_display_item = document_model.get_display_item_for_data_item(new_data_item0)
         self.assertIsNotNone(new_data_item0)
         self.assertEqual(document_model_uuid, document_controller.document_model.uuid)
         self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
-        self.assertIsNotNone(new_data_item0_display_specifier.data_item.data)
+        self.assertIsNotNone(new_data_item0_display_item.data_item.data)
         self.assertEqual(data_item0_uuid, new_data_item0.uuid)
-        self.assertEqual(data_item0_calibration_len, len(new_data_item0_display_specifier.data_item.dimensional_calibrations))
+        self.assertEqual(data_item0_calibration_len, len(new_data_item0_display_item.data_item.dimensional_calibrations))
         new_data_item1 = document_controller.document_model.get_data_item_by_uuid(data_item1_uuid)
         new_data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(new_data_item1))
         self.assertEqual(data_item1_uuid, new_data_item1.uuid)
         self.assertEqual(data_item1_data_items_len, new_data_item1_data_items_len)
         # check over the data item
-        self.assertEqual(new_data_item0_display_specifier.display.display_limits, (500, 1000))
-        self.assertEqual(new_data_item0_display_specifier.data_item.intensity_calibration.offset, 1.0)
-        self.assertEqual(new_data_item0_display_specifier.data_item.intensity_calibration.scale, 2.0)
-        self.assertEqual(new_data_item0_display_specifier.data_item.intensity_calibration.units, "three")
+        self.assertEqual(new_data_item0_display_item.display.display_limits, (500, 1000))
+        self.assertEqual(new_data_item0_display_item.data_item.intensity_calibration.offset, 1.0)
+        self.assertEqual(new_data_item0_display_item.data_item.intensity_calibration.scale, 2.0)
+        self.assertEqual(new_data_item0_display_item.data_item.intensity_calibration.units, "three")
         self.assertEqual(new_data_item0.metadata.get("test")["one"], 1)
         document_controller.close()
 
@@ -481,21 +481,21 @@ class TestStorageClass(unittest.TestCase):
         data1[0,0] = 1
         data_item = DataItem.DataItem(data1)
         document_model.append_data_item(data_item)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_item = document_model.get_display_item_for_data_item(data_item)
         data_group = DataGroup.DataGroup()
         data_group.append_data_item(data_item)
         document_controller.document_model.append_data_group(data_group)
         data2 = numpy.zeros((16, 16), numpy.uint32)
         data2[0,0] = 2
-        display_specifier.data_item.set_data(data2)
+        display_item.data_item.set_data(data2)
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = document_controller.document_model.data_items[0]
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        self.assertEqual(display_specifier.data_item.data[0 , 0], 2)
+        display_item = document_model.get_display_item_for_data_item(data_item)
+        self.assertEqual(display_item.data_item.data[0 , 0], 2)
         document_controller.close()
 
     # test whether we can update the db from a thread
@@ -514,11 +514,11 @@ class TestStorageClass(unittest.TestCase):
         document_controller.document_model.append_data_group(data_group)
 
         def update_data(event_loop, data_item):
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             data2 = numpy.zeros((16, 16), numpy.uint32)
             data2[0,0] = 2
             def update_data_soon():
-                display_specifier.data_item.set_data(data2)
+                display_item.data_item.set_data(data2)
             event_loop.call_soon_threadsafe(update_data_soon)
 
         thread = threading.Thread(target=update_data, args=[document_controller.event_loop, data_item])
@@ -530,8 +530,8 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_controller.document_model.data_items[0]
-        read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
-        self.assertEqual(read_display_specifier.data_item.data[0, 0], 2)
+        read_display_item = document_model.get_display_item_for_data_item(read_data_item)
+        self.assertEqual(read_display_item.data_item.data[0, 0], 2)
         document_controller.close()
 
     def test_storage_insert_items(self):
@@ -630,9 +630,9 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.ensure_data_source()
             data_item.title = 'title'
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             with document_model.item_transaction(data_item):
-                display_specifier.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
+                display_item.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 data_group.append_data_item(data_item)
         # make sure it reloads
@@ -700,8 +700,8 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
                 data_item.created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
-                display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-                display_specifier.data_item.set_data(data)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_item.data_item.set_data(data)
                 document_model.append_data_item(data_item)
                 data_file_path = data_item._test_get_file_path()
                 self.assertTrue(os.path.exists(data_file_path))
@@ -711,8 +711,8 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
-                read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
-                self.assertTrue(numpy.array_equal(read_display_specifier.data_item.data, data))
+                read_display_item = document_model.get_display_item_for_data_item(read_data_item)
+                self.assertTrue(numpy.array_equal(read_display_item.data_item.data, data))
                 # and then make sure the data file gets removed on disk when removed
                 document_model.remove_data_item(document_model.data_items[0])
                 self.assertFalse(os.path.exists(data_file_path))
@@ -834,11 +834,11 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
                 document_model.append_data_item(data_item)
-                display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
                 reference = data_item._test_get_file_path()
-                self.assertFalse(display_specifier.data_item.has_data)
-                self.assertIsNone(display_specifier.data_item.data_shape)
-                self.assertIsNone(display_specifier.data_item.data_dtype)
+                self.assertFalse(display_item.data_item.has_data)
+                self.assertIsNone(display_item.data_item.data_shape)
+                self.assertIsNone(display_item.data_item.data_dtype)
                 self.assertIsNotNone(reference)
             document_model = None
             storage_cache = None
@@ -859,7 +859,7 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 document_model.append_data_item(data_item)
-                display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
                 reference = data_item._test_get_file_path()
                 self.assertIsNotNone(reference)
             document_model = None
@@ -882,11 +882,11 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
                 document_model.append_data_item(data_item)
-                display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
                 # write data with transaction
                 data_file_path = data_item._test_get_file_path()
                 with document_model.item_transaction(data_item):
-                    display_specifier.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
+                    display_item.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                     # make sure data does NOT exist during the transaction
                     self.assertIsNone(data_item.persistent_object_context.read_external_data(data_item, "data"))
                 # make sure it DOES exist after the transaction
@@ -978,8 +978,8 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
                 data_item.created = created
-                display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-                display_specifier.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_item.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 data_file_path = data_item._test_get_file_path()
                 # make sure it get written to disk
@@ -1006,17 +1006,17 @@ class TestStorageClass(unittest.TestCase):
         self.save_document(document_controller)
         read_data_item = document_model.data_items[0]
         read_data_item_uuid = read_data_item.uuid
-        read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
-        self.assertEqual(len(read_display_specifier.display.graphics), 9)  # verify assumptions
+        read_display_item = document_model.get_display_item_for_data_item(read_data_item)
+        self.assertEqual(len(read_display_item.display.graphics), 9)  # verify assumptions
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_model.get_data_item_by_uuid(read_data_item_uuid)
-        read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
+        read_display_item = document_model.get_display_item_for_data_item(read_data_item)
         # verify graphics reload
-        self.assertEqual(len(read_display_specifier.display.graphics), 9)
+        self.assertEqual(len(read_display_item.display.graphics), 9)
         # clean up
         document_controller.close()
 
@@ -1031,19 +1031,19 @@ class TestStorageClass(unittest.TestCase):
         data_item = DataItem.DataItem()
         data_item.ensure_data_source()
         document_model.append_data_item(data_item)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_item = document_model.get_display_item_for_data_item(data_item)
         with document_model.item_transaction(data_item):
-            display_specifier.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
-        self.assertEqual(len(display_specifier.data_item.dimensional_calibrations), 2)
+            display_item.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
+        self.assertEqual(len(display_item.data_item.dimensional_calibrations), 2)
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_controller.document_model.data_items[0]
-        read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
+        read_display_item = document_model.get_display_item_for_data_item(read_data_item)
         # verify calibrations
-        self.assertEqual(len(read_display_specifier.data_item.dimensional_calibrations), 2)
+        self.assertEqual(len(read_display_item.data_item.dimensional_calibrations), 2)
         # clean up
         document_controller.close()
 
@@ -1107,19 +1107,19 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_item = document_model.get_display_item_for_data_item(data_item)
         rect_graphic = Graphics.RectangleGraphic()
         rect_graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
-        display_specifier.display.add_graphic(rect_graphic)
+        display_item.display.add_graphic(rect_graphic)
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_model.data_items[0]
-        read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
+        read_display_item = document_model.get_display_item_for_data_item(read_data_item)
         # verify
-        self.assertEqual(len(read_display_specifier.display.graphics), 1)
+        self.assertEqual(len(read_display_item.display.graphics), 1)
         # clean up
         document_controller.close()
 
@@ -1134,18 +1134,18 @@ class TestStorageClass(unittest.TestCase):
         point_region = Graphics.PointGraphic()
         point_region.position = (0.6, 0.4)
         point_region_uuid = point_region.uuid
-        DataItem.DisplaySpecifier.from_data_item(data_item).display.add_graphic(point_region)
+        document_model.get_display_item_for_data_item(data_item).display.add_graphic(point_region)
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_controller.document_model.data_items[0]
-        read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
+        read_display_item = document_model.get_display_item_for_data_item(read_data_item)
         # verify
-        self.assertEqual(read_display_specifier.display.graphics[0].type, "point-graphic")
-        self.assertEqual(read_display_specifier.display.graphics[0].uuid, point_region_uuid)
-        self.assertEqual(read_display_specifier.display.graphics[0].position, (0.6, 0.4))
+        self.assertEqual(read_display_item.display.graphics[0].type, "point-graphic")
+        self.assertEqual(read_display_item.display.graphics[0].uuid, point_region_uuid)
+        self.assertEqual(read_display_item.display.graphics[0].position, (0.6, 0.4))
         # clean up
         document_controller.close()
 
@@ -1187,8 +1187,8 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
-                display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-                display_specifier.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_item.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 data_item2 = document_model.get_invert_new(data_item)
                 data_file_path = data_item._test_get_file_path()
@@ -1221,13 +1221,13 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
-            display = DataItem.DisplaySpecifier.from_data_item(data_item).display
+            display = document_model.get_display_item_for_data_item(data_item).display
             display.display_type = "image"
             display.display_type = None
         # make sure it reloads without changing modification
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
-            display = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0]).display
+            display = document_model.get_display_item_for_data_item(document_model.data_items[0]).display
             self.assertIsNone(display.display_type)
 
     def test_properties_with_no_data_reloads(self):
@@ -1307,9 +1307,9 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_model.data_items[0]
-        read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
+        read_display_item = document_model.get_display_item_for_data_item(read_data_item)
         # check storage caches
-        self.assertEqual(read_display_specifier.display._display_cache.storage_cache, read_data_item._suspendable_storage_cache)
+        self.assertEqual(read_display_item.display._display_cache.storage_cache, read_data_item._suspendable_storage_cache)
         # clean up
         document_controller.close()
 
@@ -1336,20 +1336,20 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            display_specifier.display.add_graphic(crop_region)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display.add_graphic(crop_region)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             new_data_item = document_model.get_invert_new(data_item, crop_region)
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             read_data_item = document_model.data_items[0]
-            read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
+            read_display_item = document_model.get_display_item_for_data_item(read_data_item)
             computation_bounds = document_model.resolve_object_specifier(document_model.get_data_item_computation(document_model.data_items[1]).variables[0].secondary_specifier).value.bounds
-            self.assertEqual(read_display_specifier.display.graphics[0].bounds, computation_bounds)
-            read_display_specifier.display.graphics[0].bounds = ((0.3, 0.4), (0.5, 0.6))
+            self.assertEqual(read_display_item.display.graphics[0].bounds, computation_bounds)
+            read_display_item.display.graphics[0].bounds = ((0.3, 0.4), (0.5, 0.6))
             computation_bounds = document_model.resolve_object_specifier(document_model.get_data_item_computation(document_model.data_items[1]).variables[0].secondary_specifier).value.bounds
-            self.assertEqual(read_display_specifier.display.graphics[0].bounds, computation_bounds)
+            self.assertEqual(read_display_item.display.graphics[0].bounds, computation_bounds)
 
     def test_inverted_data_item_does_not_need_recompute_when_reloaded(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
@@ -1363,8 +1363,8 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             read_data_item2 = document_model.data_items[1]
-            read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
-            self.assertFalse(document_model.get_data_item_computation(read_display_specifier2.data_item).needs_update)
+            read_display_item2 = document_model.get_display_item_for_data_item(read_data_item2)
+            self.assertFalse(document_model.get_data_item_computation(read_display_item2.data_item).needs_update)
 
     def test_data_item_with_persistent_r_value_does_not_need_recompute_when_reloaded(self):
         current_working_directory = os.getcwd()
@@ -1386,8 +1386,8 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
             with contextlib.closing(document_model):
                 read_data_item2 = document_model.data_items[1]
-                read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
-                self.assertFalse(document_model.get_data_item_computation(read_display_specifier2.data_item).needs_update)
+                read_display_item2 = document_model.get_display_item_for_data_item(read_data_item2)
+                self.assertFalse(document_model.get_data_item_computation(read_display_item2.data_item).needs_update)
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -1434,8 +1434,8 @@ class TestStorageClass(unittest.TestCase):
             document_model.get_crop_new(data_item, crop_region)
             document_model.recompute_all()
             read_data_item2 = document_model.data_items[1]
-            read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
-            self.assertFalse(document_model.get_data_item_computation(read_display_specifier2.data_item).needs_update)
+            read_display_item2 = document_model.get_display_item_for_data_item(read_data_item2)
+            self.assertFalse(document_model.get_data_item_computation(read_display_item2.data_item).needs_update)
         # reload and check inverted data item does not need recompute
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
@@ -1453,20 +1453,20 @@ class TestStorageClass(unittest.TestCase):
             document_model.get_crop_new(data_item, crop_region)
             document_model.recompute_all()
             read_data_item2 = document_model.data_items[1]
-            read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
-            self.assertFalse(document_model.get_data_item_computation(read_display_specifier2.data_item).needs_update)
-            self.assertEqual(read_display_specifier2.data_item.data_shape, (4, 4))
+            read_display_item2 = document_model.get_display_item_for_data_item(read_data_item2)
+            self.assertFalse(document_model.get_data_item_computation(read_display_item2.data_item).needs_update)
+            self.assertEqual(read_display_item2.data_item.data_shape, (4, 4))
         # reload and check inverted data item does not need recompute
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             document_model.recompute_all()  # shouldn't be necessary unless other tests fail
             read_data_item = document_model.data_items[0]
-            read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
+            read_display_item = document_model.get_display_item_for_data_item(read_data_item)
             read_data_item2 = document_model.data_items[1]
-            read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
-            read_display_specifier.display.graphics[0].bounds = (0.25, 0.25), (0.75, 0.75)
+            read_display_item2 = document_model.get_display_item_for_data_item(read_data_item2)
+            read_display_item.display.graphics[0].bounds = (0.25, 0.25), (0.75, 0.75)
             document_model.recompute_all()
-            self.assertEqual(read_display_specifier2.data_item.data_shape, (6, 6))
+            self.assertEqual(read_display_item2.data_item.data_shape, (6, 6))
 
     def test_data_items_v1_migration(self):
         # construct v1 data item
@@ -1484,17 +1484,17 @@ class TestStorageClass(unittest.TestCase):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
             data_item = document_model.data_items[0]
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
-            self.assertEqual(len(display_specifier.data_item.dimensional_calibrations), 2)
-            self.assertEqual(display_specifier.data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
-            self.assertEqual(display_specifier.data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
-            self.assertEqual(display_specifier.data_item.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
+            self.assertEqual(len(display_item.data_item.dimensional_calibrations), 2)
+            self.assertEqual(display_item.data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+            self.assertEqual(display_item.data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+            self.assertEqual(display_item.data_item.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
             self.assertEqual(data_item.metadata.get("hardware_source")["voltage"], 200.0)
             self.assertFalse("session_uuid" in data_item.metadata.get("hardware_source"))
             self.assertIsNone(data_item.session_id)  # v1 is not allowed to set session_id
-            self.assertEqual(display_specifier.data_item.data_dtype, numpy.uint32)
-            self.assertEqual(display_specifier.data_item.data_shape, (8, 8))
+            self.assertEqual(display_item.data_item.data_dtype, numpy.uint32)
+            self.assertEqual(display_item.data_item.data_shape, (8, 8))
 
     def test_data_items_v2_migration(self):
         # construct v2 data item
@@ -1533,12 +1533,12 @@ class TestStorageClass(unittest.TestCase):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
             data_item = document_model.data_items[0]
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
-            self.assertEqual(len(display_specifier.data_item.dimensional_calibrations), 2)
-            self.assertEqual(display_specifier.data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
-            self.assertEqual(display_specifier.data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
-            self.assertEqual(display_specifier.data_item.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
+            self.assertEqual(len(display_item.data_item.dimensional_calibrations), 2)
+            self.assertEqual(display_item.data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+            self.assertEqual(display_item.data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+            self.assertEqual(display_item.data_item.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
 
     def test_data_items_v4_migration(self):
         # construct v4 data item
@@ -1596,11 +1596,11 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item).variables[0].variable_specifier).value.data_item, document_model.data_items[0])
             # calibration renaming
             data_item = document_model.data_items[0]
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertEqual(len(display_specifier.data_item.dimensional_calibrations), 2)
-            self.assertEqual(display_specifier.data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
-            self.assertEqual(display_specifier.data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
-            self.assertEqual(display_specifier.data_item.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            self.assertEqual(len(display_item.data_item.dimensional_calibrations), 2)
+            self.assertEqual(display_item.data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+            self.assertEqual(display_item.data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+            self.assertEqual(display_item.data_item.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
 
     def test_data_items_v6_migration(self):
         # construct v6 data item
@@ -1644,11 +1644,11 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item).variables[0].variable_specifier).value.data_item, document_model.data_items[0])
             # calibration renaming
             data_item = document_model.data_items[0]
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertEqual(len(display_specifier.data_item.dimensional_calibrations), 2)
-            self.assertEqual(display_specifier.data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
-            self.assertEqual(display_specifier.data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
-            self.assertEqual(display_specifier.data_item.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            self.assertEqual(len(display_item.data_item.dimensional_calibrations), 2)
+            self.assertEqual(display_item.data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+            self.assertEqual(display_item.data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+            self.assertEqual(display_item.data_item.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
 
     def test_data_items_v7_migration(self):
         # construct v7 data item
@@ -2433,8 +2433,8 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 1)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-            graphics = display_specifier.display.graphics
+            display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
+            graphics = display_item.display.graphics
             self.assertEqual(len(graphics), 5)
             self.assertIsInstance(graphics[0], Graphics.PointGraphic)
             self.assertEqual(str(graphics[0].uuid), point_uuid_str)
@@ -2520,9 +2520,9 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            src_display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-            dst_display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[1])
-            self.assertEqual(src_display_specifier.display.graphics[0], document_model.resolve_object_specifier(document_model.get_data_item_computation(dst_display_specifier.data_item).variables[1].variable_specifier).value)
+            src_display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
+            dst_display_item = document_model.get_display_item_for_data_item(document_model.data_items[1])
+            self.assertEqual(src_display_item.display.graphics[0], document_model.resolve_object_specifier(document_model.get_data_item_computation(dst_display_item.data_item).variables[1].variable_specifier).value)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
