@@ -42,16 +42,16 @@ class InspectorPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
         super().__init__(document_controller, panel_id, _("Inspector"))
 
-        # the currently selected display
-        self.__display_specifier = DataItem.DisplaySpecifier()
+        # the currently selected display item
+        self.__display_item = None
 
         self.__display_inspector = None
         self.request_focus = False
 
         # listen for selected display binding changes
         self.__data_item_will_be_removed_event_listener = None
-        self.__data_item_changed_event_listener = document_controller.focused_data_item_changed_event.listen(self.__data_item_changed)
-        self.__set_display_specifier(DataItem.DisplaySpecifier())
+        self.__display_item_changed_event_listener = document_controller.focused_display_item_changed_event.listen(self.__display_item_changed)
+        self.__set_display_item(None)
 
         def scroll_area_focus_changed(focused):
             # ensure that clicking outside of controls but in the scroll area refocuses the display panel.
@@ -76,12 +76,12 @@ class InspectorPanel(Panel.Panel):
 
     def close(self):
         # disconnect self as listener
-        self.__data_item_changed_event_listener.close()
-        self.__data_item_changed_event_listener = None
+        self.__display_item_changed_event_listener.close()
+        self.__display_item_changed_event_listener = None
         # close the property controller. note: this will close and create
         # a new data item inspector; so it should go before the final
         # data item inspector close, which is below.
-        self.__set_display_specifier(DataItem.DisplaySpecifier())
+        self.__set_display_item(None)
         self.__display_inspector = None
         self.document_controller.clear_task("update_display" + str(id(self)))
         self.document_controller.clear_task("update_display_inspector" + str(id(self)))
@@ -104,10 +104,10 @@ class InspectorPanel(Panel.Panel):
                 self.__display_graphic_selection_changed_event_listener = None
             self.__display_inspector = None
 
-        self.__display_inspector = DisplayInspector(self.ui, self.document_controller, self.__display_specifier.display)
+        data_item = self.__display_item.data_item if self.__display_item else None
+        display = self.__display_item.display if self.__display_item else None
 
-        data_item = self.__display_specifier.data_item
-        display = self.__display_specifier.display
+        self.__display_inspector = DisplayInspector(self.ui, self.document_controller, self.__display_item)
 
         new_data_shape = data_item.data_shape if data_item else ()
         new_display_data_shape = display.preview_2d_shape if display else ()
@@ -147,9 +147,9 @@ class InspectorPanel(Panel.Panel):
         self.column.add(stretch_column)
 
     # not thread safe
-    def __set_display_specifier(self, display_specifier):
-        if self.__display_specifier != display_specifier:
-            self.__display_specifier = copy.copy(display_specifier)
+    def __set_display_item(self, display_item: DataItem.DisplayItem) -> None:
+        if not self.document_controller.document_model.are_display_items_equal(self.__display_item, display_item):
+            self.__display_item = display_item
             self.__update_display_inspector()
         if self.request_focus:
             if self.__display_inspector:
@@ -159,9 +159,9 @@ class InspectorPanel(Panel.Panel):
     # this message is received from the data item binding.
     # mark the data item as needing updating.
     # thread safe.
-    def __data_item_changed(self, data_item):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+    def __display_item_changed(self, display_item: DataItem.DisplayItem) -> None:
         def data_item_will_be_removed(data_item_to_be_removed):
+            data_item = display_item.data_item if display_item else None
             if data_item_to_be_removed == data_item:
                 self.document_controller.clear_task("update_display" + str(id(self)))
                 self.document_controller.clear_task("update_display_inspector" + str(id(self)))
@@ -169,14 +169,14 @@ class InspectorPanel(Panel.Panel):
                     self.__data_item_will_be_removed_event_listener.close()
                     self.__data_item_will_be_removed_event_listener = None
         def update_display():
-            self.__set_display_specifier(display_specifier)
+            self.__set_display_item(display_item)
             if self.__data_item_will_be_removed_event_listener:
                 self.__data_item_will_be_removed_event_listener.close()
                 self.__data_item_will_be_removed_event_listener = None
         # handle the case where the selected display binding changes and then the item is removed before periodic has
         # had a chance to update display. in that case, when periodic finally gets called, we need to make sure that
         # update display has been canceled somehow. this barely passes the smell test.
-        if display_specifier.data_item:
+        if display_item and display_item.data_item:
             if self.__data_item_will_be_removed_event_listener:
                 self.__data_item_will_be_removed_event_listener.close()
                 self.__data_item_will_be_removed_event_listener = None
@@ -1419,7 +1419,7 @@ class CalibratedLengthBinding(Binding.Binding):
         return self.__size_converter.convert_calibrated_value_to_str(calibrated_value)
 
 
-def make_point_type_inspector(document_controller, graphic_widget, display_specifier, graphic):
+def make_point_type_inspector(document_controller, graphic_widget, display_item: DataItem.DisplayItem, graphic):
     ui = document_controller.ui
     # create the ui
     graphic_position_row = ui.create_row_widget()
@@ -1442,14 +1442,17 @@ def make_point_type_inspector(document_controller, graphic_widget, display_speci
     graphic_widget.add(graphic_position_row)
     graphic_widget.add_spacing(4)
 
-    position_model = GraphicPropertyCommandModel(document_controller, display_specifier.display, graphic, "position", title=_("Change Position"), command_id="change_point_position")
+    data_item = display_item.data_item if display_item else None
+    display = display_item.display if display_item else None
 
-    image_size = display_specifier.data_item.dimensional_shape
+    position_model = GraphicPropertyCommandModel(document_controller, display, graphic, "position", title=_("Change Position"), command_id="change_point_position")
+
+    image_size = data_item.dimensional_shape
     if (len(image_size) > 1):
         # calculate values from rectangle type graphic
         # signal_index
-        position_x_binding = CalibratedValueBinding(display_specifier.data_item, 1, display_specifier.display, Binding.TuplePropertyBinding(position_model, "value", 1))
-        position_y_binding = CalibratedValueBinding(display_specifier.data_item, 0, display_specifier.display, Binding.TuplePropertyBinding(position_model, "value", 0))
+        position_x_binding = CalibratedValueBinding(data_item, 1, display, Binding.TuplePropertyBinding(position_model, "value", 1))
+        position_y_binding = CalibratedValueBinding(data_item, 0, display, Binding.TuplePropertyBinding(position_model, "value", 0))
         graphic_position_x_line_edit.bind_text(position_x_binding)
         graphic_position_y_line_edit.bind_text(position_y_binding)
     else:
@@ -1459,7 +1462,7 @@ def make_point_type_inspector(document_controller, graphic_widget, display_speci
     return [position_model]
 
 
-def make_line_type_inspector(document_controller, graphic_widget, display_specifier, graphic):
+def make_line_type_inspector(document_controller, graphic_widget, display_item: DataItem.DisplayItem, graphic):
     ui = document_controller.ui
     # create the ui
     graphic_start_row = ui.create_row_widget()
@@ -1518,8 +1521,8 @@ def make_line_type_inspector(document_controller, graphic_widget, display_specif
     graphic_widget.add(graphic_param_row)
     graphic_widget.add_spacing(4)
 
-    data_item = display_specifier.data_item
-    display = display_specifier.display
+    data_item = display_item.data_item if display_item else None
+    display = display_item.display if display_item else None
 
     start_model = GraphicPropertyCommandModel(document_controller, display, graphic, "start", title=_("Change Line Start"), command_id="change_line_start")
 
@@ -1552,12 +1555,12 @@ def make_line_type_inspector(document_controller, graphic_widget, display_specif
     return [start_model, end_model]
 
 
-def make_line_profile_inspector(document_controller, graphic_widget, display_specifier, graphic):
-    items_to_close = make_line_type_inspector(document_controller, graphic_widget, display_specifier, graphic)
+def make_line_profile_inspector(document_controller, graphic_widget, display_item: DataItem.DisplayItem, graphic):
+    items_to_close = make_line_type_inspector(document_controller, graphic_widget, display_item, graphic)
     ui = document_controller.ui
     # configure the bindings
-    data_item = display_specifier.data_item
-    display = display_specifier.display
+    data_item = display_item.data_item if display_item else None
+    display = display_item.display if display_item else None
     width_binding = CalibratedWidthBinding(data_item, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "width"))
     # create the ui
     graphic_width_row = ui.create_row_widget()
@@ -1574,7 +1577,7 @@ def make_line_profile_inspector(document_controller, graphic_widget, display_spe
     return items_to_close
 
 
-def make_rectangle_type_inspector(document_controller, graphic_widget, display_specifier, graphic, graphic_name: str, rotation: bool = False):
+def make_rectangle_type_inspector(document_controller, graphic_widget, display_item: DataItem.DisplayItem, graphic, graphic_name: str, rotation: bool = False):
     ui = document_controller.ui
     graphic_widget.widget_id = "rectangle_type_inspector"
     # create the ui
@@ -1616,8 +1619,8 @@ def make_rectangle_type_inspector(document_controller, graphic_widget, display_s
     graphic_widget.add(graphic_size_row)
     graphic_widget.add_spacing(4)
 
-    data_item = display_specifier.data_item
-    display = display_specifier.display
+    data_item = display_item.data_item if display_item else None
+    display = display_item.display if display_item else None
 
     center_model = GraphicPropertyCommandModel(document_controller, display, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
 
@@ -1668,7 +1671,7 @@ def make_rectangle_type_inspector(document_controller, graphic_widget, display_s
 
     return closeables
 
-def make_wedge_type_inspector(document_controller, graphic_widget, display_specifier, graphic):
+def make_wedge_type_inspector(document_controller, graphic_widget, display_item: DataItem.DisplayItem, graphic):
     ui = document_controller.ui
     graphic_widget.widget_id = "wedge_inspector"
     # create the ui
@@ -1689,7 +1692,10 @@ def make_wedge_type_inspector(document_controller, graphic_widget, display_speci
     graphic_widget.add(graphic_center_end_angle_row)
     graphic_widget.add_spacing(4)
 
-    angle_interval_model = GraphicPropertyCommandModel(document_controller, display_specifier.display, graphic, "angle_interval", title=_("Change Angle Interval"), command_id="change_angle_interval")
+    data_item = display_item.data_item if display_item else None
+    display = display_item.display if display_item else None
+
+    angle_interval_model = GraphicPropertyCommandModel(document_controller, display, graphic, "angle_interval", title=_("Change Angle Interval"), command_id="change_angle_interval")
 
     graphic_center_start_angle_line_edit.bind_text(Binding.TuplePropertyBinding(angle_interval_model, "value", 0, RadianToDegreeStringConverter()))
     graphic_center_angle_measure_line_edit.bind_text(Binding.TuplePropertyBinding(angle_interval_model, "value", 1, RadianToDegreeStringConverter()))
@@ -1718,13 +1724,13 @@ def make_annular_ring_mode_chooser(document_controller, display, ring):
 
     return display_calibration_style_chooser
 
-def make_ring_type_inspector(document_controller, graphic_widget, display_specifier, graphic):
+def make_ring_type_inspector(document_controller, graphic_widget, display_item: DataItem.DisplayItem, graphic):
     ui = document_controller.ui
 
     graphic_widget.widget_id = "ring_inspector"
 
-    display = display_specifier.display
-    data_item = display_specifier.data_item
+    data_item = display_item.data_item if display_item else None
+    display = display_item.display if display_item else None
 
     # create the ui
     graphic_radius_1_row = ui.create_row_widget()
@@ -1753,11 +1759,11 @@ def make_ring_type_inspector(document_controller, graphic_widget, display_specif
     graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(data_item, 0, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "radius_2")))
 
 
-def make_interval_type_inspector(document_controller, graphic_widget, display_specifier, graphic):
+def make_interval_type_inspector(document_controller, graphic_widget, display_item: DataItem.DisplayItem, graphic):
     ui = document_controller.ui
     # configure the bindings
-    display = display_specifier.display
-    data_item = display_specifier.data_item
+    data_item = display_item.data_item if display_item else None
+    display = display_item.display if display_item else None
     start_binding = CalibratedValueBinding(data_item, -1, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "start"))
     end_binding = CalibratedValueBinding(data_item, -1, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "end"))
     # create the ui
@@ -1790,13 +1796,15 @@ class GraphicsInspectorSection(InspectorSection):
         Subclass InspectorSection to implement graphics inspector.
         """
 
-    def __init__(self, document_controller, data_item, display, selected_only=False):
+    def __init__(self, document_controller, display_item: DataItem.DisplayItem, selected_only=False):
         super().__init__(document_controller.ui, "graphics", _("Graphics"))
-        self.__document_controller = document_controller
         ui = document_controller.ui
+        self.__document_controller = document_controller
+        self.__display_item = display_item
+        data_item = display_item.data_item if display_item else None
+        display = display_item.display if display_item else None
         self.__image_size = data_item.dimensional_shape
         self.__graphics = display.graphics
-        self.__display_specifier = DataItem.DisplaySpecifier(data_item, display)
         self.__items_to_close = list()
         # ui
         header_widget = self.__create_header_widget()
@@ -1846,31 +1854,31 @@ class GraphicsInspectorSection(InspectorSection):
         # create the graphic specific widget
         if isinstance(graphic, Graphics.PointGraphic):
             graphic_type_label.text = _("Point")
-            self.__items_to_close.extend(make_point_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic))
+            self.__items_to_close.extend(make_point_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.LineProfileGraphic):
             graphic_type_label.text = _("Line Profile")
-            self.__items_to_close.extend(make_line_profile_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic))
+            self.__items_to_close.extend(make_line_profile_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.LineGraphic):
             graphic_type_label.text = _("Line")
-            self.__items_to_close.extend(make_line_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic))
+            self.__items_to_close.extend(make_line_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.RectangleGraphic):
             graphic_type_label.text = _("Rectangle")
-            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic, graphic_type_label.text, rotation=True))
+            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic, graphic_type_label.text, rotation=True))
         elif isinstance(graphic, Graphics.EllipseGraphic):
             graphic_type_label.text = _("Ellipse")
-            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic, graphic_type_label.text, rotation=True))
+            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic, graphic_type_label.text, rotation=True))
         elif isinstance(graphic, Graphics.IntervalGraphic):
             graphic_type_label.text = _("Interval")
-            make_interval_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic)
+            make_interval_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic)
         elif isinstance(graphic, Graphics.SpotGraphic):
             graphic_type_label.text = _("Spot")
-            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic, graphic_type_label.text))
+            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic, graphic_type_label.text))
         elif isinstance(graphic, Graphics.WedgeGraphic):
             graphic_type_label.text = _("Wedge")
-            self.__items_to_close.extend(make_wedge_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic))
+            self.__items_to_close.extend(make_wedge_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.RingGraphic):
             graphic_type_label.text = _("Annular Ring")
-            make_ring_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic)
+            make_ring_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic)
         column = self.ui.create_column_widget()
         column.add_spacing(4)
         column.add(graphic_widget)
@@ -2224,19 +2232,19 @@ class ComputationInspectorSection(InspectorSection):
 
 
 class DisplayInspector(Widgets.CompositeWidgetBase):
-    """A class to manage creation of a widget representing an inspector for a display specifier.
+    """A class to manage creation of a widget representing an inspector for a display item.
 
-    A new data item inspector is created whenever the display specifier changes, but not when the content of the items
-    within the display specifier mutate.
+    A new data item inspector is created whenever the display item changes, but not when the content of the items
+    within the display item mutate.
     """
 
-    def __init__(self, ui, document_controller, display: Display.Display):
+    def __init__(self, ui, document_controller, display_item: DataItem.DisplayItem):
         super().__init__(ui.create_column_widget())
 
         self.ui = ui
 
-        display_specifier = DataItem.DisplaySpecifier.from_display(display)
-        data_item = display_specifier.data_item
+        data_item = display_item.data_item if display_item else None
+        display = display_item.display if display_item else None
 
         content_widget = self.content_widget
         content_widget.add_spacing(4)
@@ -2255,7 +2263,7 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
         display_data_shape = display.preview_2d_shape if display else ()
         display_data_shape = display_data_shape if display_data_shape is not None else ()
         if data_item and display and display.graphic_selection.has_selection:
-            inspector_sections.append(GraphicsInspectorSection(document_controller, data_item, display, selected_only=True))
+            inspector_sections.append(GraphicsInspectorSection(document_controller, display_item, selected_only=True))
             def focus_default():
                 pass
             self.__focus_default = focus_default
@@ -2264,7 +2272,7 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
             inspector_sections.append(SessionInspectorSection(document_controller, data_item))
             inspector_sections.append(CalibrationsInspectorSection(document_controller, data_item, display))
             inspector_sections.append(LinePlotDisplayInspectorSection(document_controller, display))
-            inspector_sections.append(GraphicsInspectorSection(document_controller, data_item, display))
+            inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
             if data_item.is_sequence:
                 inspector_sections.append(SequenceInspectorSection(document_controller, data_item, display))
             if data_item.is_collection:
@@ -2282,7 +2290,7 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
             inspector_sections.append(SessionInspectorSection(document_controller, data_item))
             inspector_sections.append(CalibrationsInspectorSection(document_controller, data_item, display))
             inspector_sections.append(ImageDisplayInspectorSection(document_controller, display))
-            inspector_sections.append(GraphicsInspectorSection(document_controller, data_item, display))
+            inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
             if data_item.is_sequence:
                 inspector_sections.append(SequenceInspectorSection(document_controller, data_item, display))
             if data_item.is_collection:

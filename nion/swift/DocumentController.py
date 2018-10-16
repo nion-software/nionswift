@@ -115,7 +115,7 @@ class DocumentController(Window.Window):
 
         self.filter_controller = FilterPanel.FilterController(self)
 
-        self.focused_data_item_changed_event = Event.Event()
+        self.focused_display_item_changed_event = Event.Event()
         self.__focused_data_item = None
         self.__focused_display = None
         self.notify_focused_display_changed(None)
@@ -756,7 +756,7 @@ class DocumentController(Window.Window):
         data_item = display_item.data_item if display_item else None
         if self.__focused_data_item != data_item:
             self.__focused_data_item = data_item
-            self.focused_data_item_changed_event.fire(data_item)
+            self.focused_display_item_changed_event.fire(self.document_model.get_display_item_for_data_item(data_item))
 
     @property
     def focused_data_item(self) -> DataItem.DataItem:
