@@ -150,7 +150,8 @@ class Recorder:
 
                     def process():
                         self.__document_model.append_data_item(data_item)
-                        self.__document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+                        display_item = self.__document_controller.document_model.get_display_item_for_data_item(data_item)
+                        self.__document_controller.show_display_item(display_item)
                         return data_item
 
                     command = Recorder.RecorderInsertLibraryItemCommandCommand(self.__document_controller, self, process)

@@ -577,9 +577,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size + (4,), numpy.uint8)))
         document_model.append_data_item(DataItem.DataItem(numpy.ones((2, ) + data_size, numpy.float32)))
         for data_item in document_model.data_items:
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            document_controller.fix_display_limits(display_specifier)
-            self.assertEqual(len(display_specifier.display.display_limits), 2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_controller.fix_display_limits(display_item)
+            self.assertEqual(len(display_item.display.display_limits), 2)
         document_controller.close()
 
     def test_delete_by_context_menu_actually_deletes_item_from_library(self):
@@ -623,7 +623,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             document_controller.set_filter("none")
-            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+            document_controller.show_display_item(document_model.get_display_item_for_data_item(data_item))
 
     def test_cut_paste_undo_redo(self):
         document_model = DocumentModel.DocumentModel()
@@ -637,7 +637,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(2, len(display.graphics))
             self.assertIsInstance(display.graphics[0], Graphics.RectangleGraphic)
             self.assertIsInstance(display.graphics[1], Graphics.EllipseGraphic)
-            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+            document_controller.show_display_item(document_model.get_display_item_for_data_item(data_item))
             display.graphic_selection.set(0)
             display.graphic_selection.add(1)
             # handle cut, undo, redo

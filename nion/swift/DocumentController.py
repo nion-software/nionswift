@@ -752,8 +752,8 @@ class DocumentController(Window.Window):
     def notify_focused_display_changed(self, display: typing.Optional[Display.Display]) -> None:
         if self.__focused_display != display:
             self.__focused_display = display
-        display_specifier = DataItem.DisplaySpecifier.from_display(display)
-        data_item = display_specifier.data_item
+        display_item = self.document_model._get_display_item_for_display(display)
+        data_item = display_item.data_item if display_item else None
         if self.__focused_data_item != data_item:
             self.__focused_data_item = data_item
             self.focused_data_item_changed_event.fire(data_item)
@@ -796,9 +796,15 @@ class DocumentController(Window.Window):
 
     @property
     def selected_display_item(self) -> typing.Optional[DataItem.DisplayItem]:
+        """Return the selected display item.
+
+        The selected display is the display ite that has keyboard focus in the data panel or a display panel.
+        """
+        # first check for the [focused] data browser
         data_item = self.focused_data_item
         if not data_item:
             data_item = self.selected_display_panel.data_item if self.selected_display_panel else None
+        # if not found, check for focused or selected image panel
         return self.document_model.get_display_item_for_data_item(data_item) if data_item else None
 
     @property
@@ -1030,14 +1036,14 @@ class DocumentController(Window.Window):
         self.remove_selected_graphics()
 
     def handle_paste(self):
-        display_specifier = self.selected_display_specifier
-        if display_specifier:
-            display = display_specifier.display
+        display_item = self.selected_display_item
+        if display_item:
+            display = display_item.display
             mime_data = self.ui.clipboard_mime_data()
             if mime_data.has_format(GRAPHICS_MIME_TYPE):
                 json_str = mime_data.data_as_string(GRAPHICS_MIME_TYPE)
                 graphics_dict = json.loads(json_str)
-                is_same_source = graphics_dict.get("src_uuid") == str(display_specifier.data_item.uuid)
+                is_same_source = graphics_dict.get("src_uuid") == str(display_item.data_item.uuid)
                 graphics = list()
                 for graphic_dict in graphics_dict.get("graphics", list()):
                     graphic = Graphics.factory(lambda t: graphic_dict["type"])
@@ -1341,9 +1347,9 @@ class DocumentController(Window.Window):
             self.push_undo_command(command)
 
     def add_line_graphic(self):
-        display_specifier = self.selected_display_specifier
-        if display_specifier:
-            display = display_specifier.display
+        display_item = self.selected_display_item
+        if display_item and display_item.display:
+            display = display_item.display
             graphic = Graphics.LineGraphic()
             graphic.start = (0.2, 0.2)
             graphic.end = (0.8, 0.8)
@@ -1355,9 +1361,9 @@ class DocumentController(Window.Window):
         return None
 
     def add_rectangle_graphic(self):
-        display_specifier = self.selected_display_specifier
-        if display_specifier:
-            display = display_specifier.display
+        display_item = self.selected_display_item
+        if display_item and display_item.display:
+            display = display_item.display
             graphic = Graphics.RectangleGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
             command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
@@ -1368,9 +1374,9 @@ class DocumentController(Window.Window):
         return None
 
     def add_ellipse_graphic(self):
-        display_specifier = self.selected_display_specifier
-        if display_specifier:
-            display = display_specifier.display
+        display_item = self.selected_display_item
+        if display_item and display_item.display:
+            display = display_item.display
             graphic = Graphics.EllipseGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
             command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
@@ -1381,9 +1387,9 @@ class DocumentController(Window.Window):
         return None
 
     def add_point_graphic(self):
-        display_specifier = self.selected_display_specifier
-        if display_specifier:
-            display = display_specifier.display
+        display_item = self.selected_display_item
+        if display_item and display_item.display:
+            display = display_item.display
             graphic = Graphics.PointGraphic()
             graphic.position = (0.5,0.5)
             command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
@@ -1394,9 +1400,9 @@ class DocumentController(Window.Window):
         return None
 
     def add_interval_graphic(self):
-        display_specifier = self.selected_display_specifier
-        if display_specifier:
-            display = display_specifier.display
+        display_item = self.selected_display_item
+        if display_item and display_item.display:
+            display = display_item.display
             graphic = Graphics.IntervalGraphic()
             graphic.start = 0.25
             graphic.end = 0.75
@@ -1408,9 +1414,9 @@ class DocumentController(Window.Window):
         return None
 
     def add_channel_graphic(self):
-        display_specifier = self.selected_display_specifier
-        if display_specifier:
-            display = display_specifier.display
+        display_item = self.selected_display_item
+        if display_item and display_item.display:
+            display = display_item.display
             graphic = Graphics.ChannelGraphic()
             graphic.position = 0.5
             command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
@@ -1421,9 +1427,9 @@ class DocumentController(Window.Window):
         return None
 
     def add_spot_graphic(self):
-        display_specifier = self.selected_display_specifier
-        if display_specifier:
-            display = display_specifier.display
+        display_item = self.selected_display_item
+        if display_item and display_item.display:
+            display = display_item.display
             graphic = Graphics.SpotGraphic()
             graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
             command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
@@ -1434,9 +1440,9 @@ class DocumentController(Window.Window):
         return None
 
     def add_angle_graphic(self):
-        display_specifier = self.selected_display_specifier
-        if display_specifier:
-            display = display_specifier.display
+        display_item = self.selected_display_item
+        if display_item and display_item.display:
+            display = display_item.display
             graphic = Graphics.WedgeGraphic()
             graphic.start_angle = 0
             graphic.end_angle = (3/4) * math.pi
@@ -1448,9 +1454,9 @@ class DocumentController(Window.Window):
         return None
 
     def add_band_pass_graphic(self):
-        display_specifier = self.selected_display_specifier
-        if display_specifier:
-            display = display_specifier.display
+        display_item = self.selected_display_item
+        if display_item and display_item.display:
+            display = display_item.display
             graphic = Graphics.RingGraphic()
             graphic.radius_1 = 0.15
             graphic.radius_2 = 0.25
@@ -1462,15 +1468,15 @@ class DocumentController(Window.Window):
         return None
 
     def copy_selected_graphics(self):
-        display_specifier = self.selected_display_specifier
-        if display_specifier:
-            display = display_specifier.display
+        display_item = self.selected_display_item
+        if display_item and display_item.display:
+            display = display_item.display
             if display.graphic_selection.has_selection:
                 graphic_dict_list = list()
                 graphics = [display.graphics[index] for index in display.graphic_selection.indexes]
                 for graphic in graphics:
                     graphic_dict_list.append(graphic.mime_data_dict())
-                graphics_dict = {"src_uuid": str(display_specifier.data_item.uuid), "graphics": graphic_dict_list}
+                graphics_dict = {"src_uuid": str(display_item.data_item.uuid), "graphics": graphic_dict_list}
                 json_str = json.dumps(graphics_dict)
                 graphic_mime_data = self.ui.create_mime_data()
                 graphic_mime_data.set_data_as_string(GRAPHICS_MIME_TYPE, json_str)
@@ -1479,9 +1485,9 @@ class DocumentController(Window.Window):
         return False
 
     def remove_selected_graphics(self) -> None:
-        display_specifier = self.selected_display_specifier
-        if display_specifier:
-            display = display_specifier.display
+        display_item = self.selected_display_item
+        if display_item and display_item.display:
+            display = display_item.display
             if display.graphic_selection.has_selection:
                 graphics = [display.graphics[index] for index in display.graphic_selection.indexes]
                 if graphics:
@@ -1590,8 +1596,8 @@ class DocumentController(Window.Window):
         data_element = { "data": data, "title": title }
         return self.add_data_element(data_element)
 
-    def display_data_item(self, display_specifier, source_data_item=None, request_focus=True):
-        data_item = display_specifier.data_item
+    def show_display_item(self, display_item: DataItem.DisplayItem, source_data_item=None, request_focus=True) -> None:
+        data_item = display_item.data_item if display_item else None
         assert data_item is not None
         result_display_panel = self.next_result_display_panel()
         if result_display_panel:
@@ -1600,19 +1606,17 @@ class DocumentController(Window.Window):
                 result_display_panel.request_focus()
         self.select_data_item_in_data_panel(data_item)
         if request_focus:
-            self.notify_focused_display_changed(display_specifier.display)
+            display = display_item.display if display_item else None
+            self.notify_focused_display_changed(display)
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
 
-    def show_display_item(self, display_item: DataItem.DisplayItem) -> None:
-        self.display_data_item(DataItem.DisplaySpecifier(display_item.data_item, display_item.data_item.displays[0]))
-
     def _perform_redimension(self, data_item: DataItem.DataItem, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
         def process() -> DataItem.DataItem:
             new_data_item = self.document_model.get_redimension_new(data_item, data_descriptor)
-            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
-            self.display_data_item(new_display_specifier)
+            new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
+            self.show_display_item(new_display_item)
             return new_data_item
         command = self.create_insert_data_item_command(process)
         command.perform()
@@ -1626,8 +1630,8 @@ class DocumentController(Window.Window):
     def _perform_squeeze(self, data_item: DataItem.DataItem) -> None:
         def process() -> DataItem.DataItem:
             new_data_item = self.document_model.get_squeeze_new(data_item)
-            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
-            self.display_data_item(new_display_specifier)
+            new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
+            self.show_display_item(new_display_item)
             return new_data_item
         command = self.create_insert_data_item_command(process)
         command.perform()
@@ -1702,10 +1706,10 @@ class DocumentController(Window.Window):
             self.__data_menu_actions.append(action)
         self._window_menu_about_to_show()
 
-    def __get_crop_graphic(self, display_specifier):
+    def __get_crop_graphic(self, display_item: DataItem.DisplayItem) -> typing.Optional[Graphics.Graphic]:
         crop_graphic = None
-        data_item = display_specifier.data_item
-        display = display_specifier.display
+        data_item = display_item.data_item if display_item else None
+        display = display_item.display if display_item else None
         current_index = display.graphic_selection.current_index if display else None
         graphic = display.graphics[current_index] if current_index is not None else None
         if data_item and graphic:
@@ -1715,11 +1719,11 @@ class DocumentController(Window.Window):
                 crop_graphic = graphic
         return crop_graphic
 
-    def __get_mask_graphics(self, display_specifier):
+    def __get_mask_graphics(self, display_item: DataItem.DisplayItem) -> typing.List[Graphics.Graphic]:
         mask_graphics = list()
-        data_item = display_specifier.data_item
+        data_item = display_item.data_item if display_item else None
         if data_item and len(data_item.dimensional_shape) == 2:
-            display = display_specifier.display
+            display = display_item.display if display_item else None
             current_index = display.graphic_selection.current_index
             if current_index is not None:
                 graphic = display.graphics[current_index]
@@ -1815,8 +1819,8 @@ class DocumentController(Window.Window):
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
-            self.display_data_item(display_specifier, source_data_item=data_item)
+            display_item = self.document_model.get_display_item_for_data_item(new_data_item)
+            self.show_display_item(display_item, source_data_item=data_item)
             return new_data_item
         command = self.create_insert_data_item_command(process)
         command.perform()
@@ -1839,8 +1843,8 @@ class DocumentController(Window.Window):
                 inspector_panel = self.find_dock_widget("inspector-panel").panel
                 if inspector_panel is not None:
                     inspector_panel.request_focus = True
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_copy)
-            self.display_data_item(display_specifier, source_data_item=data_item, request_focus=request_focus)
+            display_item = self.document_model.get_display_item_for_data_item(data_item_copy)
+            self.show_display_item(display_item, source_data_item=data_item, request_focus=request_focus)
             return data_item_copy
         command = self.create_insert_data_item_command(process)
         command.perform()
@@ -1851,8 +1855,8 @@ class DocumentController(Window.Window):
         if data_item:
             self._perform_snapshot(data_item)
 
-    def fix_display_limits(self, display_specifier):
-        display = display_specifier.display
+    def fix_display_limits(self, display_item: DataItem.DisplayItem) -> None:
+        display = display_item.display if display_item else None
         if display:
             display.display_limits = display.get_calculated_display_values(True).data_range
 
@@ -1877,7 +1881,8 @@ class DocumentController(Window.Window):
                     data_item.category = "temporary"
         self.document_model.append_data_item(data_item)
         self.document_model.set_data_item_computation(data_item, computation)
-        self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+        display_item = self.document_model.get_display_item_for_data_item(data_item)
+        self.show_display_item(display_item)
         return data_item
 
     def _get_two_data_sources(self):
@@ -1885,13 +1890,14 @@ class DocumentController(Window.Window):
         selected_data_items = self.selected_data_items
         if len(selected_data_items) < 2:
             selected_data_items = list()
-            data_item = self.selected_display_specifier.data_item
+            display_item = self.selected_display_item
+            data_item = display_item.data_item if display_item else None
             if data_item:
                 selected_data_items.append(data_item)
         if len(selected_data_items) == 1:
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(selected_data_items[0])
-            data_item = display_specifier.data_item
-            display = display_specifier.display
+            display_item = self.document_model.get_display_item_for_data_item(selected_data_items[0])
+            data_item = display_item.data_item if display_item else None
+            display = display_item.display if display_item else None
             if display and len(display.graphic_selection.indexes) == 2:
                 index1 = display.graphic_selection.anchor_index
                 index2 = list(display.graphic_selection.indexes.difference({index1}))[0]
@@ -1905,13 +1911,13 @@ class DocumentController(Window.Window):
                         crop_graphic1 = graphic1
                         crop_graphic2 = graphic2
                     else:
-                        crop_graphic1 = self.__get_crop_graphic(display_specifier)
+                        crop_graphic1 = self.__get_crop_graphic(display_item)
                         crop_graphic2 = crop_graphic1
                 else:
-                    crop_graphic1 = self.__get_crop_graphic(display_specifier)
+                    crop_graphic1 = self.__get_crop_graphic(display_item)
                     crop_graphic2 = crop_graphic1
             else:
-                crop_graphic1 = self.__get_crop_graphic(display_specifier)
+                crop_graphic1 = self.__get_crop_graphic(display_item)
                 crop_graphic2 = crop_graphic1
             return (data_item, crop_graphic1), (data_item, crop_graphic2)
         if len(selected_data_items) == 2:
@@ -1927,8 +1933,8 @@ class DocumentController(Window.Window):
     def _perform_processing2(self, data_item1: DataItem.DataItem, data_item2: DataItem.DataItem, crop_graphic1: typing.Optional[Graphics.Graphic], crop_graphic2: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
         def process() -> DataItem.DataItem:
             new_data_item = fn(data_item1, data_item2, crop_graphic1, crop_graphic2)
-            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
-            self.display_data_item(new_display_specifier)
+            new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
+            self.show_display_item(new_display_item)
             return new_data_item
         command = self.create_insert_data_item_command(process)
         command.perform()
@@ -1954,8 +1960,8 @@ class DocumentController(Window.Window):
         def process() -> DataItem.DataItem:
             new_data_item = fn(data_item, crop_graphic)
             if new_data_item:
-                new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
-                self.display_data_item(new_display_specifier)
+                new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
+                self.show_display_item(new_display_item)
             return new_data_item
         command = self.create_insert_data_item_command(process)
         command.perform()
@@ -1968,16 +1974,16 @@ class DocumentController(Window.Window):
         return None
 
     def __processing_new(self, fn) -> typing.Optional[DataItem.DataItem]:
-        display_specifier = self.selected_display_specifier
-        data_item = display_specifier.data_item
-        crop_graphic = self.__get_crop_graphic(display_specifier)
+        display_item = self.selected_display_item
+        data_item = display_item.data_item if display_item else None
         if data_item:
+            crop_graphic = self.__get_crop_graphic(display_item)
             return self._perform_processing(data_item, crop_graphic, fn)
         return None
 
     def processing_fourier_filter_new(self):
-        display_specifier = self.selected_display_specifier
-        data_item = display_specifier.data_item
+        display_item = self.selected_display_item
+        data_item = display_item.data_item if display_item else None
         if data_item:
             return self._perform_processing(data_item, None, self.document_model.get_fourier_filter_new)
         return None
@@ -2023,9 +2029,9 @@ class DocumentController(Window.Window):
                 console.assign_data_item_var(data_item_var, data_item)
 
     def copy_uuid(self):
-        display_specifier = self.selected_display_specifier
-        display = display_specifier.display
-        data_item = display_specifier.data_item
+        display_item = self.selected_display_item
+        data_item = display_item.data_item if display_item else None
+        display = display_item.display if display_item else None
         if display:
             current_index = display.graphic_selection.current_index
             if current_index is not None:
@@ -2043,8 +2049,8 @@ class DocumentController(Window.Window):
             new_data_item = DataItem.DataItem()
             new_data_item.title = _("Untitled")
             self.document_model.append_data_item(new_data_item)
-            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
-            self.display_data_item(new_display_specifier)
+            new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
+            self.show_display_item(new_display_item)
             return new_data_item
         command = self.create_insert_data_item_command(process)
         command.perform()

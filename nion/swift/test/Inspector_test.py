@@ -391,7 +391,7 @@ class TestInspectorClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
-            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+            document_controller.show_display_item(document_model.get_display_item_for_data_item(data_item))
             # document_controller.periodic()  # this makes it succeed in all cases
             document_model.remove_data_item(data_item)
             document_controller.periodic()

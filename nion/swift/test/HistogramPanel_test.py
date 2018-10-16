@@ -27,10 +27,11 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.data_item = DataItem.DataItem(data)
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
+        self.display_item = self.document_model.get_display_item_for_data_item(self.data_item)
         self.histogram_panel = HistogramPanel.HistogramPanel(self.document_controller, "histogram-panel", None, debounce=False, sample=False)
         self.histogram_canvas_item = self.histogram_panel._histogram_widget._histogram_canvas_item
         self.display = self.display_specifier.display
-        self.document_controller.display_data_item(self.display_specifier)
+        self.document_controller.show_display_item(self.display_item)
         self.histogram_canvas_item.update_layout((0, 0), (80, 300), immediate=True)
 
     def tearDown(self):
