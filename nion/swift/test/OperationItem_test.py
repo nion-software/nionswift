@@ -426,10 +426,11 @@ class TestProcessingClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((20,10), numpy.double))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.2, 0.3), (0.5, 0.5)
-            data_item.displays[0].add_graphic(crop_region)
-            document_model.append_data_item(data_item)
+            display_item.add_graphic(crop_region)
             real_data_item = document_model.get_crop_new(data_item, crop_region)
             real_display_item = document_model.get_display_item_for_data_item(real_data_item)
             document_model.recompute_all()
@@ -550,10 +551,11 @@ class TestProcessingClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((20, 10), numpy.double))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.2, 0.3), (0.5, 0.5)
-            data_item.displays[0].add_graphic(crop_region)
-            document_model.append_data_item(data_item)
+            display_item.add_graphic(crop_region)
             spatial_calibration_0 = data_item.dimensional_calibrations[0]
             spatial_calibration_0.offset = 20.0
             spatial_calibration_0.scale = 5.0
@@ -613,7 +615,7 @@ class TestProcessingClass(unittest.TestCase):
         crop_region = Graphics.RectangleGraphic()
         crop_region.center = (0.5, 0.5)
         crop_region.size = (0.5, 1.0)
-        data_item.displays[0].add_graphic(crop_region)
+        display_item.add_graphic(crop_region)
         display_item.display.graphic_selection.set(0)
         document_controller.processing_crop().data_item
         document_controller.close()
@@ -630,7 +632,7 @@ class TestProcessingClass(unittest.TestCase):
         crop_region = Graphics.RectangleGraphic()
         crop_region.center = (0.5, 0.5)
         crop_region.size = (0.5, 1.0)
-        data_item.displays[0].add_graphic(crop_region)
+        display_item.add_graphic(crop_region)
         display_item.display.graphic_selection.set(0)
         cropped_data_item = document_controller.processing_crop().data_item
         document_controller.periodic()  # TODO: remove need to let the inspector catch up
@@ -662,7 +664,7 @@ class TestProcessingClass(unittest.TestCase):
         crop_region = Graphics.RectangleGraphic()
         crop_region.center = (0.5, 0.5)
         crop_region.size = (0.5, 1.0)
-        data_item.displays[0].add_graphic(crop_region)
+        display_item.add_graphic(crop_region)
         display_item.display.graphic_selection.set(0)
         projection_data_item = document_controller.processing_projection().data_item
         document_controller.periodic()
@@ -711,11 +713,11 @@ class TestProcessingClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # set up the data items
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.displays[0].add_graphic(crop_region)
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            document_model.append_data_item(data_item)
+            display_item.add_graphic(crop_region)
             cropped_data_item = document_model.get_crop_new(data_item, crop_region)
             cropped_display_item = document_model.get_display_item_for_data_item(cropped_data_item)
             # establish listeners
@@ -739,10 +741,11 @@ class TestProcessingClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.displays[0].add_graphic(crop_region)
-            document_model.append_data_item(data_item)
+            display_item.add_graphic(crop_region)
             fft_data_item = document_model.get_fft_new(data_item)
             crop_data_item = document_model.get_crop_new(data_item, crop_region)
             document_model.recompute_all()
@@ -771,10 +774,11 @@ class TestProcessingClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((32, 32, 16), numpy.float))
             document_model.append_data_item(data_item)
             slice_data_item = document_model.get_slice_sum_new(data_item)
+            slice_display_item = document_model.get_display_item_for_data_item(slice_data_item)
             document_model.recompute_all()
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            slice_data_item.displays[0].add_graphic(crop_region)
+            slice_display_item.add_graphic(crop_region)
             crop_data_item = document_model.get_crop_new(slice_data_item, crop_region)
             document_model.recompute_all()
 
@@ -873,12 +877,13 @@ class TestProcessingClass(unittest.TestCase):
             self.assertIsNone(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
-            display = data_item.displays[0]
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
             crop_region = Graphics.RectangleGraphic()
             crop_region.center = (0.5, 0.5)
             crop_region.size = (0.5, 1.0)
             display.add_graphic(crop_region)
-            document_model.append_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             display.graphic_selection.set(0)
@@ -895,7 +900,9 @@ class TestProcessingClass(unittest.TestCase):
             self.assertIsNone(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
-            display = data_item.displays[0]
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
             crop_region1 = Graphics.RectangleGraphic()
             crop_region1.center = (0.5, 0.5)
             crop_region1.size = (0.5, 1.0)
@@ -904,7 +911,6 @@ class TestProcessingClass(unittest.TestCase):
             crop_region2.center = (0.6, 0.5)
             crop_region2.size = (0.5, 1.0)
             display.add_graphic(crop_region2)
-            document_model.append_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             display.graphic_selection.set(0)
@@ -922,10 +928,11 @@ class TestProcessingClass(unittest.TestCase):
             self.assertIsNone(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
-            display = data_item.displays[0]
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
             for i in range(3):
                 display.add_graphic(Graphics.RectangleGraphic())
-            document_model.append_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             display.graphic_selection.add_range(range(3))
@@ -942,9 +949,10 @@ class TestProcessingClass(unittest.TestCase):
             data = ((numpy.abs(numpy.random.randn(8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.IntervalGraphic()
             crop_region.interval = (0.5, 1.0)
-            display = data_item.displays[0]
+            display = display_item.display
             display.add_graphic(crop_region)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
@@ -960,10 +968,11 @@ class TestProcessingClass(unittest.TestCase):
             data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             crop_region.center = (0.5, 0.5)
             crop_region.size = (0.5, 1.0)
-            display = data_item.displays[0]
+            display = display_item.display
             display.add_graphic(crop_region)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)

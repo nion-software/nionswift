@@ -14,13 +14,14 @@ _ = gettext.gettext
 
 class DisplayEditorDialog(Dialog.ActionDialog):
 
-    def __init__(self, document_controller, data_item):
+    def __init__(self, document_controller, display_item):
         ui = document_controller.ui
-        super().__init__(ui, _("Edit Display"), app=document_controller.app, parent_window=document_controller, persistent_id="EditDisplayDialog" + str(data_item.uuid))
+        super().__init__(ui, _("Edit Display"), app=document_controller.app, parent_window=document_controller, persistent_id="EditDisplayDialog" + str(display_item.uuid))
 
         self.ui = ui
         self.document_controller = document_controller
-        self.__display = data_item.displays[0]
+
+        self.__display = display_item.display
 
         self._create_menus()
 

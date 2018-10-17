@@ -431,7 +431,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             intermediate_data_item = document_model.get_pick_region_new(source_data_item)
-            intermediate_display = intermediate_data_item.displays[0]
+            intermediate_display_item = document_model.get_display_item_for_data_item(intermediate_data_item)
+            intermediate_display = intermediate_display_item.display
             interval_region = Graphics.IntervalGraphic()
             intermediate_display.add_graphic(interval_region)
             target_data_item = document_model.get_invert_new(source_data_item)
@@ -452,7 +453,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             intermediate_data_item = document_model.get_pick_region_new(source_data_item)
-            intermediate_display = intermediate_data_item.displays[0]
+            intermediate_display_item = document_model.get_display_item_for_data_item(intermediate_data_item)
+            intermediate_display = intermediate_display_item.display
             interval_region1 = Graphics.IntervalGraphic()
             intermediate_display.add_graphic(interval_region1)
             interval_region2 = Graphics.IntervalGraphic()
@@ -477,13 +479,14 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
             crop_region = Graphics.RectangleGraphic()
-            source_data_item.displays[0].add_graphic(crop_region)
+            source_display_item.add_graphic(crop_region)
             target_data_item1 = document_model.get_invert_new(source_data_item, crop_region)
             target_data_item2 = document_model.get_invert_new(source_data_item, crop_region)
             self.assertIn(target_data_item1, document_model.data_items)
             self.assertIn(target_data_item2, document_model.data_items)
-            source_data_item.displays[0].remove_graphic(crop_region)
+            source_display_item.remove_graphic(crop_region)
             self.assertNotIn(target_data_item1, document_model.data_items)
             self.assertNotIn(target_data_item2, document_model.data_items)
 
@@ -493,8 +496,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
             crop_region = Graphics.RectangleGraphic()
-            source_data_item.displays[0].add_graphic(crop_region)
+            source_display_item.add_graphic(crop_region)
             target_data_item1 = document_model.get_invert_new(source_data_item, crop_region)
             target_data_item2 = document_model.get_invert_new(source_data_item, crop_region)
             self.assertIn(target_data_item1, document_model.data_items)
@@ -503,11 +507,11 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.remove_data_item(target_data_item1)
             self.assertNotIn(target_data_item1, document_model.data_items)
             self.assertIn(target_data_item2, document_model.data_items)
-            self.assertIn(crop_region, source_data_item.displays[0].graphics)
+            self.assertIn(crop_region, source_display_item.graphics)
             # but removing the last target should delete both the target and the source graphic
             document_model.remove_data_item(target_data_item2)
             self.assertNotIn(target_data_item2, document_model.data_items)
-            self.assertNotIn(crop_region, source_data_item.displays[0].graphics)
+            self.assertNotIn(crop_region, source_display_item.graphics)
 
     def test_crop_new_works_with_no_rectangle_graphic(self):
         document_model = DocumentModel.DocumentModel()
@@ -631,7 +635,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
-            display = data_item.displays[0]
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
             display.add_graphic(Graphics.RectangleGraphic())
             display.add_graphic(Graphics.EllipseGraphic())
             self.assertEqual(2, len(display.graphics))

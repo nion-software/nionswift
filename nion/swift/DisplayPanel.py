@@ -1651,14 +1651,15 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def drag_graphics(self, graphics):
         data_item = self.data_item
-        if data_item:
+        display = self.display
+        if data_item and display:
             mime_data = self.ui.create_mime_data()
             mime_data_content = dict()
             mime_data_content["data_item_uuid"] = str(data_item.uuid)
             if graphics and len(graphics) == 1:
                 mime_data_content["graphic_uuid"] = str(graphics[0].uuid)
             mime_data.set_data_as_string(DataItem.DataSource.DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
-            thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(data_item.displays[0])
+            thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(display)
             self.__begin_drag(mime_data, thumbnail_data)
 
     def update_display_properties(self, display_properties):

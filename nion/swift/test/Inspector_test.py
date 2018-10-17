@@ -416,6 +416,7 @@ class TestInspectorClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.ones((1024, )))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             document_controller.selected_display_panel = None
@@ -425,8 +426,8 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.add_rectangle_graphic()
             document_controller.add_ellipse_graphic()
             document_controller.add_interval_graphic()
-            data_item.displays[0].graphic_selection.clear()  # make sure all graphics show up in inspector
-            self.assertTrue(len(data_item.displays[0].graphics) == 5)
+            display_item.graphic_selection.clear()  # make sure all graphics show up in inspector
+            self.assertTrue(len(display_item.graphics) == 5)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
@@ -437,6 +438,7 @@ class TestInspectorClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.ones((256, 256)))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             document_controller.selected_display_panel = None
@@ -446,8 +448,8 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.add_rectangle_graphic()
             document_controller.add_ellipse_graphic()
             document_controller.add_interval_graphic()
-            data_item.displays[0].graphic_selection.clear()  # make sure all graphics show up in inspector
-            self.assertTrue(len(data_item.displays[0].graphics) == 5)
+            display_item.graphic_selection.clear()  # make sure all graphics show up in inspector
+            self.assertTrue(len(display_item.graphics) == 5)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
@@ -458,6 +460,7 @@ class TestInspectorClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.ones((5, 5, 5)))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             document_controller.selected_display_panel = None
@@ -467,8 +470,8 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.add_rectangle_graphic()
             document_controller.add_ellipse_graphic()
             document_controller.add_interval_graphic()
-            data_item.displays[0].graphic_selection.clear()  # make sure all graphics show up in inspector
-            self.assertTrue(len(data_item.displays[0].graphics) == 5)
+            display_item.graphic_selection.clear()  # make sure all graphics show up in inspector
+            self.assertTrue(len(display_item.graphics) == 5)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
@@ -648,9 +651,10 @@ class TestInspectorClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             data_item.ensure_data_source()
-            data_item.displays[0].add_graphic(Graphics.IntervalGraphic())
-            data_item.displays[0].display_type = "line_plot"
+            display_item.add_graphic(Graphics.IntervalGraphic())
+            display_item.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             document_controller.periodic()
@@ -693,8 +697,9 @@ class TestInspectorClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             data_item.ensure_data_source()
-            data_item.displays[0].display_type = "line_plot"
+            display_item.display_type = "line_plot"
             display_panel.set_display_panel_data_item(data_item)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()

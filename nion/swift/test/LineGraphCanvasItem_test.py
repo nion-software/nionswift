@@ -100,12 +100,13 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((100,)))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             # test
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_drag((240, 160), (240, 480))
-            interval_region = data_item.displays[0].graphics[0]
+            interval_region = display_item.graphics[0]
             self.assertEqual(interval_region.type, "interval-graphic")
             self.assertTrue(interval_region.end > interval_region.start)
 
@@ -115,17 +116,18 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         with contextlib.closing(document_controller):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((100,)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             region = Graphics.IntervalGraphic()
             region.start = 0.9
             region.end = 0.95
-            data_item.displays[0].add_graphic(region)
-            document_model.append_data_item(data_item)
+            display_item.add_graphic(region)
             display_panel.set_display_panel_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             # test
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_drag((240, 160), (240, 480))
-            interval_region = data_item.displays[0].graphics[1]
+            interval_region = display_item.graphics[1]
             self.assertEqual(interval_region.type, "interval-graphic")
             self.assertTrue(interval_region.end > interval_region.start)
 
@@ -135,11 +137,12 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         with contextlib.closing(document_controller):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((100,)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             region = Graphics.IntervalGraphic()
             region.start = 0.1
             region.end = 0.9
-            data_item.displays[0].add_graphic(region)
-            document_model.append_data_item(data_item)
+            display_item.add_graphic(region)
             display_panel.set_display_panel_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             display_panel.display_canvas_item.prepare_display()  # force layout
@@ -147,7 +150,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_click((240, 320))
             display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
-            interval_region = data_item.displays[0].graphics[0]
+            interval_region = display_item.graphics[0]
             self.assertTrue(interval_region.start < 0.1)
             self.assertTrue(interval_region.end < 0.9)
             self.assertAlmostEqual(interval_region.end - interval_region.start, 0.8)
@@ -205,13 +208,14 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((8, )), intensity_calibration=Calibration.Calibration(offset=0, scale=10, units="nm")))
-            data_item.displays[0].display_type = "line_plot"
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.data, numpy.full((8, ), 10)))
-            data_item.displays[0].dimensional_calibration_style = "pixels-top-left"
+            display_item.display.dimensional_calibration_style = "pixels-top-left"
             display_panel.display_canvas_item.layout_immediate((640, 480))
             self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.data, numpy.ones((8, ))))
 
@@ -220,13 +224,14 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((8, )), dimensional_calibrations=[Calibration.Calibration(offset=0, scale=10, units="nm")]))
-            data_item.displays[0].display_type = "line_plot"
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             self.assertEqual(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units, "nm")
-            data_item.displays[0].dimensional_calibration_style = "pixels-top-left"
+            display_item.display.dimensional_calibration_style = "pixels-top-left"
             display_panel.display_canvas_item.layout_immediate((640, 480))
             self.assertFalse(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units)
 

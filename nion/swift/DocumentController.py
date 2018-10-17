@@ -984,11 +984,11 @@ class DocumentController(Window.Window):
             interactive_dialog.show()
             self.__dialogs.append(weakref.ref(interactive_dialog))
 
-    def new_display_editor_dialog(self, data_item=None):
-        if not data_item:
-            data_item = self.selected_data_item
-        if data_item:
-            interactive_dialog = DisplayEditorPanel.DisplayEditorDialog(self, data_item)
+    def new_display_editor_dialog(self, display_item: DataItem.DisplayItem=None):
+        if not display_item:
+            display_item = self.selected_display_item
+        if display_item:
+            interactive_dialog = DisplayEditorPanel.DisplayEditorDialog(self, display_item)
             interactive_dialog.show()
             self.__dialogs.append(weakref.ref(interactive_dialog))
 

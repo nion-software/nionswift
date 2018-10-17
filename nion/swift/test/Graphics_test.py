@@ -128,17 +128,18 @@ class TestGraphicsClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_data_item(data_item)
             header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             for tool_mode, graphic_type in t:
                 document_controller.tool_mode = tool_mode
-                self.assertEqual(0, len(data_item.displays[0].graphics))
+                self.assertEqual(0, len(display_item.graphics))
                 display_panel.display_canvas_item.simulate_drag((500, 500), (600, 600))
-                self.assertEqual(1, len(data_item.displays[0].graphics))
-                graphic = data_item.displays[0].graphics[0]
+                self.assertEqual(1, len(display_item.graphics))
+                graphic = display_item.graphics[0]
                 self.assertIsInstance(graphic, graphic_type)
-                data_item.displays[0].remove_graphic(graphic)
+                display_item.remove_graphic(graphic)
 
     def test_spot_mask_is_sensible_when_smaller_than_one_pixel(self):
         spot_graphic = Graphics.SpotGraphic()
@@ -1106,10 +1107,11 @@ class TestGraphicsClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((100, ), numpy.uint32))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             interval_graphic = Graphics.IntervalGraphic()
             interval_graphic.interval = (0.25, 0.75)
-            data_item.displays[0].add_graphic(interval_graphic)
-            self.assertEqual(data_item.displays[0].displayed_dimensional_scales[-1], 100)
+            display_item.add_graphic(interval_graphic)
+            self.assertEqual(display_item.display.displayed_dimensional_scales[-1], 100)
             data_item.set_data(numpy.zeros((50, ), numpy.uint32))
             self.assertEqual(interval_graphic.interval, (0.25, 0.75))
 
@@ -1119,11 +1121,12 @@ class TestGraphicsClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((100, ), numpy.uint32))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             interval_graphic = Graphics.IntervalGraphic()
             interval_graphic.interval = (0.25, 0.75)
-            data_item.displays[0].add_graphic(interval_graphic)
-            self.assertEqual(data_item.displays[0].displayed_dimensional_scales[-1], 100)
-            data_item.displays[0].dimensional_scales = (1, )
+            display_item.add_graphic(interval_graphic)
+            self.assertEqual(display_item.display.displayed_dimensional_scales[-1], 100)
+            display_item.dimensional_scales = (1,)
             self.assertEqual(interval_graphic.interval, (0.25, 0.75))
 
 if __name__ == '__main__':

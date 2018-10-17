@@ -1585,7 +1585,7 @@ class DisplayItem:
     def __init__(self, data_item: DataItem):
         self.about_to_be_removed_event = Event.Event()
         self.__data_item = data_item
-        self.__display_about_to_be_removed_listener = self.__data_item.displays[0].about_to_be_removed_event.listen(self.about_to_be_removed_event.fire)
+        self.__display_about_to_be_removed_listener = self.display.about_to_be_removed_event.listen(self.about_to_be_removed_event.fire)
 
     def close(self):
         self.__display_about_to_be_removed_listener.close()
@@ -1605,16 +1605,20 @@ class DisplayItem:
 
     @property
     def graphics(self) -> typing.Sequence[Graphics.Graphic]:
-        return self.__data_item.displays[0].graphics
+        return self.display.graphics
 
     def insert_graphic(self, before_index: int, graphic: Graphics.Graphic) -> None:
-        self.__data_item.displays[0].insert_graphic(before_index, graphic)
+        self.display.insert_graphic(before_index, graphic)
 
     def add_graphic(self, graphic: Graphics.Graphic) -> None:
-        self.__data_item.displays[0].add_graphic(graphic)
+        self.display.add_graphic(graphic)
 
     def remove_graphic(self, graphic: Graphics.Graphic, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
-        return self.__data_item.displays[0].remove_graphic(graphic, safe=safe)
+        return self.display.remove_graphic(graphic, safe=safe)
+
+    @property
+    def graphic_selection(self):
+        return self.display.graphic_selection
 
     @property
     def size_and_data_format_as_string(self) -> str:
@@ -1635,22 +1639,22 @@ class DisplayItem:
 
     @property
     def display_type(self) -> str:
-        return self.__data_item.displays[0].dislay_type
+        return self.display.display_type
     
     @display_type.setter
     def display_type(self, value: str) -> None:
-        self.__data_item.displays[0].display_type = value
+        self.display.display_type = value
 
     @property
     def legend_labels(self) -> typing.Sequence[str]:
-        return self.__data_item.displays[0].legend_labels
+        return self.display.legend_labels
 
     @legend_labels.setter
     def legend_labels(self, value: typing.Sequence[str]) -> None:
-        self.__data_item.displays[0].legend_labels = value
+        self.display.legend_labels = value
 
     def view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
-        self.__data_item.displays[0].view_to_intervals(data_and_metadata, intervals)
+        self.display.view_to_intervals(data_and_metadata, intervals)
 
 
 def sort_by_date_key(data_item):
@@ -1668,12 +1672,14 @@ def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> Da
 class DataSource:
     DATA_SOURCE_MIME_TYPE = "text/vnd.nion.display_source_type"
 
-    def __init__(self, data_item: DataItem, graphic, changed_event):
-        self.__data_item = data_item
+    def __init__(self, display_item: DisplayItem, graphic, changed_event):
+        self.__display_item = display_item
         self.__graphic = graphic
         self.__changed_event = changed_event  # not public since it is passed in
-        display = data_item.displays[0] if len(data_item.displays) > 0 else None
-        self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(self.__changed_event.fire)
+        data_item = display_item.data_item if self.__display_item else None
+        display = display_item.display if self.__display_item else None
+        self.__data_item_changed_event_listener = None
+        self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(self.__changed_event.fire) if data_item else None
         self.__display_values_event_listener = display.display_data_will_change_event.listen(self.__changed_event.fire) if display else None
         self.__property_changed_listener = None
         def property_changed(key):
@@ -1718,35 +1724,43 @@ class DataSource:
         if self.__property_changed_listener:
             self.__property_changed_listener.close()
             self.__property_changed_listener = None
-        self.__data_item_changed_event_listener.close()
-        self.__data_item_changed_event_listener = None
+        if self.__data_item_changed_event_listener:
+            self.__data_item_changed_event_listener.close()
+            self.__data_item_changed_event_listener = None
         if self.__display_values_event_listener:
             self.__display_values_event_listener.close()
             self.__display_values_event_listener = None
 
     @property
-    def data_item(self):
-        return self.__data_item
+    def data_item(self) -> typing.Optional[DataItem]:
+        return self.__display_item.data_item if self.__display_item else None
 
     @property
-    def graphic(self):
+    def display(self) -> typing.Optional[Display.Display]:
+        return self.__display_item.display if self.__display_item else None
+
+    @property
+    def graphic(self) -> typing.Optional[Graphics.Graphic]:
         return self.__graphic
 
     @property
-    def data(self) -> numpy.ndarray:
-        return self.__data_item.data
+    def data(self) -> typing.Optional[numpy.ndarray]:
+        data_item = self.data_item
+        return data_item.data if data_item else None
 
     @property
     def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return self.__data_item.xdata
+        data_item = self.data_item
+        return data_item.xdata if data_item else None
 
     @property
-    def display_xdata(self) -> DataAndMetadata.DataAndMetadata:
-        return self.__data_item.displays[0].get_calculated_display_values(True).display_data_and_metadata
+    def display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        display = self.display
+        return display.get_calculated_display_values(True).display_data_and_metadata if display else None
 
     @property
     def cropped_display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        data_item = self.__data_item
+        data_item = self.data_item
         if data_item:
             displayed_xdata = self.display_xdata
             graphic = self.__graphic
@@ -1763,7 +1777,7 @@ class DataSource:
 
     @property
     def cropped_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        data_item = self.__data_item
+        data_item = self.data_item
         if data_item:
             xdata = self.xdata
             graphic = self.__graphic
@@ -1781,10 +1795,10 @@ class DataSource:
     @property
     def filtered_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         xdata = self.xdata
-        if xdata.is_data_2d and xdata.is_data_complex_type:
+        if self.__display_item and xdata.is_data_2d and xdata.is_data_complex_type:
             shape = xdata.data_shape
             mask = numpy.zeros(shape)
-            for graphic in self.__data_item.displays[0].graphics:
+            for graphic in self.__display_item.graphics:
                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                     mask = numpy.logical_or(mask, graphic.get_mask(shape))
             return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
@@ -1794,7 +1808,7 @@ class DataSource:
     def filter_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         shape = self.display_xdata.data_shape
         mask = numpy.zeros(shape)
-        for graphic in self.__data_item.displays[0].graphics:
+        for graphic in self.__display_item.graphics:
             if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                 mask = numpy.logical_or(mask, graphic.get_mask(shape))
         return DataAndMetadata.DataAndMetadata.from_data(mask)

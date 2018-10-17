@@ -77,7 +77,8 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(len(data_item.metadata.get("test")), 2)
         self.assertIsNot(data_item.metadata.get("test"), data_item_copy.metadata.get("test"))
         # make sure display counts match
-        self.assertEqual(len(display_item.data_item.displays), len(display_item2.data_item.displays))
+        self.assertIsNotNone(display_item.display)
+        self.assertIsNotNone(display_item2.display)
         # tuples and strings are immutable, so test to make sure old/new are independent
         self.assertEqual(data_item.title, data_item_copy.title)
         self.assertEqual(data_item.timezone, data_item_copy.timezone)
@@ -159,8 +160,9 @@ class TestDataItemClass(unittest.TestCase):
             # setup by adding data item and a dependent data item
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
-            data_item.displays[0].add_graphic(crop_region)
+            display_item.add_graphic(crop_region)
             data_item1 = document_model.get_crop_new(data_item, crop_region)
             # verify
             self.assertEqual(document_model.get_source_data_items(data_item1)[0], data_item)
@@ -207,10 +209,11 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             source_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(source_data_item)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25,0.25), (0.5,0.5)
-            source_data_item.displays[0].add_graphic(crop_region)
-            document_model.append_data_item(source_data_item)
+            source_display_item.add_graphic(crop_region)
             data_item = document_model.get_crop_new(source_data_item, crop_region)
             data_item_copy = document_model.copy_data_item(data_item)
             self.assertNotEqual(document_model.get_data_item_computation(data_item_copy), document_model.get_data_item_computation(data_item))
@@ -426,18 +429,20 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_data_range_gets_updated_after_data_ref_data_updated(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        self.assertEqual(data_item.displays[0].get_calculated_display_values(True).data_range, (0, 0))
+        display_item = DataItem.DisplayItem(data_item)
+        self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (0, 0))
         with data_item.data_ref() as data_ref:
             data_ref.data[:] = 1
             data_ref.data_updated()
-        self.assertEqual(data_item.displays[0].get_calculated_display_values(True).data_range, (1, 1))
+        self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (1, 1))
 
     def test_removing_dependent_data_item_with_graphic(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            data_item.displays[0].add_graphic(Graphics.RectangleGraphic())
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.add_graphic(Graphics.RectangleGraphic())
             document_model.get_crop_new(data_item)
             # should remove properly when shutting down.
 
@@ -569,11 +574,11 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            crop_region = Graphics.RectangleGraphic()
-            crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
+            display_item.add_graphic(crop_region)
             data_item_crop = document_model.get_crop_new(data_item, crop_region)
             self.assertEqual(len(display_item.display.graphics), 1)
             document_model.remove_data_item(data_item_crop)
@@ -583,11 +588,11 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            crop_region = Graphics.RectangleGraphic()
-            crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
+            display_item.add_graphic(crop_region)
             data_item_crop = document_model.get_crop_new(data_item, crop_region)
             self.assertEqual(len(display_item.display.graphics), 1)
             document_model.set_data_item_computation(data_item, None)
@@ -603,8 +608,9 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.add_graphic(crop_region)
             display_item = document_model.get_display_item_for_data_item(data_item)
             with contextlib.closing(display_item.display.display_changed_event.listen(display_changed)):
                 document_model.get_crop_new(data_item, crop_region)
@@ -622,9 +628,9 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.displays[0].add_graphic(crop_region)
-            display_item = document_model.get_display_item_for_data_item(data_item)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.add_graphic(crop_region)
             with contextlib.closing(display_item.display.display_changed_event.listen(display_changed)):
                 document_model.get_crop_new(data_item, crop_region)
                 display_item.display.graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
@@ -734,9 +740,9 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.add_graphic(crop_region)
             # begin the transaction
             with document_model.item_transaction(data_item):
                 data_item_crop1 = document_model.get_crop_new(data_item, crop_region)
@@ -926,9 +932,10 @@ class TestDataItemClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             data_item._set_modified(datetime.datetime(2000, 1, 1))
             modified = data_item.modified
-            data_item.displays[0].dimensional_calibration_style = "relative-top-left"
+            display_item.display.dimensional_calibration_style = "relative-top-left"
             self.assertGreater(data_item.modified, modified)
 
     def test_changing_data_on_data_item_updates_modified(self):

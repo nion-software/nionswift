@@ -170,16 +170,15 @@ class ObjectSpecifier:
         elif object_type == "data_group":
             return DataGroup(document_model.get_data_group_by_uuid(uuid_module.UUID(object_uuid_str)))
         elif object_type in ("region", "graphic"):
-            for data_item in document_model.data_items:
-                for display in data_item.displays:
-                    for graphic in display.graphics:
-                        if graphic.uuid == object_uuid:
-                            return Graphic(graphic)
+            for display_item in document_model.display_items:
+                for graphic in display_item.graphics:
+                    if graphic.uuid == object_uuid:
+                        return Graphic(graphic)
         elif object_type == "display":
-            for data_item in document_model.data_items:
-                for display in data_item.displays:
-                    if display.uuid == object_uuid:
-                        return Display(display)
+            for display_item in document_model.display_items:
+                display = display_item.display
+                if display and display.uuid == object_uuid:
+                    return Display(display)
         elif object_type == "hardware_source":
             return HardwareSource(HardwareSourceModule.HardwareSourceManager().get_hardware_source_for_hardware_source_id(object_id))
         elif object_type == "instrument":
@@ -885,6 +884,10 @@ class DataItem(metaclass=SharedInstance):
         return ObjectSpecifier("data_item_object", self.__data_item.uuid)
 
     @property
+    def __display(self):
+        return self.__data_item.displays[0]
+
+    @property
     def uuid(self) -> uuid_module.UUID:
         """Return the uuid of this object.
 
@@ -997,7 +1000,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return self.__data_item.displays[0].get_calculated_display_values(True).display_data_and_metadata
+        return self.__display.get_calculated_display_values(True).display_data_and_metadata
 
     @property
     def intensity_calibration(self) -> CalibrationModule.Calibration:
@@ -1185,11 +1188,11 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return [Graphic(graphic) for graphic in self.__data_item.displays[0].graphics]
+        return [Graphic(graphic) for graphic in self.__display.graphics]
 
     @property
     def display(self) -> "Display":
-        return Display(self.__data_item.displays[0])
+        return Display(self.__display)
 
     def add_point_region(self, y: float, x: float) -> Graphic:
         """Add a point graphic to the data item.
@@ -1204,45 +1207,45 @@ class DataItem(metaclass=SharedInstance):
         """
         graphic = Graphics.PointGraphic()
         graphic.position = Geometry.FloatPoint(y, x)
-        self.__data_item.displays[0].add_graphic(graphic)
+        self.__display.add_graphic(graphic)
         return Graphic(graphic)
 
     def add_rectangle_region(self, center_y: float, center_x: float, height: float, width: float) -> Graphic:
         graphic = Graphics.RectangleGraphic()
         graphic.center = Geometry.FloatPoint(center_y, center_x)
         graphic.size = Geometry.FloatSize(height, width)
-        self.__data_item.displays[0].add_graphic(graphic)
+        self.__display.add_graphic(graphic)
         return Graphic(graphic)
 
     def add_ellipse_region(self, center_y: float, center_x: float, height: float, width: float) -> Graphic:
         graphic = Graphics.EllipseGraphic()
         graphic.center = Geometry.FloatPoint(center_y, center_x)
         graphic.size = Geometry.FloatSize(height, width)
-        self.__data_item.displays[0].add_graphic(graphic)
+        self.__display.add_graphic(graphic)
         return Graphic(graphic)
 
     def add_line_region(self, start_y: float, start_x: float, end_y: float, end_x: float) -> Graphic:
         graphic = Graphics.LineGraphic()
         graphic.start = Geometry.FloatPoint(start_y, start_x)
         graphic.end = Geometry.FloatPoint(end_y, end_x)
-        self.__data_item.displays[0].add_graphic(graphic)
+        self.__display.add_graphic(graphic)
         return Graphic(graphic)
 
     def add_interval_region(self, start: float, end: float) -> Graphic:
         graphic = Graphics.IntervalGraphic()
         graphic.start = start
         graphic.end = end
-        self.__data_item.displays[0].add_graphic(graphic)
+        self.__display.add_graphic(graphic)
         return Graphic(graphic)
 
     def add_channel_region(self, position: float) -> Graphic:
         graphic = Graphics.ChannelGraphic()
         graphic.position = position
-        self.__data_item.displays[0].add_graphic(graphic)
+        self.__display.add_graphic(graphic)
         return Graphic(graphic)
 
     def remove_region(self, graphic: Graphic) -> None:
-        self.__data_item.displays[0].remove_graphic(graphic._graphic)
+        self.__display.remove_graphic(graphic._graphic)
 
     def mask_xdata(self) -> DataAndMetadata.DataAndMetadata:
         """Return the mask by combining any mask graphics on this data item as extended data.
@@ -1251,16 +1254,16 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        shape = self.__data_item.displays[0].preview_2d_shape
+        shape = self.__display.preview_2d_shape
         mask = numpy.zeros(shape)
-        for graphic in self.__data_item.displays[0].graphics:
+        for graphic in self.__display.graphics:
             if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                 mask = numpy.logical_or(mask, graphic.get_mask(shape))
         return DataAndMetadata.DataAndMetadata.from_data(mask)
 
     def data_item_to_svg(self):
 
-        display = self.__data_item.displays[0]
+        display = self.__display
 
         FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
 
@@ -2384,11 +2387,10 @@ class Library(metaclass=SharedInstance):
         Status: Provisional
         Scriptable: Yes
         """
-        for data_item in self._document_model.data_items:
-            for display in data_item.displays:
-                for graphic in display.graphics:
-                    if graphic.uuid == graphic_uuid:
-                        return Graphic(graphic)
+        for display_item in self._document_model.display_items:
+            for graphic in display_item.graphics:
+                if graphic.uuid == graphic_uuid:
+                    return Graphic(graphic)
         return None
 
     def has_library_value(self, key: str) -> bool:

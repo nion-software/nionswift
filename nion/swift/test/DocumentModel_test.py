@@ -125,13 +125,14 @@ class TestDocumentModelClass(unittest.TestCase):
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             line_profile_data_item = document_model.get_line_profile_new(data_item)
-            self.assertEqual(len(data_item.displays[0].graphics[0].interval_descriptors), 0)
+            self.assertEqual(len(display_item.graphics[0].interval_descriptors), 0)
             interval = Graphics.IntervalGraphic()
             interval.interval = 0.3, 0.6
-            line_profile_data_item.displays[0].add_graphic(interval)
-            self.assertEqual(len(data_item.displays[0].graphics[0].interval_descriptors), 1)
-            self.assertEqual(data_item.displays[0].graphics[0].interval_descriptors[0]["interval"], interval.interval)
+            document_model.get_display_item_for_data_item(line_profile_data_item).add_graphic(interval)
+            self.assertEqual(len(display_item.graphics[0].interval_descriptors), 1)
+            self.assertEqual(display_item.graphics[0].interval_descriptors[0]["interval"], interval.interval)
 
     def test_processing_pick_configures_in_and_out_regions_and_connection(self):
         document_model = DocumentModel.DocumentModel()
@@ -139,25 +140,28 @@ class TestDocumentModelClass(unittest.TestCase):
             d = (100 * numpy.random.randn(8, 8, 64)).astype(numpy.int)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             pick_data_item = document_model.get_pick_new(data_item)
-            self.assertEqual(len(data_item.displays[0].graphics), 1)
+            pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
+            display = display_item.display
+            self.assertEqual(len(display.graphics), 1)
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(pick_data_item.data, d[4, 4, :]))
-            data_item.displays[0].graphics[0].position = 0, 0
+            display.graphics[0].position = 0, 0
             document_model.recompute_all()
             self.assertFalse(numpy.array_equal(pick_data_item.data, d[4, 4, :]))
             self.assertTrue(numpy.array_equal(pick_data_item.data, d[0, 0, :]))
-            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
+            self.assertEqual(pick_display_item.graphics[0].interval, display.slice_interval)
             # set up interval to be on pixel boundaries; and only even width intervals will map exactly
             interval1 = 5 / d.shape[-1], 9 / d.shape[-1]
-            pick_data_item.displays[0].graphics[0].interval = interval1
-            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
-            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, interval1)
+            pick_display_item.graphics[0].interval = interval1
+            self.assertEqual(pick_display_item.graphics[0].interval, display.slice_interval)
+            self.assertEqual(pick_display_item.graphics[0].interval, interval1)
             # set up interval to be on pixel boundaries; and only even width intervals will map exactly
             interval2 = 10 / d.shape[-1], 16 / d.shape[-1]
-            data_item.displays[0].slice_interval = interval2
-            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
-            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, interval2)
+            display.slice_interval = interval2
+            self.assertEqual(pick_display_item.graphics[0].interval, display.slice_interval)
+            self.assertEqual(pick_display_item.graphics[0].interval, interval2)
 
     def test_recompute_after_data_item_deleted_does_not_update_data_on_deleted_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -186,47 +190,52 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_data_item_recording(self):
         data_item = DataItem.DataItem(numpy.zeros((16, 16)))
+        display_item = DataItem.DisplayItem(data_item)
         data_item_recorder = Recorder.Recorder(data_item)
-        data_item.displays[0].display_type = "line_plot"
+        display_item.display_type = "line_plot"
         point_graphic = Graphics.PointGraphic()
         point_graphic.position = 0.2, 0.3
-        data_item.displays[0].add_graphic(point_graphic)
+        display_item.add_graphic(point_graphic)
         point_graphic.position = 0.21, 0.31
         new_data_item = DataItem.DataItem(numpy.zeros((16, 16)))
-        self.assertNotEqual(data_item.displays[0].display_type, new_data_item.displays[0].display_type)
+        new_display_item = DataItem.DisplayItem(new_data_item)
+        self.assertNotEqual(display_item.display_type, new_display_item.display_type)
         data_item_recorder.apply(new_data_item)
-        self.assertEqual(data_item.displays[0].display_type, new_data_item.displays[0].display_type)
-        self.assertEqual(new_data_item.displays[0].graphics[0].position, point_graphic.position)
+        self.assertEqual(display_item.display_type, new_display_item.display_type)
+        self.assertEqual(new_display_item.graphics[0].position, point_graphic.position)
 
     def test_transaction_handles_added_graphic(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((100, )))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             with document_model.item_transaction(data_item):
                 interval = Graphics.IntervalGraphic()
-                data_item.displays[0].add_graphic(interval)
+                display_item.add_graphic(interval)
             self.assertEqual(0, document_model.transaction_count)
 
     def test_transaction_handles_removed_graphic(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((100, )))
-            interval = Graphics.IntervalGraphic()
-            data_item.displays[0].add_graphic(interval)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            interval = Graphics.IntervalGraphic()
+            display_item.add_graphic(interval)
             with document_model.item_transaction(data_item):
-                data_item.displays[0].remove_graphic(interval)
+                display_item.remove_graphic(interval)
             self.assertEqual(0, document_model.transaction_count)
 
     def test_transaction_handles_added_dependent_data_item(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.displays[0].add_graphic(crop_region)
-            document_model.append_data_item(data_item)
+            display_item.add_graphic(crop_region)
             with document_model.item_transaction(data_item):
                 data_item_crop = document_model.get_crop_new(data_item, crop_region)
                 self.assertTrue(document_model.is_in_transaction_state(data_item_crop))
@@ -236,10 +245,11 @@ class TestDocumentModelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.displays[0].add_graphic(crop_region)
-            document_model.append_data_item(data_item)
+            display_item.add_graphic(crop_region)
             data_item_crop = document_model.get_crop_new(data_item, crop_region)
             with document_model.item_transaction(data_item):
                 document_model.remove_data_item(data_item_crop)
@@ -304,10 +314,11 @@ class TestDocumentModelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.displays[0].add_graphic(crop_region)
-            document_model.append_data_item(data_item)
+            display_item.add_graphic(crop_region)
             data_item_crop = document_model.get_crop_new(data_item, crop_region)
             self.assertSetEqual(set(document_model.get_dependent_items(data_item)), {data_item_crop})
             self.assertSetEqual(set(document_model.get_dependent_items(crop_region)), {data_item_crop})
@@ -341,9 +352,10 @@ class TestDocumentModelClass(unittest.TestCase):
             d = numpy.zeros((2, 2), numpy.int)
             d[1, 0] = 1
             data_item = DataItem.DataItem(d)
-            graphic = Graphics.PointGraphic()
-            data_item.displays[0].add_graphic(graphic)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            graphic = Graphics.PointGraphic()
+            display_item.add_graphic(graphic)
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
             computation.create_result("graphic", document_model.get_object_specifier(graphic))
@@ -360,13 +372,14 @@ class TestDocumentModelClass(unittest.TestCase):
             d[1, 0] = 1
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
             computation.processing_id = "find_max"
             document_model.append_computation(computation)
             document_model.recompute_all()
-            self.assertEqual(len(data_item.displays[0].graphics), 1)
-            self.assertEqual(data_item.displays[0].graphics[0].position, (0.5, 0))
+            self.assertEqual(len(display_item.graphics), 1)
+            self.assertEqual(display_item.graphics[0].position, (0.5, 0))
 
     def test_new_computation_into_new_and_then_existing_result_graphic(self):
         Symbolic.register_computation_type("find_max", self.FindMax)
@@ -376,19 +389,20 @@ class TestDocumentModelClass(unittest.TestCase):
             d[1, 0] = 1
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
             computation.processing_id = "find_max"
             document_model.append_computation(computation)
             document_model.recompute_all()
-            self.assertEqual(len(data_item.displays[0].graphics), 1)
-            self.assertEqual(data_item.displays[0].graphics[0].position, (0.5, 0))
+            self.assertEqual(len(display_item.graphics), 1)
+            self.assertEqual(display_item.graphics[0].position, (0.5, 0))
             # change it again
             d[0, 1] = 2
             data_item.set_data(d)
             document_model.recompute_all()
-            self.assertEqual(len(data_item.displays[0].graphics), 1)
-            self.assertEqual(data_item.displays[0].graphics[0].position, (0, 0.5))
+            self.assertEqual(len(display_item.graphics), 1)
+            self.assertEqual(display_item.graphics[0].position, (0, 0.5))
 
     def test_new_computation_into_new_and_result_graphic_only_evaluates_once(self):
         TestDocumentModelClass.find_max_eval_count = 0
@@ -546,6 +560,7 @@ class TestDocumentModelClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
             value = computation.create_variable("value", "boolean", True)
@@ -553,13 +568,13 @@ class TestDocumentModelClass(unittest.TestCase):
             computation.processing_id = "optional_graphic"
             document_model.append_computation(computation)
             document_model.recompute_all()
-            self.assertEqual(len(data_item.displays[0].graphics), 1)
+            self.assertEqual(len(display_item.graphics), 1)
             value.value = False
             document_model.recompute_all()
-            self.assertEqual(len(data_item.displays[0].graphics), 0)
+            self.assertEqual(len(display_item.graphics), 0)
             value.value = True
             document_model.recompute_all()
-            self.assertEqual(len(data_item.displays[0].graphics), 1)
+            self.assertEqual(len(display_item.graphics), 1)
         # note: the computation function will remove the graphic which will remove the dependency.
         # it will also set a result on the computation which will also try to remove the dependency.
 
@@ -569,6 +584,7 @@ class TestDocumentModelClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
             value = computation.create_variable("value", "boolean", True)
@@ -577,14 +593,14 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_computation(computation)
             document_model.recompute_all()
             self.assertEqual(len(document_model.get_dependent_items(data_item)), 1)
-            self.assertEqual(document_model.get_dependent_items(data_item)[0], data_item.displays[0].graphics[0])
+            self.assertEqual(document_model.get_dependent_items(data_item)[0], display_item.graphics[0])
             value.value = False
             document_model.recompute_all()
             self.assertEqual(len(document_model.get_dependent_items(data_item)), 0)
             value.value = True
             document_model.recompute_all()
             self.assertEqual(len(document_model.get_dependent_items(data_item)), 1)
-            self.assertEqual(document_model.get_dependent_items(data_item)[0], data_item.displays[0].graphics[0])
+            self.assertEqual(document_model.get_dependent_items(data_item)[0], display_item.graphics[0])
 
     class NGraphics:
         def __init__(self, computation, **kwargs):
@@ -609,6 +625,7 @@ class TestDocumentModelClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
             value = computation.create_variable("value", "integral", 3)
@@ -616,10 +633,10 @@ class TestDocumentModelClass(unittest.TestCase):
             computation.processing_id = "n_graphics"
             document_model.append_computation(computation)
             document_model.recompute_all()
-            self.assertEqual(len(data_item.displays[0].graphics), 3)
+            self.assertEqual(len(display_item.graphics), 3)
             value.value = 5
             document_model.recompute_all()
-            self.assertEqual(len(data_item.displays[0].graphics), 5)
+            self.assertEqual(len(display_item.graphics), 5)
 
     def test_new_computation_with_list_result_updates_dependencies(self):
         Symbolic.register_computation_type("n_graphics", self.NGraphics)
@@ -627,6 +644,7 @@ class TestDocumentModelClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
             value = computation.create_variable("value", "integral", 3)
@@ -635,15 +653,15 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_computation(computation)
             document_model.recompute_all()
             self.assertEqual(len(document_model.get_dependent_items(data_item)), 3)
-            self.assertEqual(set(document_model.get_dependent_items(data_item)), set(data_item.displays[0].graphics))
+            self.assertEqual(set(document_model.get_dependent_items(data_item)), set(display_item.graphics))
             value.value = 5
             document_model.recompute_all()
             self.assertEqual(len(document_model.get_dependent_items(data_item)), 5)
-            self.assertEqual(set(document_model.get_dependent_items(data_item)), set(data_item.displays[0].graphics))
+            self.assertEqual(set(document_model.get_dependent_items(data_item)), set(display_item.graphics))
             value.value = 3
             document_model.recompute_all()
             self.assertEqual(len(document_model.get_dependent_items(data_item)), 3)
-            self.assertEqual(set(document_model.get_dependent_items(data_item)), set(data_item.displays[0].graphics))
+            self.assertEqual(set(document_model.get_dependent_items(data_item)), set(display_item.graphics))
 
     def test_new_computation_creates_dependency_when_result_created_during_computation(self):
         Symbolic.register_computation_type("set_const", self.SetConst)
@@ -860,9 +878,10 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             graphic = Graphics.PointGraphic()
-            data_item.displays[0].add_graphic(graphic)  # computation should become valid
-            # data_item.displays[0].add_graphic(graphic)  # purposely not added
+            display_item.add_graphic(graphic)  # computation should become valid
+            # display_item.add_graphic(graphic)  # purposely not added
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
             computation.create_object("graphic", document_model.get_object_specifier(graphic))
@@ -872,7 +891,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(computation.is_resolved)
             document_model.recompute_all()
             self.assertFalse(computation.needs_update)
-            data_item.displays[0].remove_graphic(graphic)
+            display_item.remove_graphic(graphic)
             self.assertIn(computation, document_model.computations)
             self.assertFalse(computation.is_resolved)
             self.assertTrue(computation.needs_update)
@@ -935,6 +954,7 @@ class TestDocumentModelClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
             value = computation.create_variable("value", "integral", 3)
@@ -944,7 +964,7 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertEqual(len(document_model.computations), 1)
             self.assertEqual(len(document_model.data_items), 1)
-            self.assertEqual(len(data_item.displays[0].graphics), 3)
+            self.assertEqual(len(display_item.graphics), 3)
             self.assertEqual(len(document_model.get_dependent_items(data_item)), 3)
             document_model.remove_computation(computation)
             self.assertEqual(len(document_model.get_dependent_items(data_item)), 0)
@@ -957,6 +977,7 @@ class TestDocumentModelClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
             value = computation.create_variable("value", "integral", 3)
@@ -966,9 +987,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertEqual(len(document_model.computations), 1)
             self.assertEqual(len(document_model.data_items), 1)
-            self.assertEqual(len(data_item.displays[0].graphics), 3)
+            self.assertEqual(len(display_item.graphics), 3)
             self.assertEqual(len(document_model.get_dependent_items(data_item)), 3)
-            data_item.displays[0].remove_graphic(data_item.displays[0].graphics[0])
+            display_item.remove_graphic(display_item.graphics[0])
             self.assertEqual(len(document_model.get_dependent_items(data_item)), 0)
             self.assertEqual(len(document_model.data_items), 1)
             self.assertEqual(len(document_model.computations), 0)
@@ -1421,8 +1442,9 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             graphic = Graphics.PointGraphic()
-            # data_item.displays[0].add_graphic(graphic)  # purposely not added
+            # display_item.add_graphic(graphic)  # purposely not added
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
             computation.create_object("graphic", document_model.get_object_specifier(graphic))
@@ -1430,7 +1452,7 @@ class TestDocumentModelClass(unittest.TestCase):
             computation.processing_id = "set_const_graphic"
             document_model.append_computation(computation)
             self.assertFalse(computation.is_resolved)
-            data_item.displays[0].add_graphic(graphic)  # computation should become valid
+            display_item.add_graphic(graphic)  # computation should become valid
             self.assertTrue(computation.is_resolved)
 
     class GenerateZero:
@@ -1454,9 +1476,10 @@ class TestDocumentModelClass(unittest.TestCase):
         self.app._set_document_model(document_model)  # required to allow API to find document model
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
-            graphic = Graphics.RectangleGraphic()
-            data_item.displays[0].add_graphic(graphic)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            graphic = Graphics.RectangleGraphic()
+            display_item.add_graphic(graphic)
             computation = document_model.create_computation()
             computation.create_object("rect", document_model.get_object_specifier(graphic))
             computation.processing_id = "genzero"
@@ -1513,11 +1536,12 @@ class TestDocumentModelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.random.randn(12, 12, 4))
-            data_item.displays[0].slice_center = 2
-            data_item.displays[0].slice_width = 1
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display.slice_center = 2
+            display_item.display.slice_width = 1
             computation = document_model.create_computation()
             computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "display_xdata"))
             computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
@@ -1536,11 +1560,12 @@ class TestDocumentModelClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.random.randn(24, 24))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
-            graphic = Graphics.RectangleGraphic()
-            graphic.bounds = (0, 0), (0.5, 0.5)
-            data_item.displays[0].add_graphic(graphic)
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            graphic = Graphics.RectangleGraphic()
+            graphic.bounds = (0, 0), (0.5, 0.5)
+            display_item.add_graphic(graphic)
             computation = document_model.create_computation()
             computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "cropped_xdata"), secondary_specifier=document_model.get_object_specifier(graphic))
             computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
@@ -1561,14 +1586,15 @@ class TestDocumentModelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.random.randn(24, 24, 4))
-            data_item.displays[0].slice_center = 2
-            data_item.displays[0].slice_width = 1
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
-            graphic = Graphics.RectangleGraphic()
-            graphic.bounds = (0, 0), (0.5, 0.5)
-            data_item.displays[0].add_graphic(graphic)
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display.slice_center = 2
+            display_item.display.slice_width = 1
+            graphic = Graphics.RectangleGraphic()
+            graphic.bounds = (0, 0), (0.5, 0.5)
+            display_item.add_graphic(graphic)
             computation = document_model.create_computation()
             computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "cropped_display_xdata"), secondary_specifier=document_model.get_object_specifier(graphic))
             computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
@@ -1590,12 +1616,13 @@ class TestDocumentModelClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.full((20, 20), 5))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
             graphic = Graphics.RingGraphic()
             graphic.radius_1 = 0.2
             graphic.radius_2 = 1.0
-            data_item.displays[0].add_graphic(graphic)
-            document_model.append_data_item(data_item)
-            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.add_graphic(graphic)
             computation = document_model.create_computation()
             computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "filter_xdata"))
             computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
@@ -1619,12 +1646,13 @@ class TestDocumentModelClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.full((20, 20), 5, dtype=numpy.complex128))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
             graphic = Graphics.RingGraphic()
             graphic.radius_1 = 0.2
             graphic.radius_2 = 1.0
-            data_item.displays[0].add_graphic(graphic)
-            document_model.append_data_item(data_item)
-            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.add_graphic(graphic)
             computation = document_model.create_computation()
             computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "filtered_xdata"))
             computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
@@ -1853,9 +1881,10 @@ class TestDocumentModelClass(unittest.TestCase):
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((4, 4)))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.displays[0].add_graphic(crop_region)
+            display_item.add_graphic(crop_region)
             data_item2 = document_model.get_crop_new(data_item, crop_region)
             data_item3 = DataItem.DataItem()
             document_model.append_data_item(data_item3)
@@ -1898,14 +1927,16 @@ class TestDocumentModelClass(unittest.TestCase):
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((4, 4, 100)))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             pick_data_item = document_model.get_pick_new(data_item)
+            pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
             self.assertEqual(1, len(document_model.connections))
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
-            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
+            self.assertEqual(pick_display_item.graphics[0].interval, display_item.display.slice_interval)
             # only even width intervals aligned to pixels are represented exactly by slices
-            pick_data_item.displays[0].graphics[0].interval = (12/100, 16/100)
-            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
+            pick_display_item.graphics[0].interval = (12 / 100, 16 / 100)
+            self.assertEqual(pick_display_item.graphics[0].interval, display_item.display.slice_interval)
             # delete the pick and verify
             undelete_log = document_model.remove_data_item(pick_data_item, safe=True)
             self.assertEqual(0, len(document_model.connections))
@@ -1914,12 +1945,13 @@ class TestDocumentModelClass(unittest.TestCase):
             # undelete and verify
             document_model.undelete_all(undelete_log)
             pick_data_item = document_model.data_items[1]
+            pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
             self.assertEqual(1, len(document_model.connections))
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
             # ensure connection works
-            pick_data_item.displays[0].graphics[0].interval = (56/100, 64/100)
-            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
+            pick_display_item.graphics[0].interval = (56/100, 64/100)
+            self.assertEqual(pick_display_item.graphics[0].interval, display_item.display.slice_interval)
 
     def test_undeleted_connection_is_properly_restored_into_persistent_object_context(self):
         document_model = DocumentModel.DocumentModel()
@@ -1929,15 +1961,17 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((4, 4, 100)))
             document_model.append_data_item(data_item)
             pick_data_item = document_model.get_pick_new(data_item)
+            pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
             # only even width intervals aligned to pixels are represented exactly by slices
-            pick_data_item.displays[0].graphics[0].interval = (12/100, 16/100)
+            pick_display_item.graphics[0].interval = (12 / 100, 16 / 100)
             # delete the pick and verify
             undelete_log = document_model.remove_data_item(pick_data_item, safe=True)
             # undelete and verify
             document_model.undelete_all(undelete_log)
             pick_data_item = document_model.data_items[1]
+            pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
             # delete again
-            pick_data_item.displays[0].graphics[0].interval = (56/100, 64/100)
+            pick_display_item.graphics[0].interval = (56/100, 64/100)
             document_model.remove_data_item(pick_data_item, safe=True)
 
     def test_undelete_graphic(self):
@@ -1947,6 +1981,7 @@ class TestDocumentModelClass(unittest.TestCase):
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             line_profile_data_item = document_model.get_line_profile_new(data_item)
             self.assertEqual(1, len(document_model.connections))
             self.assertEqual(1, len(document_model.computations))
@@ -1955,7 +1990,7 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(numpy.ones((5, )), line_profile_data_item.data))
             # delete the line profile and verify
-            undelete_log = data_item.displays[0].remove_graphic(data_item.displays[0].graphics[0], safe=True)
+            undelete_log = display_item.remove_graphic(display_item.graphics[0], safe=True)
             self.assertEqual(0, len(document_model.connections))
             self.assertEqual(0, len(document_model.computations))
             self.assertEqual(1, len(document_model.data_items))
@@ -1980,13 +2015,14 @@ class TestDocumentModelClass(unittest.TestCase):
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
-            line_profile_data_item = document_model.get_line_profile_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_model.get_line_profile_new(data_item)
             # delete the graphic and verify
-            undelete_log = data_item.displays[0].remove_graphic(data_item.displays[0].graphics[0], safe=True)
+            undelete_log = display_item.remove_graphic(display_item.graphics[0], safe=True)
             # undelete and verify
             document_model.undelete_all(undelete_log)
             # delete again
-            data_item.displays[0].remove_graphic(data_item.displays[0].graphics[0], safe=True)
+            display_item.remove_graphic(display_item.graphics[0], safe=True)
 
     def test_undelete_data_item(self):
         document_model = DocumentModel.DocumentModel()

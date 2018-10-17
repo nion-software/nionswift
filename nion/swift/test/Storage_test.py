@@ -1069,17 +1069,19 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             document_model.get_line_profile_new(data_item)
-            data_item.displays[0].graphics[0].vector = (0.1, 0.2), (0.3, 0.4)
+            display_item.graphics[0].vector = (0.1, 0.2), (0.3, 0.4)
         # read it back
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = document_model.data_items[0]
             data_item2 = document_model.data_items[1]
+            display_item = document_model.get_display_item_for_data_item(data_item)
             # verify that properties read it correctly
-            self.assertEqual(data_item.displays[0].graphics[0].start, (0.1, 0.2))
-            self.assertEqual(data_item.displays[0].graphics[0].end, (0.3, 0.4))
-            data_item.displays[0].graphics[0].start = 0.11, 0.22
+            self.assertEqual(display_item.graphics[0].start, (0.1, 0.2))
+            self.assertEqual(display_item.graphics[0].end, (0.3, 0.4))
+            display_item.graphics[0].start = 0.11, 0.22
             vector = document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item2).variables[1].specifier).value.vector
             self.assertEqual(vector[0], (0.11, 0.22))
             self.assertEqual(vector[1], (0.3, 0.4))
@@ -1090,14 +1092,16 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
             document_model.append_data_item(data_item)
-            self.assertEqual(data_item.displays[0].display_calibrated_values, True)
-            self.assertIsNone(data_item.displays[0].dimensional_calibration_style)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            self.assertEqual(display_item.display.display_calibrated_values, True)
+            self.assertIsNone(display_item.display.dimensional_calibration_style)
         # read it back
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = document_model.data_items[0]
-            self.assertEqual(data_item.displays[0].display_calibrated_values, True)
-            self.assertEqual(data_item.displays[0].dimensional_calibration_style, "calibrated")
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            self.assertEqual(display_item.display.display_calibrated_values, True)
+            self.assertEqual(display_item.display.dimensional_calibration_style, "calibrated")
 
     def test_reloaded_graphics_load_properly(self):
         cache_name = ":memory:"
@@ -1398,9 +1402,10 @@ class TestStorageClass(unittest.TestCase):
         modifieds = dict()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
-            crop_region = Graphics.RectangleGraphic()
-            data_item.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            display_item.add_graphic(crop_region)
             inverted_data_item = document_model.get_invert_new(data_item)
             cropped_inverted_data_item = document_model.get_invert_new(data_item, crop_region)
             document_model.recompute_all()
@@ -1428,9 +1433,10 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
-            crop_region = Graphics.RectangleGraphic()
-            data_item.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            display_item.add_graphic(crop_region)
             document_model.get_crop_new(data_item, crop_region)
             document_model.recompute_all()
             read_data_item2 = document_model.data_items[1]
@@ -1446,10 +1452,11 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.displays[0].add_graphic(crop_region)
-            document_model.append_data_item(data_item)
+            display_item.add_graphic(crop_region)
             document_model.get_crop_new(data_item, crop_region)
             document_model.recompute_all()
             read_data_item2 = document_model.data_items[1]
@@ -3218,9 +3225,10 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-            crop_region = Graphics.RectangleGraphic()
-            data_item.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            display_item.add_graphic(crop_region)
             data_item_cropped = document_model.get_crop_new(data_item, crop_region)
             document_model.recompute_all()
             data_item._set_modified(modified)
@@ -3294,16 +3302,17 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
-            data_item.displays[0].get_calculated_display_values(True).data_range  # trigger storage
-            cached_data_range = storage_cache.cache[data_item.displays[0].uuid]["data_range"]
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display.get_calculated_display_values(True).data_range  # trigger storage
+            cached_data_range = storage_cache.cache[display_item.uuid]["data_range"]
             self.assertEqual(cached_data_range, (1, 1))
-            self.assertEqual(data_item.displays[0].get_calculated_display_values(True).data_range, (1, 1))
+            self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (1, 1))
             with document_model.data_item_transaction(data_item):
                 data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
-                self.assertEqual(data_item.displays[0].get_calculated_display_values(True).data_range, (0, 0))
-                self.assertEqual(cached_data_range, storage_cache.cache[data_item.displays[0].uuid]["data_range"])
+                self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (0, 0))
+                self.assertEqual(cached_data_range, storage_cache.cache[display_item.uuid]["data_range"])
                 self.assertEqual(cached_data_range, (1, 1))
-            self.assertEqual(storage_cache.cache[data_item.displays[0].uuid]["data_range"], (0, 0))
+            self.assertEqual(storage_cache.cache[display_item.uuid]["data_range"], (0, 0))
 
     def test_suspendable_storage_cache_caches_removes(self):
         data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
@@ -3338,7 +3347,8 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
-                data_item.displays[0].display_limits = (numpy.float32(1.0), numpy.float32(1.0))
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_item.display.display_limits = (numpy.float32(1.0), numpy.float32(1.0))
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -3852,10 +3862,11 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            crop_region = Graphics.RectangleGraphic()
-            data_item.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
-            command = DisplayPanel.ChangeGraphicsCommand(document_model, data_item.displays[0], [crop_region], command_id="nudge", is_mergeable=True)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            display_item.add_graphic(crop_region)
+            command = DisplayPanel.ChangeGraphicsCommand(document_model, display_item.display, [crop_region], command_id="nudge", is_mergeable=True)
             old_bounds = crop_region.bounds
             new_bounds = ((0.1, 0.1), (0.2, 0.2))
             crop_region.bounds = new_bounds

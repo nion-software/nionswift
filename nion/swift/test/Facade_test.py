@@ -167,8 +167,10 @@ class TestFacadeClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.arange(64).reshape(8, 8))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             data_item_1d = DataItem.DataItem(numpy.arange(32).reshape(32))
             document_model.append_data_item(data_item_1d)
+            display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
             api = Facade.get_api("~1.0", "~1.0")
             library = api.library
             data_item_ref = library.data_items[0]
@@ -188,14 +190,14 @@ class TestFacadeClass(unittest.TestCase):
             self.assertEqual(r5.type, "channel-region")
             r4.set_property("end", 0.3)
             self.assertAlmostEqual(r4.get_property("end"), 0.3)
-            self.assertEqual(len(data_item.displays[0].graphics), 4)
-            self.assertEqual(len(data_item_1d.displays[0].graphics), 2)
-            self.assertIsInstance(data_item.displays[0].graphics[0], Graphics.PointGraphic)
-            self.assertIsInstance(data_item.displays[0].graphics[1], Graphics.RectangleGraphic)
-            self.assertIsInstance(data_item.displays[0].graphics[2], Graphics.EllipseGraphic)
-            self.assertIsInstance(data_item.displays[0].graphics[3], Graphics.LineGraphic)
-            self.assertIsInstance(data_item_1d.displays[0].graphics[0], Graphics.IntervalGraphic)
-            self.assertIsInstance(data_item_1d.displays[0].graphics[1], Graphics.ChannelGraphic)
+            self.assertEqual(len(display_item.graphics), 4)
+            self.assertEqual(len(display_item_1d.graphics), 2)
+            self.assertIsInstance(display_item.graphics[0], Graphics.PointGraphic)
+            self.assertIsInstance(display_item.graphics[1], Graphics.RectangleGraphic)
+            self.assertIsInstance(display_item.graphics[2], Graphics.EllipseGraphic)
+            self.assertIsInstance(display_item.graphics[3], Graphics.LineGraphic)
+            self.assertIsInstance(display_item_1d.graphics[0], Graphics.IntervalGraphic)
+            self.assertIsInstance(display_item_1d.graphics[1], Graphics.ChannelGraphic)
 
     def test_display_data_panel_reuses_existing_display(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()

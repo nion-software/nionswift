@@ -901,13 +901,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         dependencies.append((item, data_item))
                     self.__build_cascade(data_item, items, dependencies)
             # graphics whose source is the item are deleted
-            for data_item in self.data_items:
-                for display in data_item.displays:
-                    for graphic in display.graphics:
-                        if graphic.source == item:
-                            if (item, graphic) not in dependencies:
-                                dependencies.append((item, graphic))
-                            self.__build_cascade(graphic, items, dependencies)
+            for display_item in self.display_items:
+                for graphic in display_item.graphics:
+                    if graphic.source == item:
+                        if (item, graphic) not in dependencies:
+                            dependencies.append((item, graphic))
+                        self.__build_cascade(graphic, items, dependencies)
             # connections whose source is the item are deleted
             for connection in self.connections:
                 if connection.parent == item:
@@ -1410,6 +1409,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def get_data_item_by_uuid(self, uuid: uuid.UUID) -> DataItem.DataItem:
         return self.__uuid_to_data_item.get(uuid)
 
+    @property
+    def display_items(self) -> typing.Sequence[DataItem.DisplayItem]:
+        return [self.get_display_item_for_data_item(data_item) for data_item in self.data_items]
+
     def get_display_items_for_data_item(self, data_item: DataItem.DataItem) -> typing.Sequence[DataItem.DisplayItem]:
         return [DataItem.DisplayItem(data_item)] if data_item else []
 
@@ -1512,18 +1515,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return get_object_specifier(object, object_type)
 
     def get_display_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Display.Display]:
-        for data_item in self.data_items:
-            for display in data_item.displays:
-                if display.uuid == object_uuid:
-                    return display
+        for display_item in self.display_items:
+            if display_item.display and display_item.display.uuid == object_uuid:
+                return display_item.display
         return None
 
     def get_graphic_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Graphics.Graphic]:
-        for data_item in self.data_items:
-            for display in data_item.displays:
-                for graphic in display.graphics:
-                    if graphic.uuid == object_uuid:
-                        return graphic
+        for display_item in self.display_items:
+            for graphic in display_item.graphics:
+                if graphic.uuid == object_uuid:
+                    return graphic
         return None
 
     def get_data_structure_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[DataStructure]:
@@ -1581,7 +1582,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         self.changed_event = Event.Event()
                         self.needs_rebind_event = Event.Event()
                         self.property_changed_event = Event.Event()
-                        self.__data_source = DataItem.DataSource(data_item, graphic, self.changed_event)
+                        display_item = document_model.get_display_item_for_data_item(data_item)
+                        self.__data_source = DataItem.DataSource(display_item, graphic, self.changed_event)
                         def data_item_removed(container, data_item, index, moving):
                             if container == self.__document_model and data_item == self.__data_source.data_item:
                                 self.needs_rebind_event.fire()
@@ -2758,8 +2760,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return self.__make_computation("convert-to-scalar", [(data_item, crop_region)])
 
     def get_crop_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        if data_item and len(data_item.displays) > 0 and not crop_region:
-            display = data_item.displays[0]
+        display_item = self.get_display_item_for_data_item(data_item)
+        display = display_item.display if display_item else None
+        if data_item and display and not crop_region:
             if data_item.is_data_2d:
                 rect_region = Graphics.RectangleGraphic()
                 rect_region.center = 0.5, 0.5
@@ -2795,8 +2798,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return self.__make_computation("line-profile", [(data_item, crop_region)], {"src": [line_region]})
 
     def get_fourier_filter_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        if data_item and len(data_item.displays) > 0:
-            display = data_item.displays[0]
+        display_item = self.get_display_item_for_data_item(data_item)
+        display = display_item.display if display_item else None
+        if data_item and display:
             has_mask = False
             for graphic in display.graphics:
                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):

@@ -68,7 +68,8 @@ class TestDisplayClass(unittest.TestCase):
 
     def test_display_range_with_partial_display_limits_is_complete(self):
         data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.float64))
-        display = data_item.displays[0]
+        display_item = DataItem.DisplayItem(data_item)
+        display = display_item.display
         data_item.set_data(numpy.array(range(1,5)))
         display.display_limits = None
         self.assertEqual(display.get_calculated_display_values(True).display_range, (1.0, 4.0))
@@ -339,11 +340,14 @@ class TestDisplayClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
-            data_item.displays[0].display_limits = 0.5, 1.5
-            self.assertIsNotNone(data_item.displays[0].display_limits)  # check assumptions
-            data_item.displays[0].reset_display_limits()
-            self.assertIsNone(data_item.displays[0].display_limits)
-            preview = data_item.displays[0].get_calculated_display_values(True).display_rgba
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
+            display.display_limits = 0.5, 1.5
+            self.assertIsNotNone(display.display_limits)  # check assumptions
+            display.reset_display_limits()
+            self.assertIsNone(display.display_limits)
+            preview = display.get_calculated_display_values(True).display_rgba
             self.assertIsNotNone(preview)
 
     def test_display_rgba_for_various_data_types_is_valid(self):
@@ -352,9 +356,12 @@ class TestDisplayClass(unittest.TestCase):
             dtypes = (numpy.uint16, numpy.int16, numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, numpy.float32, numpy.float64, numpy.complex64, numpy.complex128)
             for dtype in dtypes:
                 data_item = DataItem.DataItem(numpy.ones((16, 16), dtype))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display = display_item.display
                 for display_limits in ((0, 1), (0.5, 1.5)):
-                    data_item.displays[0].display_limits = display_limits
-                    display_rgba = data_item.displays[0].get_calculated_display_values(True).display_rgba
+                    display.display_limits = display_limits
+                    display_rgba = display.get_calculated_display_values(True).display_rgba
                     self.assertTrue(display_rgba.dtype == numpy.uint32)
 
     def test_reset_display_limits_on_various_value_types_write_to_clean_json(self):
@@ -404,8 +411,11 @@ class TestDisplayClass(unittest.TestCase):
             data[0, 0] = 0
             data[99, 99] = 3
             data_item = DataItem.DataItem(data)
-            data_item.displays[0].auto_display_limits()
-            low, high = data_item.displays[0].display_limits
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
+            display.auto_display_limits()
+            low, high = display.display_limits
             self.assertAlmostEqual(low, 0.0)
             self.assertAlmostEqual(high, 3.0)
 
@@ -413,11 +423,14 @@ class TestDisplayClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
-            self.assertEqual(data_item.displays[0].get_calculated_display_values(True).display_range, (1, 1))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
+            self.assertEqual(display.get_calculated_display_values(True).display_range, (1, 1))
             with data_item.data_ref() as dr:
                 dr.master_data[0,0] = 16
                 dr.data_updated()
-            self.assertEqual(data_item.displays[0].get_calculated_display_values(True).display_range, (1, 16))
+            self.assertEqual(display.get_calculated_display_values(True).display_range, (1, 16))
 
     def test_display_range_is_correct_on_complex_data_display_as_absolute(self):
         document_model = DocumentModel.DocumentModel()
@@ -425,17 +438,23 @@ class TestDisplayClass(unittest.TestCase):
             complex_data = numpy.zeros((2, 2), numpy.complex64)
             complex_data[0, 0] = complex(4, 3)
             data_item = DataItem.DataItem(complex_data)
-            data_item.displays[0].complex_display_type = "absolute"
-            self.assertEqual(data_item.displays[0].get_calculated_display_values(True).display_range, (0, 5))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
+            display.complex_display_type = "absolute"
+            self.assertEqual(display.get_calculated_display_values(True).display_range, (0, 5))
 
     def test_display_range_is_correct_on_complex_data_display_as_log_absolute(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             complex_data = numpy.array(range(10)).astype(numpy.complex)
             data_item = DataItem.DataItem(complex_data)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
             min_ = numpy.log(numpy.abs(0).astype(numpy.float64) + numpy.nextafter(0,1))
-            self.assertAlmostEqual(data_item.displays[0].get_calculated_display_values(True).display_range[0], min_)
-            self.assertAlmostEqual(data_item.displays[0].get_calculated_display_values(True).display_range[1], math.log(9))
+            self.assertAlmostEqual(display.get_calculated_display_values(True).display_range[0], min_)
+            self.assertAlmostEqual(display.get_calculated_display_values(True).display_range[1], math.log(9))
 
     def test_display_data_is_2d_for_2d_sequence(self):
         document_model = DocumentModel.DocumentModel()

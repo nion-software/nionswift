@@ -1151,7 +1151,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.set_filter("none")
             document_controller.tool_mode = "line-profile"
             display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
-            display = data_item.displays[0]
+            display = document_model.get_display_item_for_data_item(data_item)
             self.assertEqual(len(display.graphics), 1)
             region = display.graphics[0]
             self.assertEqual(region.type, "line-profile-graphic")
@@ -1163,15 +1163,15 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_enter_to_auto_display_limits(self):
         # test preliminary assumptions (no display limits)
         display_limits = 0.5, 1.5
-        self.data_item.displays[0].display_limits = display_limits
+        self.display_item.display.display_limits = display_limits
         self.assertIsNotNone(self.display_item.display.display_limits)
         # focus on the display panel, then press the enter key
         modifiers = CanvasItem.KeyboardModifiers()
         self.display_panel.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
         self.display_panel.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "enter", modifiers))
         # confirm that display limits were set
-        self.assertIsNotNone(self.data_item.displays[0].display_limits)
-        self.assertNotEqual(self.data_item.displays[0].display_limits, display_limits)
+        self.assertIsNotNone(self.display_item.display.display_limits)
+        self.assertNotEqual(self.display_item.display.display_limits, display_limits)
 
     def test_image_display_panel_produces_context_menu_with_correct_item_count(self):
         self.assertIsNone(self.document_controller.ui.popup)
@@ -1331,7 +1331,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             document_model.append_data_item(data_item1)
             data_item = document_model.get_crop_new(data_item1)
-            data_item.displays[0].display_type = "line_plot"
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display.display_type = "line_plot"
             display_panel.set_display_panel_data_item(data_item)
             header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
@@ -1365,7 +1366,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
-            display = data_item.displays[0]
+            display = document_model.get_display_item_for_data_item(data_item)
             update_count = display_panel.display_canvas_item._update_count
             document_controller.periodic()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
@@ -1393,9 +1394,10 @@ class TestDisplayPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8, 8))
-            graphic = Graphics.RectangleGraphic()
-            data_item.displays[0].add_graphic(graphic)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            graphic = Graphics.RectangleGraphic()
+            display_item.add_graphic(graphic)
             display_panel.set_display_panel_data_item(data_item)
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
@@ -1416,7 +1418,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 640))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
-            display = data_item.displays[0]
+            display = document_model.get_display_item_for_data_item(data_item)
             update_count = display_panel.display_canvas_item._update_count
             document_controller.periodic()
             self.display_panel.root_container.refresh_layout_immediate()
@@ -1450,12 +1452,13 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             document_model.get_crop_new(data_item)
             document_model.get_line_profile_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             self.assertEqual(3, len(document_model.data_items))
-            self.assertEqual(2, len(data_item.displays[0].graphics))
+            self.assertEqual(2, len(display_item.graphics))
             self.assertEqual(2, len(document_model.get_dependent_items(data_item)))
             display_panel.set_display_panel_data_item(data_item)
             self.assertEqual(2, len(display_panel._related_icons_canvas_item._dependent_thumbnails.canvas_items))
-            data_item.displays[0].remove_graphic(data_item.displays[0].graphics[1])
+            display_item.remove_graphic(display_item.graphics[1])
             self.assertEqual(1, len(display_panel._related_icons_canvas_item._dependent_thumbnails.canvas_items))
 
     def test_dragging_to_create_interval_undo_redo_cycle(self):
@@ -1466,28 +1469,29 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_data_item(data_item)
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 640))
             display_panel.display_canvas_item.prepare_display()  # force layout
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
-            self.assertEqual(0, len(data_item.displays[0].graphics))
+            self.assertEqual(0, len(display_item.graphics))
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
             line_plot_canvas_item = display_panel.display_canvas_item
             line_plot_canvas_item._mouse_dragged(0.35, 0.55)
             # check the undo status
-            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertEqual(1, len(display_item.graphics))
             self.assertTrue(document_controller._undo_stack.can_undo)
             self.assertFalse(document_controller._undo_stack.can_redo)
             for i in range(2):
                 # try the undo
                 document_controller.handle_undo()
-                self.assertEqual(0, len(data_item.displays[0].graphics))
+                self.assertEqual(0, len(display_item.graphics))
                 self.assertFalse(document_controller._undo_stack.can_undo)
                 self.assertTrue(document_controller._undo_stack.can_redo)
                 # try the redo
                 document_controller.handle_redo()
-                self.assertEqual(1, len(data_item.displays[0].graphics))
+                self.assertEqual(1, len(display_item.graphics))
                 self.assertTrue(document_controller._undo_stack.can_undo)
                 self.assertFalse(document_controller._undo_stack.can_redo)
 
@@ -1498,40 +1502,41 @@ class TestDisplayPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             interval_graphic = Graphics.IntervalGraphic()
             interval_graphic.start = 0.3
             interval_graphic.end = 0.5
-            data_item.displays[0].add_graphic(interval_graphic)
-            data_item.displays[0].graphic_selection.set(0)
-            document_model.append_data_item(data_item)
+            display_item.add_graphic(interval_graphic)
+            display_item.graphic_selection.set(0)
             display_panel.set_display_panel_data_item(data_item)
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 1000))
             display_panel.display_canvas_item.prepare_display()  # force layout
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
-            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertEqual(1, len(display_item.graphics))
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
             line_plot_canvas_item = display_panel.display_canvas_item
             line_plot_canvas_item._mouse_dragged(0.4, 0.5)
             # check the undo status. use full object specifiers since objects may be replaced.
-            self.assertEqual(1, len(data_item.displays[0].graphics))
-            self.assertAlmostEqual(0.4, data_item.displays[0].graphics[0].interval[0], 1)
-            self.assertAlmostEqual(0.6, data_item.displays[0].graphics[0].interval[1], 1)
+            self.assertEqual(1, len(display_item.graphics))
+            self.assertAlmostEqual(0.4, display_item.graphics[0].interval[0], 1)
+            self.assertAlmostEqual(0.6, display_item.graphics[0].interval[1], 1)
             self.assertTrue(document_controller._undo_stack.can_undo)
             self.assertFalse(document_controller._undo_stack.can_redo)
             for i in range(2):
                 # try the undo
                 document_controller.handle_undo()
-                self.assertEqual(1, len(data_item.displays[0].graphics))
-                self.assertAlmostEqual(0.3, data_item.displays[0].graphics[0].interval[0], 1)
-                self.assertAlmostEqual(0.5, data_item.displays[0].graphics[0].interval[1], 1)
+                self.assertEqual(1, len(display_item.graphics))
+                self.assertAlmostEqual(0.3, display_item.graphics[0].interval[0], 1)
+                self.assertAlmostEqual(0.5, display_item.graphics[0].interval[1], 1)
                 self.assertFalse(document_controller._undo_stack.can_undo)
                 self.assertTrue(document_controller._undo_stack.can_redo)
                 # try the redo
                 document_controller.handle_redo()
-                self.assertEqual(1, len(data_item.displays[0].graphics))
-                self.assertAlmostEqual(0.4, data_item.displays[0].graphics[0].interval[0], 1)
-                self.assertAlmostEqual(0.6, data_item.displays[0].graphics[0].interval[1], 1)
+                self.assertEqual(1, len(display_item.graphics))
+                self.assertAlmostEqual(0.4, display_item.graphics[0].interval[0], 1)
+                self.assertAlmostEqual(0.6, display_item.graphics[0].interval[1], 1)
                 self.assertTrue(document_controller._undo_stack.can_undo)
                 self.assertFalse(document_controller._undo_stack.can_redo)
 
@@ -1541,30 +1546,31 @@ class TestDisplayPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             interval_graphic = Graphics.IntervalGraphic()
             interval_graphic.start = 0.3
             interval_graphic.end = 0.5
-            data_item.displays[0].add_graphic(interval_graphic)
-            data_item.displays[0].graphic_selection.set(0)
-            document_model.append_data_item(data_item)
-            self.assertEqual(1, len(data_item.displays[0].graphics))
-            command = DisplayPanel.ChangeGraphicsCommand(document_model, data_item.displays[0], [interval_graphic])
-            data_item.displays[0].graphics[0].interval = 0.4, 0.6
+            display_item.add_graphic(interval_graphic)
+            display_item.graphic_selection.set(0)
+            self.assertEqual(1, len(display_item.graphics))
+            command = DisplayPanel.ChangeGraphicsCommand(document_model, display_item.display, [interval_graphic])
+            display_item.graphics[0].interval = 0.4, 0.6
             document_controller.push_undo_command(command)
             # check the undo status. use full object specifiers since objects may be replaced.
-            self.assertEqual(1, len(data_item.displays[0].graphics))
-            self.assertAlmostEqual(0.4, data_item.displays[0].graphics[0].interval[0], 1)
-            self.assertAlmostEqual(0.6, data_item.displays[0].graphics[0].interval[1], 1)
+            self.assertEqual(1, len(display_item.graphics))
+            self.assertAlmostEqual(0.4, display_item.graphics[0].interval[0], 1)
+            self.assertAlmostEqual(0.6, display_item.graphics[0].interval[1], 1)
             self.assertTrue(document_controller._undo_stack.can_undo)
             self.assertFalse(document_controller._undo_stack.can_redo)
             # external change
-            data_item.displays[0].graphics[0].interval = (0.3, 0.5)
+            display_item.graphics[0].interval = (0.3, 0.5)
             document_controller._undo_stack.validate()
             self.assertFalse(document_controller._undo_stack.can_undo)
             self.assertFalse(document_controller._undo_stack.can_redo)
             # make another change, make sure stack is cleared
-            command = DisplayPanel.ChangeGraphicsCommand(document_model, data_item.displays[0], [interval_graphic])
-            data_item.displays[0].graphics[0].interval = 0.4, 0.6
+            command = DisplayPanel.ChangeGraphicsCommand(document_model, display_item.display, [interval_graphic])
+            display_item.graphics[0].interval = 0.4, 0.6
             document_controller.push_undo_command(command)
             self.assertTrue(document_controller._undo_stack.can_undo)
             self.assertFalse(document_controller._undo_stack.can_redo)
@@ -1579,50 +1585,51 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_data_item(data_item)
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 1000))
             display_panel.display_canvas_item.prepare_display()  # force layout
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
-            self.assertEqual(0, len(data_item.displays[0].graphics))
+            self.assertEqual(0, len(display_item.graphics))
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
             line_plot_canvas_item = display_panel.display_canvas_item
             line_plot_canvas_item._mouse_dragged(0.3, 0.5)
-            self.assertEqual(1, len(data_item.displays[0].graphics))
-            self.assertAlmostEqual(0.3, data_item.displays[0].graphics[0].interval[0], 1)
-            self.assertAlmostEqual(0.5, data_item.displays[0].graphics[0].interval[1], 1)
+            self.assertEqual(1, len(display_item.graphics))
+            self.assertAlmostEqual(0.3, display_item.graphics[0].interval[0], 1)
+            self.assertAlmostEqual(0.5, display_item.graphics[0].interval[1], 1)
             line_plot_canvas_item._mouse_dragged(0.4, 0.5)
             # check the undo status. use full object specifiers since objects may be replaced.
-            self.assertEqual(1, len(data_item.displays[0].graphics))
-            self.assertAlmostEqual(0.4, data_item.displays[0].graphics[0].interval[0], 1)
-            self.assertAlmostEqual(0.6, data_item.displays[0].graphics[0].interval[1], 1)
+            self.assertEqual(1, len(display_item.graphics))
+            self.assertAlmostEqual(0.4, display_item.graphics[0].interval[0], 1)
+            self.assertAlmostEqual(0.6, display_item.graphics[0].interval[1], 1)
             self.assertTrue(document_controller._undo_stack.can_undo)
             self.assertFalse(document_controller._undo_stack.can_redo)
             for i in range(2):
                 # try the first undo
                 document_controller.handle_undo()
-                self.assertEqual(1, len(data_item.displays[0].graphics))
-                self.assertAlmostEqual(0.3, data_item.displays[0].graphics[0].interval[0], 1)
-                self.assertAlmostEqual(0.5, data_item.displays[0].graphics[0].interval[1], 1)
+                self.assertEqual(1, len(display_item.graphics))
+                self.assertAlmostEqual(0.3, display_item.graphics[0].interval[0], 1)
+                self.assertAlmostEqual(0.5, display_item.graphics[0].interval[1], 1)
                 self.assertTrue(document_controller._undo_stack.can_undo)
                 self.assertTrue(document_controller._undo_stack.can_redo)
                 # try the second undo
                 document_controller.handle_undo()
-                self.assertEqual(0, len(data_item.displays[0].graphics))
+                self.assertEqual(0, len(display_item.graphics))
                 self.assertFalse(document_controller._undo_stack.can_undo)
                 self.assertTrue(document_controller._undo_stack.can_redo)
                 # try the first redo
                 document_controller.handle_redo()
-                self.assertEqual(1, len(data_item.displays[0].graphics))
-                self.assertAlmostEqual(0.3, data_item.displays[0].graphics[0].interval[0], 1)
-                self.assertAlmostEqual(0.5, data_item.displays[0].graphics[0].interval[1], 1)
+                self.assertEqual(1, len(display_item.graphics))
+                self.assertAlmostEqual(0.3, display_item.graphics[0].interval[0], 1)
+                self.assertAlmostEqual(0.5, display_item.graphics[0].interval[1], 1)
                 self.assertTrue(document_controller._undo_stack.can_undo)
                 self.assertTrue(document_controller._undo_stack.can_redo)
                 # try the second redo
                 document_controller.handle_redo()
-                self.assertEqual(1, len(data_item.displays[0].graphics))
-                self.assertAlmostEqual(0.4, data_item.displays[0].graphics[0].interval[0], 1)
-                self.assertAlmostEqual(0.6, data_item.displays[0].graphics[0].interval[1], 1)
+                self.assertEqual(1, len(display_item.graphics))
+                self.assertAlmostEqual(0.4, display_item.graphics[0].interval[0], 1)
+                self.assertAlmostEqual(0.6, display_item.graphics[0].interval[1], 1)
                 self.assertTrue(document_controller._undo_stack.can_undo)
                 self.assertFalse(document_controller._undo_stack.can_redo)
 
@@ -1633,20 +1640,22 @@ class TestDisplayPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
-            data_item.displays[0].y_min = 0
-            data_item.displays[0].y_max = 5
-            y_min = data_item.displays[0].y_min
-            y_max = data_item.displays[0].y_max
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
+            display.y_min = 0
+            display.y_max = 5
+            y_min = display.y_min
+            y_max = display.y_max
             for i in range(3):
-                command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, data_item.displays[0], command_id="y", is_mergeable=True)
-                data_item.displays[0].y_min += 1
-                data_item.displays[0].y_max += 1
+                command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display, command_id="y", is_mergeable=True)
+                display.y_min += 1
+                display.y_max += 1
                 document_controller.push_undo_command(command)
                 self.assertEqual(1, document_controller._undo_stack._undo_count)
             document_controller.handle_undo()
             self.assertEqual(0, document_controller._undo_stack._undo_count)
-            self.assertEqual(y_min, data_item.displays[0].y_min)
-            self.assertEqual(y_max, data_item.displays[0].y_max)
+            self.assertEqual(y_min, display.y_min)
+            self.assertEqual(y_max, display.y_max)
 
     def test_remove_graphics_undo_redo_cycle(self):
         app = Application.Application(TestUI.UserInterface(), set_global=False)
@@ -1655,16 +1664,17 @@ class TestDisplayPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             interval_graphic1 = Graphics.IntervalGraphic()
             interval_graphic1.start = 0.1
             interval_graphic1.end = 0.4
             interval_graphic2 = Graphics.IntervalGraphic()
             interval_graphic2.start = 0.6
             interval_graphic2.end = 0.9
-            data_item.displays[0].add_graphic(interval_graphic1)
-            data_item.displays[0].add_graphic(interval_graphic2)
-            data_item.displays[0].graphic_selection.set(0)
-            data_item.displays[0].graphic_selection.add(1)
+            display_item.add_graphic(interval_graphic1)
+            display_item.add_graphic(interval_graphic2)
+            display_item.graphic_selection.set(0)
+            display_item.graphic_selection.add(1)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 1000))
@@ -1672,16 +1682,16 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             # verify setup
-            self.assertEqual(2, len(data_item.displays[0].graphics))
+            self.assertEqual(2, len(display_item.graphics))
             # do the delete
             document_controller.remove_selected_graphics()
-            self.assertEqual(0, len(data_item.displays[0].graphics))
+            self.assertEqual(0, len(display_item.graphics))
             # do the undo and verify
             document_controller.handle_undo()
-            self.assertEqual(2, len(data_item.displays[0].graphics))
+            self.assertEqual(2, len(display_item.graphics))
             # do the redo and verify
             document_controller.handle_redo()
-            self.assertEqual(0, len(data_item.displays[0].graphics))
+            self.assertEqual(0, len(display_item.graphics))
 
     def test_remove_graphics_with_dependent_data_item_display_undo_redo_cycle(self):
         app = Application.Application(TestUI.UserInterface(), set_global=False)
@@ -1690,6 +1700,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.random.randn(4, 4))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             line_plot_data_item = document_model.get_line_profile_new(data_item)
             document_model.recompute_all()
             display_panel = document_controller.selected_display_panel
@@ -1699,22 +1710,22 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             # verify setup
-            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertEqual(1, len(display_item.graphics))
             self.assertEqual(line_plot_data_item, display_panel.data_item)
             # do the delete
-            command = document_controller.create_remove_graphics_command(data_item.displays[0], data_item.displays[0].graphics)
+            command = document_controller.create_remove_graphics_command(display_item.display, display_item.graphics)
             command.perform()
             document_controller.push_undo_command(command)
-            self.assertEqual(0, len(data_item.displays[0].graphics))
+            self.assertEqual(0, len(display_item.graphics))
             self.assertEqual(None, display_panel.data_item)
             # do the undo and verify
             document_controller.handle_undo()
             line_plot_data_item = document_model.data_items[1]
-            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertEqual(1, len(display_item.graphics))
             self.assertEqual(line_plot_data_item, display_panel.data_item)
             # do the redo and verify
             document_controller.handle_redo()
-            self.assertEqual(0, len(data_item.displays[0].graphics))
+            self.assertEqual(0, len(display_item.graphics))
             self.assertEqual(None, display_panel.data_item)
 
     def test_remove_data_item_with_dependent_data_item_display_undo_redo_cycle(self):
@@ -1724,6 +1735,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.random.randn(4, 4))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             line_plot_data_item = document_model.get_line_profile_new(data_item)
             document_model.recompute_all()
             display_panel = document_controller.selected_display_panel
@@ -1733,22 +1745,22 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             # verify setup
-            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertEqual(1, len(display_item.graphics))
             self.assertEqual(line_plot_data_item, display_panel.data_item)
             # do the delete
             command = document_controller.create_remove_data_items_command([line_plot_data_item])
             command.perform()
             document_controller.push_undo_command(command)
-            self.assertEqual(0, len(data_item.displays[0].graphics))
+            self.assertEqual(0, len(display_item.graphics))
             self.assertEqual(None, display_panel.data_item)
             # do the undo and verify
             document_controller.handle_undo()
             line_plot_data_item = document_model.data_items[1]
-            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertEqual(1, len(display_item.graphics))
             self.assertEqual(line_plot_data_item, display_panel.data_item)
             # do the redo and verify
             document_controller.handle_redo()
-            self.assertEqual(0, len(data_item.displays[0].graphics))
+            self.assertEqual(0, len(display_item.graphics))
             self.assertEqual(None, display_panel.data_item)
 
 
