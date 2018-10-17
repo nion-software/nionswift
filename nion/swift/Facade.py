@@ -885,7 +885,8 @@ class DataItem(metaclass=SharedInstance):
 
     @property
     def __display(self):
-        return self.__data_item.displays[0]
+        display_item = self.__data_item.container.get_display_item_for_data_item(self.__data_item) if self.__data_item.container else None
+        return display_item.display if display_item else None
 
     @property
     def uuid(self) -> uuid_module.UUID:
