@@ -698,14 +698,13 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__data_source_data_changed_event_listeners = list()
         self.__data_source_metadata_changed_event_listeners = list()
         self.__source = None
-        self.library_item_changed_event = Event.Event()
-        self.item_changed_event = Event.Event()  # equivalent to library_item_changed_event
+        self.item_changed_event = Event.Event()
         self.metadata_changed_event = Event.Event()  # see Metadata Note above
         self.data_item_changed_event = Event.Event()  # anything has changed
         self.data_changed_event = Event.Event()  # data has changed
         self.__display_ref_count = 0
-        self.__library_item_change_count = 0
-        self.__library_item_change_count_lock = threading.RLock()
+        self.__data_item_change_count = 0
+        self.__data_item_change_count_lock = threading.RLock()
         self.__change_thread = None
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
@@ -731,25 +730,25 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         assert False
 
     def __deepcopy__(self, memo):
-        library_item_copy = self.__class__()
+        data_item_copy = self.__class__()
         # data format (temporary until moved to buffered data source)
-        library_item_copy.large_format = self.large_format
+        data_item_copy.large_format = self.large_format
         # metadata
-        library_item_copy._set_persistent_property_value("title", self._get_persistent_property_value("title"))
-        library_item_copy._set_persistent_property_value("caption", self._get_persistent_property_value("caption"))
-        library_item_copy._set_persistent_property_value("description", self._get_persistent_property_value("description"))
-        library_item_copy.created = self.created
-        library_item_copy.session_id = self.session_id
+        data_item_copy._set_persistent_property_value("title", self._get_persistent_property_value("title"))
+        data_item_copy._set_persistent_property_value("caption", self._get_persistent_property_value("caption"))
+        data_item_copy._set_persistent_property_value("description", self._get_persistent_property_value("description"))
+        data_item_copy.created = self.created
+        data_item_copy.session_id = self.session_id
         # displays
-        for display in copy.copy(library_item_copy.displays):
-            library_item_copy.remove_display(display)
+        for display in copy.copy(data_item_copy.displays):
+            data_item_copy.remove_display(display)
         for display in self.displays:
-            library_item_copy.add_display(copy.deepcopy(display))
+            data_item_copy.add_display(copy.deepcopy(display))
         for data_source in self.data_sources:
-            library_item_copy.append_data_source(copy.deepcopy(data_source))
-        memo[id(self)] = library_item_copy
-        library_item_copy._update_displays()
-        return library_item_copy
+            data_item_copy.append_data_source(copy.deepcopy(data_source))
+        memo[id(self)] = data_item_copy
+        data_item_copy._update_displays()
+        return data_item_copy
 
     def close(self):
         self.__disconnect_data_sources()
@@ -820,36 +819,36 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             return None
 
     def clone(self) -> "DataItem":
-        library_item = self.__class__()
-        library_item.uuid = self.uuid
-        for display in copy.copy(library_item.displays):
-            library_item.remove_display(display)
+        data_item = self.__class__()
+        data_item.uuid = self.uuid
+        for display in copy.copy(data_item.displays):
+            data_item.remove_display(display)
         for display in self.displays:
-            library_item.add_display(display.clone())
+            data_item.add_display(display.clone())
         for data_source in self.data_sources:
-            library_item.append_data_source(data_source.clone())
-        library_item._update_displays()
-        return library_item
+            data_item.append_data_source(data_source.clone())
+        data_item._update_displays()
+        return data_item
 
     def snapshot(self):
         """Return a new library item which is a copy of this one with any dynamic behavior made static."""
-        library_item = self.__class__()
+        data_item = self.__class__()
         # data format (temporary until moved to buffered data source)
-        library_item.large_format = self.large_format
+        data_item.large_format = self.large_format
         # metadata
-        library_item._set_persistent_property_value("title", self._get_persistent_property_value("title"))
-        library_item._set_persistent_property_value("caption", self._get_persistent_property_value("caption"))
-        library_item._set_persistent_property_value("description", self._get_persistent_property_value("description"))
-        library_item.created = self.created
-        library_item.session_id = self.session_id
-        for display in copy.copy(library_item.displays):
-            library_item.remove_display(display)
+        data_item._set_persistent_property_value("title", self._get_persistent_property_value("title"))
+        data_item._set_persistent_property_value("caption", self._get_persistent_property_value("caption"))
+        data_item._set_persistent_property_value("description", self._get_persistent_property_value("description"))
+        data_item.created = self.created
+        data_item.session_id = self.session_id
+        for display in copy.copy(data_item.displays):
+            data_item.remove_display(display)
         for display in self.displays:
-            library_item.add_display(copy.deepcopy(display))
+            data_item.add_display(copy.deepcopy(display))
         for data_source in self.data_sources:
-            library_item.append_data_source(data_source.snapshot())
-        library_item._update_displays()
-        return library_item
+            data_item.append_data_source(data_source.snapshot())
+        data_item._update_displays()
+        return data_item
 
     def set_storage_cache(self, storage_cache):
         self.__suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
@@ -864,15 +863,9 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def in_transaction_state(self) -> bool:
         return self.__in_transaction_state
 
-    def _enter_write_delay_state_inner(self):
-        self.__write_delay_data_changed = False
-
-    def _finish_pending_write_inner(self):
-        pass
-
     def __enter_write_delay_state(self):
         self.__write_delay_modified_count = self.modified_count
-        self._enter_write_delay_state_inner()
+        self.__write_delay_data_changed = False
         if self.persistent_object_context:
             self.persistent_object_context.enter_write_delay(self)
 
@@ -886,9 +879,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         properties["version"] = DataItem.writer_version
         return properties
 
-    def _finish_write(self):
-        pass
-
     def _finish_pending_write(self):
         if self.__pending_write:
             # write the uuid and version explicitly
@@ -896,7 +886,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             self.persistent_object_context.property_changed(self, "version", DataItem.writer_version)
             for data_source in self.data_sources:
                 data_source.write_data()
-            self._finish_write()
             self.__pending_write = False
         else:
             if self.modified_count > self.__write_delay_modified_count:
@@ -904,7 +893,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             if self.__write_delay_data_changed:
                 for data_source in self.data_sources:
                     data_source.write_data()
-                self._finish_pending_write_inner()
 
     def _transaction_state_entered(self):
         self.__in_transaction_state = True
@@ -1018,11 +1006,11 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def _enter_live_state(self):
         self.__is_live = True
-        self._notify_library_item_content_changed()  # this will affect is_live, so notify
+        self._notify_data_item_content_changed()  # this will affect is_live, so notify
 
     def _exit_live_state(self):
         self.__is_live = False
-        self._notify_library_item_content_changed()  # this will affect is_live, so notify
+        self._notify_data_item_content_changed()  # this will affect is_live, so notify
 
     @property
     def session_id(self) -> str:
@@ -1038,28 +1026,27 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def data_item_changes(self):
         # return a context manager to batch up a set of changes so that listeners
         # are only notified after the last change is complete.
-        library_item = self
-        class LibraryItemChangeContextManager:
+        data_item = self
+        class DataItemChangeContextManager:
             def __enter__(self):
-                library_item._begin_library_item_changes()
+                data_item._begin_data_item_changes()
                 return self
             def __exit__(self, type, value, traceback):
-                library_item._end_library_item_changes()
-        return LibraryItemChangeContextManager()
+                data_item._end_data_item_changes()
+        return DataItemChangeContextManager()
 
-    def _begin_library_item_changes(self):
-        with self.__library_item_change_count_lock:
-            self.__library_item_change_count += 1
+    def _begin_data_item_changes(self):
+        with self.__data_item_change_count_lock:
+            self.__data_item_change_count += 1
 
-    def _end_library_item_changes(self):
-        with self.__library_item_change_count_lock:
-            self.__library_item_change_count -= 1
-            change_count = self.__library_item_change_count
+    def _end_data_item_changes(self):
+        with self.__data_item_change_count_lock:
+            self.__data_item_change_count -= 1
+            change_count = self.__data_item_change_count
             content_changed = self.__content_changed
         # if the change count is now zero, it means that we're ready to notify listeners. but only notify listeners if
         # there are actual changes to report.
         if change_count == 0 and content_changed:
-            self.library_item_changed_event.fire()
             self.item_changed_event.fire()
             self._item_changed()
 
@@ -1072,7 +1059,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__notify_description_changed()
 
     def __notify_description_changed(self):
-        self._notify_library_item_content_changed()
+        self._notify_data_item_content_changed()
         self._description_changed()
 
     def _description_changed(self):
@@ -1123,9 +1110,9 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener by using the method
     # data_item_changes.
-    def _notify_library_item_content_changed(self):
+    def _notify_data_item_content_changed(self):
         with self.data_item_changes():
-            with self.__library_item_change_count_lock:
+            with self.__data_item_change_count_lock:
                 self.__content_changed = True
 
     # date times
@@ -1173,7 +1160,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     # override from storage to watch for changes to this library item. notify observers.
     def notify_property_changed(self, key):
         super().notify_property_changed(key)
-        self._notify_library_item_content_changed()
+        self._notify_data_item_content_changed()
 
     # description
 
@@ -1251,7 +1238,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         if self.in_transaction_state:
             data_source.increment_data_ref_count()
         self.notify_insert_item("data_sources", data_source, before_index)
-        self._notify_library_item_content_changed()
+        self._notify_data_item_content_changed()
 
     def __remove_data_source(self, name, index, data_source):
         data_source.about_to_be_removed()
@@ -1264,7 +1251,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         del self.__data_source_metadata_changed_event_listeners[index]
         if self.in_transaction_state:
             data_source.decrement_data_ref_count()
-        self._notify_library_item_content_changed()
+        self._notify_data_item_content_changed()
         data_source.close()
 
     def _update_displays(self):
@@ -1321,7 +1308,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                 self._update_displays()
                 if not self._is_reading:
                     self._handle_write_delay_data_changed()
-                    self._notify_library_item_content_changed()
+                    self._notify_data_item_content_changed()
                     self.data_item_changed_event.fire()
 
     def _handle_data_changed(self, data_source):

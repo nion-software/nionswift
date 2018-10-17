@@ -714,7 +714,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item4)
             # insert the new data items
-            command = DocumentController.DocumentController.InsertLibraryItemsCommand(document_controller, [data_item2, data_item3], 1)
+            command = DocumentController.DocumentController.InsertDataItemsCommand(document_controller, [data_item2, data_item3], 1)
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(4, len(document_model.data_items))

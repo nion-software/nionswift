@@ -929,7 +929,7 @@ class DataGroupModelController:
             display_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             display_item = get_display_item_by_uuid(self.__document_model, display_item_uuid)
             if display_item:
-                command = self.__document_controller.create_insert_data_group_library_item_command(data_group, len(data_group.display_items), display_item.data_item)
+                command = self.__document_controller.create_insert_data_group_data_item_command(data_group, len(data_group.display_items), display_item.data_item)
                 command.perform()
                 self.__document_controller.push_undo_command(command)
                 return action

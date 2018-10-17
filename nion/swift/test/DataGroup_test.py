@@ -125,7 +125,7 @@ class TestDataGroupClass(unittest.TestCase):
             data_group.append_data_item(data_item3)
             document_model.append_data_group(data_group)
             # remove two of the three
-            command = DocumentController.DocumentController.RemoveDataGroupLibraryItemsCommand(document_model, data_group, [data_item1, data_item3])
+            command = DocumentController.DocumentController.RemoveDataGroupDataItemsCommand(document_model, data_group, [data_item1, data_item3])
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(1, len(data_group.data_items))
@@ -162,7 +162,7 @@ class TestDataGroupClass(unittest.TestCase):
             data_group.append_data_item(data_item3)
             document_model.append_data_group(data_group)
             # remove two of the three
-            command = DocumentController.DocumentController.RemoveDataGroupLibraryItemsCommand(document_model, data_group, [data_item3, data_item1])
+            command = DocumentController.DocumentController.RemoveDataGroupDataItemsCommand(document_model, data_group, [data_item3, data_item1])
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(1, len(data_group.data_items))
@@ -378,7 +378,7 @@ class TestDataGroupClass(unittest.TestCase):
             self.assertListEqual([data_item1, data_item3, data_item4], list(document_model.data_items))
             self.assertListEqual([data_item1, data_item3], list(data_group.data_items))
             # insert new items
-            command = DocumentController.DocumentController.InsertDataGroupLibraryItemsCommand(document_controller, data_group, [data_item2, data_item4], 1)
+            command = DocumentController.DocumentController.InsertDataGroupDataItemsCommand(document_controller, data_group, [data_item2, data_item4], 1)
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(4, len(document_model.data_items))

@@ -843,7 +843,7 @@ class DocumentController(Window.Window):
                 if data_item and data_item in container.data_items and data_item not in data_items:
                     data_items.append(data_item)
             if data_items:
-                command = DocumentController.RemoveDataGroupLibraryItemsCommand(self.document_model, container, data_items)
+                command = DocumentController.RemoveDataGroupDataItemsCommand(self.document_model, container, data_items)
                 command.perform()
                 self.push_undo_command(command)
 
@@ -1077,7 +1077,7 @@ class DocumentController(Window.Window):
         # delete key gets handled by key handlers, but this method gets called by menu items
         self.remove_selected_graphics()
 
-    class InsertDataGroupLibraryItemCommand(Undo.UndoableCommand):
+    class InsertDataGroupDataItemCommand(Undo.UndoableCommand):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, before_index: int, data_item: DataItem.DataItem):
             super().__init__("Insert Library Item")
             self.__document_model = document_model
@@ -1117,10 +1117,10 @@ class DocumentController(Window.Window):
         def _redo(self) -> None:
             self.perform()
 
-    def create_insert_data_group_data_item_command(self, data_group: DataGroup.DataGroup, before_index: int, data_item: DataItem) -> InsertDataGroupLibraryItemCommand:
-        return DocumentController.InsertDataGroupLibraryItemCommand(self.document_model, data_group, before_index, data_item)
+    def create_insert_data_group_data_item_command(self, data_group: DataGroup.DataGroup, before_index: int, data_item: DataItem) -> InsertDataGroupDataItemCommand:
+        return DocumentController.InsertDataGroupDataItemCommand(self.document_model, data_group, before_index, data_item)
 
-    class InsertDataGroupLibraryItemsCommand(Undo.UndoableCommand):
+    class InsertDataGroupDataItemsCommand(Undo.UndoableCommand):
         def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):
             super().__init__("Insert Library Items")
             self.__document_controller = document_controller
@@ -1191,7 +1191,7 @@ class DocumentController(Window.Window):
                 if not data_item in data_group.data_items:
                     data_group.insert_data_item(index, data_item)
 
-    class RemoveDataGroupLibraryItemsCommand(Undo.UndoableCommand):
+    class RemoveDataGroupDataItemsCommand(Undo.UndoableCommand):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem]):
             super().__init__("Remove Library Item")
             self.__document_model = document_model
@@ -1556,7 +1556,7 @@ class DocumentController(Window.Window):
     def create_remove_graphics_command(self, display, graphics):
         return DocumentController.RemoveGraphicsCommand(self, display, graphics)
 
-    class RemoveLibraryItemsCommand(Undo.UndoableCommand):
+    class RemoveDataItemsCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: "DocumentController", data_items: typing.Sequence[DataItem.DataItem]):
             super().__init__(_("Remove Library Items"))
@@ -1598,7 +1598,7 @@ class DocumentController(Window.Window):
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
     def create_remove_data_items_command(self, data_items: typing.Sequence[DataItem.DataItem]) -> Undo.UndoableCommand:
-        return DocumentController.RemoveLibraryItemsCommand(self, data_items)
+        return DocumentController.RemoveDataItemsCommand(self, data_items)
 
     def add_data_element(self, data_element, source_data_item=None):
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
@@ -1634,7 +1634,7 @@ class DocumentController(Window.Window):
             return new_data_item
         command = self.create_insert_data_item_command(process)
         command.perform()
-        assert isinstance(command, DocumentController.InsertLibraryItemCommand)
+        assert isinstance(command, DocumentController.InsertDataItemCommand)
         if command.data_item:
             self.push_undo_command(command)
             return command.data_item
@@ -1649,7 +1649,7 @@ class DocumentController(Window.Window):
             return new_data_item
         command = self.create_insert_data_item_command(process)
         command.perform()
-        assert isinstance(command, DocumentController.InsertLibraryItemCommand)
+        assert isinstance(command, DocumentController.InsertDataItemCommand)
         if command.data_item:
             self.push_undo_command(command)
             return command.data_item
@@ -1772,7 +1772,7 @@ class DocumentController(Window.Window):
     def processing_invert(self) -> DataItem.DisplayItem:
         return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_invert_new))
 
-    class InsertLibraryItemCommand(Undo.UndoableCommand):
+    class InsertDataItemCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: "DocumentController", data_item_fn: typing.Callable[[], DataItem.DataItem]):
             super().__init__(_("Insert Library Item"))
@@ -1820,7 +1820,7 @@ class DocumentController(Window.Window):
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def create_insert_data_item_command(self, data_item_fn: typing.Callable[[], DataItem.DataItem]) -> Undo.UndoableCommand:
-        return DocumentController.InsertLibraryItemCommand(self, data_item_fn)
+        return DocumentController.InsertDataItemCommand(self, data_item_fn)
 
     def _perform_duplicate(self, data_item: DataItem.DataItem) -> None:
         def process() -> DataItem.DataItem:
@@ -1952,7 +1952,7 @@ class DocumentController(Window.Window):
             return new_data_item
         command = self.create_insert_data_item_command(process)
         command.perform()
-        assert isinstance(command, DocumentController.InsertLibraryItemCommand)
+        assert isinstance(command, DocumentController.InsertDataItemCommand)
         if command.data_item:
             self.push_undo_command(command)
             return command.data_item
@@ -1979,7 +1979,7 @@ class DocumentController(Window.Window):
             return new_data_item
         command = self.create_insert_data_item_command(process)
         command.perform()
-        assert isinstance(command, DocumentController.InsertLibraryItemCommand)
+        assert isinstance(command, DocumentController.InsertDataItemCommand)
         if command.data_item:
             self.push_undo_command(command)
             return command.data_item
@@ -2073,7 +2073,7 @@ class DocumentController(Window.Window):
     def create_empty_data_item(self):
         self._perform_create_empty_data_item()
 
-    class InsertLibraryItemsCommand(Undo.UndoableCommand):
+    class InsertDataItemsCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: "DocumentController", data_items: typing.Sequence[DataItem.DataItem], index: int, display_panel: DisplayPanel.DisplayPanel=None):
             super().__init__(_("Insert Library Items"))
@@ -2170,12 +2170,12 @@ class DocumentController(Window.Window):
 
         def receive_files_complete(index, data_items):
             if data_group and isinstance(data_group, DataGroup.DataGroup):
-                command = DocumentController.InsertDataGroupLibraryItemsCommand(self, data_group, data_items, index)
+                command = DocumentController.InsertDataGroupDataItemsCommand(self, data_group, data_items, index)
                 command.perform()
                 self.push_undo_command(command)
             else:
                 index = index if index >= 0 else len(self.document_model.data_items)
-                command = DocumentController.InsertLibraryItemsCommand(self, data_items, index, display_panel)
+                command = DocumentController.InsertDataItemsCommand(self, data_items, index, display_panel)
                 command.perform()
                 self.push_undo_command(command)
             if callable(completion_fn):

@@ -3886,7 +3886,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            command = DocumentController.DocumentController.InsertLibraryItemsCommand(document_controller, [data_item], 0)
+            command = DocumentController.DocumentController.InsertDataItemsCommand(document_controller, [data_item], 0)
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(1, len(memory_persistent_storage_system.persistent_storage_properties.keys()))

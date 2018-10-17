@@ -90,7 +90,7 @@ class Recorder:
     def recording_state(self) -> str:
         return self.__recording_state
 
-    class RecorderInsertLibraryItemCommandCommand(Undo.UndoableCommand):
+    class RecorderInsertDataItemCommandCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller, recorder: "Recorder", data_item_fn: typing.Callable[[], DataItem.DataItem]):
             super().__init__(_("Record Library Item"))
@@ -154,7 +154,7 @@ class Recorder:
                         self.__document_controller.show_display_item(display_item)
                         return data_item
 
-                    command = Recorder.RecorderInsertLibraryItemCommandCommand(self.__document_controller, self, process)
+                    command = Recorder.RecorderInsertDataItemCommandCommand(self.__document_controller, self, process)
                     command.perform()
                     self.__document_controller.push_undo_command(command)
 
