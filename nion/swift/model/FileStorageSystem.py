@@ -128,6 +128,9 @@ class FileStorageSystem:
         with self.__properties_lock:
             self.__properties = properties
 
+    def get_properties(self, object):
+        return self.__get_storage_dict(object)
+
     def rewrite_properties(self, properties):
         """Set the properties and write to disk."""
         with self.__properties_lock:
