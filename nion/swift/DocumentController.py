@@ -691,10 +691,27 @@ class DocumentController(Window.Window):
                 data_items_model.sort_reverse = True
                 data_items_model.filter_id = None
 
-    def create_data_items_model(self, data_group, filter_id) -> ListModel.FilteredListModel:
+    def create_display_items_model(self, data_group, filter_id):
+        class DisplayItemListModel(ListModel.MappedListModel):
+
+            def __init__(self, document_model, filtered_displays_model):
+
+                def map_data_item_to_display_item(data_item):
+                    return document_model.get_display_item_for_data_item(data_item)
+
+                def unmap_data_item_to_display_item(display_item):
+                    return display_item.data_item
+
+                super().__init__(container=filtered_displays_model, master_items_key="data_items", items_key="display_items", map_fn=map_data_item_to_display_item, unmap_fn=unmap_data_item_to_display_item)
+
+            def close(self):
+                self.container.close()
+                super().close()
+
         data_items_model = ListModel.FilteredListModel(items_key="data_items")
         self.__update_data_items_model(data_items_model, data_group, filter_id)
-        return data_items_model
+
+        return DisplayItemListModel(self.document_model, data_items_model)
 
     def set_data_group(self, data_group):
         if self.__data_items_model is not None:

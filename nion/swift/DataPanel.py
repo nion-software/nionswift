@@ -44,27 +44,6 @@ _ = gettext.gettext
 """
 
 
-class DisplayItemListModel(ListModel.MappedListModel):
-
-    def __init__(self, document_model, filtered_displays_model):
-
-        def map_data_item_to_display_item(data_item):
-            return document_model.get_display_item_for_data_item(data_item)
-
-        def unmap_data_item_to_display_item(display_item):
-            return display_item.data_item
-
-        super().__init__(container=filtered_displays_model, master_items_key="data_items", items_key="display_items", map_fn=map_data_item_to_display_item, unmap_fn=unmap_data_item_to_display_item)
-
-    def close(self):
-        self.container.close()
-        super().close()
-
-
-def create_display_items_model(document_controller, data_group, filter_id) -> ListModel.MappedListModel:
-    return DisplayItemListModel(document_controller.document_model, document_controller.create_data_items_model(data_group, filter_id))
-
-
 def get_display_item_by_uuid(document_model, display_item_uuid: uuid.UUID) -> typing.Optional[DataItem.DisplayItem]:
     data_item = document_model.get_data_item_by_key(display_item_uuid)
     if data_item:
@@ -1028,9 +1007,9 @@ class DataPanel(Panel.Panel):
                 self.__display_item_removed_listener = None
                 self.__display_items_model.close()
 
-        all_items_controller = DisplayItemController(_("All"), create_display_items_model(document_controller, None, "all"))
-        live_items_controller = DisplayItemController(_("Live"), create_display_items_model(document_controller, None, "temporary"))
-        latest_items_controller = DisplayItemController(_("Latest Session"), create_display_items_model(document_controller, None, "latest-session"))
+        all_items_controller = DisplayItemController(_("All"), document_controller.create_display_items_model(None, "all"))
+        live_items_controller = DisplayItemController(_("Live"), document_controller.create_display_items_model(None, "temporary"))
+        latest_items_controller = DisplayItemController(_("Latest Session"), document_controller.create_display_items_model(None, "latest-session"))
         self.__item_controllers = [all_items_controller, live_items_controller, latest_items_controller]
 
         self.library_model_controller = LibraryModelController(ui, self.__item_controllers)
