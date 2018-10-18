@@ -105,6 +105,14 @@ class DocumentController(Window.Window):
         self.__last_display_filter = ListModel.Filter(True)
         self.filter_changed_event = Event.Event()
 
+        def map_data_item_to_display_item(data_item):
+            return DataItem.DisplayItem(data_item)
+
+        def unmap_data_item_to_display_item(display_item):
+            return display_item.data_item
+
+        self.__display_items_model = ListModel.MappedListModel(container=self.__data_items_model, master_items_key="data_items", items_key="display_items", map_fn=map_data_item_to_display_item, unmap_fn=unmap_data_item_to_display_item)
+
         self.__update_data_items_model(self.__data_items_model, None, None)
 
         def call_soon(fn):
@@ -640,10 +648,14 @@ class DocumentController(Window.Window):
         return self.__data_items_model
 
     @property
+    def display_items_model(self):
+        return self.__display_items_model
+
+    @property
     def filtered_displays_model(self):
         return self.__filtered_displays_model
 
-    def __update_data_items_model(self, data_items_model: ListModel.FilteredListModel, data_group, filter_id):
+    def __update_data_items_model(self, data_items_model: ListModel.FilteredListModel, data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str]) -> None:
         """Update the data item model with a new container, filter, and sorting.
 
         This is called when the data item model is created or when the user changes

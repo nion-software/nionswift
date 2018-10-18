@@ -47,15 +47,15 @@ class FilterController:
         self.item_model_controller = self.ui.create_item_model_controller(["display"])
         self.__document_controller_weakref = weakref.ref(document_controller)
 
-        self.__data_item_tree = TreeNode(reversed=True)
-        self.__data_item_tree_mutex = threading.RLock()
+        self.__display_item_tree = TreeNode(reversed=True)
+        self.__display_item_tree_mutex = threading.RLock()
 
-        self.__data_item_tree.child_inserted = self.__insert_child
-        self.__data_item_tree.child_removed = self.__remove_child
-        self.__data_item_tree.tree_node_updated = self.__update_tree_node
+        self.__display_item_tree.child_inserted = self.__insert_child
+        self.__display_item_tree.child_removed = self.__remove_child
+        self.__display_item_tree.tree_node_updated = self.__update_tree_node
 
         # thread safe.
-        def data_item_inserted(key, data_item, before_index):
+        def display_item_inserted(key, display_item, before_index):
             """
                 This method will be called from the data item list model, which comes from the document controller to
                 notify that the list of data items in the document has changed.
@@ -63,13 +63,13 @@ class FilterController:
                 in tree format for the date browser. in this case, the indexes are added.
             """
             assert threading.current_thread() == threading.main_thread()
-            with self.__data_item_tree_mutex:
-                created_local = data_item.created_local
+            with self.__display_item_tree_mutex:
+                created_local = display_item.created_local
                 indexes = created_local.year, created_local.month, created_local.day
-                self.__data_item_tree.insert_value(indexes, data_item)
+                self.__display_item_tree.insert_value(indexes, display_item)
 
         # thread safe.
-        def data_item_removed(key, data_item, index):
+        def display_item_removed(key, display_item, index):
             """
                 This method will be called from the data item list model, which comes from the document controller to
                 notify that the list of data items in the document has changed.
@@ -77,35 +77,35 @@ class FilterController:
                 in tree format for the date browser. in this case, the indexes are removed.
             """
             assert threading.current_thread() == threading.main_thread()
-            with self.__data_item_tree_mutex:
-                created = data_item.created_local
+            with self.__display_item_tree_mutex:
+                created = display_item.created_local
                 indexes = created.year, created.month, created.day
-                self.__data_item_tree.remove_value(indexes, data_item)
+                self.__display_item_tree.remove_value(indexes, display_item)
 
-        # connect the data_items_model from the document controller to self.
+        # connect the display_items_model from the document controller to self.
         # when data items are inserted or removed from the document controller, the inserter and remover methods
         # will be called.
-        self.__data_items_model = document_controller.data_items_model
+        self.__display_items_model = document_controller.display_items_model
 
-        self.__data_item_inserted_listener = self.__data_items_model.item_inserted_event.listen(data_item_inserted)
-        self.__data_item_removed_listener = self.__data_items_model.item_removed_event.listen(data_item_removed)
+        self.__display_item_inserted_listener = self.__display_items_model.item_inserted_event.listen(display_item_inserted)
+        self.__display_item_removed_listener = self.__display_items_model.item_removed_event.listen(display_item_removed)
 
         self.__mapping = dict()
-        self.__mapping[id(self.__data_item_tree)] = self.item_model_controller.root
+        self.__mapping[id(self.__display_item_tree)] = self.item_model_controller.root
         self.__node_counts_dirty = False
 
         self.__date_filter = None
         self.__text_filter = None
 
-        for index, data_item in enumerate(self.__data_items_model.data_items):
-            data_item_inserted("data_items", data_item, index)
+        for index, display_item in enumerate(self.__display_items_model.display_items):
+            display_item_inserted("display_items", display_item, index)
 
     def close(self):
         # Close the data model controller. Un-listen to the data item list model and close the item model controller.
-        self.__data_item_inserted_listener.close()
-        self.__data_item_inserted_listener = None
-        self.__data_item_removed_listener.close()
-        self.__data_item_removed_listener = None
+        self.__display_item_inserted_listener.close()
+        self.__display_item_inserted_listener = None
+        self.__display_item_removed_listener.close()
+        self.__display_item_removed_listener = None
         self.__periodic_listener.close()
         self.__periodic_listener = None
         self.item_model_controller.close()

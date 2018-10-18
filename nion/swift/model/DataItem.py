@@ -1629,6 +1629,10 @@ class DisplayItem:
         return self.__data_item.date_for_sorting_local_as_string
 
     @property
+    def created_local(self) -> datetime.datetime:
+        return self.__data_item.created_local
+
+    @property
     def status_str(self) -> str:
         if self.__data_item.is_live:
             live_metadata = self.__data_item.metadata.get("hardware_source", dict())
