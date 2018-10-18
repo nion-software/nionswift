@@ -1543,7 +1543,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         class BoundDataBase:
             def __init__(self, document_model, object, graphic=None):
-                self.__document_model = document_model
+                self.document_model = document_model
                 self._object = object
                 self._graphic = graphic
                 self.changed_event = Event.Event()
@@ -1551,9 +1551,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.property_changed_event = Event.Event()
                 self.__data_changed_event_listener = self._object.data_changed_event.listen(self.changed_event.fire)
                 def data_item_removed(container, data_item, index, moving):
-                    if container == self.__document_model and data_item == self._object:
+                    if container == self.document_model and data_item == self._object:
                         self.needs_rebind_event.fire()
-                self.__data_item_removed_event_listener = self.__document_model.data_item_removed_event.listen(data_item_removed)
+                self.__data_item_removed_event_listener = self.document_model.data_item_removed_event.listen(data_item_removed)
             def close(self):
                 self.__data_changed_event_listener.close()
                 self.__data_changed_event_listener = None
@@ -1651,7 +1651,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     class BoundDataItem(BoundDataBase):
                         @property
                         def value(self):
-                            return self._object.displays[0].get_calculated_display_values(True).display_data_and_metadata
+                            display_item = self.document_model.get_display_item_for_data_item(self._object)
+                            display = display_item.display if display_item else None
+                            return display.get_calculated_display_values(True).display_data_and_metadata if display else None
                     return BoundDataItem(self, data_item)
             elif specifier_type == "cropped_xdata":
                 specifier_uuid_str = specifier.get("uuid")
@@ -1684,7 +1686,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     class BoundDataItem(BoundDataBase):
                         @property
                         def value(self):
-                            xdata = self._object.displays[0].get_calculated_display_values(True).display_data_and_metadata
+                            display_item = self.document_model.get_display_item_for_data_item(self._object)
+                            display = display_item.display if display_item else None
+                            xdata = display.get_calculated_display_values(True).display_data_and_metadata
                             graphic = self._graphic
                             if graphic:
                                 if hasattr(graphic, "bounds"):
@@ -1701,16 +1705,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     class BoundDataItem(BoundDataBase):
                         @property
                         def value(self):
-                            shape = self._object.displays[0].get_calculated_display_values(True).display_data_and_metadata.data_shape
+                            display_item = self.document_model.get_display_item_for_data_item(self._object)
+                            display = display_item.display if display_item else None
+                            shape = display.get_calculated_display_values(True).display_data_and_metadata.data_shape
                             mask = numpy.zeros(shape)
-                            for graphic in self._object.displays[0].graphics:
+                            for graphic in display_item.graphics:
                                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                                     mask = numpy.logical_or(mask, graphic.get_mask(shape))
                             return DataAndMetadata.DataAndMetadata.from_data(mask)
                         @property
                         def base_objects(self):
                             objects = {self._object}
-                            for graphic in self._object.displays[0].graphics:
+                            display_item = self.document_model.get_display_item_for_data_item(self._object)
+                            for graphic in display_item.graphics:
                                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                                     objects.add(graphic)
                             return objects
@@ -1723,11 +1730,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     class BoundDataItem(BoundDataBase):
                         @property
                         def value(self):
+                            display_item = self.document_model.get_display_item_for_data_item(self._object)
                             xdata = self._object.xdata
                             if xdata.is_data_2d and xdata.is_data_complex_type:
                                 shape = xdata.data_shape
                                 mask = numpy.zeros(shape)
-                                for graphic in self._object.displays[0].graphics:
+                                for graphic in display_item.graphics:
                                     if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                                         mask = numpy.logical_or(mask, graphic.get_mask(shape))
                                 return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
@@ -1735,7 +1743,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         @property
                         def base_objects(self):
                             objects = {self._object}
-                            for graphic in self._object.displays[0].graphics:
+                            display_item = self.document_model.get_display_item_for_data_item(self._object)
+                            display = display_item.display if display_item else None
+                            for graphic in display.graphics:
                                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                                     objects.add(graphic)
                             return objects
@@ -2549,7 +2559,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if connection_type == "property":
                 if connection_src == "display":
                     # TODO: how to refer to the data_items? hardcode to data_item0 for now.
-                    connection = Connection.PropertyConnection(data_item0.displays[0], connection_src_prop, new_regions[connection_dst], connection_dst_prop, parent=new_data_item)
+                    display_item = self.get_display_item_for_data_item(data_item0)
+                    display0 = display_item.display if display_item else None
+                    connection = Connection.PropertyConnection(display0, connection_src_prop, new_regions[connection_dst], connection_dst_prop, parent=new_data_item)
                     self.append_connection(connection)
             elif connection_type == "interval_list":
                 connection = Connection.IntervalListConnection(display, region_map[connection_dst], parent=new_data_item)
