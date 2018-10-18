@@ -50,55 +50,58 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_copy_data_item(self):
         # NOTE: does not test computation, which is tested elsewhere
-        source_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        h, w = 8, 8
-        data = numpy.zeros((h, w), numpy.uint32)
-        data[h//2, w//2] = 1000  # data range (0, 1000)
-        data_item = DataItem.DataItem(data)
-        display_item = DataItem.DisplayItem(data_item)
-        data_item.title = "data_item"
-        data_item.timezone = "Europe/Athens"
-        data_item.timezone_offset = "+0300"
-        metadata = data_item.metadata
-        metadata.setdefault("test", dict())["one"] = 1
-        metadata.setdefault("test", dict())["two"] = 22
-        data_item.metadata = metadata
-        display_item.display.display_limits = (100, 900)
-        display_item.display.add_graphic(Graphics.RectangleGraphic())
-        data_item_copy = copy.deepcopy(data_item)
-        display_item2 = DataItem.DisplayItem(data_item_copy)
-        self.assertNotEqual(id(data), id(display_item2.data_item.data))
-        # make sure properties and other items got copied
-        #self.assertEqual(len(data_item_copy.properties), 19)  # not valid since properties only exist if in document
-        self.assertIsNot(data_item.properties, data_item_copy.properties)
-        # uuid should not match
-        self.assertNotEqual(data_item.uuid, data_item_copy.uuid)
-        # metadata get copied?
-        self.assertEqual(len(data_item.metadata.get("test")), 2)
-        self.assertIsNot(data_item.metadata.get("test"), data_item_copy.metadata.get("test"))
-        # make sure display counts match
-        self.assertIsNotNone(display_item.display)
-        self.assertIsNotNone(display_item2.display)
-        # tuples and strings are immutable, so test to make sure old/new are independent
-        self.assertEqual(data_item.title, data_item_copy.title)
-        self.assertEqual(data_item.timezone, data_item_copy.timezone)
-        self.assertEqual(data_item.timezone_offset, data_item_copy.timezone_offset)
-        data_item.title = "data_item1"
-        self.assertNotEqual(data_item.title, data_item_copy.title)
-        self.assertEqual(display_item.display.display_limits, display_item2.display.display_limits)
-        display_item.display.display_limits = (150, 200)
-        self.assertNotEqual(display_item.display.display_limits, display_item2.display.display_limits)
-        # make sure dates are independent
-        self.assertIsNot(data_item.created, data_item_copy.created)
-        self.assertIsNot(display_item.data_item.created, display_item2.data_item.created)
-        # make sure calibrations, computations, nor graphics are not shared.
-        # there is a subtlety here: the dimensional_calibrations property accessor will return a copy of
-        # the list each time it is called. store these in variables do make sure they don't get deallocated
-        # and re-used immediately (causing a test failure).
-        dimensional_calibrations = display_item.data_item.dimensional_calibrations
-        dimensional_calibrations2 = display_item2.data_item.dimensional_calibrations
-        self.assertNotEqual(id(dimensional_calibrations[0]), id(dimensional_calibrations2[0]))
-        self.assertNotEqual(display_item.display.graphics[0], display_item2.display.graphics[0])
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            h, w = 8, 8
+            data = numpy.zeros((h, w), numpy.uint32)
+            data[h//2, w//2] = 1000  # data range (0, 1000)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            data_item.title = "data_item"
+            data_item.timezone = "Europe/Athens"
+            data_item.timezone_offset = "+0300"
+            metadata = data_item.metadata
+            metadata.setdefault("test", dict())["one"] = 1
+            metadata.setdefault("test", dict())["two"] = 22
+            data_item.metadata = metadata
+            display_item.display.display_limits = (100, 900)
+            display_item.display.add_graphic(Graphics.RectangleGraphic())
+            data_item_copy = copy.deepcopy(data_item)
+            document_model.append_data_item(data_item_copy)
+            display_item2 = document_model.get_display_item_for_data_item(data_item_copy)
+            self.assertNotEqual(id(data), id(display_item2.data_item.data))
+            # make sure properties and other items got copied
+            #self.assertEqual(len(data_item_copy.properties), 19)  # not valid since properties only exist if in document
+            self.assertIsNot(data_item.properties, data_item_copy.properties)
+            # uuid should not match
+            self.assertNotEqual(data_item.uuid, data_item_copy.uuid)
+            # metadata get copied?
+            self.assertEqual(len(data_item.metadata.get("test")), 2)
+            self.assertIsNot(data_item.metadata.get("test"), data_item_copy.metadata.get("test"))
+            # make sure display counts match
+            self.assertIsNotNone(display_item.display)
+            self.assertIsNotNone(display_item2.display)
+            # tuples and strings are immutable, so test to make sure old/new are independent
+            self.assertEqual(data_item.title, data_item_copy.title)
+            self.assertEqual(data_item.timezone, data_item_copy.timezone)
+            self.assertEqual(data_item.timezone_offset, data_item_copy.timezone_offset)
+            data_item.title = "data_item1"
+            self.assertNotEqual(data_item.title, data_item_copy.title)
+            self.assertEqual(display_item.display.display_limits, display_item2.display.display_limits)
+            display_item.display.display_limits = (150, 200)
+            self.assertNotEqual(display_item.display.display_limits, display_item2.display.display_limits)
+            # make sure dates are independent
+            self.assertIsNot(data_item.created, data_item_copy.created)
+            self.assertIsNot(display_item.data_item.created, display_item2.data_item.created)
+            # make sure calibrations, computations, nor graphics are not shared.
+            # there is a subtlety here: the dimensional_calibrations property accessor will return a copy of
+            # the list each time it is called. store these in variables do make sure they don't get deallocated
+            # and re-used immediately (causing a test failure).
+            dimensional_calibrations = display_item.data_item.dimensional_calibrations
+            dimensional_calibrations2 = display_item2.data_item.dimensional_calibrations
+            self.assertNotEqual(id(dimensional_calibrations[0]), id(dimensional_calibrations2[0]))
+            self.assertNotEqual(display_item.display.graphics[0], display_item2.display.graphics[0])
 
     def test_data_item_with_existing_computation_initializes_dependencies(self):
         document_model = DocumentModel.DocumentModel()
@@ -240,74 +243,95 @@ class TestDataItemClass(unittest.TestCase):
                     self.assertFalse(numpy.array_equal(data_ref.master_data, data_copy_accessor.master_data))
 
     def test_clear_thumbnail_when_data_item_changed(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        display_item = DataItem.DisplayItem(data_item)
-        display = display_item.display
-        self.assertTrue(display._display_cache.is_cached_value_dirty(display, "thumbnail_data"))
-        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display)) as thumbnail_source:
-            thumbnail_source.recompute_data()
-            self.assertIsNotNone(thumbnail_source.thumbnail_data)
-            self.assertFalse(display._display_cache.is_cached_value_dirty(display, "thumbnail_data"))
-            with display_item.data_item.data_ref() as data_ref:
-                data_ref.master_data = numpy.zeros((8, 8), numpy.uint32)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
             self.assertTrue(display._display_cache.is_cached_value_dirty(display, "thumbnail_data"))
+            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display)) as thumbnail_source:
+                thumbnail_source.recompute_data()
+                self.assertIsNotNone(thumbnail_source.thumbnail_data)
+                self.assertFalse(display._display_cache.is_cached_value_dirty(display, "thumbnail_data"))
+                with display_item.data_item.data_ref() as data_ref:
+                    data_ref.master_data = numpy.zeros((8, 8), numpy.uint32)
+                self.assertTrue(display._display_cache.is_cached_value_dirty(display, "thumbnail_data"))
 
     def test_thumbnail_2d_handles_small_dimension_without_producing_invalid_thumbnail(self):
-        data_item = DataItem.DataItem(numpy.zeros((1, 300), numpy.uint32))
-        display_item = DataItem.DisplayItem(data_item)
-        display = display_item.display
-        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display)) as thumbnail_source:
-            thumbnail_source.recompute_data()
-            thumbnail_data = thumbnail_source.thumbnail_data
-            self.assertTrue(functools.reduce(lambda x, y: x * y, thumbnail_data.shape) > 0)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((1, 300), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
+            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display)) as thumbnail_source:
+                thumbnail_source.recompute_data()
+                thumbnail_data = thumbnail_source.thumbnail_data
+                self.assertTrue(functools.reduce(lambda x, y: x * y, thumbnail_data.shape) > 0)
 
     def test_thumbnail_2d_handles_nan_data(self):
-        data = numpy.zeros((16, 16), numpy.float)
-        data[:] = numpy.nan
-        data_item = DataItem.DataItem(data)
-        display_item = DataItem.DisplayItem(data_item)
-        display = display_item.display
-        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display)) as thumbnail_source:
-            thumbnail_source.recompute_data()
-            self.assertIsNotNone(thumbnail_source.thumbnail_data)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = numpy.zeros((16, 16), numpy.float)
+            data[:] = numpy.nan
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
+            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display)) as thumbnail_source:
+                thumbnail_source.recompute_data()
+                self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
     def test_thumbnail_2d_handles_inf_data(self):
-        data = numpy.zeros((16, 16), numpy.float)
-        data[:] = numpy.inf
-        data_item = DataItem.DataItem(data)
-        display_item = DataItem.DisplayItem(data_item)
-        display = display_item.display
-        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display)) as thumbnail_source:
-            thumbnail_source.recompute_data()
-            self.assertIsNotNone(thumbnail_source.thumbnail_data)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = numpy.zeros((16, 16), numpy.float)
+            data[:] = numpy.inf
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
+            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display)) as thumbnail_source:
+                thumbnail_source.recompute_data()
+                self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
     def test_thumbnail_1d(self):
-        data_item = DataItem.DataItem(numpy.zeros((256), numpy.uint32))
-        display_item = DataItem.DisplayItem(data_item)
-        display = display_item.display
-        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display)) as thumbnail_source:
-            thumbnail_source.recompute_data()
-            self.assertIsNotNone(thumbnail_source.thumbnail_data)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((256), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
+            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display)) as thumbnail_source:
+                thumbnail_source.recompute_data()
+                self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
     def test_thumbnail_1d_handles_nan_data(self):
-        data = numpy.zeros((256), numpy.float)
-        data[:] = numpy.nan
-        data_item = DataItem.DataItem(data)
-        display_item = DataItem.DisplayItem(data_item)
-        display = display_item.display
-        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display)) as thumbnail_source:
-            thumbnail_source.recompute_data()
-            self.assertIsNotNone(thumbnail_source.thumbnail_data)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = numpy.zeros((256), numpy.float)
+            data[:] = numpy.nan
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
+            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display)) as thumbnail_source:
+                thumbnail_source.recompute_data()
+                self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
     def test_thumbnail_1d_handles_inf_data(self):
-        data = numpy.zeros((256), numpy.float)
-        data[:] = numpy.inf
-        data_item = DataItem.DataItem(data)
-        display_item = DataItem.DisplayItem(data_item)
-        display = display_item.display
-        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display)) as thumbnail_source:
-            thumbnail_source.recompute_data()
-            self.assertIsNotNone(thumbnail_source.thumbnail_data)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = numpy.zeros((256), numpy.float)
+            data[:] = numpy.inf
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
+            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display)) as thumbnail_source:
+                thumbnail_source.recompute_data()
+                self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
     def test_thumbnail_marked_dirty_when_source_data_changed(self):
         document_model = DocumentModel.DocumentModel()
@@ -344,14 +368,18 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 1)
 
     def test_copy_data_item_with_display_and_graphics_should_copy_graphics(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        display_item = DataItem.DisplayItem(data_item)
-        rect_graphic = Graphics.RectangleGraphic()
-        display_item.display.add_graphic(rect_graphic)
-        self.assertEqual(len(display_item.display.graphics), 1)
-        data_item_copy = copy.deepcopy(data_item)
-        display_item2 = DataItem.DisplayItem(data_item_copy)
-        self.assertEqual(len(display_item2.display.graphics), 1)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            rect_graphic = Graphics.RectangleGraphic()
+            display_item.display.add_graphic(rect_graphic)
+            self.assertEqual(len(display_item.display.graphics), 1)
+            data_item_copy = copy.deepcopy(data_item)
+            document_model.append_data_item(data_item_copy)
+            display_item2 = document_model.get_display_item_for_data_item(data_item_copy)
+            self.assertEqual(len(display_item2.display.graphics), 1)
 
     def test_deepcopy_data_item_should_produce_new_uuid(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -409,32 +437,38 @@ class TestDataItemClass(unittest.TestCase):
             self.assertFalse(document_model.get_data_item_computation(inverted_display_item.data_item).needs_update)
 
     def test_data_range(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        display_item = DataItem.DisplayItem(data_item)
-        # test scalar
-        xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
-        with display_item.data_item.data_ref() as data_ref:
-            data_ref.master_data = 50 * (xx + yy) + 25
-            data_range = display_item.display.get_calculated_display_values(True).data_range
-            self.assertEqual(data_range, (25, 125))
-            # now test complex
-            data_ref.master_data = numpy.zeros((8, 8), numpy.complex64)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # test scalar
             xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
-            data_ref.master_data = (2 + xx * 10) + 1j * (3 + yy * 10)
-        data_range = display_item.display.get_calculated_display_values(True).data_range
-        data_min = math.log(math.sqrt(2*2 + 3*3))
-        data_max = math.log(math.sqrt(12*12 + 13*13))
-        self.assertEqual(int(data_min*1e6), int(data_range[0]*1e6))
-        self.assertEqual(int(data_max*1e6), int(data_range[1]*1e6))
+            with display_item.data_item.data_ref() as data_ref:
+                data_ref.master_data = 50 * (xx + yy) + 25
+                data_range = display_item.display.get_calculated_display_values(True).data_range
+                self.assertEqual(data_range, (25, 125))
+                # now test complex
+                data_ref.master_data = numpy.zeros((8, 8), numpy.complex64)
+                xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
+                data_ref.master_data = (2 + xx * 10) + 1j * (3 + yy * 10)
+            data_range = display_item.display.get_calculated_display_values(True).data_range
+            data_min = math.log(math.sqrt(2*2 + 3*3))
+            data_max = math.log(math.sqrt(12*12 + 13*13))
+            self.assertEqual(int(data_min*1e6), int(data_range[0]*1e6))
+            self.assertEqual(int(data_max*1e6), int(data_range[1]*1e6))
 
     def test_data_range_gets_updated_after_data_ref_data_updated(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        display_item = DataItem.DisplayItem(data_item)
-        self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (0, 0))
-        with data_item.data_ref() as data_ref:
-            data_ref.data[:] = 1
-            data_ref.data_updated()
-        self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (1, 1))
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (0, 0))
+            with data_item.data_ref() as data_ref:
+                data_ref.data[:] = 1
+                data_ref.data_updated()
+            self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (1, 1))
 
     def test_removing_dependent_data_item_with_graphic(self):
         document_model = DocumentModel.DocumentModel()
@@ -1098,11 +1132,14 @@ class TestDataItemClass(unittest.TestCase):
             self.assertIsNotNone(display_item3.data_item.dimensional_calibrations)
 
     def test_spatial_calibration_on_rgb(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))
-        display_item = DataItem.DisplayItem(data_item)
-        self.assertTrue(Image.is_shape_and_dtype_2d(display_item.data_item.data_shape, display_item.data_item.data_dtype))
-        self.assertTrue(Image.is_shape_and_dtype_rgba(display_item.data_item.data_shape, display_item.data_item.data_dtype))
-        self.assertEqual(len(display_item.data_item.dimensional_calibrations), 2)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            self.assertTrue(Image.is_shape_and_dtype_2d(display_item.data_item.data_shape, display_item.data_item.data_dtype))
+            self.assertTrue(Image.is_shape_and_dtype_rgba(display_item.data_item.data_shape, display_item.data_item.data_dtype))
+            self.assertEqual(len(display_item.data_item.dimensional_calibrations), 2)
 
     def test_metadata_is_valid_when_a_data_item_has_no_data(self):
         document_model = DocumentModel.DocumentModel()

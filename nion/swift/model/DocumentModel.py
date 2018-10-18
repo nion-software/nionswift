@@ -1414,7 +1414,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return [self.get_display_item_for_data_item(data_item) for data_item in self.data_items]
 
     def get_display_items_for_data_item(self, data_item: DataItem.DataItem) -> typing.Sequence[DataItem.DisplayItem]:
-        return [DataItem.DisplayItem(data_item)] if data_item else []
+        return [self.get_display_item_for_data_item(data_item)] if data_item else []
 
     def get_display_item_for_data_item(self, data_item: DataItem.DataItem) -> typing.Optional[DataItem.DisplayItem]:
         return DataItem.DisplayItem(data_item) if data_item else None
@@ -1429,7 +1429,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def _get_display_item_for_display(self, display: Display.Display) -> typing.Optional[DataItem.DisplayItem]:
         data_item = display.container if display else None
-        return DataItem.DisplayItem(data_item) if data_item else None
+        return self.get_display_item_for_data_item(data_item) if data_item else None
 
     def get_or_create_data_group(self, group_name):
         data_group = DataGroup.get_data_group_in_container_by_title(self, group_name)

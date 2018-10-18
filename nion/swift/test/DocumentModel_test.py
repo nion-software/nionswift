@@ -189,20 +189,25 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(inverted_data_item.data, -d))
 
     def test_data_item_recording(self):
-        data_item = DataItem.DataItem(numpy.zeros((16, 16)))
-        display_item = DataItem.DisplayItem(data_item)
-        data_item_recorder = Recorder.Recorder(data_item)
-        display_item.display_type = "line_plot"
-        point_graphic = Graphics.PointGraphic()
-        point_graphic.position = 0.2, 0.3
-        display_item.add_graphic(point_graphic)
-        point_graphic.position = 0.21, 0.31
-        new_data_item = DataItem.DataItem(numpy.zeros((16, 16)))
-        new_display_item = DataItem.DisplayItem(new_data_item)
-        self.assertNotEqual(display_item.display_type, new_display_item.display_type)
-        data_item_recorder.apply(new_data_item)
-        self.assertEqual(display_item.display_type, new_display_item.display_type)
-        self.assertEqual(new_display_item.graphics[0].position, point_graphic.position)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((16, 16)))
+            document_model.append_data_item(data_item)
+            data_item_recorder = Recorder.Recorder(data_item)
+            with contextlib.closing(data_item_recorder):
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_item.display_type = "line_plot"
+                point_graphic = Graphics.PointGraphic()
+                point_graphic.position = 0.2, 0.3
+                display_item.add_graphic(point_graphic)
+                point_graphic.position = 0.21, 0.31
+                new_data_item = DataItem.DataItem(numpy.zeros((16, 16)))
+                document_model.append_data_item(new_data_item)
+                new_display_item = document_model.get_display_item_for_data_item(new_data_item)
+                self.assertNotEqual(display_item.display_type, new_display_item.display_type)
+                data_item_recorder.apply(new_data_item)
+                self.assertEqual(display_item.display_type, new_display_item.display_type)
+                self.assertEqual(new_display_item.graphics[0].position, point_graphic.position)
 
     def test_transaction_handles_added_graphic(self):
         document_model = DocumentModel.DocumentModel()

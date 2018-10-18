@@ -756,12 +756,14 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertTrue(isinstance(data_item.metadata.get("hardware_source"), dict))
 
     def test_updating_existing_data_item_updates_creation_even_if_an_updated_date_is_not_supplied(self):
-        data_element = ScanAcquisitionTask(False, 0).make_data_element()
-        data_item = ImportExportManager.create_data_item_from_data_element(data_element)
-        data_item.created = datetime.datetime(2000, 6, 30)
-        display_item = DataItem.DisplayItem(data_item)
-        ImportExportManager.update_display_item_from_data_element(display_item, data_element)
-        self.assertEqual(data_item.created.year, datetime.datetime.utcnow().year)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_element = ScanAcquisitionTask(False, 0).make_data_element()
+            data_item = ImportExportManager.create_data_item_from_data_element(data_element)
+            data_item.created = datetime.datetime(2000, 6, 30)
+            document_model.append_data_item(data_item)
+            ImportExportManager.update_data_item_from_data_element(data_item, data_element)
+            self.assertEqual(data_item.created.year, datetime.datetime.utcnow().year)
 
     def test_channel_id_and_name_and_index_are_empty_for_simple_hardware_source(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()

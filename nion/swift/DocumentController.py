@@ -105,7 +105,7 @@ class DocumentController(Window.Window):
         self.filter_changed_event = Event.Event()
 
         def map_data_item_to_display_item(data_item):
-            return DataItem.DisplayItem(data_item)
+            return self.document_model.get_display_item_for_data_item(data_item)
 
         def unmap_data_item_to_display_item(display_item):
             return display_item.data_item
@@ -940,7 +940,7 @@ class DocumentController(Window.Window):
         if selected_writer and path:
             self.ui.set_persistent_string("export_directory", selected_directory)
             self.ui.set_persistent_string("export_filter", selected_filter)
-            ImportExportManager.ImportExportManager().write_data_items_with_writer(self.ui, selected_writer, data_item, path)
+            ImportExportManager.ImportExportManager().write_display_item_with_writer(self.ui, selected_writer, display_item, path)
 
     def export_files(self, display_items: typing.Sequence[DataItem.DisplayItem]) -> None:
         if len(display_items) > 1:

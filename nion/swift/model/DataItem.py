@@ -1590,6 +1590,7 @@ class DisplayItem:
     def close(self):
         self.__display_about_to_be_removed_listener.close()
         self.__display_about_to_be_removed_listener = None
+        self.__data_item = None
 
     def __eq__(self, other):
         return other is not None and self.data_item == other.data_item

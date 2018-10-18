@@ -71,14 +71,12 @@ class ImportExportHandler:
     def can_write(self, x_data, extension):
         return False
 
-    def write(self, ui, data_item, path, extension):
-        with open(path, 'wb') as f:
-            self.write_file(data_item, extension, f)
-
-    def write_file(self, data_item, extension, file):
-        data = data_item.data
-        if data is not None:
-            self.write_data(data, extension, file)
+    def write_display_item(self, ui, display_item: DataItem.DisplayItem, path_str: str, extension: str) -> None:
+        data_item = display_item.data_item
+        with open(path_str, 'wb') as f:
+            data = data_item.data
+            if data is not None:
+                self.write_data(data, extension, f)
 
     def write_data(self, data, extension, file):
         pass
@@ -151,24 +149,24 @@ class ImportExportManager(metaclass=Utility.Singleton):
                     return io_handler.read_data_elements(ui, extension, path)
         return None
 
-    def write_data_items_with_writer(self, ui, writer, data_item, path):
-        root, extension = os.path.splitext(path)
+    def write_display_item_with_writer(self, ui, writer, display_item: DataItem.DisplayItem, path_str: str) -> None:
+        root, extension = os.path.splitext(path_str)
         if extension:
             extension = extension[1:]  # remove the leading "."
             extension = extension.lower()
-            data_metadata = data_item.data_metadata
+            data_metadata = display_item.data_item.data_metadata
             if extension in writer.extensions and data_metadata and writer.can_write(data_metadata, extension):
-                writer.write(ui, data_item, path, extension)
+                writer.write_data_item(ui, display_item, path_str, extension)
 
-    def write_data_items(self, ui, data_item, path):
-        root, extension = os.path.splitext(path)
+    def write_display_item(self, ui, display_item: DataItem.DisplayItem, path_str: str) -> None:
+        root, extension = os.path.splitext(path_str)
         if extension:
             extension = extension[1:]  # remove the leading "."
             extension = extension.lower()
             for io_handler in self.__io_handlers:
-                data_metadata = data_item.data_metadata
+                data_metadata = display_item.data_item.data_metadata
                 if extension in io_handler.extensions and data_metadata and io_handler.can_write(data_metadata, extension):
-                    io_handler.write(ui, data_item, path, extension)
+                    io_handler.write_data_item(ui, display_item, path_str, extension)
 
 
 # create a new data item with a data element.
@@ -180,28 +178,24 @@ def create_data_item_from_data_element(data_element, data_file_path=None):
     uuid_ = uuid.UUID(uuid_str) if uuid_str else None
     large_format = data_element.get("large_format", False)
     data_item = DataItem.DataItem(item_uuid=uuid_, large_format=large_format)
-    display_item = DataItem.DisplayItem(data_item)
-    update_display_item_from_data_element(display_item, data_element, data_file_path)
+    update_data_item_from_data_element(data_item, data_element, data_file_path)
     return data_item
 
 
 # update an existing data item with a data element.
 # data element is a dict which can be processed into a data item
 # the existing data item may have a new size and dtype after returning.
-def update_display_item_from_data_element(display_item: DataItem.DisplayItem, data_element, data_file_path=None):
-    data_item = display_item.data_item if display_item else None
+def update_data_item_from_data_element(data_item: DataItem.DataItem, data_element, data_file_path=None):
     data_item.ensure_data_source()
     version = data_element["version"] if "version" in data_element else 1
     if version == 1:
-        update_display_item_from_data_element_1(display_item, data_element, data_file_path)
+        update_data_item_from_data_element_1(data_item, data_element, data_file_path)
     else:
         raise NotImplementedError("Data element version {:d} not supported.".format(version))
 
 
-def update_display_item_from_data_element_1(display_item: DataItem.DisplayItem, data_element, data_file_path=None):
-    data_item = display_item.data_item if display_item else None
-    display = display_item.display if display_item else None
-    assert data_item and display
+def update_data_item_from_data_element_1(data_item: DataItem.DataItem, data_element, data_file_path=None):
+    assert data_item
     with data_item.data_item_changes(), data_item.data_source_changes():
         # file path
         # master data
@@ -266,15 +260,6 @@ def update_display_item_from_data_element_1(display_item: DataItem.DisplayItem, 
         # copyright
         # exposure
         # extra_high_tension
-        if "arrows" in data_element:
-            for arrow_coordinates in data_element["arrows"]:
-                start, end = arrow_coordinates
-                dimensional_shape = data_item.dimensional_shape
-                line_graphic = Graphics.LineGraphic()
-                line_graphic.start = (float(start[0]) / dimensional_shape[0], float(start[1]) / dimensional_shape[1])
-                line_graphic.end = (float(end[0]) / dimensional_shape[0], float(end[1]) / dimensional_shape[1])
-                line_graphic.end_arrow_enabled = True
-                display.add_graphic(line_graphic)
 
 
 def convert_data_element_to_data_and_metadata(data_element) -> DataAndMetadata.DataAndMetadata:
@@ -483,11 +468,10 @@ class StandardImportExportHandler(ImportExportHandler):
     def can_write(self, data_and_metadata, extension):
         return len(data_and_metadata.dimensional_shape) == 2
 
-    def write(self, ui, data_item, path, extension):
-        display_item = DataItem.DisplayItem(data_item)
+    def write_display_item(self, ui, display_item: DataItem.DisplayItem, path_str: str, extension: str) -> None:
         data = display_item.display.get_calculated_display_values(True).display_rgba  # export the display rather than the data for these types
         if data is not None:
-            ui.save_rgba_data_to_file(data, path, extension)
+            ui.save_rgba_data_to_file(data, path_str, extension)
 
 
 class CSVImportExportHandler(ImportExportHandler):
@@ -506,10 +490,10 @@ class CSVImportExportHandler(ImportExportHandler):
     def can_write(self, x_data, extension):
         return True
 
-    def write(self, ui, data_item, path, extension):
-        data = data_item.data
+    def write_display_item(self, ui, display_item: DataItem.DisplayItem, path_str: str, extension: str) -> None:
+        data = display_item.data_item.data
         if data is not None:
-            numpy.savetxt(path, data, delimiter=', ')
+            numpy.savetxt(path_str, data, delimiter=', ')
 
 
 class CSV1ImportExportHandler(ImportExportHandler):
@@ -523,7 +507,8 @@ class CSV1ImportExportHandler(ImportExportHandler):
     def can_write(self, x_data, extension):
         return x_data and x_data.is_data_1d
 
-    def write(self, ui, data_item, path, extension):
+    def write_display_item(self, ui, display_item: DataItem.DisplayItem, path_str: str, extension: str) -> None:
+        data_item = display_item.data_item
         data = data_item.data
         calibration = data_item.xdata.dimensional_calibrations[0]
         intensity_calibration = data_item.xdata.intensity_calibration
@@ -533,7 +518,7 @@ class CSV1ImportExportHandler(ImportExportHandler):
             calibrated_data[:, 0] = numpy.linspace(calibration.offset, calibration.offset + (length - 1) * calibration.scale, length)
             calibrated_data[:, 1] = intensity_calibration.offset + data * intensity_calibration.scale
             header = str(calibration.units) + ", " + str(intensity_calibration.units)
-            numpy.savetxt(path, calibrated_data, delimiter=', ', header=header)
+            numpy.savetxt(path_str, calibrated_data, delimiter=', ', header=header)
 
 
 class NDataImportExportHandler(ImportExportHandler):
@@ -557,18 +542,19 @@ class NDataImportExportHandler(ImportExportHandler):
     def can_write(self, data_and_metadata, extension):
         return True
 
-    def write(self, ui, data_item, path, extension):
+    def write_display_item(self, ui, display_item: DataItem.DisplayItem, path_str: str, extension: str) -> None:
+        data_item = display_item.data_item
         data_element = create_data_element_from_data_item(data_item, include_data=False)
         data = data_item.data
         if data is not None:
-            root, ext = os.path.splitext(path)
+            root, ext = os.path.splitext(path_str)
             metadata_path = root + "_metadata.json"
             data_path = root + "_data.npy"
             try:
                 with open(metadata_path, "w") as fp:
                     json.dump(data_element, fp)
                 numpy.save(data_path, data)
-                zip_file = zipfile.ZipFile(path, 'w')
+                zip_file = zipfile.ZipFile(path_str, 'w')
                 zip_file.write(metadata_path, "metadata.json")
                 zip_file.write(data_path, "data.npy")
             finally:
@@ -608,7 +594,8 @@ class NumPyImportExportHandler(ImportExportHandler):
     def can_write(self, data_and_metadata, extension: str) -> bool:
         return True
 
-    def write(self, ui, data_item: DataItem.DataItem, path_str: str, extension: str) -> None:
+    def write_display_item(self, ui, display_item: DataItem.DisplayItem, path_str: str, extension: str) -> None:
+        data_item = display_item.data_item
         data_path = pathlib.Path(path_str)
         metadata_path = data_path.with_suffix(".json")
         data_element = create_data_element_from_data_item(data_item, include_data=False)

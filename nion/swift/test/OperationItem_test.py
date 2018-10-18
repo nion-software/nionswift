@@ -505,17 +505,21 @@ class TestProcessingClass(unittest.TestCase):
             self.assertTrue(data_item_rgba2_ss.has_data)
 
     def test_snapshot_empty_data_item_should_produce_empty_data_item(self):
-        data_item = DataItem.DataItem()
-        data_item.ensure_data_source()
-        display_item = DataItem.DisplayItem(data_item)
-        self.assertIsNone(display_item.data_item.data)
-        self.assertIsNone(display_item.data_item.data_dtype)
-        self.assertIsNone(display_item.data_item.data_shape)
-        snapshot_data_item = data_item.snapshot()
-        snapshot_display_item = DataItem.DisplayItem(snapshot_data_item)
-        self.assertIsNone(snapshot_display_item.data_item.data)
-        self.assertIsNone(snapshot_display_item.data_item.data_dtype)
-        self.assertIsNone(snapshot_display_item.data_item.data_shape)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem()
+            data_item.ensure_data_source()
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            self.assertIsNone(display_item.data_item.data)
+            self.assertIsNone(display_item.data_item.data_dtype)
+            self.assertIsNone(display_item.data_item.data_shape)
+            snapshot_data_item = data_item.snapshot()
+            document_model.append_data_item(snapshot_data_item)
+            snapshot_display_item = document_model.get_display_item_for_data_item(snapshot_data_item)
+            self.assertIsNone(snapshot_display_item.data_item.data)
+            self.assertIsNone(snapshot_display_item.data_item.data_dtype)
+            self.assertIsNone(snapshot_display_item.data_item.data_shape)
 
     def test_snapshot_of_processing_should_copy_calibrations_not_dimensional_calibrations(self):
         document_model = DocumentModel.DocumentModel()

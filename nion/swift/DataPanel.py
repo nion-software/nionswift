@@ -46,10 +46,10 @@ _ = gettext.gettext
 
 class DisplayItemListModel(ListModel.MappedListModel):
 
-    def __init__(self, filtered_displays_model):
+    def __init__(self, document_model, filtered_displays_model):
 
         def map_data_item_to_display_item(data_item):
-            return DataItem.DisplayItem(data_item)
+            return document_model.get_display_item_for_data_item(data_item)
 
         def unmap_data_item_to_display_item(display_item):
             return display_item.data_item
@@ -62,23 +62,23 @@ class DisplayItemListModel(ListModel.MappedListModel):
 
 
 def create_display_items_model(document_controller, data_group, filter_id) -> ListModel.MappedListModel:
-    return DisplayItemListModel(document_controller.create_data_items_model(data_group, filter_id))
+    return DisplayItemListModel(document_controller.document_model, document_controller.create_data_items_model(data_group, filter_id))
 
 
 def get_display_item_by_uuid(document_model, display_item_uuid: uuid.UUID) -> typing.Optional[DataItem.DisplayItem]:
     data_item = document_model.get_data_item_by_key(display_item_uuid)
     if data_item:
-        return DataItem.DisplayItem(data_item)
+        return document_model.get_display_item_for_data_item(data_item)
     return None
 
 
 # support the 'count' display for data groups. count the display items that are children of the container (which
 # can be a data group or a document controller) and also display items in all of their child groups.
-def get_display_item_count_flat(container) -> int:
+def get_display_item_count_flat(document_model, container) -> int:
 
     def append_display_item_flat(container, display_items):
         if isinstance(container, DataItem.DataItem):
-            display_items.append(DataItem.DisplayItem(container))
+            display_items.append(document_model.get_display_item_for_data_item(container))
         if hasattr(container, "data_items"):
             for data_item in container.data_items:
                 append_display_item_flat(data_item, display_items)
@@ -804,7 +804,7 @@ class DataGroupModelController:
             self.log(child.id, indent + "  ")
 
     def __get_display_item_count_flat(self, container) -> int:
-        return get_display_item_count_flat(container)
+        return get_display_item_count_flat(self.__document_model, container)
 
     # this message is received when a display item is inserted into one of the
     # groups we're observing.
