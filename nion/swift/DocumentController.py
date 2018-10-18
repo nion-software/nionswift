@@ -101,7 +101,6 @@ class DocumentController(Window.Window):
         self.__data_items_model = ListModel.FilteredListModel(container=self.document_model, items_key="data_items")
         self.__data_items_model.filter_id = None  # extra tracking field
         self.__filtered_data_items_model = ListModel.FilteredListModel(items_key="data_items", container=self.__data_items_model)
-        self.__filtered_displays_model = ListModel.FlattenedListModel(container=self.__filtered_data_items_model, master_items_key="data_items", child_items_key="displays", selection=self.selection)
         self.__last_display_filter = ListModel.Filter(True)
         self.filter_changed_event = Event.Event()
 
@@ -112,6 +111,7 @@ class DocumentController(Window.Window):
             return display_item.data_item
 
         self.__display_items_model = ListModel.MappedListModel(container=self.__data_items_model, master_items_key="data_items", items_key="display_items", map_fn=map_data_item_to_display_item, unmap_fn=unmap_data_item_to_display_item)
+        self.__filtered_display_items_model = ListModel.MappedListModel(container=self.__filtered_data_items_model, master_items_key="data_items", items_key="display_items", map_fn=map_data_item_to_display_item, unmap_fn=unmap_data_item_to_display_item, selection=self.selection)
 
         self.__update_data_items_model(self.__data_items_model, None, None)
 
@@ -189,12 +189,14 @@ class DocumentController(Window.Window):
         self.__call_soon_event_listener = None
         self.__filtered_data_items_model.close()
         self.__filtered_data_items_model = None
-        self.__filtered_displays_model.close()
-        self.__filtered_displays_model = None
+        self.__filtered_display_items_model.close()
+        self.__filtered_display_items_model = None
         self.filter_controller.close()
         self.filter_controller = None
         self.__data_items_model.close()
         self.__data_items_model = None
+        self.__display_items_model.close()
+        self.__display_items_model = None
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
         self.document_model.remove_ref()
@@ -260,13 +262,13 @@ class DocumentController(Window.Window):
         self._import_folder_action = self._file_menu.add_menu_item(_("Import Folder..."), self.__import_folder)
         self._import_action = self._file_menu.add_menu_item(_("Import Data..."), self.import_file)
         def export_files():
-            selected_data_items = self.selected_data_items
-            if len(selected_data_items) > 1:
-                self.export_files(selected_data_items)
-            elif len(selected_data_items) == 1:
-                self.export_file(selected_data_items[0])
-            elif self.selected_data_item:
-                self.export_file(self.selected_data_item)
+            selected_display_items = self.selected_display_items
+            if len(selected_display_items) > 1:
+                self.export_files(selected_display_items)
+            elif len(selected_display_items) == 1:
+                self.export_file(selected_display_items[0])
+            elif self.selected_display_item:
+                self.export_file(self.selected_display_item)
         self._export_action = self._file_menu.add_menu_item(_("Export..."), export_files)
         #self._file_menu.add_separator()
         #self._save_action = self._file_menu.add_menu_item(_("Save"), self.no_operation, key_sequence="save")
@@ -644,16 +646,12 @@ class DocumentController(Window.Window):
             display_panel.request_focus()
 
     @property
-    def data_items_model(self):
-        return self.__data_items_model
-
-    @property
     def display_items_model(self):
         return self.__display_items_model
 
     @property
-    def filtered_displays_model(self):
-        return self.__filtered_displays_model
+    def filtered_display_items_model(self):
+        return self.__filtered_display_items_model
 
     def __update_data_items_model(self, data_items_model: ListModel.FilteredListModel, data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str]) -> None:
         """Update the data item model with a new container, filter, and sorting.
@@ -727,37 +725,35 @@ class DocumentController(Window.Window):
             self.__filtered_data_items_model.filter = display_filter
 
     @property
-    def selected_displays(self) -> typing.List[Display.Display]:
-        selected_displays = list()
-        displays = self.__filtered_displays_model.displays
+    def selected_display_items(self) -> typing.Sequence[DataItem.DisplayItem]:
+        selected_display_items = list()
+        data_items = self.__filtered_data_items_model.data_items
         for index in self.selection.ordered_indexes:
-            selected_displays.append(displays[index])
-        return selected_displays
+            selected_display_items.append(self.document_model.get_display_item_for_data_item(data_items[index]))
+        return selected_display_items
 
     @property
-    def selected_data_items(self) -> typing.List[DataItem.DataItem]:
-        selected_displays = self.selected_displays
-        selected_data_items = list()
-        for display in selected_displays:
-            display_item = self.document_model._get_display_item_for_display(display)
-            data_item = display_item.data_item if display_item else None
-            if data_item and not data_item in selected_data_items:
-                selected_data_items.append(data_item)
-        return selected_data_items
+    def selected_data_items(self) -> typing.Sequence[DataItem.DataItem]:
+        selected_display_items = list()
+        for display_item in self.selected_display_items:
+            for data_item in display_item.data_items:
+                if not data_item in selected_display_items:
+                    selected_display_items.append(data_item)
+        return selected_display_items
 
     def select_data_items_in_data_panel(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
         document_model = self.document_model
-        displays = self.filtered_displays_model.displays
-        associated_displays = [document_model.get_display_item_for_data_item(data_item).display for data_item in data_items]
+        display_items = self.filtered_display_items_model.display_items
+        associated_display_items = [document_model.get_display_item_for_data_item(data_item) for data_item in data_items]
         indexes = set()
-        for index, display in enumerate(displays):
-            if display in associated_displays:
+        for index, display_item in enumerate(display_items):
+            if display_item in associated_display_items:
                 indexes.add(index)
         self.selection.set_multiple(indexes)
-        if len(associated_displays) > 0:
-            display = associated_displays[0]
-            if display in displays:
-                self.selection.anchor_index = displays.index(display)
+        if len(associated_display_items) > 0:
+            display_item = associated_display_items[0]
+            if display_item in display_items:
+                self.selection.anchor_index = display_items.index(display_item)
 
     # track the selected data item. this can be called by ui elements when
     # they get focus. the selected data item will stay the same until another ui
@@ -812,12 +808,11 @@ class DocumentController(Window.Window):
         selected_display_item = self.selected_display_item
         return selected_display_item.data_item if selected_display_item else None
 
-    def delete_displays(self, displays: typing.Sequence[Display.Display]) -> None:
+    def delete_display_items(self, display_items: typing.Sequence[DataItem.DisplayItem], container=None) -> None:
         data_items = list()
-        container = self.__data_items_model.container
+        container = container if container else self.__data_items_model.container
         if container is self.document_model:
-            for display in displays:
-                display_item = self.document_model._get_display_item_for_display(display)
+            for display_item in display_items:
                 data_item = display_item.data_item if display_item else None
                 if data_item and data_item in self.document_model.data_items and data_item not in data_items:
                     data_items.append(data_item)
@@ -826,8 +821,7 @@ class DocumentController(Window.Window):
                 command.perform()
                 self.push_undo_command(command)
         elif isinstance(container, DataGroup.DataGroup):
-            for display in displays:
-                display_item = self.document_model._get_display_item_for_display(display)
+            for display_item in display_items:
                 data_item = display_item.data_item if display_item else None
                 if data_item and data_item in container.data_items and data_item not in data_items:
                     data_items.append(data_item)
@@ -917,8 +911,9 @@ class DocumentController(Window.Window):
         self.ui.set_persistent_string("import_directory", selected_directory)
         self.receive_files(paths, display_panel=self.next_result_display_panel())
 
-    def export_file(self, data_item) -> None:
+    def export_file(self, display_item: DataItem.DisplayItem) -> None:
         # present a loadfile dialog to the user
+        data_item = display_item.data_item
         writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
         name_writer_dict = dict()
         for writer in writers:
@@ -947,14 +942,14 @@ class DocumentController(Window.Window):
             self.ui.set_persistent_string("export_filter", selected_filter)
             ImportExportManager.ImportExportManager().write_data_items_with_writer(self.ui, selected_writer, data_item, path)
 
-    def export_files(self, data_items):
-        if len(data_items) > 1:
+    def export_files(self, display_items: typing.Sequence[DataItem.DisplayItem]) -> None:
+        if len(display_items) > 1:
             export_dialog = ExportDialog.ExportDialog(self.ui)
-            export_dialog.on_accept = functools.partial(export_dialog.do_export, data_items)
+            export_dialog.on_accept = functools.partial(export_dialog.do_export, display_items)
             export_dialog.show()
             self.__dialogs.append(weakref.ref(export_dialog))
-        elif len(data_items) == 1:
-            self.export_file(data_items[0])
+        elif len(display_items) == 1:
+            self.export_file(display_items[0])
 
     # this method creates a task. it is thread safe.
     def create_task_context_manager(self, title, task_type, logging=True):
@@ -2182,36 +2177,27 @@ class DocumentController(Window.Window):
         menu = self.create_context_menu()
         data_item = display_item.data_item if display_item else None
         if data_item:
-            if not container:
-                container = self.data_items_model.container
-                container = DataGroup.get_data_item_container(container, data_item)
 
-            def delete():
-                selected_data_items = self.selected_data_items
-                if not data_item in selected_data_items:
-                    if isinstance(container, DocumentModel.DocumentModel):
-                        command = self.create_remove_data_items_command([data_item])
-                        command.perform()
-                        self.push_undo_command(command)
-                    elif isinstance(container, DataGroup.DataGroup):
-                        command = DocumentController.RemoveDataGroupLibraryItemsCommand(self.document_model, container, [data_item])
-                        command.perform()
-                        self.push_undo_command(command)
-                else:
-                    command = self.create_remove_data_items_command(selected_data_items)
-                    command.perform()
-                    self.push_undo_command(command)
+            def show_in_new_window():
+                self.new_window_with_data_item("data", data_item=data_item)
 
             if data_item is not None:
-
-                def show_in_new_window():
-                    self.new_window_with_data_item("data", data_item=data_item)
-
                 menu.add_menu_item(_("Open in New Window"), show_in_new_window)
 
             def show():
                 self.select_data_item_in_data_panel(data_item)
+
             menu.add_menu_item(_("Reveal"), show)
+
+            def delete():
+                selected_display_items = self.selected_display_items
+                # if the display item is not in the selected display items,
+                # only delete that specific display item. otherwise, it is
+                # part of the group, so delete all selected display items.
+                if not display_item in selected_display_items:
+                    self.delete_display_items([display_item], container)
+                else:
+                    self.delete_display_items(selected_display_items, container)
 
             menu.add_menu_item(_("Delete Library Item"), delete)
 
@@ -2220,11 +2206,11 @@ class DocumentController(Window.Window):
             if data_item is not None:
 
                 def export_files():
-                    selected_data_items = self.selected_data_items
-                    if data_item in selected_data_items:
-                        self.export_files(selected_data_items)
+                    selected_display_items = self.selected_display_items
+                    if display_item in selected_display_items:
+                        self.export_files(selected_display_items)
                     else:
-                        self.export_file(data_item)
+                        self.export_file(display_item)
 
                 menu.add_menu_item(_("Export..."), functools.partial(self.queue_task, export_files))  # queued to avoid pop-up menu issue
 

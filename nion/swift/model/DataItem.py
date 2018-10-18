@@ -1591,9 +1591,22 @@ class DisplayItem:
         self.__display_about_to_be_removed_listener.close()
         self.__display_about_to_be_removed_listener = None
 
+    def __eq__(self, other):
+        return other is not None and self.data_item == other.data_item
+
+    def __ne__(self, other):
+        return other is None or self.data_item != other.data_item
+
+    def __hash__(self):
+        return self.__data_item.__hash__()
+
     @property
     def data_item(self) -> DataItem:
         return self.__data_item
+
+    @property
+    def data_items(self) -> typing.Sequence[DataItem]:
+        return [self.__data_item] if self.__data_item else []
 
     @property
     def display(self) -> Display.Display:

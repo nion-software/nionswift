@@ -143,11 +143,12 @@ class ExportDialog(Dialog.OkCancelDialog):
 
         self.content.add(column)
 
-    def do_export(self, data_items):
+    def do_export(self, display_items):
         directory = self.directory
         writer = self.writer
         if directory:
-            for index, data_item in enumerate(data_items):
+            for index, display_item in enumerate(display_items):
+                data_item = display_item.data_item
                 try:
                     components = list()
                     if self.options.get("title", False):
@@ -165,8 +166,7 @@ class ExportDialog(Dialog.OkCancelDialog):
                     filename = "_".join(components)
                     extension = writer.extensions[0]
                     path = os.path.join(directory, "{0}.{1}".format(filename, extension))
-                    ImportExportManager.ImportExportManager().write_data_items_with_writer(self.ui, writer, data_item,
-                                                                                           path)
+                    ImportExportManager.ImportExportManager().write_data_items_with_writer(self.ui, writer, data_item, path)
                 except Exception as e:
                     logging.debug("Could not export image %s / %s", str(data_item), str(e))
                     traceback.print_exc()

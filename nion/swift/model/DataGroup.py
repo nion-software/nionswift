@@ -234,23 +234,5 @@ def get_data_item_in_container_by_uuid(container, data_item_uuid):
     return None
 
 
-# determine the container for the data item. this may be the document model,
-# a data group, or a data item.
-def get_data_item_container(container, query_data_item):
-    if hasattr(container, "data_items") and query_data_item in container.data_items:
-        return container
-    if hasattr(container, "data_groups"):
-        for data_group in container.data_groups:
-            check_container = get_data_item_container(data_group, query_data_item)
-            if check_container:
-                return check_container
-    if hasattr(container, "data_items"):
-        for data_item in container.data_items:
-            check_container = get_data_item_container(data_item, query_data_item)
-            if check_container:
-                return check_container
-    return None
-
-
 def data_group_factory(lookup_id):
     return DataGroup()

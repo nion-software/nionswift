@@ -995,7 +995,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         self.__display_composition_canvas_item.add_canvas_item(self.__related_icons_canvas_item)
 
-        self.__selection = document_controller.filtered_displays_model.make_selection()
+        self.__selection = document_controller.filtered_display_items_model.make_selection()
 
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(self.__selection_changed)
 
@@ -1008,28 +1008,27 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 return True
             return False
 
-        def map_display_to_display_item(display):
-            display_item = document_controller.document_model._get_display_item_for_display(display)
+        def map_display_item_to_display_item_adapter(display_item):
             return DataPanel.DisplayItemAdapter(display_item, ui)
 
-        def unmap_display_to_display_item(display_item):
-            display_item.close()
+        def unmap_display_item_to_display_item_adapter(display_item_adapter):
+            display_item_adapter.close()
 
-        self.__filtered_display_items_model = ListModel.MappedListModel(container=document_controller.filtered_displays_model, master_items_key="displays", items_key="display_items", map_fn=map_display_to_display_item, unmap_fn=unmap_display_to_display_item)
+        self.__filtered_display_item_adapters_model = ListModel.MappedListModel(container=document_controller.filtered_display_items_model, master_items_key="display_items", items_key="display_item_adapters", map_fn=map_display_item_to_display_item_adapter, unmap_fn=unmap_display_item_to_display_item_adapter)
 
         def notify_focus_changed():
             self.__document_controller.notify_focused_display_changed(self.__get_display())
 
-        def display_item_selection_changed(display_items):
+        def display_item_adapter_selection_changed(display_item_adapters):
             indexes = set()
-            for index, display_item in enumerate(self.__filtered_display_items_model.display_items):
-                if display_item in display_items:
+            for index, display_item_adapter in enumerate(self.__filtered_display_item_adapters_model.display_item_adapters):
+                if display_item_adapter in display_item_adapters:
                     indexes.add(index)
             self.__selection.set_multiple(indexes)
             notify_focus_changed()
 
-        def double_clicked(display_item):
-            display_item_selection_changed([display_item])
+        def double_clicked(display_item_adapter):
+            display_item_adapter_selection_changed([display_item_adapter])
             self.__cycle_display()
             return True
 
@@ -1037,24 +1036,24 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             if focused:
                 notify_focus_changed()
 
-        def delete_display_items(display_items):
-            document_controller.delete_displays([display_item.display for display_item in display_items])
+        def delete_display_item_adapters(display_item_adapters):
+            document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters])
 
-        self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_items_model, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
-        self.__horizontal_data_grid_controller.on_display_item_selection_changed = display_item_selection_changed
+        self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
+        self.__horizontal_data_grid_controller.on_display_item_adapter_selection_changed = display_item_adapter_selection_changed
         self.__horizontal_data_grid_controller.on_context_menu_event = self.__handle_context_menu_for_display
-        self.__horizontal_data_grid_controller.on_display_item_double_clicked = double_clicked
+        self.__horizontal_data_grid_controller.on_display_item_adapter_double_clicked = double_clicked
         self.__horizontal_data_grid_controller.on_focus_changed = focus_changed
-        self.__horizontal_data_grid_controller.on_delete_display_items = delete_display_items
+        self.__horizontal_data_grid_controller.on_delete_display_item_adapters = delete_display_item_adapters
         self.__horizontal_data_grid_controller.on_drag_started = data_list_drag_started
         self.__horizontal_data_grid_controller.on_key_pressed = key_pressed
 
-        self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_items_model, self.__selection)
-        self.__grid_data_grid_controller.on_display_item_selection_changed = display_item_selection_changed
+        self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection)
+        self.__grid_data_grid_controller.on_display_item_adapter_selection_changed = display_item_adapter_selection_changed
         self.__grid_data_grid_controller.on_context_menu_event = self.__handle_context_menu_for_display
-        self.__grid_data_grid_controller.on_display_item_double_clicked = double_clicked
+        self.__grid_data_grid_controller.on_display_item_adapter_double_clicked = double_clicked
         self.__grid_data_grid_controller.on_focus_changed = focus_changed
-        self.__grid_data_grid_controller.on_delete_display_items = delete_display_items
+        self.__grid_data_grid_controller.on_delete_display_item_adapters = delete_display_item_adapters
         self.__grid_data_grid_controller.on_drag_started = data_list_drag_started
         self.__grid_data_grid_controller.on_key_pressed = key_pressed
 
@@ -1094,9 +1093,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__grid_data_grid_controller = None
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = None
-        self.__document_controller.filtered_displays_model.release_selection(self.__selection)
-        self.__filtered_display_items_model.close()
-        self.__filtered_display_items_model = None
+        self.__document_controller.filtered_display_items_model.release_selection(self.__selection)
+        self.__filtered_display_item_adapters_model.close()
+        self.__filtered_display_item_adapters_model = None
         self.__selection = None
 
         self.__content_canvas_item.on_focus_changed = None  # only necessary during tests
@@ -1126,8 +1125,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.display_canvas_item
 
     @property
-    def _display_items_for_test(self):
-        return self.__filtered_display_items_model.display_items
+    def _display_item_adapters_for_test(self):
+        return self.__filtered_display_item_adapters_model.display_item_adapters
 
     @property
     def _related_icons_canvas_item(self):
@@ -1451,7 +1450,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__display_changed = False
 
     def __update_selection_to_display(self):
-        displays = [display_item.display for display_item in self.__filtered_display_items_model.display_items]
+        displays = [display_item_adapter.display for display_item_adapter in self.__filtered_display_item_adapters_model.display_item_adapters]
         display = self.__get_display()
         if display in displays:
             self.__selection.set(displays.index(display))
@@ -1528,7 +1527,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def __selection_changed(self):
         if len(self.__selection.indexes) == 1:
             index = list(self.__selection.indexes)[0]
-            display_item = self.__filtered_display_items_model.display_items[index].display_item
+            display_item = self.__filtered_display_item_adapters_model.display_item_adapters[index].display_item
         else:
             display_item = None
         self.set_display_item(display_item)
