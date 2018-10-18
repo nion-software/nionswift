@@ -463,6 +463,7 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
             library_update = library_updates.get(data_item_uuid, dict())
             library_storage_properties.setdefault("connections", list()).extend(library_update.get("connections", list()))
             library_storage_properties.setdefault("computations", list()).extend(library_update.get("computations", list()))
+            library_storage_properties.setdefault("display_items", list()).extend(library_update.get("display_items", list()))
 
     # mark deletions that need to be tracked because they've been deleted but are also present in older libraries
     # and would be migrated during reading unless they explicitly are prevented from doing so (via data_item_deletions).

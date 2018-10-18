@@ -178,10 +178,10 @@ class Application(UIApplication.Application):
 
         library_path_11 = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
         library_path_12 = os.path.join(workspace_dir, "Nion Swift Library 12.nslib")
-        # library_path_13 = os.path.join(workspace_dir, "Nion Swift Library 13.nslib")
+        library_path_13 = os.path.join(workspace_dir, "Nion Swift Library 13.nslib")
 
-        library_paths = (library_path_11, )
-        library_path_latest = library_path_12
+        library_paths = (library_path_11, library_path_12)
+        library_path_latest = library_path_13
 
         if not os.path.exists(library_path_latest):
             for library_path in library_paths:

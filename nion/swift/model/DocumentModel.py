@@ -275,6 +275,11 @@ def data_item_factory(lookup_id):
     return DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
 
 
+def display_item_factory(lookup_id):
+    display_item_uuid = uuid.UUID(lookup_id("uuid"))
+    return DataItem.DisplayItem(item_uuid=display_item_uuid)
+
+
 def computation_factory(lookup_id):
     return Symbolic.Computation()
 
@@ -389,10 +394,9 @@ class TransactionManager:
             old_items = copy.copy(items)
             self.__get_deep_dependent_item_set(item, items)
             # next, the graphics and connections (where item is source)
-            if isinstance(item, DataItem.DataItem):
-                for display in item.displays:
-                    for graphic in display.graphics:
-                        self.__get_deep_transaction_item_set(graphic, items)
+            if isinstance(item, DataItem.DisplayItem):
+                for graphic in item.graphics:
+                    self.__get_deep_transaction_item_set(graphic, items)
             if isinstance(item, DataStructure):
                 for referenced_object in item._referenced_objects:
                     self.__get_deep_dependent_item_set(referenced_object, items)
@@ -488,6 +492,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_active_item = None  # type: ComputationQueueItem
         self.define_type("library")
         self.define_relationship("data_items", data_item_factory)
+        self.define_relationship("display_items", display_item_factory, insert=self.__inserted_display_item, remove=self.__removed_display_item)
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)
         self.define_relationship("computations", computation_factory, insert=self.__inserted_computation, remove=self.__removed_computation)
@@ -554,6 +559,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
         for data_item in data_items:
             data_item.set_session_manager(self)
+        for display_item in self.display_items:
+            display_item.connect_data_items(self.get_data_item_by_uuid)
         # this loop reestablishes dependencies now that everything is loaded.
         # the change listener for the computation will already have been established via the regular
         # loading mechanism; but because some data items may not have been loaded at the first time computation
@@ -715,6 +722,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.session_id = self.session_id
         # insert in internal list
         self.__insert_data_item(before_index, data_item, do_write)
+        # automatically add a display
+        display_item = DataItem.DisplayItem()
+        display_item.append_data_item(data_item)
+        self.append_display_item(display_item)
 
     def __insert_data_item(self, before_index, data_item, do_write):
         self.insert_item("data_items", before_index, data_item)
@@ -813,6 +824,24 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.finish_reading()
         return data_item
 
+    def append_display_item(self, display_item):
+        self.insert_display_item(len(self.display_items), display_item)
+
+    def insert_display_item(self, before_index, display_item):
+        self.insert_item("display_items", before_index, display_item)
+        self.notify_insert_item("display_items", display_item, before_index)
+        display_item.connect_data_items(self.get_data_item_by_uuid)
+
+    def remove_display_item(self, display_item) -> typing.Optional[typing.Sequence]:
+        return self.__cascade_delete(display_item)
+
+    def __inserted_display_item(self, name, before_index, display_item):
+        display_item.about_to_be_inserted(self)
+
+    def __removed_display_item(self, name, index, display_item):
+        display_item.about_to_be_removed()
+        display_item.close()
+
     def insert_model_item(self, container, name, before_index, item):
         container.insert_item(name, before_index, item)
         if name == "graphics":
@@ -854,16 +883,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # this is the only case where a target causes a source to be deleted.
             items.append(item)
             sources = self.__dependency_tree_target_to_source_map.get(weakref.ref(item), list())
-            if isinstance(item, DataItem.DataItem):
+            if isinstance(item, DataItem.DisplayItem):
                 for source in sources:
                     if isinstance(source, Graphics.Graphic):
                         source_targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(source), list())
                         if len(source_targets) == 1 and source_targets[0] == item:
                             self.__build_cascade(source, items, dependencies)
                 # graphics on a data item are deleted.
-                for display in item.displays:
-                    for graphic in display.graphics:
-                        self.__build_cascade(graphic, items, dependencies)
+                for graphic in item.graphics:
+                    self.__build_cascade(graphic, items, dependencies)
             # outputs of a computation are deleted.
             elif isinstance(item, Symbolic.Computation):
                 for output in item._outputs:
@@ -1405,27 +1433,22 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def get_data_item_by_uuid(self, uuid: uuid.UUID) -> DataItem.DataItem:
         return self.__uuid_to_data_item.get(uuid)
 
-    @property
-    def display_items(self) -> typing.Sequence[DataItem.DisplayItem]:
-        return [self.get_display_item_for_data_item(data_item) for data_item in self.data_items]
-
     def get_display_items_for_data_item(self, data_item: DataItem.DataItem) -> typing.Sequence[DataItem.DisplayItem]:
-        return [self.get_display_item_for_data_item(data_item)] if data_item else []
+        display_items = list()
+        for display_item in self.display_items:
+            if data_item in display_item.data_items:
+                display_items.append(display_item)
+        return display_items
 
     def get_display_item_for_data_item(self, data_item: DataItem.DataItem) -> typing.Optional[DataItem.DisplayItem]:
-        return DataItem.DisplayItem(data_item) if data_item else None
+        display_items = self.get_display_items_for_data_item(data_item)
+        return display_items[0] if len(display_items) == 1 else None
 
     def are_display_items_equal(self, display_item1: DataItem.DisplayItem, display_item2: DataItem.DisplayItem) -> bool:
-        # necessary until display items are persistent
-        if (display_item1 is None) != (display_item2 is None):
-            return False
-        if display_item1 is None and display_item2 is None:
-            return True
-        return display_item1.data_item == display_item2.data_item
+        return display_item1 == display_item2
 
     def _get_display_item_for_display(self, display: Display.Display) -> typing.Optional[DataItem.DisplayItem]:
-        data_item = display.container if display else None
-        return self.get_display_item_for_data_item(data_item) if data_item else None
+        return display.container if display else None
 
     def get_or_create_data_group(self, group_name):
         data_group = DataGroup.get_data_group_in_container_by_title(self, group_name)
