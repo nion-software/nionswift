@@ -65,21 +65,21 @@ class TestDataPanelClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item1.title = "data_item1"
             document_model.append_data_item(data_item1)
-            data_group.append_data_item(data_item1)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item1))
             data_item1a = document_model.get_invert_new(data_item1)
             data_item1a.title = "data_item1a"
-            data_group.append_data_item(data_item1a)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item1a))
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2.title = "data_item2"
             document_model.append_data_item(data_item2)
-            data_group.append_data_item(data_item2)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item2))
             data_item2a = document_model.get_invert_new(data_item2)
             data_item2a.title = "data_item2a"
-            data_group.append_data_item(data_item2a)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item2a))
             data_item3 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item3.title = "data_item3"
             document_model.append_data_item(data_item3)
-            data_group.append_data_item(data_item3)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item3))
             display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
             with contextlib.closing(display_panel):
                 display_panel.set_display_panel_data_item(data_item1)
@@ -89,17 +89,17 @@ class TestDataPanelClass(unittest.TestCase):
                 document_controller.selected_display_panel = display_panel
                 # first delete a child of a data item
                 self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
-                self.assertEqual(len(data_group.data_items), 5)
+                self.assertEqual(len(data_group.display_items), 5)
                 document_controller.select_data_item_in_data_panel(data_item=data_item1a)
                 # document_controller.selection.set(3)  # set above by date_item instead
                 data_panel.data_list_controller._delete_pressed()
                 self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
                 # now delete a child of a data group
-                self.assertEqual(len(data_group.data_items), 4)
+                self.assertEqual(len(data_group.display_items), 4)
                 document_controller.select_data_item_in_data_panel(data_item=data_item2)
                 # document_controller.selection.set(2)  # set above by date_item instead
                 data_panel.data_list_controller._delete_pressed()
-                self.assertEqual(len(data_group.data_items), 2)
+                self.assertEqual(len(data_group.display_items), 2)
 
     def test_data_panel_deletes_all_selected_items(self):
         document_model = DocumentModel.DocumentModel()
@@ -132,11 +132,11 @@ class TestDataPanelClass(unittest.TestCase):
         data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
-        data_group.append_data_item(data_item1)
+        data_group.append_display_item(document_model.get_display_item_for_data_item(data_item1))
         data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
-        data_group.append_data_item(data_item2)
+        data_group.append_display_item(document_model.get_display_item_for_data_item(data_item2))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_panel = document_controller.find_dock_widget("data-panel").panel
@@ -354,11 +354,11 @@ class TestDataPanelClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item1.title = "data_item1"
             document_model.append_data_item(data_item1)
-            data_group.append_data_item(data_item1)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item1))
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2.title = "data_item2"
             document_model.append_data_item(data_item2)
-            data_group.append_data_item(data_item2)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item2))
             filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
             filtered_data_items.container = data_group
             self.assertTrue(data_item1 in filtered_data_items.items)
@@ -377,11 +377,11 @@ class TestDataPanelClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item1.title = "data_item1"
             document_model.append_data_item(data_item1)
-            data_group.append_data_item(data_item1)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item1))
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2.title = "data_item2"
             document_model.append_data_item(data_item2)
-            data_group.append_data_item(data_item2)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item2))
             filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
             filtered_data_items.container = data_group
             self.assertTrue(data_item1 in filtered_data_items.items)
@@ -398,11 +398,11 @@ class TestDataPanelClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item1.title = "data_item1"
             document_model.append_data_item(data_item1)
-            data_group.append_data_item(data_item1)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item1))
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2.title = "data_item2"
             document_model.append_data_item(data_item2)
-            data_group.append_data_item(data_item2)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item2))
             filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
             filtered_data_items.container = data_group
             filtered_data_items.container = data_group
@@ -419,16 +419,16 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.document_model.append_data_group(data_group)
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item1.title = "data_item1"
-            data_group.append_data_item(data_item1)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item1))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2.title = "data_item2"
-            data_group.append_data_item(data_item2)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item2))
             document_model.append_data_item(data_item2)
             data_item3 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item3.title = "data_item3"
             document_model.append_data_item(data_item3)
-            data_group.append_data_item(data_item3)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item3))
             data_panel = document_controller.find_dock_widget("data-panel").panel
             document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item2)
             document_controller.periodic()
@@ -436,7 +436,7 @@ class TestDataPanelClass(unittest.TestCase):
             # verify assumptions
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 3)
             # delete 2nd item
-            data_group.remove_data_item(data_group.data_items[1])
+            data_group.remove_display_item(data_group.display_items[1])
             document_controller.periodic()
             data_panel.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 2)
@@ -445,7 +445,8 @@ class TestDataPanelClass(unittest.TestCase):
             # insert new item
             data_item4 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item4.title = "data_item4"
-            data_group.insert_data_item(1, data_item4)
+            document_model.append_data_item(data_item4)
+            data_group.insert_display_item(1, document_model.get_display_item_for_data_item(data_item4))
             document_controller.periodic()
             data_panel.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 3)
@@ -462,12 +463,12 @@ class TestDataPanelClass(unittest.TestCase):
             data_group = DataGroup.DataGroup()
             document_controller.document_model.append_data_group(data_group)
             document_model.append_data_item(data_item)
-            data_group.append_data_item(data_item)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item))
             data_panel = document_controller.find_dock_widget("data-panel").panel
             data_panel.focused = True
             self.assertIsNone(document_controller.selected_data_item)
             data_panel.data_group_model_receive_files([":/app/scroll_gem.png"], data_group, index=0, threaded=False)
-            self.assertEqual(document_controller.selected_data_item, data_group.data_items[0])
+            self.assertEqual(document_controller.selected_data_item, data_group.display_items[0])
 
     def test_setting_data_browser_selection_to_multiple_items_via_document_controller_updates_selection_object(self):
         document_model = DocumentModel.DocumentModel()

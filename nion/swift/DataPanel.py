@@ -746,8 +746,8 @@ class DataGroupModelController:
         self.__data_group_property_changed_listeners = dict()
         self.__data_group_item_inserted_listeners = dict()
         self.__data_group_item_removed_listeners = dict()
-        self.__data_group_data_item_inserted_listeners = dict()
-        self.__data_group_data_item_removed_listeners = dict()
+        self.__data_group_display_item_inserted_listeners = dict()
+        self.__data_group_display_item_removed_listeners = dict()
         data_groups = self.__document_model.data_groups
         for index, data_group in enumerate(data_groups):
             self.__item_inserted(self.__document_model, "data_groups", data_group, index)
@@ -756,10 +756,10 @@ class DataGroupModelController:
         # cheap way to unlisten to everything
         for object in self.__mapping.keys():
             if isinstance(object, DataGroup.DataGroup):
-                self.__data_group_data_item_inserted_listeners[object.uuid].close()
-                del self.__data_group_data_item_inserted_listeners[object.uuid]
-                self.__data_group_data_item_removed_listeners[object.uuid].close()
-                del self.__data_group_data_item_removed_listeners[object.uuid]
+                self.__data_group_display_item_inserted_listeners[object.uuid].close()
+                del self.__data_group_display_item_inserted_listeners[object.uuid]
+                self.__data_group_display_item_removed_listeners[object.uuid].close()
+                del self.__data_group_display_item_removed_listeners[object.uuid]
                 self.__data_group_item_inserted_listeners[object.uuid].close()
                 del self.__data_group_item_inserted_listeners[object.uuid]
                 self.__data_group_item_removed_listeners[object.uuid].close()
@@ -807,8 +807,8 @@ class DataGroupModelController:
             self.__data_group_property_changed_listeners[object.uuid] = object.property_changed_event.listen(property_changed)
             self.__data_group_item_inserted_listeners[object.uuid] = object.item_inserted_event.listen(functools.partial(self.__item_inserted, object))
             self.__data_group_item_removed_listeners[object.uuid] = object.item_removed_event.listen(functools.partial(self.__item_removed, object))
-            self.__data_group_data_item_inserted_listeners[object.uuid] = object.data_item_inserted_event.listen(self.__data_item_inserted)
-            self.__data_group_data_item_removed_listeners[object.uuid] = object.data_item_removed_event.listen(self.__data_item_removed)
+            self.__data_group_display_item_inserted_listeners[object.uuid] = object.display_item_inserted_event.listen(self.__display_item_inserted)
+            self.__data_group_display_item_removed_listeners[object.uuid] = object.display_item_removed_event.listen(self.__display_item_removed)
             self.item_model_controller.end_insert()
             # recursively insert items that already exist
             data_groups = object.data_groups
@@ -826,10 +826,10 @@ class DataGroupModelController:
             parent_item = self.__mapping[container]
             # manage the item model
             self.item_model_controller.begin_remove(index, index, parent_item.row, parent_item.id)
-            self.__data_group_data_item_inserted_listeners[object.uuid].close()
-            del self.__data_group_data_item_inserted_listeners[object.uuid]
-            self.__data_group_data_item_removed_listeners[object.uuid].close()
-            del self.__data_group_data_item_removed_listeners[object.uuid]
+            self.__data_group_display_item_inserted_listeners[object.uuid].close()
+            del self.__data_group_display_item_inserted_listeners[object.uuid]
+            self.__data_group_display_item_removed_listeners[object.uuid].close()
+            del self.__data_group_display_item_removed_listeners[object.uuid]
             self.__data_group_item_inserted_listeners[object.uuid].close()
             del self.__data_group_item_inserted_listeners[object.uuid]
             self.__data_group_item_removed_listeners[object.uuid].close()
@@ -851,11 +851,11 @@ class DataGroupModelController:
         self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
 
     # this method if called when one of our listened to data groups changes
-    def __data_item_inserted(self, container, data_item, before_index, moving):
+    def __display_item_inserted(self, container, display_item, before_index, moving):
         self.__update_item_count(container)
 
     # this method if called when one of our listened to data groups changes
-    def __data_item_removed(self, container, data_item, index, moving):
+    def __display_item_removed(self, container, display_item, index, moving):
         self.__update_item_count(container)
 
     def item_set_data(self, data, index, parent_row, parent_id):
@@ -918,7 +918,7 @@ class DataGroupModelController:
             if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                 return self.item_model_controller.NONE
             if callable(self.on_receive_files):
-                if self.on_receive_files(mime_data.file_paths, data_group, len(data_group.data_items)):
+                if self.on_receive_files(mime_data.file_paths, data_group, len(data_group.display_items)):
                     return self.item_model_controller.COPY
         if data_group and (mime_data.has_format("text/data_item_uuid")):
             if row >= 0:  # only accept drops ONTO items, not BETWEEN items
@@ -929,7 +929,7 @@ class DataGroupModelController:
             display_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             display_item = get_display_item_by_uuid(self.__document_model, display_item_uuid)
             if display_item:
-                command = self.__document_controller.create_insert_data_group_data_item_command(data_group, len(data_group.display_items), display_item.data_item)
+                command = self.__document_controller.create_insert_data_group_display_item_command(data_group, len(data_group.display_items), display_item)
                 command.perform()
                 self.__document_controller.push_undo_command(command)
                 return action

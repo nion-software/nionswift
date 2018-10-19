@@ -194,18 +194,18 @@ class TestDocumentControllerClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item1.title = "data_item1"
             document_model.append_data_item(data_item1)
-            data_group.append_data_item(data_item1)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item1))
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2.title = "data_item2"
             document_model.append_data_item(data_item2)
-            data_group.append_data_item(data_item2)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item2))
             data_item3 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item3.title = "data_item3"
             document_model.append_data_item(data_item3)
-            data_group.append_data_item(data_item3)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item3))
             new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], data_group=data_group, index=2, threaded=False)
             self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
-            self.assertEqual(data_group.data_items.index(new_data_items[0]), 2)
+            self.assertEqual(data_group.display_items.index(document_model.get_display_item_for_data_item(new_data_items[0])), 2)
 
     def test_remove_graphic_removes_it_from_data_item(self):
         document_model = DocumentModel.DocumentModel()

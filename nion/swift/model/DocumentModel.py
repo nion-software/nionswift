@@ -452,6 +452,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.data_item_inserted_event = Event.Event()
         self.data_item_removed_event = Event.Event()
 
+        self.display_item_will_be_removed_event = Event.Event()
+        self.display_item_inserted_event = Event.Event()
+        self.display_item_removed_event = Event.Event()
+
         # this is provided as a convenience to allow top level view of graphics being removed.
         # used for handling removed graphics in computations.
         self.graphic_removed_event = Event.Event()
@@ -577,7 +581,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, data_item))
         # all data items will already have a persistent_object_context
         for data_group in self.data_groups:
-            data_group.connect_data_items(self.get_data_item_by_uuid)
+            data_group.connect_display_items(self.get_display_item_by_uuid)
         # handle the reference variable assignments
         data_item_variables = self._get_persistent_property_value("data_item_variables")
         new_data_item_variables = dict()
@@ -782,11 +786,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__computation_active_item.valid = False
         # remove data item from any selections
         self.data_item_will_be_removed_event.fire(data_item)
-        # remove the data item from any groups
-        for data_group in self.get_flat_data_group_generator():
-            if data_item in data_group.data_items:
-                undelete_log.append({"type": "data_group_entry", "data_group_uuid": data_group.uuid, "properties": None, "index": data_group.data_items.index(data_item), "data_item_uuid": data_item.uuid})
-                data_group.remove_data_item(data_item)
         # tell the data item it is about to be removed
         data_item.about_to_be_removed()
         # remove it from the persistent_storage
@@ -829,6 +828,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def insert_display_item(self, before_index, display_item):
         self.insert_item("display_items", before_index, display_item)
+        self.display_item_inserted_event.fire(self, display_item, before_index, False)
         self.notify_insert_item("display_items", display_item, before_index)
         display_item.connect_data_items(self.get_data_item_by_uuid)
 
@@ -839,6 +839,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         display_item.about_to_be_inserted(self)
 
     def __removed_display_item(self, name, index, display_item):
+        # remove the data item from any groups
+        # for data_group in self.get_flat_data_group_generator():
+        #     if display_item in data_group.display_items:
+        #         undelete_log.append({"type": "data_group_entry", "data_group_uuid": data_group.uuid, "properties": None, "index": data_group.display_items.index(display_item), "display_item_uuid": display_item.uuid})
+        #         data_group.remove_display_item(display_item)
+        self.display_item_will_be_removed_event.fire(display_item)
+        self.display_item_removed_event.fire(self, display_item, index, False)
         display_item.about_to_be_removed()
         display_item.close()
 
@@ -1077,8 +1084,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.insert_data_structure(index, item)
             elif name == "data_group_entry":
                 data_group = self.get_data_group_by_uuid(entry["data_group_uuid"])
-                data_item = self.get_data_item_by_uuid(entry["data_item_uuid"])
-                data_group.insert_data_item(index, data_item)
+                display_item = self.get_display_item_by_uuid(entry["display_item_uuid"])
+                data_group.insert_display_item(index, display_item)
             else:
                 assert False
 
@@ -1324,7 +1331,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.notify_insert_item("data_groups", data_group, before_index)
 
     def remove_data_group(self, data_group):
-        data_group.disconnect_data_items()
+        data_group.disconnect_display_items()
         index = self.data_groups.index(data_group)
         self.remove_item("data_groups", data_group)
         self.notify_remove_item("data_groups", data_group, index)
@@ -1356,7 +1363,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     for data_item in data_items:
                         if not self.get_data_item_by_uuid(data_item.uuid):
                             self.append_data_item(data_item)
-                            data_group.append_data_item(data_item)
+                            data_group.append_display_item(self.get_display_item_for_data_item(data_item))
                 except Exception as e:
                     logging.debug("Error reading %s", sample_path)
         else:
@@ -1430,8 +1437,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return list(self.get_flat_data_item_generator()).index(data_item)
 
     # access data items by uuid
-    def get_data_item_by_uuid(self, uuid: uuid.UUID) -> DataItem.DataItem:
+    def get_data_item_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DataItem.DataItem]:
         return self.__uuid_to_data_item.get(uuid)
+
+    def get_display_item_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DataItem.DisplayItem]:
+        for display_item in self.display_items:
+            if display_item.uuid == uuid:
+                return display_item
+        return None
 
     def get_display_items_for_data_item(self, data_item: DataItem.DataItem) -> typing.Sequence[DataItem.DisplayItem]:
         display_items = list()

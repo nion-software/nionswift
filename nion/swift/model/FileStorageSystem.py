@@ -477,6 +477,19 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
     computations_list = library_storage_properties.get("computations", list())
     assert len(computations_list) == len({computation.get("uuid") for computation in computations_list})
 
+    # migrations
+
+    if library_storage_properties.get("version", 0) < 2:
+        for data_group_properties in library_storage_properties.get("data_groups", list()):
+            data_group_properties.pop("data_groups")
+            display_item_references = data_group_properties.setdefault("display_item_references", list())
+            data_item_uuid_strs = data_group_properties.pop("data_item_uuids", list())
+            for data_item_uuid_str in data_item_uuid_strs:
+                for display_item_properties in library_storage_properties.get("display_items", list()):
+                    if data_item_uuid_str in display_item_properties.get("data_item_references", list()):
+                        display_item_references.append(display_item_properties["uuid"])
+        library_storage_properties["version"] = 2
+
     # TODO: add consistency checks: no duplicated items [by uuid] such as connections or computations or data items
 
     persistent_storage_system.rewrite_properties(library_storage_properties)

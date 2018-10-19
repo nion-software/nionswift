@@ -838,12 +838,8 @@ class DocumentController(Window.Window):
                 command.perform()
                 self.push_undo_command(command)
         elif isinstance(container, DataGroup.DataGroup):
-            for display_item in display_items:
-                data_item = display_item.data_item if display_item else None
-                if data_item and data_item in container.data_items and data_item not in data_items:
-                    data_items.append(data_item)
-            if data_items:
-                command = DocumentController.RemoveDataGroupDataItemsCommand(self.document_model, container, data_items)
+            if display_items:
+                command = DocumentController.RemoveDataGroupDisplayItemsCommand(self.document_model, container, display_items)
                 command.perform()
                 self.push_undo_command(command)
 
@@ -1077,20 +1073,20 @@ class DocumentController(Window.Window):
         # delete key gets handled by key handlers, but this method gets called by menu items
         self.remove_selected_graphics()
 
-    class InsertDataGroupDataItemCommand(Undo.UndoableCommand):
-        def __init__(self, document_model, data_group: DataGroup.DataGroup, before_index: int, data_item: DataItem.DataItem):
+    class InsertDataGroupDisplayItemCommand(Undo.UndoableCommand):
+        def __init__(self, document_model, data_group: DataGroup.DataGroup, before_index: int, display_item: DataItem.DisplayItem):
             super().__init__("Insert Library Item")
             self.__document_model = document_model
             self.__data_group_uuid = data_group.uuid
             self.__before_index = before_index
-            self.__data_item_uuid = data_item.uuid
+            self.__display_item_uuid = display_item.uuid
             self.initialize()
 
         def close(self):
             self.__document_model = None
             self.__data_group_uuid = None
             self.__before_index = None
-            self.__data_item_uuid = None
+            self.__display_item_uuid = None
             super().close()
 
         def _get_modified_state(self):
@@ -1107,29 +1103,29 @@ class DocumentController(Window.Window):
 
         def perform(self) -> None:
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
-            data_group.insert_data_item(self.__before_index, data_item)
+            display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+            data_group.insert_display_item(self.__before_index, display_item)
 
         def _undo(self) -> None:
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            data_group.remove_data_item(data_group.data_items[self.__before_index])
+            data_group.remove_display_item(data_group.display_items[self.__before_index])
 
         def _redo(self) -> None:
             self.perform()
 
-    def create_insert_data_group_data_item_command(self, data_group: DataGroup.DataGroup, before_index: int, data_item: DataItem) -> InsertDataGroupDataItemCommand:
-        return DocumentController.InsertDataGroupDataItemCommand(self.document_model, data_group, before_index, data_item)
+    def create_insert_data_group_display_item_command(self, data_group: DataGroup.DataGroup, before_index: int, display_item: DataItem.DisplayItem) -> InsertDataGroupDisplayItemCommand:
+        return DocumentController.InsertDataGroupDisplayItemCommand(self.document_model, data_group, before_index, display_item)
 
-    class InsertDataGroupDataItemsCommand(Undo.UndoableCommand):
-        def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):
+    class InsertDataGroupDisplayItemsCommand(Undo.UndoableCommand):
+        def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, display_items: typing.Sequence[DataItem.DisplayItem], index: int):
             super().__init__("Insert Library Items")
             self.__document_controller = document_controller
             self.__data_group_uuid = data_group.uuid
             self.__data_group_indexes = list()
             self.__data_group_uuids = list()
-            self.__data_items = data_items  # only in perform
-            self.__data_item_index = index
-            self.__data_item_indexes = list()
+            self.__display_items = display_items  # only in perform
+            self.__display_item_index = index
+            self.__display_item_indexes = list()
             self.__undelete_logs = None
             self.initialize()
 
@@ -1138,8 +1134,8 @@ class DocumentController(Window.Window):
             self.__data_group_uuid = None
             self.__data_group_indexes = None
             self.__data_group_uuids = None
-            self.__data_items = None
-            self.__data_item_index = None
+            self.__display_items = None
+            self.__display_item_index = None
             self.__undelete_logs = None
             super().close()
 
@@ -1154,52 +1150,52 @@ class DocumentController(Window.Window):
         def perform(self):
             document_model = self.__document_controller.document_model
             data_group = document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            index = self.__data_item_index
-            for data_item in self.__data_items:
-                if not document_model.get_data_item_by_uuid(data_item.uuid):
-                    self.__data_item_indexes.append(len(document_model.data_items))
-                    document_model.append_data_item(data_item)
-            for data_item in self.__data_items:
-                if not data_item in data_group.data_items:
-                    data_group.insert_data_item(index, data_item)
+            index = self.__display_item_index
+            for display_item in self.__display_items:
+                if not document_model.get_display_item_by_uuid(display_item.uuid):
+                    self.__display_item_indexes.append(len(document_model.display_items))
+                    document_model.append_display_item(display_item)
+            for display_item in self.__display_items:
+                if not display_item in data_group.display_items:
+                    data_group.insert_display_item(index, display_item)
                     self.__data_group_indexes.append(index)
-                    self.__data_group_uuids.append(data_item.uuid)
+                    self.__data_group_uuids.append(display_item.uuid)
                     index += 1
-            self.__data_items = None
+            self.__display_items = None
 
         def _undo(self) -> None:
             document_model = self.__document_controller.document_model
             data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
             self.__undelete_logs = list()
-            data_items = [data_group.data_items[index] for index in self.__data_group_indexes]
-            for data_item in data_items:
-                if data_item in data_group.data_items:
-                    data_group.remove_data_item(data_item)
-            data_items = [document_model.data_items[index] for index in self.__data_item_indexes]
-            for data_item in data_items:
-                if data_item in document_model.data_items:
-                    self.__undelete_logs.append(document_model.remove_data_item(data_item, safe=True))
+            display_items = [data_group.display_items[index] for index in self.__data_group_indexes]
+            for display_item in display_items:
+                if display_item in data_group.display_items:
+                    data_group.remove_display_item(display_item)
+            display_items = [document_model.display_items[index] for index in self.__display_item_indexes]
+            for display_item in display_items:
+                if display_item in document_model.display_items:
+                    self.__undelete_logs.append(document_model.remove_display_item(display_item, safe=True))
 
         def _redo(self) -> None:
             document_model = self.__document_controller.document_model
             data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
-            index = self.__data_item_index
-            data_items = [document_model.get_data_item_by_uuid(data_item_uuid) for data_item_uuid in reversed(self.__data_group_uuids)]
-            for data_item in data_items:
-                if not data_item in data_group.data_items:
-                    data_group.insert_data_item(index, data_item)
+            index = self.__display_item_index
+            display_items = [document_model.get_display_item_by_uuid(display_item_uuid) for display_item_uuid in reversed(self.__data_group_uuids)]
+            for display_item in display_items:
+                if not display_item in data_group.display_items:
+                    data_group.insert_display_item(index, display_item)
 
-    class RemoveDataGroupDataItemsCommand(Undo.UndoableCommand):
-        def __init__(self, document_model, data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem]):
+    class RemoveDataGroupDisplayItemsCommand(Undo.UndoableCommand):
+        def __init__(self, document_model, data_group: DataGroup.DataGroup, display_items: typing.Sequence[DataItem.DisplayItem]):
             super().__init__("Remove Library Item")
             self.__document_model = document_model
             self.__data_group_uuid = data_group.uuid
-            combined = [(data_group.data_items.index(data_item), data_item.uuid) for data_item in data_items]
+            combined = [(data_group.display_items.index(display_item), display_item.uuid) for display_item in display_items]
             combined = sorted(combined, key=operator.itemgetter(0), reverse=True)
-            self.__data_item_indexes = list(map(operator.itemgetter(0), combined))
-            self.__data_item_uuids = list(map(operator.itemgetter(1), combined))
+            self.__display_item_indexes = list(map(operator.itemgetter(0), combined))
+            self.__display_item_uuids = list(map(operator.itemgetter(1), combined))
             self.initialize()
 
         def _get_modified_state(self):
@@ -1216,16 +1212,16 @@ class DocumentController(Window.Window):
 
         def perform(self) -> None:
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            data_items = [data_group.data_items[index] for index in self.__data_item_indexes]
-            for data_item in data_items:
-                if data_item in data_group.data_items:
-                    data_group.remove_data_item(data_item)
+            display_items = [data_group.display_items[index] for index in self.__display_item_indexes]
+            for display_item in display_items:
+                if display_item in data_group.display_items:
+                    data_group.remove_display_item(display_item)
 
         def _undo(self) -> None:
             data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            data_items = [self.__document_model.get_data_item_by_uuid(data_item_uuid) for data_item_uuid in self.__data_item_uuids]
-            for index, data_item in zip(self.__data_item_indexes, data_items):
-                data_group.insert_data_item(index, data_item)
+            display_items = [self.__document_model.get_display_item_by_uuid(display_item_uuid) for display_item_uuid in self.__display_item_uuids]
+            for index, display_item in zip(self.__display_item_indexes, display_items):
+                data_group.insert_display_item(index, display_item)
 
         def _redo(self) -> None:
             self.perform()
@@ -1353,7 +1349,7 @@ class DocumentController(Window.Window):
         self.push_undo_command(command)
 
     def remove_data_group_from_container(self, data_group, container):
-        data_group_empty = len(data_group.data_items) == 0 and len(data_group.data_groups) == 0
+        data_group_empty = len(data_group.display_items) == 0 and len(data_group.data_groups) == 0
         if data_group_empty:
             assert data_group in container.data_groups
             command = DocumentController.RemoveDataGroupCommand(self.document_model, container, data_group)
@@ -2170,7 +2166,8 @@ class DocumentController(Window.Window):
 
         def receive_files_complete(index, data_items):
             if data_group and isinstance(data_group, DataGroup.DataGroup):
-                command = DocumentController.InsertDataGroupDataItemsCommand(self, data_group, data_items, index)
+                display_items = [self.document_model.get_display_item_for_data_item(data_item) for data_item in data_items]
+                command = DocumentController.InsertDataGroupDisplayItemsCommand(self, data_group, display_items, index)
                 command.perform()
                 self.push_undo_command(command)
             else:

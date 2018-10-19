@@ -1478,7 +1478,9 @@ class DataGroup(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        self.__data_group.append_data_item(data_item._data_item)
+        display_item = data_item._data_item.container.get_display_item_for_data_item(data_item._data_item) if data_item._data_item.container else None
+        if display_item:
+            self.__data_group.append_display_item(display_item)
 
     def remove_data_item(self, data_item: DataItem) -> None:
         raise NotImplementedError()

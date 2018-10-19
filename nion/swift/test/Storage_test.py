@@ -88,20 +88,20 @@ class TestStorageClass(unittest.TestCase):
         display_item.display.display_limits = (500, 1000)
         display_item.data_item.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "three"))
         data_group = DataGroup.DataGroup()
-        data_group.append_data_item(data_item)
+        data_group.append_display_item(document_controller.document_model.get_display_item_for_data_item(data_item))
         document_controller.document_model.append_data_group(data_group)
         data_item2 = DataItem.DataItem(numpy.zeros((12, 12), dtype=numpy.int64))
         document_controller.document_model.append_data_item(data_item2)
-        data_group.append_data_item(data_item2)
+        data_group.append_display_item(document_controller.document_model.get_display_item_for_data_item(data_item2))
         data_item3 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         document_controller.document_model.append_data_item(data_item3)
-        data_group.append_data_item(data_item3)
+        data_group.append_display_item(document_controller.document_model.get_display_item_for_data_item(data_item3))
         data_item2a = DataItem.DataItem()
         data_item2a.ensure_data_source()
         data_item2b = DataItem.DataItem()
         data_item2b.ensure_data_source()
-        data_group.append_data_item(data_item2a)
-        data_group.append_data_item(data_item2b)
+        data_group.append_display_item(document_controller.document_model.get_display_item_for_data_item(data_item2a))
+        data_group.append_display_item(document_controller.document_model.get_display_item_for_data_item(data_item2b))
         document_controller.document_model.append_data_item(data_item2a)
         document_controller.document_model.append_data_item(data_item2b)
         display_panel = document_controller.workspace_controller.display_panels[0]
@@ -168,6 +168,9 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
         document_controller.close()
+        import pprint
+        pprint.pprint(memory_persistent_storage_system.library_storage_properties)
+        pprint.pprint(memory_persistent_storage_system.persistent_storage_properties)
 
     def test_storage_cache_closing_twice_throws_exception(self):
         storage_cache = Cache.DbStorageCache(":memory:")
@@ -483,7 +486,7 @@ class TestStorageClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         display_item = document_model.get_display_item_for_data_item(data_item)
         data_group = DataGroup.DataGroup()
-        data_group.append_data_item(data_item)
+        data_group.append_display_item(document_model.get_display_item_for_data_item(data_item))
         document_controller.document_model.append_data_group(data_group)
         data2 = numpy.zeros((16, 16), numpy.uint32)
         data2[0,0] = 2
@@ -510,7 +513,7 @@ class TestStorageClass(unittest.TestCase):
         data_item = DataItem.DataItem(data1)
         document_model.append_data_item(data_item)
         data_group = DataGroup.DataGroup()
-        data_group.append_data_item(data_item)
+        data_group.append_display_item(document_model.get_display_item_for_data_item(data_item))
         document_controller.document_model.append_data_group(data_group)
 
         def update_data(event_loop, data_item):
@@ -609,15 +612,15 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
             data_group = DataGroup.DataGroup()
-            data_group.append_data_item(document_model.data_items[0])
-            data_group.append_data_item(document_model.data_items[1])
+            data_group.append_display_item(document_model.display_items[0])
+            data_group.append_display_item(document_model.display_items[1])
             document_model.append_data_group(data_group)
         library_properties = storage_system.library_storage_properties
-        library_properties['data_groups'][0]['data_item_uuids'][1] = library_properties['data_groups'][0]['data_item_uuids'][0]
+        library_properties['data_groups'][0]['display_item_references'][1] = library_properties['data_groups'][0]['display_item_references'][0]
         storage_system._set_properties(library_properties)
         document_model = DocumentModel.DocumentModel(storage_system=storage_system)
         with contextlib.closing(document_model):
-            self.assertEqual(len(document_model.data_groups[0].data_items), 1)
+            self.assertEqual(len(document_model.data_groups[0].display_items), 1)
 
     def test_insert_item_with_transaction(self):
         cache_name = ":memory:"
@@ -634,7 +637,7 @@ class TestStorageClass(unittest.TestCase):
             with document_model.item_transaction(data_item):
                 display_item.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
-                data_group.append_data_item(data_item)
+                data_group.append_display_item(document_model.get_display_item_for_data_item(data_item))
         # make sure it reloads
         storage_cache = Cache.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
