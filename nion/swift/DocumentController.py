@@ -98,22 +98,13 @@ class DocumentController(Window.Window):
         # and next by applying a custom filter to the items from the items resulting in the first selection.
         # data items model tracks the main list of items selected in the data panel.
         # filtered display items model tracks the filtered items from those in data items model.
-        self.__data_items_model = ListModel.FilteredListModel(container=self.document_model, items_key="data_items")
-        self.__data_items_model.filter_id = None  # extra tracking field
-        self.__filtered_data_items_model = ListModel.FilteredListModel(items_key="data_items", container=self.__data_items_model)
+        self.__display_items_model = ListModel.FilteredListModel(container=self.document_model, items_key="display_items")
+        self.__display_items_model.filter_id = None  # extra tracking field
+        self.__filtered_display_items_model = ListModel.FilteredListModel(items_key="display_items", container=self.__display_items_model)
         self.__last_display_filter = ListModel.Filter(True)
         self.filter_changed_event = Event.Event()
 
-        def map_data_item_to_display_item(data_item):
-            return self.document_model.get_display_item_for_data_item(data_item)
-
-        def unmap_data_item_to_display_item(display_item):
-            return display_item.data_item
-
-        self.__display_items_model = ListModel.MappedListModel(container=self.__data_items_model, master_items_key="data_items", items_key="display_items", map_fn=map_data_item_to_display_item, unmap_fn=unmap_data_item_to_display_item)
-        self.__filtered_display_items_model = ListModel.MappedListModel(container=self.__filtered_data_items_model, master_items_key="data_items", items_key="display_items", map_fn=map_data_item_to_display_item, unmap_fn=unmap_data_item_to_display_item, selection=self.selection)
-
-        self.__update_data_items_model(self.__data_items_model, None, None)
+        self.__update_display_items_model(self.__display_items_model, None, None)
 
         def call_soon(fn):
             self.queue_task(fn)
@@ -187,14 +178,10 @@ class DocumentController(Window.Window):
             self.__workspace_controller = None
         self.__call_soon_event_listener.close()
         self.__call_soon_event_listener = None
-        self.__filtered_data_items_model.close()
-        self.__filtered_data_items_model = None
         self.__filtered_display_items_model.close()
         self.__filtered_display_items_model = None
         self.filter_controller.close()
         self.filter_controller = None
-        self.__data_items_model.close()
-        self.__data_items_model = None
         self.__display_items_model.close()
         self.__display_items_model = None
         # document_model may be shared between several DocumentControllers, so use reference counting
@@ -653,100 +640,83 @@ class DocumentController(Window.Window):
     def filtered_display_items_model(self):
         return self.__filtered_display_items_model
 
-    def __update_data_items_model(self, data_items_model: ListModel.FilteredListModel, data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str]) -> None:
+    def __update_display_items_model(self, display_items_model: ListModel.FilteredListModel, data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str]) -> None:
         """Update the data item model with a new container, filter, and sorting.
 
         This is called when the data item model is created or when the user changes
         the data group or sorting settings.
         """
 
-        with data_items_model.changes():  # change filter and sort together
+        with display_items_model.changes():  # change filter and sort together
             if data_group is not None:
-                data_items_model.container = data_group
-                data_items_model.filter = ListModel.Filter(True)
-                data_items_model.sort_key = None
-                data_items_model.filter_id = None
+                display_items_model.container = data_group
+                display_items_model.filter = ListModel.Filter(True)
+                display_items_model.sort_key = None
+                display_items_model.filter_id = None
             elif filter_id == "latest-session":
-                data_items_model.container = self.document_model
-                data_items_model.filter = ListModel.EqFilter("session_id", self.document_model.session_id)
-                data_items_model.sort_key = DataItem.sort_by_date_key
-                data_items_model.sort_reverse = True
-                data_items_model.filter_id = filter_id
+                display_items_model.container = self.document_model
+                display_items_model.filter = ListModel.EqFilter("session_id", self.document_model.session_id)
+                display_items_model.sort_key = DataItem.sort_by_date_key
+                display_items_model.sort_reverse = True
+                display_items_model.filter_id = filter_id
             elif filter_id == "temporary":
-                data_items_model.container = self.document_model
-                data_items_model.filter = ListModel.NotEqFilter("category", "persistent")
-                data_items_model.sort_key = DataItem.sort_by_date_key
-                data_items_model.sort_reverse = True
-                data_items_model.filter_id = filter_id
+                display_items_model.container = self.document_model
+                display_items_model.filter = ListModel.NotEqFilter("category", "persistent")
+                display_items_model.sort_key = DataItem.sort_by_date_key
+                display_items_model.sort_reverse = True
+                display_items_model.filter_id = filter_id
             elif filter_id == "none":  # not intended to be used directly
-                data_items_model.container = self.document_model
-                data_items_model.filter = ListModel.Filter(False)
-                data_items_model.sort_key = DataItem.sort_by_date_key
-                data_items_model.sort_reverse = True
-                data_items_model.filter_id = filter_id
+                display_items_model.container = self.document_model
+                display_items_model.filter = ListModel.Filter(False)
+                display_items_model.sort_key = DataItem.sort_by_date_key
+                display_items_model.sort_reverse = True
+                display_items_model.filter_id = filter_id
             else:  # "all"
-                data_items_model.container = self.document_model
-                data_items_model.filter = ListModel.EqFilter("category", "persistent")
-                data_items_model.sort_key = DataItem.sort_by_date_key
-                data_items_model.sort_reverse = True
-                data_items_model.filter_id = None
+                display_items_model.container = self.document_model
+                display_items_model.filter = ListModel.EqFilter("category", "persistent")
+                display_items_model.sort_key = DataItem.sort_by_date_key
+                display_items_model.sort_reverse = True
+                display_items_model.filter_id = None
 
     def create_display_items_model(self, data_group, filter_id):
-        class DisplayItemListModel(ListModel.MappedListModel):
-
-            def __init__(self, document_model, filtered_displays_model):
-
-                def map_data_item_to_display_item(data_item):
-                    return document_model.get_display_item_for_data_item(data_item)
-
-                def unmap_data_item_to_display_item(display_item):
-                    return display_item.data_item
-
-                super().__init__(container=filtered_displays_model, master_items_key="data_items", items_key="display_items", map_fn=map_data_item_to_display_item, unmap_fn=unmap_data_item_to_display_item)
-
-            def close(self):
-                self.container.close()
-                super().close()
-
-        data_items_model = ListModel.FilteredListModel(items_key="data_items")
-        self.__update_data_items_model(data_items_model, data_group, filter_id)
-
-        return DisplayItemListModel(self.document_model, data_items_model)
+        display_items_model = ListModel.FilteredListModel(items_key="display_items")
+        self.__update_display_items_model(display_items_model, data_group, filter_id)
+        return display_items_model
 
     def set_data_group(self, data_group):
-        if self.__data_items_model is not None:
+        if self.__display_items_model is not None:
             container = data_group if data_group else self.document_model
-            if container != self.__data_items_model.container:
-                self.__update_data_items_model(self.__data_items_model, data_group, self.__data_items_model.filter_id)
-                self.filter_changed_event.fire(data_group, self.__data_items_model.filter_id)
+            if container != self.__display_items_model.container:
+                self.__update_display_items_model(self.__display_items_model, data_group, self.__display_items_model.filter_id)
+                self.filter_changed_event.fire(data_group, self.__display_items_model.filter_id)
 
     def set_filter(self, filter_id):
-        if self.__data_items_model is not None:
-            if filter_id != self.__data_items_model.filter_id:
-                self.__update_data_items_model(self.__data_items_model, None, filter_id)
+        if self.__display_items_model is not None:
+            if filter_id != self.__display_items_model.filter_id:
+                self.__update_display_items_model(self.__display_items_model, None, filter_id)
                 self.filter_changed_event.fire(None, filter_id)
 
     def get_data_group_and_filter_id(self):
         # used for display panel initialization
-        data_group = self.__data_items_model.container if self.__data_items_model.container != self.document_model else None
-        filter_id = self.__data_items_model.filter_id
+        data_group = self.__display_items_model.container if self.__display_items_model.container != self.document_model else None
+        filter_id = self.__display_items_model.filter_id
         return data_group, filter_id
 
     @property
     def display_filter(self) -> ListModel.Filter:
-        return self.__filtered_data_items_model.filter
+        return self.__filtered_display_items_model.filter
 
     @display_filter.setter
     def display_filter(self, display_filter: ListModel.Filter) -> None:
-        if self.__filtered_data_items_model is not None:  # during close
-            self.__filtered_data_items_model.filter = display_filter
+        if self.__filtered_display_items_model is not None:  # during close
+            self.__filtered_display_items_model.filter = display_filter
 
     @property
     def selected_display_items(self) -> typing.Sequence[DataItem.DisplayItem]:
         selected_display_items = list()
-        data_items = self.__filtered_data_items_model.data_items
+        display_items = self.__filtered_display_items_model.display_items
         for index in self.selection.ordered_indexes:
-            selected_display_items.append(self.document_model.get_display_item_for_data_item(data_items[index]))
+            selected_display_items.append(display_items[index])
         return selected_display_items
 
     @property
@@ -827,7 +797,7 @@ class DocumentController(Window.Window):
 
     def delete_display_items(self, display_items: typing.Sequence[DataItem.DisplayItem], container=None) -> None:
         data_items = list()
-        container = container if container else self.__data_items_model.container
+        container = container if container else self.__display_items_model.container
         if container is self.document_model:
             for display_item in display_items:
                 data_item = display_item.data_item if display_item else None

@@ -837,6 +837,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __inserted_display_item(self, name, before_index, display_item):
         display_item.about_to_be_inserted(self)
+        # update the session
+        display_item.session_id = self.session_id
 
     def __removed_display_item(self, name, index, display_item):
         # remove the data item from any groups

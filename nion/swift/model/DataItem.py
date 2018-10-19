@@ -1539,11 +1539,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("title", hidden=True, changed=self.__property_changed)
         self.define_property("caption", hidden=True, changed=self.__property_changed)
         self.define_property("description", hidden=True, changed=self.__property_changed)
+        self.define_property("session_id", hidden=True, changed=self.__property_changed)
         self.define_property("data_item_references", list(), changed=self.__property_changed)
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.__data_items = list()
         self.__suspendable_storage_cache = None
         self.__display_ref_count = 0
+        self.item_changed_event = Event.Event()
         self.about_to_be_removed_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
@@ -1571,6 +1573,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item_copy._set_persistent_property_value("title", self._get_persistent_property_value("title"))
         display_item_copy._set_persistent_property_value("caption", self._get_persistent_property_value("caption"))
         display_item_copy._set_persistent_property_value("description", self._get_persistent_property_value("description"))
+        display_item_copy._set_persistent_property_value("session_id", self._get_persistent_property_value("session_id"))
         display_item_copy.created = self.created
         # displays
         for display in copy.copy(display_item_copy.displays):
@@ -1644,6 +1647,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item._set_persistent_property_value("title", self._get_persistent_property_value("title"))
         display_item._set_persistent_property_value("caption", self._get_persistent_property_value("caption"))
         display_item._set_persistent_property_value("description", self._get_persistent_property_value("description"))
+        display_item._set_persistent_property_value("session_id", self._get_persistent_property_value("session_id"))
         display_item.created = self.created
         for display in copy.copy(display_item.displays):
             display_item.remove_display(display)
@@ -1779,6 +1783,14 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def description(self, value: str) -> None:
         self.__set_cascaded_value("description", str(value) if value is not None else str())
 
+    @property
+    def session_id(self) -> str:
+        return self.__get_used_value("session_id", str())
+
+    @session_id.setter
+    def session_id(self, value: str) -> None:
+        self.__set_cascaded_value("session_id", str(value) if value is not None else str())
+
     def connect_data_items(self, lookup_data_item):
         self.__data_items = [lookup_data_item(uuid.UUID(data_item_reference)) for data_item_reference in self.data_item_references]
 
@@ -1838,6 +1850,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         return self.data_item.size_and_data_format_as_string
 
     @property
+    def date_for_sorting(self):
+        data_item_dates = [data_item.date_for_sorting for data_item in self.data_items]
+        if len(data_item_dates):
+            return max(data_item_dates)
+        return self.created
+
+    @property
     def date_for_sorting_local_as_string(self) -> str:
         return self.data_item.date_for_sorting_local_as_string
 
@@ -1850,6 +1869,10 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     @property
     def is_live(self) -> bool:
         return any(data_item.is_live for data_item in self.data_items)
+
+    @property
+    def category(self) -> str:
+        return "temporary" if any(data_item.category == "temporary" for data_item in self.data_items) else "persistent"
 
     @property
     def status_str(self) -> str:

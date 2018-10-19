@@ -354,18 +354,19 @@ class TestDataPanelClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item1.title = "data_item1"
             document_model.append_data_item(data_item1)
-            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item1))
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            data_group.append_display_item(display_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2.title = "data_item2"
             document_model.append_data_item(data_item2)
             data_group.append_display_item(document_model.get_display_item_for_data_item(data_item2))
-            filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
-            filtered_data_items.container = data_group
-            self.assertTrue(data_item1 in filtered_data_items.items)
+            filtered_display_items = ListModel.FilteredListModel(items_key="display_items")
+            filtered_display_items.container = data_group
+            self.assertTrue(display_item1 in filtered_display_items.items)
             data_panel = document_controller.find_dock_widget("data-panel").panel
             document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item1)
-            filtered_data_items.close()
-            filtered_data_items = None
+            filtered_display_items.close()
+            filtered_display_items = None
 
     def test_data_group_data_items_model_should_close_nicely(self):
         document_model = DocumentModel.DocumentModel()
