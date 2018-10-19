@@ -122,16 +122,17 @@ def migrate_to_v13(reader_info_list, library_updates, migration_log: MigrationLo
 
                 for display_properties in display_properties_list:
                     display_item_properties = dict()
+                    display_item_properties["type"] = "display_item"
                     display_item_properties["uuid"] = str(uuid.uuid4())
                     if "created" in properties:
                         display_item_properties["created"] = properties.get("created")
                     if "modified" in properties:
                         display_item_properties["modified"] = properties.get("modified")
-                    display_item_properties["display"] = display_properties
+                    display_item_properties["displays"] = [display_properties]
                     display_items.append(display_item_properties)
                     display_item_properties["data_item_references"] = [data_item_uuid_str]
 
-                library_updates.setdefault(data_item_uuid, dict()).setdefault("display_items", list()).append(display_items)
+                library_updates.setdefault(data_item_uuid, dict()).setdefault("display_items", list()).extend(display_items)
 
                 properties["version"] = 13
 

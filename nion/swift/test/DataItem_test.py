@@ -1020,9 +1020,12 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_item._set_modified(datetime.datetime(2000, 1, 1))
-            modified = data_item.modified
+            display_item._set_modified(datetime.datetime(2000, 1, 1))
+            data_item_modified = data_item.modified
+            display_item_modified = display_item.modified
             display_item.display.dimensional_calibration_style = "relative-top-left"
-            self.assertGreater(data_item.modified, modified)
+            self.assertEqual(data_item.modified, data_item_modified)
+            self.assertGreater(display_item.modified, display_item_modified)
 
     def test_changing_data_on_data_item_updates_modified(self):
         document_model = DocumentModel.DocumentModel()

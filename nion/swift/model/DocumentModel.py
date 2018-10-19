@@ -496,7 +496,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_active_item = None  # type: ComputationQueueItem
         self.define_type("library")
         self.define_relationship("data_items", data_item_factory)
-        self.define_relationship("display_items", display_item_factory, insert=self.__inserted_display_item, remove=self.__removed_display_item)
+        self.define_relationship("display_items", display_item_factory, insert=self.__inserted_display_item)
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)
         self.define_relationship("computations", computation_factory, insert=self.__inserted_computation, remove=self.__removed_computation)
@@ -565,6 +565,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item.set_session_manager(self)
         for display_item in self.display_items:
             display_item.connect_data_items(self.get_data_item_by_uuid)
+            display_item.set_storage_cache(self.storage_cache)
         # this loop reestablishes dependencies now that everything is loaded.
         # the change listener for the computation will already have been established via the regular
         # loading mechanism; but because some data items may not have been loaded at the first time computation
@@ -837,19 +838,29 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __inserted_display_item(self, name, before_index, display_item):
         display_item.about_to_be_inserted(self)
+        display_item.set_storage_cache(self.storage_cache)
         # update the session
         display_item.session_id = self.session_id
 
-    def __removed_display_item(self, name, index, display_item):
+    def __remove_display_item(self, display_item, *, safe: bool=False) -> typing.Sequence:
+        undelete_log = list()
         # remove the data item from any groups
-        # for data_group in self.get_flat_data_group_generator():
-        #     if display_item in data_group.display_items:
-        #         undelete_log.append({"type": "data_group_entry", "data_group_uuid": data_group.uuid, "properties": None, "index": data_group.display_items.index(display_item), "display_item_uuid": display_item.uuid})
-        #         data_group.remove_display_item(display_item)
+        for data_group in self.get_flat_data_group_generator():
+            if display_item in data_group.display_items:
+                undelete_log.append({"type": "data_group_entry", "data_group_uuid": data_group.uuid, "properties": None, "index": data_group.display_items.index(display_item), "display_item_uuid": display_item.uuid})
+                data_group.remove_display_item(display_item)
         self.display_item_will_be_removed_event.fire(display_item)
-        self.display_item_removed_event.fire(self, display_item, index, False)
+        # tell the display item it is about to be removed
         display_item.about_to_be_removed()
+        # remove it from the persistent_storage
+        assert display_item is not None
+        assert display_item in self.display_items
+        index = self.display_items.index(display_item)
+        self.display_item_removed_event.fire(self, display_item, index, False)
+        self.notify_remove_item("display_items", display_item, index)
+        self.remove_item("display_items", display_item)
         display_item.close()
+        return undelete_log
 
     def insert_model_item(self, container, name, before_index, item):
         container.insert_item(name, before_index, item)
@@ -905,6 +916,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             elif isinstance(item, Symbolic.Computation):
                 for output in item._outputs:
                     self.__build_cascade(output, items, dependencies)
+            # delete display items whose only data item is being deleted
+            elif isinstance(item, DataItem.DataItem):
+                for display_item in self.get_display_items_for_data_item(item):
+                    if display_item.data_item:
+                        self.__build_cascade(display_item, items, dependencies)
+            # delete data items whose only display item is being deleted
+            elif isinstance(item, DataItem.DisplayItem):
+                for data_item in item.data_items:
+                    if len(self.get_display_items_for_data_item(data_item)) == 1:
+                        self.__build_cascade(data_item, items, dependencies)
             # dependencies are deleted
             # in order to be able to have finer control over how dependencies of input lists are handled,
             # enumerate the computations and match up dependencies instead of using the dependency tree.
@@ -933,6 +954,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     if (item, data_item) not in dependencies:
                         dependencies.append((item, data_item))
                     self.__build_cascade(data_item, items, dependencies)
+            # display items whose source is the item are deleted
+            for display_item in self.display_items:
+                pass
+                # if display_item.source == item:
+                #     if (item, display_item) not in dependencies:
+                #         dependencies.append((item, display_item))
+                #     self.__build_cascade(display_item, items, dependencies)
             # graphics whose source is the item are deleted
             for display_item in self.display_items:
                 for graphic in display_item.graphics:
@@ -1012,6 +1040,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             container = item.container
             if isinstance(item, DataItem.DataItem):
                 name = "data_items"
+            elif isinstance(item, DataItem.DisplayItem):
+                name = "display_items"
             elif isinstance(item, Graphics.Graphic):
                 name = "graphics"
             elif isinstance(item, DataStructure):
@@ -1032,13 +1062,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 # NOTE: __remove_data_item will notify_remove_item
                 undelete_log.extend(self.__remove_data_item(item, safe=safe))
                 undelete_log.append({"type": name, "index": index, "properties": item_dict})
+            elif container is self and name == "display_items":
+                # call the version of __remove_data_item that doesn't cascade again
+                index = getattr(container, name).index(item)
+                item_dict = item.write_to_dict()
+                # NOTE: __remove_display_item will notify_remove_item
+                undelete_log.extend(self.__remove_display_item(item, safe=safe))
+                undelete_log.append({"type": name, "index": index, "properties": item_dict})
             elif container:
                 container_ref = str(container.uuid)
                 index = getattr(container, name).index(item)
                 item_dict = item.write_to_dict()
                 undelete_log.append({"type": name, "container": container_ref, "index": index, "properties": item_dict})
                 container.remove_item(name, item)
-                # handle top level 'remove item' notifications for data structures and computations here
+                # handle top level 'remove item' notifications for data structures, computations, and display items here
                 # since they're not handled elsewhere.
                 if container == self and name in ("data_structures", "computations"):
                     self.notify_remove_item(name, item, index)
@@ -1059,6 +1096,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             properties = entry["properties"]
             if name == "data_items":
                 self.restore_data_item(properties["uuid"], index)
+            elif name == "display_items":
+                item = DataItem.DisplayItem()
+                item.begin_reading()
+                item.read_from_dict(properties)
+                item.finish_reading()
+                self.insert_display_item(index, item)
             elif name == "computations":
                 item = Symbolic.Computation()
                 item.begin_reading()

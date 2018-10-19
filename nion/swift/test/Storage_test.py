@@ -168,9 +168,6 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
         document_controller.close()
-        import pprint
-        pprint.pprint(memory_persistent_storage_system.library_storage_properties)
-        pprint.pprint(memory_persistent_storage_system.persistent_storage_properties)
 
     def test_storage_cache_closing_twice_throws_exception(self):
         storage_cache = Cache.DbStorageCache(":memory:")
@@ -599,9 +596,9 @@ class TestStorageClass(unittest.TestCase):
             self.save_document(document_controller)
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
-            document_model.data_groups[0].append_data_item(data_item)
+            document_model.data_groups[0].append_display_item(document_model.get_display_item_for_data_item(data_item))
             with self.assertRaises(AssertionError):
-                document_model.data_groups[0].append_data_item(data_item)
+                document_model.data_groups[0].append_display_item(document_model.get_display_item_for_data_item(data_item))
 
     def test_reading_data_group_with_duplicate_data_items_discards_duplicates(self):
         storage_system = MemoryStorageSystem.MemoryStorageSystem()
@@ -1306,19 +1303,18 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Cache.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        document_model.append_data_item(data_item)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        read_data_item = document_model.data_items[0]
-        read_display_item = document_model.get_display_item_for_data_item(read_data_item)
-        # check storage caches
-        self.assertEqual(read_display_item.display._display_cache.storage_cache, read_data_item._suspendable_storage_cache)
-        # clean up
-        document_controller.close()
+        with contextlib.closing(document_model):
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            read_data_item = document_model.data_items[0]
+            read_display_item = document_model.get_display_item_for_data_item(read_data_item)
+            # check storage caches
+            self.assertEqual(read_display_item.display._display_cache.storage_cache, read_display_item._suspendable_storage_cache)
 
     def test_data_items_written_with_newer_version_get_ignored(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
@@ -1522,9 +1518,10 @@ class TestStorageClass(unittest.TestCase):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
             data_item = document_model.data_items[0]
+            display_item = document_model.display_items[0]
             self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
-            self.assertTrue("uuid" in data_item.properties["displays"][0])
-            self.assertTrue("uuid" in data_item.properties["displays"][0]["graphics"][0])
+            self.assertTrue("uuid" in display_item.properties["displays"][0])
+            self.assertTrue("uuid" in display_item.properties["displays"][0]["graphics"][0])
 
     def test_data_items_v3_migration(self):
         # construct v3 data item

@@ -933,7 +933,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__is_master = False
 
     def _changes(self):
-        return self.container.data_item_changes()
+        return self.container.display_item_changes()
 
     @property
     def is_live(self):
