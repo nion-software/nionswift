@@ -170,12 +170,14 @@ class TestConnectionClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item_src = DataItem.DataItem(numpy.zeros((1000, )))
             data_item_dst = DataItem.DataItem(numpy.zeros((1000, )))
-            interval_src = Graphics.IntervalGraphic()
-            interval_dst = Graphics.IntervalGraphic()
-            data_item_src.displays[0].add_graphic(interval_src)
-            data_item_dst.displays[0].add_graphic(interval_dst)
             document_model.append_data_item(data_item_src)
             document_model.append_data_item(data_item_dst)
+            display_item_src = document_model.get_display_item_for_data_item(data_item_src)
+            display_item_dst = document_model.get_display_item_for_data_item(data_item_dst)
+            interval_src = Graphics.IntervalGraphic()
+            interval_dst = Graphics.IntervalGraphic()
+            display_item_src.add_graphic(interval_src)
+            display_item_dst.add_graphic(interval_dst)
             connection = Connection.PropertyConnection(interval_src, "interval", interval_dst, "interval", parent=data_item_dst)
             document_model.append_connection(connection)
             # check dependencies
@@ -192,12 +194,18 @@ class TestConnectionClass(unittest.TestCase):
             data_item_src = DataItem.DataItem(numpy.zeros((1000, )))
             data_item_dst1 = DataItem.DataItem(numpy.zeros((1000, )))
             data_item_dst2 = DataItem.DataItem(numpy.zeros((1000, )))
+            document_model.append_data_item(data_item_src)
+            document_model.append_data_item(data_item_dst1)
+            document_model.append_data_item(data_item_dst2)
+            display_item_src = document_model.get_display_item_for_data_item(data_item_src)
+            display_item_dst1 = document_model.get_display_item_for_data_item(data_item_dst1)
+            display_item_dst2 = document_model.get_display_item_for_data_item(data_item_dst2)
             interval_src = Graphics.IntervalGraphic()
             interval_dst1 = Graphics.IntervalGraphic()
             interval_dst2 = Graphics.IntervalGraphic()
-            data_item_src.displays[0].add_graphic(interval_src)
-            data_item_dst1.displays[0].add_graphic(interval_dst1)
-            data_item_dst2.displays[0].add_graphic(interval_dst2)
+            display_item_src.add_graphic(interval_src)
+            display_item_dst1.add_graphic(interval_dst1)
+            display_item_dst2.add_graphic(interval_dst2)
             document_model.append_data_item(data_item_src)
             document_model.append_data_item(data_item_dst1)
             document_model.append_data_item(data_item_dst2)
@@ -240,12 +248,14 @@ class TestConnectionClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
-            interval1 = Graphics.IntervalGraphic()
-            interval2 = Graphics.IntervalGraphic()
-            data_item1.displays[0].add_graphic(interval1)
-            data_item2.displays[0].add_graphic(interval2)
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            interval1 = Graphics.IntervalGraphic()
+            interval2 = Graphics.IntervalGraphic()
+            display_item1.add_graphic(interval1)
+            display_item2.add_graphic(interval2)
             data_struct1 = document_model.create_data_structure()
             data_struct2 = document_model.create_data_structure()
             data_struct1.set_property_value("x_interval", (0.5, 0.1))
@@ -311,15 +321,17 @@ class TestConnectionClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem(numpy.zeros((20, )))
-            data_item1.displays[0].add_graphic(Graphics.IntervalGraphic())
-            document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((20, )))
-            data_item2.displays[0].add_graphic(Graphics.IntervalGraphic())
+            document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
-            graphic1 = data_item1.displays[0].graphics[0]
-            graphic2 = data_item2.displays[0].graphics[0]
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            display_item1.add_graphic(Graphics.IntervalGraphic())
+            display_item2.add_graphic(Graphics.IntervalGraphic())
+            graphic1 = display_item1.graphics[0]
+            graphic2 = display_item2.graphics[0]
             document_model.append_connection(Connection.PropertyConnection(graphic1, "interval", graphic2, "interval", parent=data_item1))
-            data_item1.displays[0].remove_graphic(graphic1)
+            display_item1.remove_graphic(graphic1)
             # the document must have a consistent state for item transaction to work
             with document_model.item_transaction(data_item1):
                 pass
@@ -330,15 +342,17 @@ class TestConnectionClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem(numpy.zeros((20, )))
-            data_item1.displays[0].add_graphic(Graphics.IntervalGraphic())
-            document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((20, )))
-            data_item2.displays[0].add_graphic(Graphics.IntervalGraphic())
+            document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
-            graphic1 = data_item1.displays[0].graphics[0]
-            graphic2 = data_item2.displays[0].graphics[0]
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            display_item1.add_graphic(Graphics.IntervalGraphic())
+            display_item2.add_graphic(Graphics.IntervalGraphic())
+            graphic1 = display_item1.graphics[0]
+            graphic2 = display_item2.graphics[0]
             document_model.append_connection(Connection.PropertyConnection(graphic1, "interval", graphic2, "interval", parent=data_item1))
-            data_item1.displays[0].remove_graphic(graphic2)
+            display_item1.remove_graphic(graphic2)
             # the document must have a consistent state for item transaction to work
             with document_model.item_transaction(data_item1):
                 pass

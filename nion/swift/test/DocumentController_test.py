@@ -31,10 +31,10 @@ def construct_test_document(app, workspace_id=None):
     document_model.append_data_group(data_group1)
     data_item1a = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
     document_model.append_data_item(data_item1a)
-    data_group1.append_data_item(data_item1a)
+    data_group1.append_data_item(document_model.get_display_item_for_data_item(data_item1a))
     data_item1b = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
     document_model.append_data_item(data_item1b)
-    data_group1.append_data_item(data_item1b)
+    data_group1.append_data_item(document_model.get_display_item_for_data_item(data_item1b))
     data_group1a = DataGroup.DataGroup()
     data_group1.append_data_group(data_group1a)
     data_group1b = DataGroup.DataGroup()
@@ -49,7 +49,7 @@ def construct_test_document(app, workspace_id=None):
     data_group2b.append_data_group(data_group2b1)
     data_item2b1a = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
     document_model.append_data_item(data_item2b1a)
-    data_group2b1.append_data_item(data_item2b1a)
+    data_group2b1.append_data_item(document_model.get_display_item_for_data_item(data_item2b1a))
     return document_controller
 
 class TestDocumentControllerClass(unittest.TestCase):

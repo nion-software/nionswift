@@ -485,10 +485,10 @@ class TestProcessingClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item_rgba = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))
+            document_model.append_data_item(data_item_rgba)
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item_rgba.displays[0].add_graphic(crop_region)
-            self.document_model.append_data_item(data_item_rgba)
+            document_model.get_display_item_for_data_item(data_item_rgba).add_graphic(crop_region)
             data_item_rgba2 = document_model.get_crop_new(data_item_rgba, crop_region)
             data_item_rgba2_copy = copy.deepcopy(data_item_rgba2)
             # make sure the computation was not copied

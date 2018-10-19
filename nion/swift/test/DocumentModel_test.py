@@ -108,18 +108,6 @@ class TestDocumentModelClass(unittest.TestCase):
         gc.collect()
         self.assertIsNone(data_item_weak_ref())
 
-    def test_data_items_without_display_close_nicely(self):
-        # see test_flattened_model_with_empty_master_item_closes_properly
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
-            data_item2 = DataItem.DataItem()
-            data_item2.remove_display(data_item2.displays[0])
-            data_item3 = DataItem.DataItem(numpy.zeros((2, 2)))
-            document_model.append_data_item(data_item1)
-            document_model.append_data_item(data_item2)
-            document_model.append_data_item(data_item3)
-
     def test_processing_line_profile_configures_intervals_connection(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
@@ -1747,13 +1735,14 @@ class TestDocumentModelClass(unittest.TestCase):
         self.app._set_document_model(document_model)  # required to allow API to find document model
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem(numpy.zeros((2, )))
+            document_model.append_data_item(data_item1)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
             interval1 = Graphics.IntervalGraphic()
             interval2 = Graphics.IntervalGraphic()
             interval3 = Graphics.IntervalGraphic()
-            data_item1.displays[0].add_graphic(interval1)
-            data_item1.displays[0].add_graphic(interval2)
-            data_item1.displays[0].add_graphic(interval3)
-            document_model.append_data_item(data_item1)
+            display_item1.add_graphic(interval1)
+            display_item1.add_graphic(interval2)
+            display_item1.add_graphic(interval3)
             computation = document_model.create_computation()
             computation.processing_id = "source_cycle_test"
             computation.create_object("s", document_model.get_object_specifier(data_item1, "xdata"))
@@ -1768,7 +1757,7 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.remove_data_item(document_model.data_items[-1])
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(0, len(document_model.computations))
-            self.assertEqual(0, len(data_item1.displays[0].graphics))
+            self.assertEqual(0, len(display_item1.graphics))
             self.assertEqual(0, len(document_model.get_dependent_items(data_item1)))
 
     def test_computation_deletes_when_triggered_by_both_inputs_and_source_deletion(self):
@@ -2001,7 +1990,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.connections))
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
-            self.assertEqual(1, len(document_model.data_items[0].displays[0].graphics))
+            self.assertEqual(1, len(document_model.display_items[0].graphics))
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(numpy.ones((5, )), line_profile_data_item.data))
             # delete the line profile and verify
@@ -2009,14 +1998,14 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.connections))
             self.assertEqual(0, len(document_model.computations))
             self.assertEqual(1, len(document_model.data_items))
-            self.assertEqual(0, len(document_model.data_items[0].displays[0].graphics))
+            self.assertEqual(0, len(document_model.display_items[0].graphics))
             # undelete and verify
             document_model.undelete_all(undelete_log)
             line_profile_data_item = document_model.data_items[1]
             self.assertEqual(1, len(document_model.connections))
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
-            self.assertEqual(1, len(document_model.data_items[0].displays[0].graphics))
+            self.assertEqual(1, len(document_model.display_items[0].graphics))
             # ensure computation works
             self.assertTrue(numpy.array_equal(numpy.ones((5, )), line_profile_data_item.data))
             data_item.set_data(numpy.zeros((8, 8)))
@@ -2073,14 +2062,14 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.connections))
             self.assertEqual(0, len(document_model.computations))
             self.assertEqual(1, len(document_model.data_items))
-            self.assertEqual(0, len(document_model.data_items[0].displays[0].graphics))
+            self.assertEqual(0, len(document_model.display_items[0].graphics))
             # undelete and verify
             document_model.undelete_all(undelete_log)
             line_profile_data_item = document_model.data_items[1]
             self.assertEqual(1, len(document_model.connections))
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
-            self.assertEqual(1, len(document_model.data_items[0].displays[0].graphics))
+            self.assertEqual(1, len(document_model.display_items[0].graphics))
             # ensure computation works
             self.assertTrue(numpy.array_equal(numpy.ones((5, )), line_profile_data_item.data))
             data_item.set_data(numpy.zeros((8, 8)))
@@ -2091,7 +2080,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.connections))
             self.assertEqual(0, len(document_model.computations))
             self.assertEqual(1, len(document_model.data_items))
-            self.assertEqual(0, len(document_model.data_items[0].displays[0].graphics))
+            self.assertEqual(0, len(document_model.display_items[0].graphics))
 
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?

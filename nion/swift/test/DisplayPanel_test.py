@@ -682,7 +682,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_mouse_tracking_expand_scale_by_high_amount_with_interval(self):
         line_plot_canvas_item = self.setup_line_plot()
         interval_graphic = Graphics.IntervalGraphic()
-        self.document_model.data_items[1].displays[0].add_graphic(interval_graphic)
+        self.document_model.display_items[1].add_graphic(interval_graphic)
         plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
@@ -698,7 +698,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_mouse_tracking_contract_scale_by_high_amount_with_interval(self):
         line_plot_canvas_item = self.setup_line_plot()
         interval_graphic = Graphics.IntervalGraphic()
-        self.document_model.data_items[1].displays[0].add_graphic(interval_graphic)
+        self.document_model.display_items[1].add_graphic(interval_graphic)
         plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width

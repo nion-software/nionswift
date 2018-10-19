@@ -128,7 +128,7 @@ class TestDisplayClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             irow, icol = numpy.ogrid[0:16, 0:16]
-            data_item = DataItem.DataItem(icol, numpy.uint32)
+            data_item = DataItem.DataItem(icol)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display = display_item.display
@@ -160,7 +160,7 @@ class TestDisplayClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # this is used to update the inspector
             irow, icol = numpy.ogrid[0:16, 0:16]
-            data_item = DataItem.DataItem(icol, numpy.uint32)
+            data_item = DataItem.DataItem(icol)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display = display_item.display
