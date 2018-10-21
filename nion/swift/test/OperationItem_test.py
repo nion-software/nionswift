@@ -526,17 +526,15 @@ class TestProcessingClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
-            display_item = self.document_model.get_display_item_for_data_item(data_item)
             # setup
-            display_item.data_item.set_dimensional_calibration(0, Calibration.Calibration(5.0, 2.0, u"nm"))
-            display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(5.0, 2.0, u"nm"))
-            display_item.data_item.set_intensity_calibration(Calibration.Calibration(7.5, 2.5, u"ll"))
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(5.0, 2.0, u"nm"))
+            data_item.set_dimensional_calibration(1, Calibration.Calibration(5.0, 2.0, u"nm"))
+            data_item.set_intensity_calibration(Calibration.Calibration(7.5, 2.5, u"ll"))
             data_item2 = document_model.get_invert_new(data_item)
-            display_item2 = document_model.get_display_item_for_data_item(data_item2)
             document_model.recompute_all()
             # make sure our assumptions are correct
-            self.assertEqual(len(display_item.data_item.dimensional_calibrations), 2)
-            self.assertEqual(len(display_item2.data_item.dimensional_calibrations), 2)
+            self.assertEqual(len(data_item.dimensional_calibrations), 2)
+            self.assertEqual(len(data_item2.dimensional_calibrations), 2)
             # take snapshot
             snapshot_data_item = document_model.get_snapshot_new(data_item2)
             # check calibrations
@@ -571,15 +569,14 @@ class TestProcessingClass(unittest.TestCase):
             data_item.set_dimensional_calibration(0, spatial_calibration_0)
             data_item.set_dimensional_calibration(1, spatial_calibration_1)
             data_item2 = document_model.get_crop_new(data_item, crop_region)
-            display_item2 = document_model.get_display_item_for_data_item(data_item2)
             document_model.recompute_all()
             # make sure the calibrations are correct
-            self.assertAlmostEqual(display_item2.data_item.dimensional_calibrations[0].offset, 20.0 + 20 * 0.2 * 5.0)
-            self.assertAlmostEqual(display_item2.data_item.dimensional_calibrations[1].offset, 55.0 + 10 * 0.3 * 5.5)
-            self.assertAlmostEqual(display_item2.data_item.dimensional_calibrations[0].scale, 5.0)
-            self.assertAlmostEqual(display_item2.data_item.dimensional_calibrations[1].scale, 5.5)
-            self.assertEqual(display_item2.data_item.dimensional_calibrations[0].units, "dogs")
-            self.assertEqual(display_item2.data_item.dimensional_calibrations[1].units, "cats")
+            self.assertAlmostEqual(data_item2.dimensional_calibrations[0].offset, 20.0 + 20 * 0.2 * 5.0)
+            self.assertAlmostEqual(data_item2.dimensional_calibrations[1].offset, 55.0 + 10 * 0.3 * 5.5)
+            self.assertAlmostEqual(data_item2.dimensional_calibrations[0].scale, 5.0)
+            self.assertAlmostEqual(data_item2.dimensional_calibrations[1].scale, 5.5)
+            self.assertEqual(data_item2.dimensional_calibrations[0].units, "dogs")
+            self.assertEqual(data_item2.dimensional_calibrations[1].units, "cats")
 
     def test_projection_2d_processing_on_calibrated_data_results_in_calibration_with_correct_offset(self):
         document_model = DocumentModel.DocumentModel()
@@ -597,12 +594,11 @@ class TestProcessingClass(unittest.TestCase):
             data_item.set_dimensional_calibration(0, spatial_calibration_0)
             data_item.set_dimensional_calibration(1, spatial_calibration_1)
             data_item2 = document_model.get_projection_new(data_item)
-            display_item2 = document_model.get_display_item_for_data_item(data_item2)
             document_model.recompute_all()
             # make sure the calibrations are correct
-            self.assertAlmostEqual(display_item2.data_item.dimensional_calibrations[0].offset, 55.0)
-            self.assertAlmostEqual(display_item2.data_item.dimensional_calibrations[0].scale, 5.5)
-            self.assertEqual(display_item2.data_item.dimensional_calibrations[0].units, "cats")
+            self.assertAlmostEqual(data_item2.dimensional_calibrations[0].offset, 55.0)
+            self.assertAlmostEqual(data_item2.dimensional_calibrations[0].scale, 5.5)
+            self.assertEqual(data_item2.dimensional_calibrations[0].units, "cats")
 
     def disabled_test_removing_computation_with_multiple_associated_regions_removes_all_regions(self):
         self.assertFalse(True)

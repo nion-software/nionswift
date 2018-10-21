@@ -1365,8 +1365,13 @@ class IntervalGraphic(Graphic):
             properties["start"] = value[0]
             properties["end"] = value[1]
 
+        def validate_interval(interval):
+            if interval is not None:
+                return tuple(interval)
+            return (0.0, 1.0)
+
         # interval is stored in image normalized coordinates
-        self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=lambda value: tuple(value))
+        self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=validate_interval)
 
     def mime_data_dict(self) -> dict:
         d = super().mime_data_dict()

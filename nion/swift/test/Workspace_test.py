@@ -278,9 +278,9 @@ class TestWorkspaceClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
             document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
-        json_str = json.dumps(storage_system.library_storage_properties)
+        json_str = json.dumps(storage_system.library_storage_properties["workspaces"])
         properties = json.loads(json_str)
-        self.assertEqual(properties, storage_system.library_storage_properties)
+        self.assertEqual(properties, storage_system.library_storage_properties["workspaces"])
 
     def test_workspace_saves_contents_immediately_following_change(self):
         storage_system = MemoryStorageSystem.MemoryStorageSystem()

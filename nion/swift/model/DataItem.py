@@ -702,6 +702,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.metadata_changed_event = Event.Event()  # see Metadata Note above
         self.data_item_changed_event = Event.Event()  # anything has changed
         self.data_changed_event = Event.Event()  # data has changed
+        self.will_change_event = Event.Event()
+        self.did_change_event = Event.Event()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
         self.__change_thread = None
@@ -959,11 +961,17 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def _enter_live_state(self):
         self.__is_live = True
-        self._notify_data_item_content_changed()  # this will affect is_live, so notify
+        # live state is only a display item
+        # also, there are still tests which filter data items; so leave this here until those tests are updated
+        # the item_changed_event facilitates data item filtering
+        self.item_changed_event.fire()
 
     def _exit_live_state(self):
         self.__is_live = False
-        self._notify_data_item_content_changed()  # this will affect is_live, so notify
+        # live state is only a display item
+        # also, there are still tests which filter data items; so leave this here until those tests are updated
+        # the item_changed_event facilitates data item filtering
+        self.item_changed_event.fire()
 
     @property
     def session_id(self) -> str:
@@ -990,7 +998,10 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def _begin_data_item_changes(self):
         with self.__data_item_change_count_lock:
+            change_count = self.__data_item_change_count
             self.__data_item_change_count += 1
+        if change_count == 0:
+            self.will_change_event.fire()
 
     def _end_data_item_changes(self):
         with self.__data_item_change_count_lock:
@@ -1001,6 +1012,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         # there are actual changes to report.
         if change_count == 0 and content_changed:
             self.item_changed_event.fire()
+            self.did_change_event.fire()
 
     def __description_property_changed(self, name, value):
         self.__property_changed(name, value)
@@ -1188,6 +1200,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         return ChangeContextManager()
 
     def __begin_changes(self):
+        self.will_change_event.fire()
         with self.__change_count_lock:
             if self.__change_count == 0:
                 self.__change_thread = threading.current_thread()
@@ -1222,6 +1235,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                     self._handle_write_delay_data_changed()
                     self._notify_data_item_content_changed()
                     self.data_item_changed_event.fire()
+        self.did_change_event.fire()
 
     def _handle_data_changed(self, data_source):
         self.__change_changed = True
@@ -1543,6 +1557,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("data_item_references", list(), changed=self.__property_changed)
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.__data_items = list()
+        self.__data_item_will_change_listeners = list()
+        self.__data_item_did_change_listeners = list()
         self.__data_item_item_changed_listeners = list()
         self.__data_item_data_item_changed_listeners = list()
         self.__data_item_data_changed_listeners = list()
@@ -1557,13 +1573,18 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self._closed = False
         self.append_display(Display.Display())  # always have one display, for now
         self.__display_about_to_be_removed_listener = self.display.about_to_be_removed_event.listen(self.about_to_be_removed_event.fire)
-        self._update_displays()
 
     def close(self):
         self.__display_about_to_be_removed_listener.close()
         self.__display_about_to_be_removed_listener = None
         for display in self.displays:
             display.close()
+        for data_item_will_change_listener in self.__data_item_will_change_listeners:
+            data_item_will_change_listener.close()
+        self.__data_item_will_change_listeners = list()
+        for data_item_did_change_listener in self.__data_item_did_change_listeners:
+            data_item_did_change_listener.close()
+        self.__data_item_did_change_listeners = list()
         for data_item_item_changed_listener in self.__data_item_item_changed_listeners:
             data_item_item_changed_listener.close()
         self.__data_item_item_changed_listeners = list()
@@ -1600,7 +1621,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             display_item_copy.append_display(copy.deepcopy(display))
         display_item_copy.data_item_references = copy.deepcopy(self.data_item_references)
         memo[id(self)] = display_item_copy
-        display_item_copy._update_displays()
         return display_item_copy
 
     @property
@@ -1650,8 +1670,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     # data_item_changes.
     def _notify_display_item_content_changed(self):
         with self.display_item_changes():
-            with self.__display_item_change_count_lock:
-                self.__display_item_change_count += 1
+            pass
 
     # override from storage to watch for changes to this library item. notify observers.
     def notify_property_changed(self, key):
@@ -1668,7 +1687,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             display_item.remove_display(display)
         for display in self.displays:
             display_item.append_display(display.clone())
-        display_item._update_displays()
         return display_item
 
     def snapshot(self):
@@ -1684,7 +1702,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             display_item.remove_display(display)
         for display in self.displays:
             display_item.append_display(copy.deepcopy(display))
-        display_item._update_displays()
         return display_item
 
     def set_storage_cache(self, storage_cache):
@@ -1753,7 +1770,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             change_count = self.__display_item_change_count
         # if the change count is now zero, it means that we're ready to notify listeners.
         if change_count == 0:
-            self._item_changed()
+            for display in self.displays:
+                display._item_changed()
+            self._update_displays()  # this ensures that the display will validate
 
     def increment_display_ref_count(self, amount: int=1):
         """Increment display reference count to indicate this library item is currently displayed."""
@@ -1781,15 +1800,23 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def _display_ref_count(self):
         return self.__display_ref_count
 
+    def __data_item_will_change(self):
+        self._begin_display_item_changes()
+
+    def __data_item_did_change(self):
+        self._end_display_item_changes()
+
     def _item_changed(self):
+        # this event is only triggered when the data item changed live state; everything else goes through
+        # the data changed messages.
         for display in self.displays:
             display._item_changed()
-        self._update_displays()  # this ensures that the display will validate
 
     def _update_displays(self):
         data_and_metadata = self.data_item.xdata if self.data_item else None
         for display in self.displays:
             display.update_data(data_and_metadata)
+            display.title = self.displayed_title
 
     def _description_changed(self):
         for display in self.displays:
@@ -1852,10 +1879,12 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def connect_data_items(self, lookup_data_item):
         self.__data_items = [lookup_data_item(uuid.UUID(data_item_reference)) for data_item_reference in self.data_item_references]
         for data_item in self.__data_items:
-            self.__data_item_item_changed_listeners.append(data_item.item_changed_event.listen(self._item_changed))
-            self.__data_item_data_item_changed_listeners.append(data_item.data_item_changed_event.listen(self._item_changed))
-            self.__data_item_data_changed_listeners.append(data_item.data_changed_event.listen(self._item_changed))
-            self.__data_item_description_changed_listeners.append(data_item.description_changed_event.listen(self._description_changed))
+            self.__data_item_will_change_listeners.append(data_item.will_change_event.listen(self.__data_item_will_change) if data_item else None)
+            self.__data_item_did_change_listeners.append(data_item.did_change_event.listen(self.__data_item_did_change) if data_item else None)
+            self.__data_item_item_changed_listeners.append(data_item.item_changed_event.listen(self._item_changed) if data_item else None)
+            self.__data_item_data_item_changed_listeners.append(data_item.data_item_changed_event.listen(self._item_changed) if data_item else None)
+            self.__data_item_data_changed_listeners.append(data_item.data_changed_event.listen(self._item_changed) if data_item else None)
+            self.__data_item_description_changed_listeners.append(data_item.description_changed_event.listen(self._description_changed) if data_item else None)
         self._update_displays()  # this ensures that the display will validate
 
     def append_data_item(self, data_item):
@@ -1865,6 +1894,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         data_item_references = self.data_item_references
         data_item_references.insert(before_index, str(data_item.uuid))
         self.__data_items.insert(before_index, data_item)
+        self.__data_item_will_change_listeners.insert(before_index, data_item.will_change_event.listen(self.__data_item_will_change))
+        self.__data_item_did_change_listeners.insert(before_index, data_item.did_change_event.listen(self.__data_item_did_change))
         self.__data_item_item_changed_listeners.insert(before_index, data_item.item_changed_event.listen(self._item_changed))
         self.__data_item_data_item_changed_listeners.insert(before_index, data_item.data_item_changed_event.listen(self._item_changed))
         self.__data_item_data_changed_listeners.insert(before_index, data_item.data_changed_event.listen(self._item_changed))
@@ -1875,6 +1906,10 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         data_item_references = self.data_item_references
         data_item_references.remove(str(data_item.uuid))
         index = self.__data_items.index(data_item)
+        self.__data_item_will_change_listeners[index].close()
+        del self.__data_item_will_change_listeners[index]
+        self.__data_item_did_change_listeners[index].close()
+        del self.__data_item_did_change_listeners[index]
         self.__data_item_item_changed_listeners[index].close()
         del self.__data_item_item_changed_listeners[index]
         self.__data_item_data_item_changed_listeners[index].close()

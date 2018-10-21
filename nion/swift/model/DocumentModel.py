@@ -397,6 +397,9 @@ class TransactionManager:
             if isinstance(item, DataItem.DisplayItem):
                 for graphic in item.graphics:
                     self.__get_deep_transaction_item_set(graphic, items)
+            if isinstance(item, DataItem.DataItem):
+                for display_item in self.__document_model.get_display_items_for_data_item(item):
+                    self.__get_deep_transaction_item_set(display_item, items)
             if isinstance(item, DataStructure):
                 for referenced_object in item._referenced_objects:
                     self.__get_deep_dependent_item_set(referenced_object, items)
@@ -706,10 +709,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.set_data_item_computation(data_item_copy, computation_copy)
         return data_item_copy
 
-    def append_data_item(self, data_item):
-        self.insert_data_item(len(self.data_items), data_item)
+    def append_data_item(self, data_item, auto_display: bool = True) -> None:
+        self.insert_data_item(len(self.data_items), data_item, auto_display)
 
-    def insert_data_item(self, before_index, data_item):
+    def insert_data_item(self, before_index, data_item, auto_display: bool = True) -> None:
         """Insert a new data item into document model.
 
         Data item will have persistent_object_context set upon return.
@@ -728,9 +731,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # insert in internal list
         self.__insert_data_item(before_index, data_item, do_write)
         # automatically add a display
-        display_item = DataItem.DisplayItem()
-        display_item.append_data_item(data_item)
-        self.append_display_item(display_item)
+        if auto_display:
+            display_item = DataItem.DisplayItem()
+            display_item.append_data_item(data_item)
+            self.append_display_item(display_item)
 
     def __insert_data_item(self, before_index, data_item, do_write):
         self.insert_item("data_items", before_index, data_item)
@@ -824,6 +828,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.finish_reading()
         return data_item
 
+    def deepcopy_display_item(self, display_item: DataItem.DisplayItem) -> DataItem.DisplayItem:
+        display_item_copy = copy.deepcopy(display_item)
+        data_item_references = list()
+        for data_item in display_item.data_items:
+            if data_item:
+                data_item_copy = copy.deepcopy(data_item)
+                self.append_data_item(data_item_copy, False)
+                data_item_references.append(str(data_item_copy.uuid))
+            else:
+                data_item_references.append(None)
+        display_item_copy.data_item_references = data_item_references
+        self.append_display_item(display_item_copy)
+        return display_item_copy
+
     def append_display_item(self, display_item):
         self.insert_display_item(len(self.display_items), display_item)
 
@@ -841,6 +859,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         display_item.set_storage_cache(self.storage_cache)
         # update the session
         display_item.session_id = self.session_id
+        if not self._is_reading:
+            self.__rebind_computations()  # rebind any unresolved that may now be resolved
 
     def __remove_display_item(self, display_item, *, safe: bool=False) -> typing.Sequence:
         undelete_log = list()
@@ -903,29 +923,28 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # this is the only case where a target causes a source to be deleted.
             items.append(item)
             sources = self.__dependency_tree_target_to_source_map.get(weakref.ref(item), list())
-            if isinstance(item, DataItem.DisplayItem):
+            if isinstance(item, DataItem.DataItem):
                 for source in sources:
                     if isinstance(source, Graphics.Graphic):
                         source_targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(source), list())
                         if len(source_targets) == 1 and source_targets[0] == item:
                             self.__build_cascade(source, items, dependencies)
-                # graphics on a data item are deleted.
+                # delete display items whose only data item is being deleted
+                for display_item in self.get_display_items_for_data_item(item):
+                    if display_item.data_item:
+                        self.__build_cascade(display_item, items, dependencies)
+            elif isinstance(item, DataItem.DisplayItem):
+                # graphics on a display item are deleted.
                 for graphic in item.graphics:
                     self.__build_cascade(graphic, items, dependencies)
+                # delete data items whose only display item is being deleted
+                for data_item in item.data_items:
+                    if len(self.get_display_items_for_data_item(data_item)) == 1:
+                        self.__build_cascade(data_item, items, dependencies)
             # outputs of a computation are deleted.
             elif isinstance(item, Symbolic.Computation):
                 for output in item._outputs:
                     self.__build_cascade(output, items, dependencies)
-            # delete display items whose only data item is being deleted
-            elif isinstance(item, DataItem.DataItem):
-                for display_item in self.get_display_items_for_data_item(item):
-                    if display_item.data_item:
-                        self.__build_cascade(display_item, items, dependencies)
-            # delete data items whose only display item is being deleted
-            elif isinstance(item, DataItem.DisplayItem):
-                for data_item in item.data_items:
-                    if len(self.get_display_items_for_data_item(data_item)) == 1:
-                        self.__build_cascade(data_item, items, dependencies)
             # dependencies are deleted
             # in order to be able to have finer control over how dependencies of input lists are handled,
             # enumerate the computations and match up dependencies instead of using the dependency tree.
@@ -1652,14 +1671,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
                 data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
+                display_item = self.get_display_item_for_data_item(data_item) if data_item else None
                 graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
                 class BoundDataSource:
-                    def __init__(self, document_model, data_item, graphic):
+                    def __init__(self, document_model, display_item, data_item, graphic):
                         self.__document_model = document_model
                         self.changed_event = Event.Event()
                         self.needs_rebind_event = Event.Event()
                         self.property_changed_event = Event.Event()
-                        display_item = document_model.get_display_item_for_data_item(data_item)
                         self.__data_source = DataItem.DataSource(display_item, graphic, self.changed_event)
                         def data_item_removed(container, data_item, index, moving):
                             if container == self.__document_model and data_item == self.__data_source.data_item:
@@ -1679,8 +1698,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         self.__data_source = None
                         self.__data_item_removed_event_listener.close()
                         self.__data_item_removed_event_listener = None
-                if data_item:
-                    return BoundDataSource(self, data_item, graphic)
+                if display_item and data_item:
+                    return BoundDataSource(self, display_item, data_item, graphic)
             elif specifier_type == "data_item_object":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None

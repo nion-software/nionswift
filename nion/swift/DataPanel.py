@@ -587,7 +587,8 @@ class DataGridController:
     def context_menu_event(self, index, x, y, gx, gy):
         if self.on_context_menu_event:
             display_item_adapter = self.__display_item_adapters[index] if index is not None else None
-            return self.on_context_menu_event(display_item_adapter, x, y, gx, gy)
+            display_item = display_item_adapter.display_item if display_item_adapter else None
+            return self.on_context_menu_event(display_item, x, y, gx, gy)
         return False
 
     def drag_started(self, index, x, y, modifiers):

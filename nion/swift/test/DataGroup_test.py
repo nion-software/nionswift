@@ -43,9 +43,10 @@ class TestDataGroupClass(unittest.TestCase):
             data_group = DataGroup.DataGroup()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
-            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item))
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            data_group.append_display_item(display_item)
             data_group_copy = copy.deepcopy(data_group)
-            self.assertEqual(data_item.uuid, data_group_copy.data_item_uuids[0])
+            self.assertEqual(display_item.uuid, data_group_copy.display_item_references[0])
 
     def test_counted_display_items(self):
         # TODO: split test_counted_display_items into separate tests
@@ -252,11 +253,11 @@ class TestDataGroupClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item3)
             data_group1 = DataGroup.DataGroup()
-            data_group1.append_data_item(data_item1)
+            data_group1.append_display_item(document_model.get_display_item_for_data_item(data_item1))
             data_group2 = DataGroup.DataGroup()
             data_group3 = DataGroup.DataGroup()
             data_group2_uuid = data_group2.uuid
-            data_group3.append_data_item(data_item3)
+            data_group3.append_display_item(document_model.get_display_item_for_data_item(data_item3))
             document_model.append_data_group(data_group1)
             document_model.append_data_group(data_group3)
             # insert the middle data group
@@ -290,11 +291,11 @@ class TestDataGroupClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item3)
             data_group1 = DataGroup.DataGroup()
-            data_group1.append_data_item(data_item1)
+            data_group1.append_display_item(document_model.get_display_item_for_data_item(data_item1))
             data_group2 = DataGroup.DataGroup()
             data_group3 = DataGroup.DataGroup()
             data_group2_uuid = data_group2.uuid
-            data_group3.append_data_item(data_item3)
+            data_group3.append_display_item(document_model.get_display_item_for_data_item(data_item3))
             document_model.append_data_group(data_group1)
             document_model.append_data_group(data_group2)
             document_model.append_data_group(data_group3)
@@ -387,16 +388,13 @@ class TestDataGroupClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             # setup three data items and put in a group
             data_item1 = DataItem.DataItem(numpy.random.randn(4, 4))
-            data_item2 = DataItem.DataItem(numpy.random.randn(4, 4))
             data_item3 = DataItem.DataItem(numpy.random.randn(4, 4))
             data_item4 = DataItem.DataItem(numpy.random.randn(4, 4))
             document_model.append_data_item(data_item1)
-            document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
             document_model.append_data_item(data_item4)
             data_group = DataGroup.DataGroup()
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
-            display_item2 = document_model.get_display_item_for_data_item(data_item2)
             display_item3 = document_model.get_display_item_for_data_item(data_item3)
             display_item4 = document_model.get_display_item_for_data_item(data_item4)
             data_group.append_display_item(display_item1)
@@ -407,7 +405,10 @@ class TestDataGroupClass(unittest.TestCase):
             self.assertListEqual([data_item1, data_item3, data_item4], list(document_model.data_items))
             self.assertListEqual([display_item1, display_item3], list(data_group.display_items))
             # insert new items
-            command = DocumentController.DocumentController.InsertDataGroupDisplayItemsCommand(document_controller, data_group, [display_item2, display_item4], 1)
+            data_item2 = DataItem.DataItem(numpy.random.randn(4, 4))
+            document_model.append_data_item(data_item2)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            command = DocumentController.DocumentController.InsertDataGroupDataItemsCommand(document_controller, data_group, [data_item2, data_item4], 1)
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(4, len(document_model.data_items))
@@ -416,9 +417,9 @@ class TestDataGroupClass(unittest.TestCase):
             self.assertListEqual([display_item1, display_item2, display_item4, display_item3], list(data_group.display_items))
             # undo and check
             document_controller.handle_undo()
-            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(4, len(document_model.data_items))
             self.assertEqual(2, len(data_group.display_items))
-            self.assertListEqual([data_item1, data_item3, data_item4], list(document_model.data_items))
+            self.assertListEqual([data_item1, data_item3, data_item4, data_item2], list(document_model.data_items))
             self.assertListEqual([display_item1, display_item3], list(data_group.display_items))
             # redo and check
             document_controller.handle_redo()

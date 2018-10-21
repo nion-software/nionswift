@@ -586,8 +586,8 @@ class TestDisplayClass(unittest.TestCase):
             d = numpy.random.randn(4, 4, 3, 3)
             data_and_metadata = DataAndMetadata.new_data_and_metadata(d, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
             data_item = DataItem.new_data_item(data_and_metadata)
-            display_item = document_model.get_display_item_for_data_item(data_item)
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             def next_calculated_display_values():
                 pass
             listener = display_item.display.add_calculated_display_values_listener(next_calculated_display_values)

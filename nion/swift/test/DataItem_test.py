@@ -67,10 +67,9 @@ class TestDataItemClass(unittest.TestCase):
             data_item.metadata = metadata
             display_item.display.display_limits = (100, 900)
             display_item.display.add_graphic(Graphics.RectangleGraphic())
-            data_item_copy = copy.deepcopy(data_item)
-            document_model.append_data_item(data_item_copy)
-            display_item2 = document_model.get_display_item_for_data_item(data_item_copy)
-            self.assertNotEqual(id(data), id(display_item2.data_item.data))
+            display_item2 = document_model.deepcopy_display_item(display_item)
+            data_item_copy = display_item2.data_item
+            self.assertNotEqual(id(data), id(data_item_copy.data))
             # make sure properties and other items got copied
             #self.assertEqual(len(data_item_copy.properties), 19)  # not valid since properties only exist if in document
             self.assertIsNot(data_item.properties, data_item_copy.properties)
@@ -93,13 +92,13 @@ class TestDataItemClass(unittest.TestCase):
             self.assertNotEqual(display_item.display.display_limits, display_item2.display.display_limits)
             # make sure dates are independent
             self.assertIsNot(data_item.created, data_item_copy.created)
-            self.assertIsNot(display_item.data_item.created, display_item2.data_item.created)
+            self.assertIsNot(data_item.created, data_item_copy.created)
             # make sure calibrations, computations, nor graphics are not shared.
             # there is a subtlety here: the dimensional_calibrations property accessor will return a copy of
             # the list each time it is called. store these in variables do make sure they don't get deallocated
             # and re-used immediately (causing a test failure).
-            dimensional_calibrations = display_item.data_item.dimensional_calibrations
-            dimensional_calibrations2 = display_item2.data_item.dimensional_calibrations
+            dimensional_calibrations = data_item.dimensional_calibrations
+            dimensional_calibrations2 = data_item_copy.dimensional_calibrations
             self.assertNotEqual(id(dimensional_calibrations[0]), id(dimensional_calibrations2[0]))
             self.assertNotEqual(display_item.display.graphics[0], display_item2.display.graphics[0])
 
@@ -252,14 +251,13 @@ class TestDataItemClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
             document_model.append_data_item(data_item)
-            display_item = document_model.get_display_item_for_data_item(data_item)
             with document_model.item_transaction(data_item):
-                with display_item.data_item.data_ref() as data_ref:
+                with data_item.data_ref() as data_ref:
                     data_ref.master_data = numpy.ones((4, 4), numpy.uint32)
                     data_item_copy = copy.deepcopy(data_item)
             display_item2 = document_model.get_display_item_for_data_item(data_item_copy)
-            with display_item.data_item.data_ref() as data_ref:
-                with display_item2.data_item.data_ref() as data_copy_accessor:
+            with data_item.data_ref() as data_ref:
+                with data_item_copy.data_ref() as data_copy_accessor:
                     self.assertEqual(data_copy_accessor.master_data.shape, (4, 4))
                     self.assertTrue(numpy.array_equal(data_ref.master_data, data_copy_accessor.master_data))
                     data_ref.master_data = numpy.ones((4, 4), numpy.uint32) + 1
@@ -360,7 +358,6 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.double))
-            display_item = document_model.get_display_item_for_data_item(data_item)
             document_model.append_data_item(data_item)
             data_item_inverted = document_model.get_invert_new(data_item)
             inverted_display_item = document_model.get_display_item_for_data_item(data_item_inverted)
@@ -373,7 +370,7 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertFalse(data_item_inverted_display._display_cache.is_cached_value_dirty(data_item_inverted_display, "thumbnail_data"))
                 # now the source data changes and the inverted data needs computing.
                 # the thumbnail should also be dirty.
-                with display_item.data_item.data_ref() as data_ref:
+                with data_item.data_ref() as data_ref:
                     data_ref.master_data = data_ref.master_data + 1.0
                 document_model.recompute_all()
                 self.assertTrue(data_item_inverted_display._display_cache.is_cached_value_dirty(data_item_inverted_display, "thumbnail_data"))
@@ -399,10 +396,10 @@ class TestDataItemClass(unittest.TestCase):
             rect_graphic = Graphics.RectangleGraphic()
             display_item.display.add_graphic(rect_graphic)
             self.assertEqual(len(display_item.display.graphics), 1)
-            data_item_copy = copy.deepcopy(data_item)
-            document_model.append_data_item(data_item_copy)
-            display_item2 = document_model.get_display_item_for_data_item(data_item_copy)
-            self.assertEqual(len(display_item2.display.graphics), 1)
+            display_item2 = document_model.deepcopy_display_item(display_item)
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(1, len(display_item2.display.graphics))
 
     def test_deepcopy_data_item_should_produce_new_uuid(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -591,13 +588,11 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            display_item = document_model.get_display_item_for_data_item(data_item)
             document_model.append_data_item(data_item)
             inverted_data_item = document_model.get_invert_new(data_item)
-            inverted_display_item = document_model.get_display_item_for_data_item(inverted_data_item)
             document_model.recompute_all()
-            display_item.data_item.set_data(numpy.ones((8, 8), numpy.uint32))
-            self.assertTrue(document_model.get_data_item_computation(inverted_display_item.data_item).needs_update)
+            data_item.set_data(numpy.ones((8, 8), numpy.uint32))
+            self.assertTrue(document_model.get_data_item_computation(inverted_data_item).needs_update)
 
     def test_modifying_source_data_should_queue_recompute_in_document_model(self):
         document_model = DocumentModel.DocumentModel()

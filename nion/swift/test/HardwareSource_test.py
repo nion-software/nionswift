@@ -909,9 +909,11 @@ class TestHardwareSourceClass(unittest.TestCase):
             display_panel.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
             self.__acquire_one(document_controller, hardware_source)
             update_count = display_panel.display_canvas_item._update_count
+            print(f"current update count {update_count}")
             self.__acquire_one(document_controller, hardware_source)
             self.__acquire_one(document_controller, hardware_source)
             new_update_count = display_panel.display_canvas_item._update_count
+            print(f"new update count {new_update_count}")
             self.assertEqual(new_update_count, update_count + 2)
 
     def test_partial_frame_acquisition_generates_single_canvas_update_event_for_each_segment(self):

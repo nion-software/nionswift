@@ -31,10 +31,10 @@ def construct_test_document(app, workspace_id=None):
     document_model.append_data_group(data_group1)
     data_item1a = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
     document_model.append_data_item(data_item1a)
-    data_group1.append_data_item(document_model.get_display_item_for_data_item(data_item1a))
+    data_group1.append_display_item(document_model.get_display_item_for_data_item(data_item1a))
     data_item1b = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
     document_model.append_data_item(data_item1b)
-    data_group1.append_data_item(document_model.get_display_item_for_data_item(data_item1b))
+    data_group1.append_display_item(document_model.get_display_item_for_data_item(data_item1b))
     data_group1a = DataGroup.DataGroup()
     data_group1.append_data_group(data_group1a)
     data_group1b = DataGroup.DataGroup()
@@ -49,7 +49,7 @@ def construct_test_document(app, workspace_id=None):
     data_group2b.append_data_group(data_group2b1)
     data_item2b1a = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
     document_model.append_data_item(data_item2b1a)
-    data_group2b1.append_data_item(document_model.get_display_item_for_data_item(data_item2b1a))
+    data_group2b1.append_display_item(document_model.get_display_item_for_data_item(data_item2b1a))
     return document_controller
 
 class TestDocumentControllerClass(unittest.TestCase):
@@ -149,9 +149,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             self.assertEqual(len(list(document_controller.document_model.get_flat_data_group_generator())), 7)
             self.assertEqual(len(list(document_controller.document_model.get_flat_data_item_generator())), 3)
-            self.assertEqual(document_controller.document_model.get_data_item_by_key(0), document_controller.document_model.data_groups[0].data_items[0])
-            self.assertEqual(document_controller.document_model.get_data_item_by_key(1), document_controller.document_model.data_groups[0].data_items[1])
-            self.assertEqual(document_controller.document_model.get_data_item_by_key(2), document_controller.document_model.data_groups[1].data_groups[1].data_groups[0].data_items[0])
+            self.assertEqual(document_controller.document_model.display_items[0], document_controller.document_model.data_groups[0].display_items[0])
+            self.assertEqual(document_controller.document_model.display_items[1], document_controller.document_model.data_groups[0].display_items[1])
+            self.assertEqual(document_controller.document_model.display_items[2], document_controller.document_model.data_groups[1].data_groups[1].data_groups[0].display_items[0])
 
     def test_receive_files_should_put_files_into_document_model_at_end(self):
         document_model = DocumentModel.DocumentModel()
@@ -297,11 +297,11 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         h, w = 8, 8
         data_item = DataItem.DataItem(numpy.ones((h, w), numpy.float32))
+        document_model.append_data_item(data_item)
         crop_region = Graphics.RectangleGraphic()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         display_item = document_model.get_display_item_for_data_item(data_item)
         display_item.display.add_graphic(crop_region)
-        document_model.append_data_item(data_item)
         display_panel = document_controller.selected_display_panel
         display_panel.set_display_panel_data_item(data_item)
         new_data_item = document_model.get_invert_new(data_item, crop_region)
@@ -315,10 +315,10 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+        document_model.append_data_item(data_item)
         crop_region = Graphics.RectangleGraphic()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         document_model.get_display_item_for_data_item(data_item).display.add_graphic(crop_region)
-        document_model.append_data_item(data_item)
         new_data_item = document_model.get_invert_new(data_item, crop_region)
         self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(document_model.get_data_item_computation(new_data_item).variables[0].secondary_specifier).value.bounds)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
@@ -329,10 +329,10 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+        document_model.append_data_item(data_item)
         crop_region = Graphics.RectangleGraphic()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         document_model.get_display_item_for_data_item(data_item).display.add_graphic(crop_region)
-        document_model.append_data_item(data_item)
         cropped_data_item = document_model.get_invert_new(data_item, crop_region)
         document_model.recompute_all()
         self.assertFalse(document_model.get_data_item_computation(cropped_data_item).needs_update)
@@ -376,10 +376,10 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+        document_model.append_data_item(data_item)
         crop_region = Graphics.RectangleGraphic()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         document_model.get_display_item_for_data_item(data_item).display.add_graphic(crop_region)
-        document_model.append_data_item(data_item)
         display_panel = document_controller.selected_display_panel
         display_panel.set_display_panel_data_item(data_item)
         data_item_result = document_model.get_invert_new(data_item, crop_region)

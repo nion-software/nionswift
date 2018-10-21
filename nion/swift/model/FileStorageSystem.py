@@ -113,7 +113,7 @@ class FileStorageSystem:
                 # atomically overwrite
                 temp_filepath = self.__filepath + ".temp"
                 with open(temp_filepath, "w") as fp:
-                    json.dump(self.__properties, fp)
+                    json.dump(Utility.clean_dict(self.__properties), fp)
                 os.replace(temp_filepath, self.__filepath)
         else:
             self.__write_properties(persistent_object_parent.parent)

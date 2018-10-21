@@ -331,7 +331,9 @@ class TestStorageClass(unittest.TestCase):
             display_item.display.slice_width = 1
             self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (0, 0))
         # make the slice_center be out of bounds
-        memory_persistent_storage_system.persistent_storage_properties[str(data_item.uuid)]["displays"][0]["slice_center"] = 20
+        library_storage_properties = memory_persistent_storage_system.library_storage_properties
+        library_storage_properties["display_items"][0]["displays"][0]["slice_center"] = 20
+        memory_persistent_storage_system._set_properties(library_storage_properties)
         # read it back
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
@@ -630,9 +632,8 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.ensure_data_source()
             data_item.title = 'title'
-            display_item = document_model.get_display_item_for_data_item(data_item)
             with document_model.item_transaction(data_item):
-                display_item.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
+                data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 data_group.append_display_item(document_model.get_display_item_for_data_item(data_item))
         # make sure it reloads
@@ -700,8 +701,7 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
                 data_item.created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
-                display_item = document_model.get_display_item_for_data_item(data_item)
-                display_item.data_item.set_data(data)
+                data_item.set_data(data)
                 document_model.append_data_item(data_item)
                 data_file_path = data_item._test_get_file_path()
                 self.assertTrue(os.path.exists(data_file_path))
@@ -711,8 +711,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
-                read_display_item = document_model.get_display_item_for_data_item(read_data_item)
-                self.assertTrue(numpy.array_equal(read_display_item.data_item.data, data))
+                self.assertTrue(numpy.array_equal(read_data_item.data, data))
                 # and then make sure the data file gets removed on disk when removed
                 document_model.remove_data_item(document_model.data_items[0])
                 self.assertFalse(os.path.exists(data_file_path))
@@ -978,8 +977,7 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
                 data_item.created = created
-                display_item = document_model.get_display_item_for_data_item(data_item)
-                display_item.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
+                data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 data_file_path = data_item._test_get_file_path()
                 # make sure it get written to disk
@@ -1192,7 +1190,7 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                display_item.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
+                data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 data_item2 = document_model.get_invert_new(data_item)
                 data_file_path = data_item._test_get_file_path()
@@ -3784,7 +3782,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(src_data_item)
         memory_persistent_storage_system.persistent_storage_properties[str(src_data_item.uuid)]["created"] = "todaytodaytodaytodaytoday0"
-        memory_persistent_storage_system.persistent_storage_properties[str(src_data_item.uuid)]["data_source"]["created"] = "todaytodaytodaytodaytoday0"
+        memory_persistent_storage_system.persistent_storage_properties[str(src_data_item.uuid)]["data_sources"][0]["created"] = "todaytodaytodaytodaytoday0"
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # for corrupt/missing created dates, a new one matching todays date should be assigned

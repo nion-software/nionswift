@@ -1086,14 +1086,14 @@ class DocumentController(Window.Window):
     def create_insert_data_group_display_item_command(self, data_group: DataGroup.DataGroup, before_index: int, display_item: DataItem.DisplayItem) -> InsertDataGroupDisplayItemCommand:
         return DocumentController.InsertDataGroupDisplayItemCommand(self.document_model, data_group, before_index, display_item)
 
-    class InsertDataGroupDisplayItemsCommand(Undo.UndoableCommand):
-        def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, display_items: typing.Sequence[DataItem.DisplayItem], index: int):
+    class InsertDataGroupDataItemsCommand(Undo.UndoableCommand):
+        def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):
             super().__init__("Insert Library Items")
             self.__document_controller = document_controller
             self.__data_group_uuid = data_group.uuid
             self.__data_group_indexes = list()
             self.__data_group_uuids = list()
-            self.__display_items = display_items  # only in perform
+            self.__data_items = data_items  # only in perform
             self.__display_item_index = index
             self.__display_item_indexes = list()
             self.__undelete_logs = None
@@ -1104,7 +1104,7 @@ class DocumentController(Window.Window):
             self.__data_group_uuid = None
             self.__data_group_indexes = None
             self.__data_group_uuids = None
-            self.__display_items = None
+            self.__data_items = None
             self.__display_item_index = None
             self.__undelete_logs = None
             super().close()
@@ -1121,11 +1121,13 @@ class DocumentController(Window.Window):
             document_model = self.__document_controller.document_model
             data_group = document_model.get_data_group_by_uuid(self.__data_group_uuid)
             index = self.__display_item_index
-            for display_item in self.__display_items:
-                if not document_model.get_display_item_by_uuid(display_item.uuid):
+            display_items = list()
+            for data_item in self.__data_items:
+                if not document_model.get_data_item_by_uuid(data_item.uuid):
                     self.__display_item_indexes.append(len(document_model.display_items))
-                    document_model.append_display_item(display_item)
-            for display_item in self.__display_items:
+                    document_model.append_data_item(data_item)
+                display_items.append(document_model.get_display_item_for_data_item(data_item))
+            for display_item in display_items:
                 if not display_item in data_group.display_items:
                     data_group.insert_display_item(index, display_item)
                     self.__data_group_indexes.append(index)
@@ -2136,8 +2138,7 @@ class DocumentController(Window.Window):
 
         def receive_files_complete(index, data_items):
             if data_group and isinstance(data_group, DataGroup.DataGroup):
-                display_items = [self.document_model.get_display_item_for_data_item(data_item) for data_item in data_items]
-                command = DocumentController.InsertDataGroupDisplayItemsCommand(self, data_group, display_items, index)
+                command = DocumentController.InsertDataGroupDataItemsCommand(self, data_group, data_items, index)
                 command.perform()
                 self.push_undo_command(command)
             else:
