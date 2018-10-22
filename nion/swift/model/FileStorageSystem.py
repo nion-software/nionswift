@@ -11,6 +11,7 @@ import typing
 import uuid
 
 from nion.swift.model import DataItem
+from nion.swift.model import DocumentModel
 from nion.swift.model import HDF5Handler
 from nion.swift.model import Migration
 from nion.swift.model import NDataHandler
@@ -488,9 +489,11 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
                 for display_item_properties in library_storage_properties.get("display_items", list()):
                     if data_item_uuid_str in display_item_properties.get("data_item_references", list()):
                         display_item_references.append(display_item_properties["uuid"])
-        library_storage_properties["version"] = 2
+        library_storage_properties["version"] = DocumentModel.DocumentModel.library_version
 
     # TODO: add consistency checks: no duplicated items [by uuid] such as connections or computations or data items
+
+    assert library_storage_properties["version"] == DocumentModel.DocumentModel.library_version
 
     persistent_storage_system.rewrite_properties(library_storage_properties)
 

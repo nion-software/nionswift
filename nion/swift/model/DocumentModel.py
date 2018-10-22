@@ -447,6 +447,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     """
 
     computation_min_period = 0.0
+    library_version = 2
 
     def __init__(self, *, storage_system=None, storage_cache=None, log_migrations=True, ignore_older_files=False):
         super().__init__()
@@ -514,7 +515,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__prune()
         self.__read()
         self.__storage_system.set_property(self, "uuid", str(self.uuid))
-        self.__storage_system.set_property(self, "version", 0)
+        self.__storage_system.set_property(self, "version", DocumentModel.library_version)
 
         self.__data_channel_updated_listeners = dict()
         self.__data_channel_start_listeners = dict()

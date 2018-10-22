@@ -2977,6 +2977,30 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", library_dir)
             shutil.rmtree(library_dir)
 
+    def test_migrate_update_library_version(self):
+        current_working_directory = os.getcwd()
+        library_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(library_dir)
+        try:
+            # construct workspace with old file
+            library_filename = "Nion Swift Workspace.nslib"
+            library_path = os.path.join(library_dir, library_filename)
+            data_path = os.path.join(library_dir, "Nion Swift Data")
+            with open(library_path, "w") as fp:
+                json.dump({}, fp)
+
+            # read workspace
+            file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path])
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False, ignore_older_files=False)
+            document_model.close()
+
+            with open(library_path, "r") as fp:
+                library_properties = json.load(fp)
+                self.assertEqual(library_properties["version"], DocumentModel.DocumentModel.library_version)
+        finally:
+            #logging.debug("rmtree %s", library_dir)
+            shutil.rmtree(library_dir)
+
     def test_ignore_migrate_does_not_overwrite_old_data(self):
         current_working_directory = os.getcwd()
         library_dir = os.path.join(current_working_directory, "__Test")
