@@ -859,8 +859,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         display_item.about_to_be_inserted(self)
         display_item.set_storage_cache(self.storage_cache)
         # update the session
-        display_item.session_id = self.session_id
         if not self._is_reading:
+            display_item.session_id = self.session_id
             self.__rebind_computations()  # rebind any unresolved that may now be resolved
 
     def __remove_display_item(self, display_item, *, safe: bool=False) -> typing.Sequence:

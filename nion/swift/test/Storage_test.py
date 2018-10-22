@@ -2916,6 +2916,7 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             data_item = document_model.data_items[0]
+            display_item = document_model.display_items[0]
             data_item_properties = data_item.write_to_dict()
             data_source = data_item.data_source
             self.assertEqual("title", data_source.title)
@@ -2930,6 +2931,9 @@ class TestStorageClass(unittest.TestCase):
             self.assertNotIn("timezone_offset", data_item_properties)
             self.assertEqual("20170101-120000", data_item_properties["session_id"])
             self.assertEqual("temporary", data_item_properties["category"])
+            self.assertEqual(document_model.get_display_items_for_data_item(data_item), [display_item])
+            self.assertEqual(display_item.data_item, data_item)
+            self.assertEqual(display_item.session_id, data_item.session_id)
 
     def test_migrate_overwrites_old_data(self):
         current_working_directory = os.getcwd()

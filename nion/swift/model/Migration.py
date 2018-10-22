@@ -131,6 +131,7 @@ def migrate_to_v13(reader_info_list, library_updates, migration_log: MigrationLo
                     display_item_properties["displays"] = [display_properties]
                     display_items.append(display_item_properties)
                     display_item_properties["data_item_references"] = [data_item_uuid_str]
+                    display_item_properties["session_id"] = session_id
 
                 library_updates.setdefault(data_item_uuid, dict()).setdefault("display_items", list()).extend(display_items)
 
