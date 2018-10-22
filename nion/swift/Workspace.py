@@ -691,7 +691,7 @@ class Workspace:
         return message_box_widget
 
     def handle_drag_enter(self, display_panel, mime_data):
-        if mime_data.has_format("text/data_item_uuid"):
+        if mime_data.has_format("text/display_item_uuid"):
             return "copy"
         if mime_data.has_format("text/uri-list"):
             return "copy"
@@ -703,7 +703,7 @@ class Workspace:
         return False
 
     def handle_drag_move(self, display_panel, mime_data, x, y):
-        if mime_data.has_format("text/data_item_uuid"):
+        if mime_data.has_format("text/display_item_uuid"):
             return "copy"
         if mime_data.has_format("text/uri-list"):
             return "copy"
@@ -719,18 +719,18 @@ class Workspace:
                 command = self.insert_display_panel(display_panel, region, None, d)
                 self.document_controller.push_undo_command(command)
             else:
-                command = self.__replace_displayed_data_item(display_panel, None, d)
+                command = self.__replace_displayed_display_item(display_panel, None, d)
                 self.document_controller.push_undo_command(command)
             return "move"
-        if mime_data.has_format("text/data_item_uuid"):
-            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-            data_item = document_model.get_data_item_by_key(data_item_uuid)
-            if data_item:
+        if mime_data.has_format("text/display_item_uuid"):
+            display_item_uuid = uuid.UUID(mime_data.data_as_string("text/display_item_uuid"))
+            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
+            if display_item:
                 if region == "right" or region == "left" or region == "top" or region == "bottom":
-                    command = self.insert_display_panel(display_panel, region, data_item)
+                    command = self.insert_display_panel(display_panel, region, display_item)
                     self.document_controller.push_undo_command(command)
                 else:
-                    command = self.__replace_displayed_data_item(display_panel, data_item)
+                    command = self.__replace_displayed_display_item(display_panel, display_item)
                     self.document_controller.push_undo_command(command)
                 return "copy"
         if mime_data.has_format("text/uri-list"):
@@ -739,15 +739,15 @@ class Workspace:
             return "copy"
         return "ignore"
 
-    def _replace_displayed_data_item(self, display_panel, data_item, d=None) -> Undo.UndoableCommand:
-        return self.__replace_displayed_data_item(display_panel, data_item, d)
+    def _replace_displayed_display_item(self, display_panel, display_item, d=None) -> Undo.UndoableCommand:
+        return self.__replace_displayed_display_item(display_panel, display_item, d)
 
-    def __replace_displayed_data_item(self, display_panel, data_item, d=None) -> Undo.UndoableCommand:
+    def __replace_displayed_display_item(self, display_panel, display_item, d=None) -> Undo.UndoableCommand:
         """ Used in drag/drop support. """
         self.document_controller.replaced_display_panel_content = display_panel.save_contents()
         command = DisplayPanel.ReplaceDisplayPanelCommand(self)
-        if data_item:
-            display_panel.set_display_panel_data_item(data_item, detect_controller=True)
+        if display_item:
+            display_panel.set_display_panel_display_item(display_item, detect_controller=True)
         elif d is not None:
             display_panel.change_display_panel_content(d)
         display_panel.request_focus()
@@ -755,13 +755,13 @@ class Workspace:
         return command
 
     class SplitDisplayPanelCommand(Undo.UndoableCommand):
-        def __init__(self, workspace_controller, workspace_layout, modified_state, display_panel, region_id: str, data_item, d: dict, old_splits, new_display_panel):
+        def __init__(self, workspace_controller, workspace_layout, modified_state, display_panel, region_id: str, display_item, d: dict, old_splits, new_display_panel):
             super().__init__("Split Display Panel")
             self.__workspace_controller = workspace_controller
             self.__workspace_layout_uuid = workspace_layout.uuid
             self.__display_panel_uuid = display_panel.uuid
             self.__region_id = region_id
-            self.__data_item_uuid = data_item.uuid if data_item else None
+            self.__display_item_uuid = display_item.uuid if display_item else None
             self.__d = d
             self.__old_splits = old_splits
             self.__new_display_panel_uuid = new_display_panel.uuid
@@ -773,7 +773,7 @@ class Workspace:
             self.__workspace_layout_uuid = None
             self.__display_panel_uuid = None
             self.__region_id = None
-            self.__data_item_uuid = None
+            self.__display_item_uuid = None
             self.__d = None
             self.__old_splits = None
             self.__new_display_panel_uuid = None
@@ -800,12 +800,12 @@ class Workspace:
             new_display_panel = self.__workspace_controller.get_display_panel_by_uuid(self.__new_display_panel_uuid)
             self.__d = new_display_panel.save_contents()
             self.__workspace_controller._remove_display_panel(new_display_panel, self.__old_splits)
-            self.__data_item_uuid = None
+            self.__display_item_uuid = None
 
         def _redo(self) -> None:
-            data_item = self.__workspace_controller.document_model.get_data_item_by_uuid(self.__data_item_uuid)
+            display_item = self.__workspace_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
             display_panel = self.__workspace_controller.get_display_panel_by_uuid(self.__display_panel_uuid)
-            _, new_display_panel = self.__workspace_controller._insert_display_panel(display_panel, self.__region_id, data_item, self.__d, self.__uuid)
+            _, new_display_panel = self.__workspace_controller._insert_display_panel(display_panel, self.__region_id, display_item, self.__d, self.__uuid)
             self.__new_display_panel_uuid = new_display_panel.uuid
 
     class RemoveDisplayPanelCommand(Undo.UndoableCommand):
@@ -857,12 +857,12 @@ class Workspace:
             old_display_panel, _, _ = self.__workspace_controller._remove_display_panel(new_display_panel, self.__new_splits)
             self.__old_display_panel = old_display_panel
 
-    def insert_display_panel(self, display_panel, region, data_item=None, d=None, new_uuid=None, new_splits=None) -> Undo.UndoableCommand:
+    def insert_display_panel(self, display_panel, region, display_item=None, d=None, new_uuid=None, new_splits=None) -> Undo.UndoableCommand:
         modified_state = self.__workspace.modified_state, self.document_model.modified_state
-        old_splits, new_display_panel = self._insert_display_panel(display_panel, region, data_item, d, new_uuid, new_splits)
-        return Workspace.SplitDisplayPanelCommand(self, self.__workspace, modified_state, display_panel, region, data_item, d, old_splits, new_display_panel)
+        old_splits, new_display_panel = self._insert_display_panel(display_panel, region, display_item, d, new_uuid, new_splits)
+        return Workspace.SplitDisplayPanelCommand(self, self.__workspace, modified_state, display_panel, region, display_item, d, old_splits, new_display_panel)
 
-    def _insert_display_panel(self, display_panel, region, data_item, d, new_uuid, new_splits=None) -> typing.Tuple[typing.Optional[list], typing.Optional[DisplayPanel.DisplayPanel]]:
+    def _insert_display_panel(self, display_panel, region, display_item, d, new_uuid, new_splits=None) -> typing.Tuple[typing.Optional[list], typing.Optional[DisplayPanel.DisplayPanel]]:
         assert isinstance(display_panel, DisplayPanel.DisplayPanel)
         orientation = "vertical" if region in ("left", "right") else "horizontal"
         new_display_panel = None
@@ -885,8 +885,8 @@ class Workspace:
             new_index_adj = 1 if region == "right" or region == "bottom" else 0
             new_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict(), new_uuid)
             self.display_panels.insert(self.display_panels.index(display_panel) + new_index_adj, new_display_panel)
-            if data_item:
-                new_display_panel.set_display_panel_data_item(data_item, detect_controller=True)
+            if display_item:
+                new_display_panel.set_display_panel_display_item(display_item, detect_controller=True)
             elif d is not None:
                 new_display_panel.change_display_panel_content(d)
             container.insert_canvas_item(index + new_index_adj, new_display_panel)

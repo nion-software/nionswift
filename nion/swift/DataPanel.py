@@ -44,13 +44,6 @@ _ = gettext.gettext
 """
 
 
-def get_display_item_by_uuid(document_model, display_item_uuid: uuid.UUID) -> typing.Optional[DataItem.DisplayItem]:
-    data_item = document_model.get_data_item_by_key(display_item_uuid)
-    if data_item:
-        return document_model.get_display_item_for_data_item(data_item)
-    return None
-
-
 # support the 'count' display for data groups. count the display items that are children of the container (which
 # can be a data group or a document controller) and also display items in all of their child groups.
 def get_display_item_count_flat(document_model, container) -> int:
@@ -174,7 +167,7 @@ class DisplayItemAdapter:
             display_item = self.display_item
             mime_data = self.ui.create_mime_data()
             if display_item:
-                mime_data.set_data_as_string("text/data_item_uuid", str(display_item.uuid))
+                mime_data.set_data_as_string("text/display_item_uuid", str(display_item.uuid))
             self.__create_thumbnail_source()
             thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
             return mime_data, thumbnail_data
@@ -737,7 +730,7 @@ class DataGroupModelController:
         self.item_model_controller.on_item_mime_data = self.item_mime_data
         self.item_model_controller.on_remove_rows = self.remove_rows
         self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
-        self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid", "text/data_group_uuid"]
+        self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/display_item_uuid", "text/data_group_uuid"]
         self.__document_model_item_inserted_listener = self.__document_model.item_inserted_event.listen(functools.partial(self.__item_inserted, self.__document_model))
         self.__document_model_item_removed_listener = self.__document_model.item_removed_event.listen(functools.partial(self.__item_removed, self.__document_model))
         self.__mapping = { self.__document_model: self.item_model_controller.root }
@@ -894,14 +887,14 @@ class DataGroupModelController:
         data_group = self.get_data_group_of_parent(parent_row, parent_id)
         if data_group and mime_data.has_file_paths:
             return row < 0  # only accept drops ONTO items, not BETWEEN items
-        if data_group and (mime_data.has_format("text/data_item_uuid")):
+        if data_group and (mime_data.has_format("text/display_item_uuid")):
             if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                 return False
             # if the display item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            display_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-            display_item = get_display_item_by_uuid(self.__document_model, display_item_uuid)
+            display_item_uuid = uuid.UUID(mime_data.data_as_string("text/display_item_uuid"))
+            display_item = self.__document_model.get_display_item_by_uuid(display_item_uuid)
             if display_item:
                 return True
             return False
@@ -921,14 +914,14 @@ class DataGroupModelController:
             if callable(self.on_receive_files):
                 if self.on_receive_files(mime_data.file_paths, data_group, len(data_group.display_items)):
                     return self.item_model_controller.COPY
-        if data_group and (mime_data.has_format("text/data_item_uuid")):
+        if data_group and (mime_data.has_format("text/display_item_uuid")):
             if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                 return self.item_model_controller.NONE
             # if the display item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            display_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-            display_item = get_display_item_by_uuid(self.__document_model, display_item_uuid)
+            display_item_uuid = uuid.UUID(mime_data.data_as_string("text/display_item_uuid"))
+            display_item = self.__document_model.get_display_item_by_uuid(display_item_uuid)
             if display_item:
                 command = self.__document_controller.create_insert_data_group_display_item_command(data_group, len(data_group.display_items), display_item)
                 command.perform()

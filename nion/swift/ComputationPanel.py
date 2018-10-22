@@ -712,29 +712,33 @@ def make_image_chooser(document_controller, computation, variable, drag_fn):
         data_source_mime_str = mime_data.data_as_string(DataItem.DataSource.DATA_SOURCE_MIME_TYPE)
         if data_source_mime_str:
             data_source_mime_data = json.loads(data_source_mime_str)
-            data_item_uuid = uuid.UUID(data_source_mime_data["data_item_uuid"])
-            data_item = document_model.get_data_item_by_key(data_item_uuid)
-            variable_specifier = document_model.get_object_specifier(data_item)
-            secondary_specifier = None
-            if "graphic_uuid" in data_source_mime_data:
-                graphic_uuid = uuid.UUID(data_source_mime_data["graphic_uuid"])
-                graphic = document_model.get_graphic_by_uuid(graphic_uuid)
-                if graphic:
-                    secondary_specifier = document_model.get_object_specifier(graphic)
-            properties = {"variable_type": "data_item", "secondary_specifier": secondary_specifier, "specifier": variable_specifier}
-            command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
-            command.perform()
-            document_controller.push_undo_command(command)
-            return "copy"
-        if mime_data.has_format("text/data_item_uuid"):
-            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-            data_item = document_model.get_data_item_by_key(data_item_uuid)
-            variable_specifier = document_model.get_object_specifier(data_item)
-            properties = {"variable_type": "data_item", "secondary_specifier": dict(), "specifier": variable_specifier}
-            command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
-            command.perform()
-            document_controller.push_undo_command(command)
-            return "copy"
+            display_item_uuid = uuid.UUID(data_source_mime_data["display_item_uuid"])
+            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
+            data_item = display_item.data_item if display_item else None
+            if data_item:
+                variable_specifier = document_model.get_object_specifier(data_item)
+                secondary_specifier = None
+                if "graphic_uuid" in data_source_mime_data:
+                    graphic_uuid = uuid.UUID(data_source_mime_data["graphic_uuid"])
+                    graphic = document_model.get_graphic_by_uuid(graphic_uuid)
+                    if graphic:
+                        secondary_specifier = document_model.get_object_specifier(graphic)
+                properties = {"variable_type": "data_item", "secondary_specifier": secondary_specifier, "specifier": variable_specifier}
+                command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
+                command.perform()
+                document_controller.push_undo_command(command)
+                return "copy"
+        if mime_data.has_format("text/display_item_uuid"):
+            display_item_uuid = uuid.UUID(mime_data.data_as_string("text/display_item_uuid"))
+            display_item = document_model.get_data_item_by_key(display_item_uuid)
+            data_item = display_item.data_item if display_item else None
+            if data_item:
+                variable_specifier = document_model.get_object_specifier(data_item)
+                properties = {"variable_type": "data_item", "secondary_specifier": dict(), "specifier": variable_specifier}
+                command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
+                command.perform()
+                document_controller.push_undo_command(command)
+                return "copy"
         return None
 
     def data_item_delete():

@@ -848,7 +848,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.selected_display_panel.set_display_panel_data_item(data_item)
             display_item = data_panel.data_list_controller._test_get_display_item_adapter(0)
             mime_data, thumbnail = display_item.drag_started(self.app.ui, 0, 0, 0)
-            self.assertTrue(mime_data.has_format("text/data_item_uuid"))
+            self.assertTrue(mime_data.has_format("text/display_item_uuid"))
 
 
 if __name__ == '__main__':

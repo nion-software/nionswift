@@ -489,6 +489,21 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
                 for display_item_properties in library_storage_properties.get("display_items", list()):
                     if data_item_uuid_str in display_item_properties.get("data_item_references", list()):
                         display_item_references.append(display_item_properties["uuid"])
+        data_item_to_display_item_map = dict()
+        for display_item_properties in library_storage_properties.get("display_items", list()):
+            for data_item_uuid_str in display_item_properties.get("data_item_references", list()):
+                data_item_to_display_item_map.setdefault(data_item_uuid_str, display_item_properties["uuid"])
+        for workspace_properties in library_storage_properties.get("workspaces", list()):
+            def replace1(d):
+                if "children" in d:
+                    for dd in d["children"]:
+                        replace1(dd)
+                if "data_item_uuid" in d:
+                    data_item_uuid_str = d.pop("data_item_uuid")
+                    display_item_uuid_str = data_item_to_display_item_map.get(data_item_uuid_str)
+                    if display_item_uuid_str:
+                        d["display_item_uuid"] = display_item_uuid_str
+            replace1(workspace_properties["layout"])
         library_storage_properties["version"] = DocumentModel.DocumentModel.library_version
 
     # TODO: add consistency checks: no duplicated items [by uuid] such as connections or computations or data items

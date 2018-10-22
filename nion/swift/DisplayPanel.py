@@ -1194,6 +1194,10 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.__display_item.data_item if self.__display_item else None
 
     @property
+    def display_item(self) -> DataItem.DisplayItem:
+        return self.__display_item
+
+    @property
     def display(self):
         return self.__get_display()
 
@@ -1208,7 +1212,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
         if self.__get_display():
-            d["data_item_uuid"] = str(self.data_item.uuid)
+            d["display_item_uuid"] = str(self.display_item.uuid)
         if self.__display_panel_controller is None and self.__horizontal_browser_canvas_item.visible:
             d["browser_type"] = "horizontal"
         if self.__display_panel_controller is None and self.__grid_browser_canvas_item.visible:
@@ -1226,11 +1230,11 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             controller_type = d.get("controller_type")
             self.__set_display_panel_controller(DisplayPanelManager().make_display_panel_controller(controller_type, self, d))
             if not self.__display_panel_controller:
-                data_item = None
-                data_item_uuid_str = d.get("data_item_uuid")
-                if data_item_uuid_str:
-                    data_item = self.__document_controller.document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid_str))
-                self.set_displayed_data_item(data_item)
+                display_item = None
+                display_item_uuid_str = d.get("display_item_uuid")
+                if display_item_uuid_str:
+                    display_item = self.__document_controller.document_model.get_display_item_by_uuid(uuid.UUID(display_item_uuid_str))
+                self.set_display_item(display_item)
                 self.__update_selection_to_display()
                 if d.get("browser_type") == "horizontal":
                     self.__switch_to_horizontal_browser()
@@ -1389,9 +1393,14 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__content_canvas_item.request_focus()
 
     def set_display_panel_data_item(self, data_item: DataItem.DataItem, detect_controller: bool=False) -> None:
-        if data_item:
-            d = {"type": "image", "data_item_uuid": str(data_item.uuid)}
+        display_item = self.document_controller.document_model.get_display_item_for_data_item(data_item)
+        self.set_display_panel_display_item(display_item, detect_controller)
+
+    def set_display_panel_display_item(self, display_item: DataItem.DisplayItem, detect_controller: bool=False) -> None:
+        if display_item:
+            d = {"type": "image", "display_item_uuid": str(display_item.uuid)}
             if detect_controller:
+                data_item = display_item.data_item
                 d2 = DisplayPanelManager().detect_controller(self.__document_controller.document_model, data_item)
                 if d2:
                     d.update(d2)
@@ -1405,14 +1414,12 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def __handle_begin_drag(self):
-        data_item = self.data_item
-        if data_item:
-            mime_data = self.ui.create_mime_data()
-            if data_item:
-                mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
-            mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
-            thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(self.__get_display())
-            self.__begin_drag(mime_data, thumbnail_data)
+        mime_data = self.ui.create_mime_data()
+        if self.__display_item:
+            mime_data.set_data_as_string("text/display_item_uuid", str(self.__display_item.uuid))
+        mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
+        thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(self.__get_display())
+        self.__begin_drag(mime_data, thumbnail_data)
 
     def __begin_drag(self, mime_data, thumbnail_data):
         self.drag(mime_data, thumbnail_data, drag_finished_fn=functools.partial(self._drag_finished, self.__document_controller))
@@ -1649,12 +1656,12 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             self.__document_controller.cursor_changed(None)
 
     def drag_graphics(self, graphics):
-        data_item = self.data_item
+        display_item = self.display_item
         display = self.display
-        if data_item and display:
+        if display_item and display:
             mime_data = self.ui.create_mime_data()
             mime_data_content = dict()
-            mime_data_content["data_item_uuid"] = str(data_item.uuid)
+            mime_data_content["display_item_uuid"] = str(display_item.uuid)
             if graphics and len(graphics) == 1:
                 mime_data_content["graphic_uuid"] = str(graphics[0].uuid)
             mime_data.set_data_as_string(DataItem.DataSource.DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
@@ -1830,10 +1837,10 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
                 return display_panel_controller
         return None
 
-    def switch_to_display_content(self, document_controller, display_panel: DisplayPanel, display_panel_type, data_item: DataItem.DataItem=None):
+    def switch_to_display_content(self, document_controller, display_panel: DisplayPanel, display_panel_type, display_item: DataItem.DisplayItem = None):
         d = {"type": "image", "display-panel-type": display_panel_type}
-        if data_item and display_panel_type != "empty-display-panel":
-            d["data_item_uuid"] = str(data_item.uuid)
+        if display_item and display_panel_type != "empty-display-panel":
+            d["display_item_uuid"] = str(display_item.uuid)
         command = ReplaceDisplayPanelCommand(document_controller.workspace_controller)
         display_panel.change_display_panel_content(d)
         document_controller.push_undo_command(command)
@@ -1851,7 +1858,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         dynamic_live_actions = list()
 
         def switch_to_display_content(display_panel_type):
-            self.switch_to_display_content(document_controller, display_panel, display_panel_type, display_panel.data_item)
+            self.switch_to_display_content(document_controller, display_panel, display_panel_type, display_panel.display_item)
 
         empty_action = display_type_menu.add_menu_item(_("Empty Display"), functools.partial(switch_to_display_content, "empty-display-panel"))
         display_type_menu.add_separator()

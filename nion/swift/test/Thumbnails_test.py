@@ -45,7 +45,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             valid, thumbnail = thumbnail_source.populate_mime_data_for_drag(mime_data, Geometry.IntSize(64, 64))
             self.assertTrue(valid)
             self.assertIsNotNone(thumbnail)
-            self.assertTrue(mime_data.has_format("text/data_item_uuid"))
+            self.assertTrue(mime_data.has_format("text/display_item_uuid"))
 
 
 if __name__ == '__main__':

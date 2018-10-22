@@ -1048,7 +1048,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         overlay.drop(mime_data, int(width*0.05), int(height*0.5))
         self.assertEqual(display_panel.drop_region, "left")
 
-    def test_replace_displayed_data_item_and_display_detects_default_raster_display(self):
+    def test_replace_displayed_display_item_and_display_detects_default_raster_display(self):
         self.display_panel.set_display_panel_data_item(self.data_item)
         self.assertEqual(self.display_panel.data_item, self.data_item)
 

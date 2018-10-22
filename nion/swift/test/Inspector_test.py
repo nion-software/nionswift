@@ -769,6 +769,7 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((16, 16)))
             document_model.append_data_item(data_item)
             display_panel.set_display_panel_data_item(data_item)
+            print(data_item, display_panel.data_item)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             self.assertIsNone(inspector_panel.column.find_widget_by_id("wedge_inspector"))

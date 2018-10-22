@@ -545,7 +545,7 @@ class TestWorkspaceClass(unittest.TestCase):
             # save the original layout
             old_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
             # change the display by dragging 2 into 1
-            command = workspace_controller._replace_displayed_data_item(display_panel, None, display_panel2.save_contents())
+            command = workspace_controller._replace_displayed_display_item(display_panel, None, display_panel2.save_contents())
             document_controller.push_undo_command(command)
             display_panel2._drag_finished(document_controller, "move")
             document_controller.selected_display_panel = workspace_controller.display_panels[0]  # display_panel will have changed now
@@ -553,9 +553,9 @@ class TestWorkspaceClass(unittest.TestCase):
             # record the new layout
             new_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
             self.assertNotEqual(old_workspace_layout, new_workspace_layout)
-            self.assertEqual(old_workspace_layout["children"][0]["data_item_uuid"], new_workspace_layout["children"][1]["data_item_uuid"])
-            self.assertIsNone(old_workspace_layout["children"][1].get("data_item_uuid"))
-            self.assertIsNone(new_workspace_layout["children"][0].get("data_item_uuid"))
+            self.assertEqual(old_workspace_layout["children"][0]["display_item_uuid"], new_workspace_layout["children"][1]["display_item_uuid"])
+            self.assertIsNone(old_workspace_layout["children"][1].get("display_item_uuid"))
+            self.assertIsNone(new_workspace_layout["children"][0].get("display_item_uuid"))
             # undo the remove
             document_controller.handle_undo()
             document_controller.selected_display_panel = workspace_controller.display_panels[1]  # display_panel will have changed now
@@ -748,9 +748,11 @@ class TestWorkspaceClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
             display_panel = document_controller.workspace_controller.display_panels[0]
             display_panel.set_display_panel_data_item(data_item1)
-            mime_data = MimeData("text/data_item_uuid", str(data_item2.uuid))
+            mime_data = MimeData("text/display_item_uuid", str(display_item2.uuid))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, region, 160, 240)
             root_canvas_item.refresh_layout_immediate()
             # check that there are now two image panels
@@ -764,11 +766,11 @@ class TestWorkspaceClass(unittest.TestCase):
                 self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_rect.height, 240)
             # check that the data items are in the right spot
             if region == "left" or region == "top":
-                self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item2)
-                self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item1)
+                self.assertEqual(document_controller.workspace_controller.display_panels[0].display_item, display_item2)
+                self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item, display_item1)
             else:
-                self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item1)
-                self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item2)
+                self.assertEqual(document_controller.workspace_controller.display_panels[0].display_item, display_item1)
+                self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item, display_item2)
 
     def test_workspace_mutates_when_new_item_dropped_on_edge_of_1x1_item(self):
         self.__test_drop_on_1x1("right")
@@ -841,16 +843,17 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel.set_display_panel_data_item(data_item)
-            mime_data = MimeData(DisplayPanel.DISPLAY_PANEL_MIME_TYPE, json.dumps({"data_item_uuid": str(data_item.uuid), "browser_type": "horizontal"}))
+            display_panel.set_display_panel_display_item(display_item)
+            mime_data = MimeData(DisplayPanel.DISPLAY_PANEL_MIME_TYPE, json.dumps({"display_item_uuid": str(display_item.uuid), "browser_type": "horizontal"}))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
             # check that there are now two image panels
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
             # check that the data items are in the right spot
-            self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item)
+            self.assertEqual(document_controller.workspace_controller.display_panels[0].display_item, display_item)
             self.assertEqual(document_controller.workspace_controller.display_panels[0]._display_panel_type, "horizontal")
-            self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item)
+            self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item, display_item)
 
     def test_workspace_splits_when_new_item_dropped_on_non_axis_edge_of_2x1_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -866,9 +869,12 @@ class TestWorkspaceClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
-            document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
-            mime_data = MimeData("text/data_item_uuid", str(data_item3.uuid))
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            display_item3 = document_model.get_display_item_for_data_item(data_item2)
+            document_controller.workspace_controller.display_panels[0].set_display_item(display_item1)
+            document_controller.workspace_controller.display_panels[1].set_display_item(display_item2)
+            mime_data = MimeData("text/display_item_uuid", str(display_item3.uuid))
             display_panel = document_controller.workspace_controller.display_panels[0]
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "bottom", 160, 240)
             # check that there are now three image panels
@@ -991,17 +997,19 @@ class TestWorkspaceClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
-            document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
-            self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item1)
-            self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            document_controller.workspace_controller.display_panels[0].set_display_item(display_item1)
+            document_controller.workspace_controller.display_panels[1].set_display_item(display_item2)
+            self.assertEqual(document_controller.workspace_controller.display_panels[0].display_item, display_item1)
+            self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item, display_item2)
             # simulate drag. data_item2 in right panel swaps with data_item1 in left panel.
             mime_data = self.app.ui.create_mime_data()
-            mime_data.set_data_as_string("text/data_item_uuid", str(data_item2.uuid))
+            mime_data.set_data_as_string("text/display_item_uuid", str(display_item2.uuid))
             document_controller.workspace_controller.handle_drop(document_controller.workspace_controller.display_panels[0], mime_data, "middle", 160, 240)
             document_controller.workspace_controller.display_panels[1]._drag_finished(document_controller, "move")
-            self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item2)
-            self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item1)
+            self.assertEqual(document_controller.workspace_controller.display_panels[0].display_item, display_item2)
+            self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item, display_item1)
             self.assertEqual(document_controller.workspace_controller.display_panels[0].display.container.data_item, data_item2)
             self.assertEqual(document_controller.workspace_controller.display_panels[1].display.container.data_item, data_item1)
 
@@ -1052,16 +1060,17 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel0 = document_controller.workspace_controller.display_panels[0]
-            display_panel0.set_displayed_data_item(None)
+            display_panel0.set_display_item(None)
             display_panel1 = document_controller.workspace_controller.display_panels[1]
-            display_panel1.set_displayed_data_item(None)
+            display_panel1.set_display_item(None)
             display_panel1.request_focus()
             # check assumptions
             self.assertFalse(display_panel0.content_canvas_item.focused)
             self.assertTrue(display_panel1.content_canvas_item.focused)
             # do drop
-            mime_data = MimeData("text/data_item_uuid", str(data_item.uuid))
+            mime_data = MimeData("text/display_item_uuid", str(display_item.uuid))
             document_controller.workspace_controller.handle_drop(display_panel0, mime_data, "middle", 160, 240)
             # check focus
             self.assertTrue(display_panel0.content_canvas_item.focused)
@@ -1128,10 +1137,11 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             display_panel = document_controller.workspace_controller.display_panels[0]
-            mime_data = MimeData("text/data_item_uuid", str(data_item.uuid))
+            mime_data = MimeData("text/display_item_uuid", str(display_item.uuid))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
             # check that there are now two image panels
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)

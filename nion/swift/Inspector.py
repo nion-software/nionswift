@@ -2038,14 +2038,15 @@ def make_image_chooser(document_controller, computation, variable):
     data_item = bound_data_source.value.data_item if bound_data_source else None
 
     def drop_mime_data(mime_data, x, y):
-        if mime_data.has_format("text/data_item_uuid"):
-            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-            data_item = document_model.get_data_item_by_key(data_item_uuid)
-            variable_specifier = document_model.get_object_specifier(data_item)
-            command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
-            command.perform()
-            document_controller.push_undo_command(command)
-            return "copy"
+        if mime_data.has_format("text/display_item_uuid"):
+            display_item_uuid = uuid.UUID(mime_data.data_as_string("text/display_item_uuid"))
+            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
+            if display_item.data_item:
+                variable_specifier = document_model.get_object_specifier(display_item.data_item)
+                command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
+                command.perform()
+                document_controller.push_undo_command(command)
+                return "copy"
         return None
 
     def data_item_delete():
