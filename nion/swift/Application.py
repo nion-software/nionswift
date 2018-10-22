@@ -184,7 +184,7 @@ class Application(UIApplication.Application):
         library_path_latest = library_path_13
 
         if not os.path.exists(library_path_latest):
-            for library_path in library_paths:
+            for library_path in reversed(library_paths):
                 if os.path.exists(library_path):
                     if welcome_message_enabled:
                         logging.info("Migrating library: %s -> %s", library_path, library_path_latest)
@@ -305,7 +305,7 @@ class Application(UIApplication.Application):
             upgrade_dialog.show()
 
         else:
-            self.continue_start(cache_path, create_new_document, file_persistent_storage_system, workspace_dir, True, welcome_message=welcome_message_enabled)
+            self.continue_start(cache_path, create_new_document, file_persistent_storage_system, workspace_dir, False, welcome_message=welcome_message_enabled)
 
         return True
 

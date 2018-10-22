@@ -447,7 +447,7 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
                                                                                 deletions=deletions,
                                                                                 utilized_deletions=utilized_deletions,
                                                                                 ignore_older_files=ignore_older_files,
-                                                                                migration_log=migration_log)
+                                                                                migration_log=Migration.MigrationLog(False))
         reader_info_list.extend(new_reader_info_list)
         library_updates.update(new_library_updates)
 
