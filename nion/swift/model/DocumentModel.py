@@ -1981,7 +1981,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__document_model = document_model
             self.__key = key
             self.__data_item = data_item
-            self.__display_item = self.__document_model.get_display_item_for_data_item(data_item)
             self.__starts = 0
             self.__pending_starts = 0
             self.__data_item_transaction = None
@@ -2050,24 +2049,21 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     self.__pending_starts = self.__starts
                     self.__starts = 0
                     self.__data_item = None
-                    self.__display_item = None
 
         @property
-        def data_item(self):
+        def data_item(self) -> DataItem.DataItem:
             with self.mutex:
                 return self.__data_item
 
         @property
-        def display_item(self):
-            with self.mutex:
-                return self.__display_item
+        def display_item(self) -> DataItem.DisplayItem:
+            return self.__document_model.get_display_item_for_data_item(self.data_item)
 
         @data_item.setter
         def data_item(self, value):
             with self.mutex:
                 if self.__data_item != value:
                     self.__data_item = value
-                    self.__display_item = self.__document_model.get_display_item_for_data_item(value)
                     # start (internal) for each pending start.
                     for i in range(self.__pending_starts):
                         self.__start()
