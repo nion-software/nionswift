@@ -218,7 +218,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.data, numpy.full((8, ), 10)))
-            display_item.display.dimensional_calibration_style = "pixels-top-left"
+            display_item.display.calibration_style_id = "pixels-top-left"
             display_panel.display_canvas_item.layout_immediate((640, 480))
             self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.data, numpy.ones((8, ))))
 
@@ -234,7 +234,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             self.assertEqual(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units, "nm")
-            display_item.display.dimensional_calibration_style = "pixels-top-left"
+            display_item.display.calibration_style_id = "pixels-top-left"
             display_panel.display_canvas_item.layout_immediate((640, 480))
             self.assertFalse(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units)
 

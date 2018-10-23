@@ -128,6 +128,13 @@ def migrate_to_v13(reader_info_list, library_updates, migration_log: MigrationLo
                         display_item_properties["created"] = properties.get("created")
                     if "modified" in properties:
                         display_item_properties["modified"] = properties.get("modified")
+                    # display_calibrated_values is superseded by calibration_style_id
+                    if "display_calibrated_values" in display_item_properties:
+                        if not "calibration_style_id" in display_item_properties:
+                            display_item_properties["calibration_style_id"] = "pixels-center"
+                        display_item_properties.pop("display_item_properties", None)
+                    if not display_item_properties.get("calibration_style_id", None):
+                        display_item_properties["calibration_style_id"] = "calibrated"
                     display_item_properties["display"] = display_properties
                     display_items.append(display_item_properties)
                     display_item_properties["data_item_references"] = [data_item_uuid_str]

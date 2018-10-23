@@ -433,8 +433,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         # conversion to scalar
         self.define_property("complex_display_type", changed=self.__property_changed)
         # calibration display
-        self.define_property("display_calibrated_values", True, changed=self.__property_changed)
-        self.define_property("dimensional_calibration_style", None, changed=self.__property_changed)
+        self.define_property("calibration_style_id", "calibrated", key="dimensional_calibration_style", changed=self.__property_changed)
         # data scaling and color (raster)
         self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__property_changed)
         self.define_property("color_map_id", changed=self.__color_map_id_changed)
@@ -506,18 +505,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self._closed = True
         self.__container_weak_ref = None
 
-    def read_from_dict(self, properties):
-        super().read_from_dict(properties)
-        dimensional_calibration_style_property = self._get_persistent_property("dimensional_calibration_style")
-        if self.dimensional_calibration_style is None:
-            calibration_style = self.default_calibrated_calibration_style if self.display_calibrated_values else self.default_uncalibrated_calibration_style
-            dimensional_calibration_style_property.value = calibration_style.calibration_style_id
-        else:
-            valid_calibration_styles = (calibrated_style.calibration_style_id for calibrated_style in self.calibration_styles)
-            if not dimensional_calibration_style_property.value in valid_calibration_styles:
-                calibration_style = self.default_calibrated_calibration_style if dimensional_calibration_style_property.value.startswith("calibration") else self.default_uncalibrated_calibration_style
-                dimensional_calibration_style_property.value = calibration_style.calibration_style_id
-
     def save_properties(self) -> typing.Tuple:
         return (
             self.left_channel,
@@ -529,8 +516,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.image_position,
             self.image_canvas_mode,
             self.complex_display_type,
-            self.display_calibrated_values,
-            self.dimensional_calibration_style,
+            self.calibration_style_id,
             self.display_limits,
             self.color_map_id,
             self.sequence_index,
@@ -551,16 +537,15 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.image_position = properties[6]
         self.image_canvas_mode = properties[7]
         self.complex_display_type = properties[8]
-        self.display_calibrated_values = properties[9]
-        self.dimensional_calibration_style = properties[10]
-        self.display_limits = properties[11]
-        self.color_map_id = properties[12]
-        self.sequence_index = properties[13]
-        self.collection_index = properties[14]
-        self.slice_center = properties[15]
-        self.slice_interval = properties[16]
-        self.display_type = properties[17]
-        self.display_script = properties[18]
+        self.calibration_style_id = properties[9]
+        self.display_limits = properties[10]
+        self.color_map_id = properties[11]
+        self.sequence_index = properties[12]
+        self.collection_index = properties[13]
+        self.slice_center = properties[14]
+        self.slice_interval = properties[15]
+        self.display_type = properties[16]
+        self.display_script = properties[17]
 
     @property
     def container(self):
@@ -842,12 +827,10 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if property_name in ("sequence_index", "collection_index", "slice_center", "slice_width", "complex_display_type", "display_limits", "color_map_data"):
             self.display_data_will_change_event.fire()
             self.__send_next_calculated_display_values()
-        if property_name in ("dimensional_calibration_style", ):
+        if property_name in ("calibration_style_id", ):
             self.notify_property_changed("displayed_dimensional_scales")
             self.notify_property_changed("displayed_dimensional_calibrations")
             self.notify_property_changed("displayed_intensity_calibration")
-            calibration_style = self.__get_calibration_style_for_id(value)
-            self._get_persistent_property("display_calibrated_values").value = calibration_style.is_calibrated if calibration_style else None
         if property_name in ("dimensional_calibrations", "intensity_calibration", "dimensional_scales"):
             self.notify_property_changed("displayed_dimensional_scales")
             self.notify_property_changed("displayed_dimensional_calibrations")
@@ -977,8 +960,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             return self.dimensional_scales
         return [1, 1]
 
-    def get_dimensional_calibrations_with_calibration_style(self, dimensional_calibration_style) -> typing.Sequence[Calibration.Calibration]:
-        calibration_style = self.__get_calibration_style_for_id(dimensional_calibration_style)
+    def get_dimensional_calibrations_with_calibration_style(self, calibration_style_id: typing.Optional[str]) -> typing.Sequence[Calibration.Calibration]:
+        calibration_style = self.__get_calibration_style_for_id(calibration_style_id)
         if self.__data_and_metadata:
             calibration_style = CalibrationStyleNative() if calibration_style is None else calibration_style
             return calibration_style.get_dimensional_calibrations(self.__data_and_metadata.dimensional_shape, self.__data_and_metadata.dimensional_calibrations)
@@ -992,10 +975,10 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
-        return self.get_dimensional_calibrations_with_calibration_style(self.dimensional_calibration_style)
+        return self.get_dimensional_calibrations_with_calibration_style(self.calibration_style_id)
 
-    def get_intensity_calibration_with_calibration_style(self, dimensional_calibration_style) -> Calibration.Calibration:
-        calibration_style = self.__get_calibration_style_for_id(dimensional_calibration_style)
+    def get_intensity_calibration_with_calibration_style(self, calibration_style_id: typing.Optional[str]) -> Calibration.Calibration:
+        calibration_style = self.__get_calibration_style_for_id(calibration_style_id)
         if calibration_style is None or self.__data_and_metadata is None:
             if self.__data_and_metadata:
                 return self.__data_and_metadata.intensity_calibration
@@ -1006,7 +989,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def displayed_intensity_calibration(self) -> Calibration.Calibration:
-        return self.get_intensity_calibration_with_calibration_style(self.dimensional_calibration_style)
+        return self.get_intensity_calibration_with_calibration_style(self.calibration_style_id)
 
     @property
     def calibration_styles(self) -> typing.List[CalibrationStyle]:
@@ -1024,8 +1007,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def __get_calibration_style_for_id(self, calibration_style_id: str) -> typing.Optional[CalibrationStyle]:
         return next(filter(lambda x: x.calibration_style_id == calibration_style_id, self.calibration_styles), None)
 
-    def get_calibration_style_for_id(self, calibration_style_id: str) -> typing.Optional[CalibrationStyle]:
-        return next(filter(lambda x: x.calibration_style_id == calibration_style_id, self.calibration_styles), self.default_calibrated_calibration_style)
+    @property
+    def calibration_style(self) -> CalibrationStyle:
+        return next(filter(lambda x: x.calibration_style_id == self.calibration_style_id, self.calibration_styles), self.default_calibrated_calibration_style)
 
     def __get_calibrated_value_text(self, value: float, intensity_calibration) -> str:
         if value is not None:

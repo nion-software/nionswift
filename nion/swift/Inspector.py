@@ -692,7 +692,7 @@ def make_calibration_style_chooser(document_controller, display):
                 return calibration_styles[0].label
 
     display_calibration_style_chooser = ui.create_combo_box_widget(items=display_calibration_style_options, item_getter=operator.itemgetter(0))
-    display_calibration_style_chooser.bind_current_index(ChangeDisplayPropertyBinding(document_controller, display, "dimensional_calibration_style", converter=CalibrationStyleIndexConverter(), fallback=0))
+    display_calibration_style_chooser.bind_current_index(ChangeDisplayPropertyBinding(document_controller, display, "calibration_style_id", converter=CalibrationStyleIndexConverter(), fallback=0))
 
     return display_calibration_style_chooser
 

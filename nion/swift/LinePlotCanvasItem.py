@@ -202,7 +202,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__dimensional_calibration = None
         self.__displayed_dimensional_calibration = None
         self.__intensity_calibration = None
-        self.__dimensional_calibration_style = None
+        self.__calibration_style = None
         self.__y_min = None
         self.__y_max = None
         self.__y_style = None
@@ -272,7 +272,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__dimensional_calibration = dimensional_calibrations[-1] if dimensional_calibrations else None
             self.__displayed_dimensional_calibration = displayed_dimensional_calibrations[-1] if len(displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=displayed_dimensional_scales[-1])
             self.__intensity_calibration = display.displayed_intensity_calibration
-            self.__dimensional_calibration_style = display.get_calibration_style_for_id(display.dimensional_calibration_style)
+            self.__calibration_style = display.calibration_style
             self.__y_min = display.y_min
             self.__y_max = display.y_max
             self.__y_style = display.y_style
@@ -379,7 +379,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         """
         displayed_dimensional_calibration = self.__displayed_dimensional_calibration
         intensity_calibration = self.__intensity_calibration
-        dimensional_calibration_style = self.__dimensional_calibration_style
+        calibration_style = self.__calibration_style
         y_min = self.__y_min
         y_max = self.__y_max
         y_style = self.__y_style
@@ -395,8 +395,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 if xdata:
                     scalar_data = Image.scalar_from_array(xdata.data)
                     scalar_data = Image.convert_to_grayscale(scalar_data)
-                    scalar_intensity_calibration = dimensional_calibration_style.get_intensity_calibration(xdata)
-                    scalar_dimensional_calibrations = dimensional_calibration_style.get_dimensional_calibrations(xdata.dimensional_shape, xdata.dimensional_calibrations)
+                    scalar_intensity_calibration = calibration_style.get_intensity_calibration(xdata)
+                    scalar_dimensional_calibrations = calibration_style.get_dimensional_calibrations(xdata.dimensional_shape, xdata.dimensional_calibrations)
                     # check whether there is common units between the data and the display
                     if not displayed_dimensional_calibration.units and self.__dimensional_calibration and scalar_dimensional_calibrations[-1].units == self.__dimensional_calibration.units:
                         scalar_dimensional_calibrations = scalar_dimensional_calibrations[0:-1] + [Calibration.Calibration(scale=self.__data_scale)]

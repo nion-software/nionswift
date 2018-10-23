@@ -1018,7 +1018,7 @@ class TestDataItemClass(unittest.TestCase):
             display_item._set_modified(datetime.datetime(2000, 1, 1))
             data_item_modified = data_item.modified
             display_item_modified = display_item.modified
-            display_item.display.dimensional_calibration_style = "relative-top-left"
+            display_item.display.calibration_style_id = "relative-top-left"
             self.assertEqual(data_item.modified, data_item_modified)
             self.assertGreater(display_item.modified, display_item_modified)
 

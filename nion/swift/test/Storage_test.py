@@ -1092,15 +1092,15 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertEqual(display_item.display.display_calibrated_values, True)
-            self.assertIsNone(display_item.display.dimensional_calibration_style)
+            self.assertEqual("calibrated", display_item.display.calibration_style_id)
+            self.assertEqual("calibrated", display_item.display.calibration_style.calibration_style_id)
         # read it back
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = document_model.data_items[0]
             display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertEqual(display_item.display.display_calibrated_values, True)
-            self.assertEqual(display_item.display.dimensional_calibration_style, "calibrated")
+            self.assertEqual("calibrated", display_item.display.calibration_style_id)
+            self.assertEqual("calibrated", display_item.display.calibration_style.calibration_style_id)
 
     def test_reloaded_graphics_load_properly(self):
         cache_name = ":memory:"
