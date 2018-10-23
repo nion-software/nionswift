@@ -1143,10 +1143,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def description(self, value: str) -> None:
         self.__set_cascaded_value("description", str(value) if value is not None else str())
 
-    @property
-    def text_for_filter(self):
-        return " ".join([self.displayed_title, self.caption, self.description])
-
     # data sources
 
     def append_data_source(self, data_source):

@@ -1,20 +1,24 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
+import contextlib
 import logging
 import unittest
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
+from nion.swift import Application
+from nion.swift import DocumentController
 from nion.swift import FilterPanel
+from nion.swift.model import DataItem
+from nion.swift.model import DocumentModel
+from nion.ui import TestUI
 
 
 class TestFilterPanelClass(unittest.TestCase):
 
     def setUp(self):
+        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
         self.t = FilterPanel.TreeNode()
         self.t.insert_value(["1969", "02"], "Chris")
         self.t.insert_value(["1965", "12"], "Hans")
@@ -49,6 +53,21 @@ class TestFilterPanelClass(unittest.TestCase):
         self.t.remove_value(None, "Hans")
         self.assertEqual(self.t.count, 6)
         self.assertEqual(self.t.children[0].key, "1969")
+
+    def test_setting_text_filter_updates_filter_display_items(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.random.randn(4, 4))
+            data_item1.title = "abc"
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.random.randn(4, 4))
+            data_item2.title = "def"
+            document_model.append_data_item(data_item2)
+            document_controller.filter_controller.text_filter_changed("abc")
+            display_items = document_controller.filtered_display_items_model.items
+            self.assertEqual(1, len(display_items))
+            self.assertEqual(data_item1, display_items[0].data_item)
 
 
 if __name__ == '__main__':

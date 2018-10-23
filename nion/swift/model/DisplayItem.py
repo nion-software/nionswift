@@ -320,6 +320,10 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             self._description_changed()
 
     @property
+    def text_for_filter(self) -> str:
+        return " ".join([self.displayed_title, self.caption, self.description])
+
+    @property
     def displayed_title(self):
         if self.data_item and getattr(self.data_item, "displayed_title", None):
             return self.data_item.displayed_title
