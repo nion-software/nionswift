@@ -857,9 +857,9 @@ class DocumentController(Window.Window):
         self.__tool_mode = tool_mode
         self.tool_mode_changed_event.fire(tool_mode)
 
-    def new_window_with_data_item(self, workspace_id, data_item=None):
+    def new_window_with_data_item(self, workspace_id, display_item=None):
         # hack to work around Application <-> DocumentController interdependency.
-        self.create_new_document_controller_event.fire(self.document_model, workspace_id, data_item)
+        self.create_new_document_controller_event.fire(self.document_model, workspace_id, display_item)
 
     def __import_folder(self):
         documents_dir = self.ui.get_document_location()
@@ -1583,7 +1583,7 @@ class DocumentController(Window.Window):
         assert data_item is not None
         result_display_panel = self.next_result_display_panel()
         if result_display_panel:
-            result_display_panel.set_display_panel_data_item(data_item)
+            result_display_panel.set_display_panel_display_item(display_item)
             if request_focus:
                 result_display_panel.request_focus()
         self.select_data_item_in_data_panel(data_item)
@@ -2073,8 +2073,10 @@ class DocumentController(Window.Window):
                     self.__data_item_indexes.append(index)
                     index += 1
             if self.__display_panel and self.__data_items:
-                self.__display_panel.set_display_panel_data_item(self.__data_items[-1])
-                self.__display_panel.request_focus()
+                display_item = self.__document_controller.document_model.get_display_item_for_data_item(self.__data_items[-1])
+                if display_item:
+                    self.__display_panel.set_display_panel_display_item(display_item)
+                    self.__display_panel.request_focus()
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -2160,19 +2162,23 @@ class DocumentController(Window.Window):
 
     def create_context_menu_for_display(self, display_item: DataItem.DisplayItem, container=None):
         menu = self.create_context_menu()
+
+        def show_in_new_window():
+            self.new_window_with_data_item("data", display_item=display_item)
+
+        if display_item is not None:
+            menu.add_menu_item(_("Open in New Window"), show_in_new_window)
+
         data_item = display_item.data_item if display_item else None
+
         if data_item:
-
-            def show_in_new_window():
-                self.new_window_with_data_item("data", data_item=data_item)
-
-            if data_item is not None:
-                menu.add_menu_item(_("Open in New Window"), show_in_new_window)
 
             def show():
                 self.select_data_item_in_data_panel(data_item)
 
             menu.add_menu_item(_("Reveal"), show)
+
+        if data_item:
 
             def delete():
                 selected_display_items = self.selected_display_items
@@ -2186,18 +2192,20 @@ class DocumentController(Window.Window):
 
             menu.add_menu_item(_("Delete Library Item"), delete)
 
-            # when exporting, queue the task so that the pop-up is allowed to close before the dialog appears.
-            # without queueing, it originally led to a crash (tested in Qt 5.4.1 on Windows 7).
-            if data_item is not None:
+        # when exporting, queue the task so that the pop-up is allowed to close before the dialog appears.
+        # without queueing, it originally led to a crash (tested in Qt 5.4.1 on Windows 7).
+        if display_item:
 
-                def export_files():
-                    selected_display_items = self.selected_display_items
-                    if display_item in selected_display_items:
-                        self.export_files(selected_display_items)
-                    else:
-                        self.export_file(display_item)
+            def export_files():
+                selected_display_items = self.selected_display_items
+                if display_item in selected_display_items:
+                    self.export_files(selected_display_items)
+                else:
+                    self.export_file(display_item)
 
-                menu.add_menu_item(_("Export..."), functools.partial(self.queue_task, export_files))  # queued to avoid pop-up menu issue
+            menu.add_menu_item(_("Export..."), functools.partial(self.queue_task, export_files))  # queued to avoid pop-up menu issue
+
+        if data_item:
 
             source_data_items = self.document_model.get_source_data_items(data_item)
             if len(source_data_items) > 0:

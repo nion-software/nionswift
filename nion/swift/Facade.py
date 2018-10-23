@@ -1383,7 +1383,8 @@ class DisplayPanel(metaclass=SharedInstance):
         """
         display_panel = self.__display_panel
         if display_panel:
-            display_panel.set_display_panel_data_item(data_item._data_item)
+            display_item = data_item._data_item.container.get_display_item_for_data_item(data_item._data_item) if data_item._data_item.container else None
+            display_panel.set_display_panel_display_item(display_item)
 
 
 class Display(metaclass=SharedInstance):
@@ -2570,7 +2571,8 @@ class DocumentWindow(metaclass=SharedInstance):
                 return DisplayPanel(display_panel)
         result_display_panel = self.__document_controller.next_result_display_panel()
         if result_display_panel:
-            result_display_panel.set_display_panel_data_item(data_item._data_item)
+            display_item = self.__document_controller.document_model.get_display_item_for_data_item(data_item._data_item)
+            result_display_panel.set_display_panel_display_item(display_item)
             result_display_panel.request_focus()
             return DisplayPanel(result_display_panel)
         return None

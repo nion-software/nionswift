@@ -65,24 +65,28 @@ class TestDataPanelClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item1.title = "data_item1"
             document_model.append_data_item(data_item1)
-            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item1))
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            data_group.append_display_item(display_item1)
             data_item1a = document_model.get_invert_new(data_item1)
             data_item1a.title = "data_item1a"
-            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item1a))
+            display_item1a = document_model.get_display_item_for_data_item(data_item1a)
+            data_group.append_display_item(display_item1a)
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2.title = "data_item2"
             document_model.append_data_item(data_item2)
-            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item2))
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            data_group.append_display_item(display_item2)
             data_item2a = document_model.get_invert_new(data_item2)
             data_item2a.title = "data_item2a"
-            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item2a))
+            display_item2a = document_model.get_display_item_for_data_item(data_item2a)
+            data_group.append_display_item(display_item2a)
             data_item3 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item3.title = "data_item3"
             document_model.append_data_item(data_item3)
             data_group.append_display_item(document_model.get_display_item_for_data_item(data_item3))
             display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
             with contextlib.closing(display_panel):
-                display_panel.set_display_panel_data_item(data_item1)
+                display_panel.set_display_panel_display_item(display_item1)
                 data_panel = document_controller.find_dock_widget("data-panel").panel
                 document_controller.select_data_item_in_data_panel(data_item=data_item1)
                 document_controller.periodic()
@@ -110,8 +114,9 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
             document_controller.periodic()
             data_item = document_model.data_items[0]
+            display_item = document_model.display_items[0]
             display_panel = document_controller.selected_display_panel
-            display_panel.set_display_panel_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             data_panel = document_controller.find_dock_widget("data-panel").panel
             self.assertEqual(3, len(document_model.data_items))
             document_controller.selection.set_multiple([0, 1, 2])
@@ -733,11 +738,12 @@ class TestDataPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((4, 4)))
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
             data_panel = document_controller.find_dock_widget("data-panel").panel
             # index, parent_row, parent_id
             data_panel.library_widget.on_selection_changed([(1, -1, 0)])
             document_controller.periodic()
-            document_controller.selected_display_panel.set_display_panel_data_item(data_item1)
+            document_controller.selected_display_panel.set_display_panel_display_item(display_item1)
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 1)
             self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).data_item, data_item1)
             data_item3 = document_model.get_invert_new(data_item1)
@@ -823,7 +829,8 @@ class TestDataPanelClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.zeros((4, 4)))
                 data_item.category = "temporary"
                 document_model.append_data_item(data_item)
-                display_panel.set_display_panel_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_panel.set_display_panel_display_item(display_item)
                 # check that changing display updates to the one temporary data item in the data panel
                 self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 1)
                 # filter
@@ -841,11 +848,12 @@ class TestDataPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((4, 4)))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             data_panel = document_controller.find_dock_widget("data-panel").panel
             # index, parent_row, parent_id
             data_panel.library_widget.on_selection_changed([(0, -1, 0)])  # all
             document_controller.periodic()
-            document_controller.selected_display_panel.set_display_panel_data_item(data_item)
+            document_controller.selected_display_panel.set_display_panel_display_item(display_item)
             display_item = data_panel.data_list_controller._test_get_display_item_adapter(0)
             mime_data, thumbnail = display_item.drag_started(self.app.ui, 0, 0, 0)
             self.assertTrue(mime_data.has_format("text/display_item_uuid"))

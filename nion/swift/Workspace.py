@@ -173,10 +173,10 @@ class Workspace:
             traceback.print_stack()
             return None
 
-    def display_data_item_in_display_panel(self, data_item, display_panel_id):
+    def display_display_item_in_display_panel(self, display_item, display_panel_id):
         for display_panel in self.display_panels:
             if display_panel.display_panel_id == display_panel_id:
-                display_panel.set_display_panel_data_item(data_item)
+                display_panel.set_display_panel_display_item(display_item)
                 self.__sync_layout()
 
     def _construct(self, desc, display_panels, lookup_data_item):

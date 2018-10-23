@@ -421,10 +421,11 @@ class RunScriptDialog(Dialog.ActionDialog):
         accept_event = threading.Event()
 
         def perform():
-            data_item = self.document_controller.add_data(data, title)
             result_display_panel = self.document_controller.next_result_display_panel()
             if result_display_panel:
-                result_display_panel.set_display_panel_data_item(data_item)
+                data_item = self.document_controller.add_data(data, title)
+                display_item = self.document_controller.document_model.get_display_item_for_data_item(data_item)
+                result_display_panel.set_display_panel_display_item(display_item)
                 result_display_panel.request_focus()
             accept_event.set()
 

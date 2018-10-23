@@ -331,8 +331,8 @@ class Application(UIApplication.Application):
         self.ui.set_persistent_string("workspace_location", workspace_dir)
         if welcome_message:
             logging.info("Welcome to Nion Swift.")
-        if create_new_document and len(document_model.data_items) > 0:
-            document_controller.selected_display_panel.set_display_panel_data_item(document_model.data_items[0])
+        if create_new_document and len(document_model.display_items) > 0:
+            document_controller.selected_display_panel.set_display_panel_display_item(document_model.display_items[0])
             document_controller.selected_display_panel.perform_action("set_fill_mode")
 
     def stop(self):
@@ -616,7 +616,7 @@ class Application(UIApplication.Application):
         choose_library_dialog = ChooseLibraryDialog(self.ui, self)
         choose_library_dialog.show()
 
-    def create_document_controller(self, document_model, workspace_id, data_item=None):
+    def create_document_controller(self, document_model, workspace_id, display_item=None):
         self._set_document_model(document_model)  # required to allow API to find document model
         document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id, app=self)
         self.__did_close_event_listeners[document_controller] = document_controller.did_close_event.listen(self.__document_controller_did_close)
@@ -624,10 +624,10 @@ class Application(UIApplication.Application):
         self.__register_document_controller(document_controller)
         self.document_model_available_event.fire(document_model)
         # attempt to set data item / group
-        if data_item:
+        if display_item:
             display_panel = document_controller.selected_display_panel
             if display_panel:
-                display_panel.set_display_panel_data_item(data_item)
+                display_panel.set_display_panel_display_item(display_item)
         document_controller.show()
         return document_controller
 

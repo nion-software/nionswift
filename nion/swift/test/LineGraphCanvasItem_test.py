@@ -79,7 +79,8 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((100,)))
             document_model.append_data_item(data_item)
-            display_panel.set_display_panel_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((800, 1000))
             # run test
             self.assertEqual(document_controller.tool_mode, "pointer")
@@ -101,7 +102,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((100,)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_panel.set_display_panel_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             # test
             document_controller.tool_mode = "pointer"
@@ -122,7 +123,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             region.start = 0.9
             region.end = 0.95
             display_item.add_graphic(region)
-            display_panel.set_display_panel_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             # test
             document_controller.tool_mode = "pointer"
@@ -143,7 +144,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             region.start = 0.1
             region.end = 0.9
             display_item.add_graphic(region)
-            display_panel.set_display_panel_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             display_panel.display_canvas_item.prepare_display()  # force layout
             # test
@@ -164,7 +165,8 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             data[50] = 75
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            display_panel.set_display_panel_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes
             self.assertAlmostEqual(axes.calibrated_data_min, 0.0)
@@ -182,7 +184,8 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             data_item.set_xdata(DataAndMetadata.new_data_and_metadata(data, Calibration.Calibration(0, 0.5, "x")))
             document_model.append_data_item(data_item)
-            display_panel.set_display_panel_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes
             self.assertAlmostEqual(axes.calibrated_data_min, 0.0)
@@ -200,7 +203,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item.data_item.set_xdata(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
             display_item.display.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
-            display_panel.set_display_panel_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
 
     def test_line_plot_calculates_calibrated_vs_uncalibrated_display_y_values(self):
@@ -212,7 +215,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
-            display_panel.set_display_panel_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.data, numpy.full((8, ), 10)))
             display_item.display.dimensional_calibration_style = "pixels-top-left"
@@ -228,7 +231,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
-            display_panel.set_display_panel_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             self.assertEqual(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units, "nm")
             display_item.display.dimensional_calibration_style = "pixels-top-left"

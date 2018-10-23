@@ -339,7 +339,7 @@ class TestDisplayClass(unittest.TestCase):
             display_item.data_item.set_xdata(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
             display_item.display.display_type = "image"
             display_panel = document_controller.selected_display_panel
-            display_panel.set_display_panel_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
 
     def test_setting_color_map_id_to_none_works(self):

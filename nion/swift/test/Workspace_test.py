@@ -504,11 +504,12 @@ class TestWorkspaceClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((4, 4)))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_controller = document_controller.workspace_controller
             display_panel = workspace_controller.display_panels[0]
-            display_panel.set_display_panel_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             # save the original layout
             old_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
             # change the display
@@ -535,13 +536,14 @@ class TestWorkspaceClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((4, 4)))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_controller = document_controller.workspace_controller
             display_panel = workspace_controller.display_panels[0]
             workspace_controller.insert_display_panel(display_panel, "bottom").close()
             display_panel2 = workspace_controller.display_panels[1]
-            display_panel.set_display_panel_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             # save the original layout
             old_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
             # change the display by dragging 2 into 1
@@ -751,7 +753,7 @@ class TestWorkspaceClass(unittest.TestCase):
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
             display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel.set_display_panel_data_item(data_item1)
+            display_panel.set_display_panel_display_item(display_item1)
             mime_data = MimeData("text/display_item_uuid", str(display_item2.uuid))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, region, 160, 240)
             root_canvas_item.refresh_layout_immediate()
@@ -786,8 +788,9 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel.set_display_panel_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             mime_data = MimeData(DisplayPanel.DISPLAY_PANEL_MIME_TYPE, json.dumps({}))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
             # check that there are now two image panels
@@ -805,8 +808,9 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel.set_display_panel_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             mime_data = MimeData(DisplayPanel.DISPLAY_PANEL_MIME_TYPE, json.dumps({"browser_type": "horizontal"}))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
             # check that there are now two image panels
@@ -824,8 +828,9 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel.set_display_panel_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             mime_data = MimeData(DisplayPanel.DISPLAY_PANEL_MIME_TYPE, json.dumps({"browser_type": "grid"}))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
             # check that there are now two image panels

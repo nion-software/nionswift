@@ -129,7 +129,7 @@ class TestGraphicsClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_panel.set_display_panel_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             for tool_mode, graphic_type in t:
@@ -192,10 +192,10 @@ class TestGraphicsClass(unittest.TestCase):
         display_panel = document_controller.selected_display_panel
         data_item = DataItem.DataItem(numpy.zeros((10, 10)))
         document_model.append_data_item(data_item)
-        display_panel.set_display_panel_data_item(data_item)
+        display_item = document_model.get_display_item_for_data_item(data_item)
+        display_panel.set_display_panel_display_item(display_item)
         header_height = display_panel.header_canvas_item.header_height
         display_panel.root_container.layout_immediate((1000 + header_height, 1000))
-        display_item = document_model.get_display_item_for_data_item(data_item)
 
         def get_extended_attr(object, extended_name):
             initial_value = object
@@ -996,10 +996,10 @@ class TestGraphicsClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
-            display_panel.set_display_panel_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
-            display_item = document_model.get_display_item_for_data_item(data_item)
             rect_graphic1 = Graphics.RectangleGraphic()
             rect_graphic2 = Graphics.RectangleGraphic()
             rect_graphic1.bounds = (0.4, 0.4), (0.2, 0.2)
@@ -1021,8 +1021,8 @@ class TestGraphicsClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
-            display_panel.set_display_panel_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             graphic = Graphics.PointGraphic()
             display_item.display.add_graphic(graphic)
             self.assertFalse(graphic._closed)
@@ -1037,8 +1037,8 @@ class TestGraphicsClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
-            display_panel.set_display_panel_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
             graphic = Graphics.PointGraphic()
             display_item.display.add_graphic(graphic)
             self.assertFalse(graphic._closed)
