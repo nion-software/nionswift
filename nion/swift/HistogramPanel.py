@@ -12,7 +12,7 @@ from nion.data import Core
 from nion.data import Image
 from nion.swift import DisplayPanel
 from nion.swift import Panel
-from nion.swift.model import DataItem
+from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
@@ -643,7 +643,7 @@ class TargetDataItemStream(Stream.AbstractStream):
     def value(self):
         return self.__value
 
-    def __focused_display_item_changed(self, display_item: typing.Optional[DataItem.DisplayItem]) -> None:
+    def __focused_display_item_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
         data_item = display_item.data_item if display_item else None
         if data_item != self.__value:
             self.value_stream.fire(data_item)
@@ -674,7 +674,7 @@ class TargetDisplayStream(Stream.AbstractStream):
     def value(self):
         return self.__value
 
-    def __focused_display_item_changed(self, display_item: typing.Optional[DataItem.DisplayItem]) -> None:
+    def __focused_display_item_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
         display = display_item.display if display_item else None
         if display != self.__value:
             self.value_stream.fire(display)

@@ -28,6 +28,7 @@ from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import Display
+from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
 from nion.swift.model import ImportExportManager
@@ -37,7 +38,6 @@ from nion.swift.model import WorkspaceLayout
 from nion.swift.model import MemoryStorageSystem
 from nion.utils import Converter
 from nion.utils import Event
-from nion.utils import ListModel
 from nion.utils import Observable
 from nion.utils import Persistence
 from nion.utils import Recorder
@@ -277,7 +277,7 @@ def data_item_factory(lookup_id):
 
 def display_item_factory(lookup_id):
     display_item_uuid = uuid.UUID(lookup_id("uuid"))
-    return DataItem.DisplayItem(item_uuid=display_item_uuid)
+    return DisplayItem.DisplayItem(item_uuid=display_item_uuid)
 
 
 def computation_factory(lookup_id):
@@ -394,7 +394,7 @@ class TransactionManager:
             old_items = copy.copy(items)
             self.__get_deep_dependent_item_set(item, items)
             # next, the graphics and connections (where item is source)
-            if isinstance(item, DataItem.DisplayItem):
+            if isinstance(item, DisplayItem.DisplayItem):
                 for graphic in item.graphics:
                     self.__get_deep_transaction_item_set(graphic, items)
             if isinstance(item, DataItem.DataItem):
@@ -733,7 +733,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__insert_data_item(before_index, data_item, do_write)
         # automatically add a display
         if auto_display:
-            display_item = DataItem.DisplayItem()
+            display_item = DisplayItem.DisplayItem()
             display_item.append_data_item(data_item)
             self.append_display_item(display_item)
 
@@ -829,7 +829,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.finish_reading()
         return data_item
 
-    def deepcopy_display_item(self, display_item: DataItem.DisplayItem) -> DataItem.DisplayItem:
+    def deepcopy_display_item(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
         display_item_copy = copy.deepcopy(display_item)
         data_item_references = list()
         for data_item in display_item.data_items:
@@ -934,7 +934,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 for display_item in self.get_display_items_for_data_item(item):
                     if display_item.data_item:
                         self.__build_cascade(display_item, items, dependencies)
-            elif isinstance(item, DataItem.DisplayItem):
+            elif isinstance(item, DisplayItem.DisplayItem):
                 # graphics on a display item are deleted.
                 for graphic in item.graphics:
                     self.__build_cascade(graphic, items, dependencies)
@@ -1060,7 +1060,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             container = item.container
             if isinstance(item, DataItem.DataItem):
                 name = "data_items"
-            elif isinstance(item, DataItem.DisplayItem):
+            elif isinstance(item, DisplayItem.DisplayItem):
                 name = "display_items"
             elif isinstance(item, Graphics.Graphic):
                 name = "graphics"
@@ -1117,7 +1117,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if name == "data_items":
                 self.restore_data_item(properties["uuid"], index)
             elif name == "display_items":
-                item = DataItem.DisplayItem()
+                item = DisplayItem.DisplayItem()
                 item.begin_reading()
                 item.read_from_dict(properties)
                 item.finish_reading()
@@ -1310,14 +1310,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         with self.__dependency_tree_lock:
             return [data_item for data_item in self.__dependency_tree_source_to_target_map.get(weakref.ref(data_item), list()) if isinstance(data_item, DataItem.DataItem)]
 
-    def get_source_display_items(self, display_item: DataItem.DisplayItem) -> typing.List[DataItem.DisplayItem]:
+    def get_source_display_items(self, display_item: DisplayItem.DisplayItem) -> typing.List[DisplayItem.DisplayItem]:
         data_item = display_item.data_item
         if data_item:
             data_items = self.get_source_data_items(data_item)
             return [self.get_display_item_for_data_item(data_item) for data_item in data_items]
         return list()
 
-    def get_dependent_display_items(self, display_item: DataItem.DisplayItem) -> typing.List[DataItem.DisplayItem]:
+    def get_dependent_display_items(self, display_item: DisplayItem.DisplayItem) -> typing.List[DisplayItem.DisplayItem]:
         data_item = display_item.data_item
         if data_item:
             data_items = self.get_dependent_data_items(data_item)
@@ -1505,27 +1505,27 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def get_data_item_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DataItem.DataItem]:
         return self.__uuid_to_data_item.get(uuid)
 
-    def get_display_item_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DataItem.DisplayItem]:
+    def get_display_item_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DisplayItem.DisplayItem]:
         for display_item in self.display_items:
             if display_item.uuid == uuid:
                 return display_item
         return None
 
-    def get_display_items_for_data_item(self, data_item: DataItem.DataItem) -> typing.Sequence[DataItem.DisplayItem]:
+    def get_display_items_for_data_item(self, data_item: DataItem.DataItem) -> typing.Sequence[DisplayItem.DisplayItem]:
         display_items = list()
         for display_item in self.display_items:
             if data_item in display_item.data_items:
                 display_items.append(display_item)
         return display_items
 
-    def get_display_item_for_data_item(self, data_item: DataItem.DataItem) -> typing.Optional[DataItem.DisplayItem]:
+    def get_display_item_for_data_item(self, data_item: DataItem.DataItem) -> typing.Optional[DisplayItem.DisplayItem]:
         display_items = self.get_display_items_for_data_item(data_item)
         return display_items[0] if len(display_items) == 1 else None
 
-    def are_display_items_equal(self, display_item1: DataItem.DisplayItem, display_item2: DataItem.DisplayItem) -> bool:
+    def are_display_items_equal(self, display_item1: DisplayItem.DisplayItem, display_item2: DisplayItem.DisplayItem) -> bool:
         return display_item1 == display_item2
 
-    def _get_display_item_for_display(self, display: Display.Display) -> typing.Optional[DataItem.DisplayItem]:
+    def _get_display_item_for_display(self, display: Display.Display) -> typing.Optional[DisplayItem.DisplayItem]:
         return display.container if display else None
 
     def get_or_create_data_group(self, group_name):
@@ -2056,7 +2056,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 return self.__data_item
 
         @property
-        def display_item(self) -> DataItem.DisplayItem:
+        def display_item(self) -> DisplayItem.DisplayItem:
             return self.__document_model.get_display_item_for_data_item(self.data_item)
 
         @data_item.setter

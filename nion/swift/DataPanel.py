@@ -18,6 +18,7 @@ from nion.swift import Thumbnails
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import Display
+from nion.swift.model import DisplayItem
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
@@ -78,7 +79,7 @@ class DisplayItemAdapter:
             (event) needs_update_event
     """
 
-    def __init__(self, display_item: DataItem.DisplayItem, ui):
+    def __init__(self, display_item: DisplayItem.DisplayItem, ui):
         self.__display_item = display_item
         self.ui = ui
         self.needs_update_event = Event.Event()
@@ -110,7 +111,7 @@ class DisplayItemAdapter:
         return self.__display_item.display if self.__display_item else None
 
     @property
-    def display_item(self) -> DataItem.DisplayItem:
+    def display_item(self) -> DisplayItem.DisplayItem:
         return self.__display_item
 
     @property

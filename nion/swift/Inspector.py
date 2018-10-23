@@ -20,6 +20,7 @@ from nion.swift import Undo
 from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
 from nion.swift.model import Display
+from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.ui import Widgets
@@ -147,7 +148,7 @@ class InspectorPanel(Panel.Panel):
         self.column.add(stretch_column)
 
     # not thread safe
-    def __set_display_item(self, display_item: DataItem.DisplayItem) -> None:
+    def __set_display_item(self, display_item: DisplayItem.DisplayItem) -> None:
         if not self.document_controller.document_model.are_display_items_equal(self.__display_item, display_item):
             self.__display_item = display_item
             self.__update_display_inspector()
@@ -159,7 +160,7 @@ class InspectorPanel(Panel.Panel):
     # this message is received from the data item binding.
     # mark the data item as needing updating.
     # thread safe.
-    def __display_item_changed(self, display_item: DataItem.DisplayItem) -> None:
+    def __display_item_changed(self, display_item: DisplayItem.DisplayItem) -> None:
         def data_item_will_be_removed(data_item_to_be_removed):
             data_item = display_item.data_item if display_item else None
             if data_item_to_be_removed == data_item:
@@ -1393,7 +1394,7 @@ class CalibratedLengthBinding(Binding.Binding):
         return self.__size_converter.convert_calibrated_value_to_str(calibrated_value)
 
 
-def make_point_type_inspector(document_controller, graphic_widget, display_item: DataItem.DisplayItem, graphic):
+def make_point_type_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
     ui = document_controller.ui
     # create the ui
     graphic_position_row = ui.create_row_widget()
@@ -1436,7 +1437,7 @@ def make_point_type_inspector(document_controller, graphic_widget, display_item:
     return [position_model]
 
 
-def make_line_type_inspector(document_controller, graphic_widget, display_item: DataItem.DisplayItem, graphic):
+def make_line_type_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
     ui = document_controller.ui
     # create the ui
     graphic_start_row = ui.create_row_widget()
@@ -1529,7 +1530,7 @@ def make_line_type_inspector(document_controller, graphic_widget, display_item: 
     return [start_model, end_model]
 
 
-def make_line_profile_inspector(document_controller, graphic_widget, display_item: DataItem.DisplayItem, graphic):
+def make_line_profile_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
     items_to_close = make_line_type_inspector(document_controller, graphic_widget, display_item, graphic)
     ui = document_controller.ui
     # configure the bindings
@@ -1551,7 +1552,7 @@ def make_line_profile_inspector(document_controller, graphic_widget, display_ite
     return items_to_close
 
 
-def make_rectangle_type_inspector(document_controller, graphic_widget, display_item: DataItem.DisplayItem, graphic, graphic_name: str, rotation: bool = False):
+def make_rectangle_type_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic, graphic_name: str, rotation: bool = False):
     ui = document_controller.ui
     graphic_widget.widget_id = "rectangle_type_inspector"
     # create the ui
@@ -1645,7 +1646,7 @@ def make_rectangle_type_inspector(document_controller, graphic_widget, display_i
 
     return closeables
 
-def make_wedge_type_inspector(document_controller, graphic_widget, display_item: DataItem.DisplayItem, graphic):
+def make_wedge_type_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
     ui = document_controller.ui
     graphic_widget.widget_id = "wedge_inspector"
     # create the ui
@@ -1698,7 +1699,7 @@ def make_annular_ring_mode_chooser(document_controller, display, ring):
 
     return display_calibration_style_chooser
 
-def make_ring_type_inspector(document_controller, graphic_widget, display_item: DataItem.DisplayItem, graphic):
+def make_ring_type_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
     ui = document_controller.ui
 
     graphic_widget.widget_id = "ring_inspector"
@@ -1733,7 +1734,7 @@ def make_ring_type_inspector(document_controller, graphic_widget, display_item: 
     graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(data_item, 0, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "radius_2")))
 
 
-def make_interval_type_inspector(document_controller, graphic_widget, display_item: DataItem.DisplayItem, graphic):
+def make_interval_type_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
     ui = document_controller.ui
     # configure the bindings
     data_item = display_item.data_item if display_item else None
@@ -1770,7 +1771,7 @@ class GraphicsInspectorSection(InspectorSection):
         Subclass InspectorSection to implement graphics inspector.
         """
 
-    def __init__(self, document_controller, display_item: DataItem.DisplayItem, selected_only=False):
+    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, selected_only=False):
         super().__init__(document_controller.ui, "graphics", _("Graphics"))
         ui = document_controller.ui
         self.__document_controller = document_controller
@@ -2213,7 +2214,7 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
     within the display item mutate.
     """
 
-    def __init__(self, ui, document_controller, display_item: DataItem.DisplayItem):
+    def __init__(self, ui, document_controller, display_item: DisplayItem.DisplayItem):
         super().__init__(ui.create_column_widget())
 
         self.ui = ui

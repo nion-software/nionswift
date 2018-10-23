@@ -21,6 +21,7 @@ from nion.swift import Thumbnails
 from nion.swift import Undo
 from nion.swift.model import DataItem
 from nion.swift.model import Display
+from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
@@ -389,7 +390,7 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
                 thumbnail_canvas_item.on_drag = self.on_drag
                 self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
 
-    def set_display_item(self, display_item: typing.Optional[DataItem.DisplayItem]) -> None:
+    def set_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
         if self.__display_item:
             self.__related_items_changed_listener.close()
             self.__related_items_changed_listener = None
@@ -1194,7 +1195,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.__display_item.data_item if self.__display_item else None
 
     @property
-    def display_item(self) -> DataItem.DisplayItem:
+    def display_item(self) -> DisplayItem.DisplayItem:
         return self.__display_item
 
     @property
@@ -1309,7 +1310,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     # sets the data item that this panel displays
     # not thread safe
-    def set_display_item(self, display_item: typing.Optional[DataItem.DisplayItem]) -> None:
+    def set_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
         # listen for changes to display content and parameters, metadata, or the selection
         # changes to the underlying data will trigger changes in the display content
 
@@ -1396,7 +1397,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         display_item = self.document_controller.document_model.get_display_item_for_data_item(data_item)
         self.set_display_panel_display_item(display_item, detect_controller)
 
-    def set_display_panel_display_item(self, display_item: DataItem.DisplayItem, detect_controller: bool=False) -> None:
+    def set_display_panel_display_item(self, display_item: DisplayItem.DisplayItem, detect_controller: bool=False) -> None:
         if display_item:
             d = {"type": "image", "display_item_uuid": str(display_item.uuid)}
             if detect_controller:
@@ -1837,7 +1838,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
                 return display_panel_controller
         return None
 
-    def switch_to_display_content(self, document_controller, display_panel: DisplayPanel, display_panel_type, display_item: DataItem.DisplayItem = None):
+    def switch_to_display_content(self, document_controller, display_panel: DisplayPanel, display_panel_type, display_item: DisplayItem.DisplayItem = None):
         d = {"type": "image", "display-panel-type": display_panel_type}
         if display_item and display_panel_type != "empty-display-panel":
             d["display_item_uuid"] = str(display_item.uuid)

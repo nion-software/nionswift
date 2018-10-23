@@ -17,7 +17,7 @@ from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import DataItem
-from nion.swift.model import Graphics
+from nion.swift.model import DisplayItem
 from nion.swift.model import Utility
 
 
@@ -71,7 +71,7 @@ class ImportExportHandler:
     def can_write(self, x_data, extension):
         return False
 
-    def write_display_item(self, ui, display_item: DataItem.DisplayItem, path_str: str, extension: str) -> None:
+    def write_display_item(self, ui, display_item: DisplayItem.DisplayItem, path_str: str, extension: str) -> None:
         data_item = display_item.data_item
         with open(path_str, 'wb') as f:
             data = data_item.data
@@ -149,7 +149,7 @@ class ImportExportManager(metaclass=Utility.Singleton):
                     return io_handler.read_data_elements(ui, extension, path)
         return None
 
-    def write_display_item_with_writer(self, ui, writer, display_item: DataItem.DisplayItem, path_str: str) -> None:
+    def write_display_item_with_writer(self, ui, writer, display_item: DisplayItem.DisplayItem, path_str: str) -> None:
         root, extension = os.path.splitext(path_str)
         if extension:
             extension = extension[1:]  # remove the leading "."
@@ -158,7 +158,7 @@ class ImportExportManager(metaclass=Utility.Singleton):
             if extension in writer.extensions and data_metadata and writer.can_write(data_metadata, extension):
                 writer.write_data_item(ui, display_item, path_str, extension)
 
-    def write_display_item(self, ui, display_item: DataItem.DisplayItem, path_str: str) -> None:
+    def write_display_item(self, ui, display_item: DisplayItem.DisplayItem, path_str: str) -> None:
         root, extension = os.path.splitext(path_str)
         if extension:
             extension = extension[1:]  # remove the leading "."
@@ -468,7 +468,7 @@ class StandardImportExportHandler(ImportExportHandler):
     def can_write(self, data_and_metadata, extension):
         return len(data_and_metadata.dimensional_shape) == 2
 
-    def write_display_item(self, ui, display_item: DataItem.DisplayItem, path_str: str, extension: str) -> None:
+    def write_display_item(self, ui, display_item: DisplayItem.DisplayItem, path_str: str, extension: str) -> None:
         data = display_item.display.get_calculated_display_values(True).display_rgba  # export the display rather than the data for these types
         if data is not None:
             ui.save_rgba_data_to_file(data, path_str, extension)
@@ -490,7 +490,7 @@ class CSVImportExportHandler(ImportExportHandler):
     def can_write(self, x_data, extension):
         return True
 
-    def write_display_item(self, ui, display_item: DataItem.DisplayItem, path_str: str, extension: str) -> None:
+    def write_display_item(self, ui, display_item: DisplayItem.DisplayItem, path_str: str, extension: str) -> None:
         data = display_item.data_item.data
         if data is not None:
             numpy.savetxt(path_str, data, delimiter=', ')
@@ -507,7 +507,7 @@ class CSV1ImportExportHandler(ImportExportHandler):
     def can_write(self, x_data, extension):
         return x_data and x_data.is_data_1d
 
-    def write_display_item(self, ui, display_item: DataItem.DisplayItem, path_str: str, extension: str) -> None:
+    def write_display_item(self, ui, display_item: DisplayItem.DisplayItem, path_str: str, extension: str) -> None:
         data_item = display_item.data_item
         data = data_item.data
         calibration = data_item.xdata.dimensional_calibrations[0]
@@ -542,7 +542,7 @@ class NDataImportExportHandler(ImportExportHandler):
     def can_write(self, data_and_metadata, extension):
         return True
 
-    def write_display_item(self, ui, display_item: DataItem.DisplayItem, path_str: str, extension: str) -> None:
+    def write_display_item(self, ui, display_item: DisplayItem.DisplayItem, path_str: str, extension: str) -> None:
         data_item = display_item.data_item
         data_element = create_data_element_from_data_item(data_item, include_data=False)
         data = data_item.data
@@ -594,7 +594,7 @@ class NumPyImportExportHandler(ImportExportHandler):
     def can_write(self, data_and_metadata, extension: str) -> bool:
         return True
 
-    def write_display_item(self, ui, display_item: DataItem.DisplayItem, path_str: str, extension: str) -> None:
+    def write_display_item(self, ui, display_item: DisplayItem.DisplayItem, path_str: str, extension: str) -> None:
         data_item = display_item.data_item
         data_path = pathlib.Path(path_str)
         metadata_path = data_path.with_suffix(".json")

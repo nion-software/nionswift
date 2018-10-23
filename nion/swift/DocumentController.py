@@ -33,6 +33,7 @@ from nion.swift import Workspace
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import Display
+from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
@@ -712,7 +713,7 @@ class DocumentController(Window.Window):
             self.__filtered_display_items_model.filter = display_filter
 
     @property
-    def selected_display_items(self) -> typing.Sequence[DataItem.DisplayItem]:
+    def selected_display_items(self) -> typing.Sequence[DisplayItem.DisplayItem]:
         selected_display_items = list()
         display_items = self.__filtered_display_items_model.display_items
         for index in self.selection.ordered_indexes:
@@ -778,7 +779,7 @@ class DocumentController(Window.Window):
         self.set_filter(filter_id)
 
     @property
-    def selected_display_item(self) -> typing.Optional[DataItem.DisplayItem]:
+    def selected_display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
         """Return the selected display item.
 
         The selected display is the display ite that has keyboard focus in the data panel or a display panel.
@@ -795,7 +796,7 @@ class DocumentController(Window.Window):
         selected_display_item = self.selected_display_item
         return selected_display_item.data_item if selected_display_item else None
 
-    def delete_display_items(self, display_items: typing.Sequence[DataItem.DisplayItem], container=None) -> None:
+    def delete_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], container=None) -> None:
         data_items = list()
         container = container if container else self.__display_items_model.container
         if container is self.document_model:
@@ -894,7 +895,7 @@ class DocumentController(Window.Window):
         self.ui.set_persistent_string("import_directory", selected_directory)
         self.receive_files(paths, display_panel=self.next_result_display_panel())
 
-    def export_file(self, display_item: DataItem.DisplayItem) -> None:
+    def export_file(self, display_item: DisplayItem.DisplayItem) -> None:
         # present a loadfile dialog to the user
         data_item = display_item.data_item
         writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
@@ -925,7 +926,7 @@ class DocumentController(Window.Window):
             self.ui.set_persistent_string("export_filter", selected_filter)
             ImportExportManager.ImportExportManager().write_display_item_with_writer(self.ui, selected_writer, display_item, path)
 
-    def export_files(self, display_items: typing.Sequence[DataItem.DisplayItem]) -> None:
+    def export_files(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
         if len(display_items) > 1:
             export_dialog = ExportDialog.ExportDialog(self.ui)
             export_dialog.on_accept = functools.partial(export_dialog.do_export, display_items)
@@ -974,7 +975,7 @@ class DocumentController(Window.Window):
             interactive_dialog.show()
             self.__dialogs.append(weakref.ref(interactive_dialog))
 
-    def new_display_editor_dialog(self, display_item: DataItem.DisplayItem=None):
+    def new_display_editor_dialog(self, display_item: DisplayItem.DisplayItem=None):
         if not display_item:
             display_item = self.selected_display_item
         if display_item:
@@ -1044,7 +1045,7 @@ class DocumentController(Window.Window):
         self.remove_selected_graphics()
 
     class InsertDataGroupDisplayItemCommand(Undo.UndoableCommand):
-        def __init__(self, document_model, data_group: DataGroup.DataGroup, before_index: int, display_item: DataItem.DisplayItem):
+        def __init__(self, document_model, data_group: DataGroup.DataGroup, before_index: int, display_item: DisplayItem.DisplayItem):
             super().__init__("Insert Library Item")
             self.__document_model = document_model
             self.__data_group_uuid = data_group.uuid
@@ -1083,7 +1084,7 @@ class DocumentController(Window.Window):
         def _redo(self) -> None:
             self.perform()
 
-    def create_insert_data_group_display_item_command(self, data_group: DataGroup.DataGroup, before_index: int, display_item: DataItem.DisplayItem) -> InsertDataGroupDisplayItemCommand:
+    def create_insert_data_group_display_item_command(self, data_group: DataGroup.DataGroup, before_index: int, display_item: DisplayItem.DisplayItem) -> InsertDataGroupDisplayItemCommand:
         return DocumentController.InsertDataGroupDisplayItemCommand(self.document_model, data_group, before_index, display_item)
 
     class InsertDataGroupDataItemsCommand(Undo.UndoableCommand):
@@ -1160,7 +1161,7 @@ class DocumentController(Window.Window):
                     data_group.insert_display_item(index, display_item)
 
     class RemoveDataGroupDisplayItemsCommand(Undo.UndoableCommand):
-        def __init__(self, document_model, data_group: DataGroup.DataGroup, display_items: typing.Sequence[DataItem.DisplayItem]):
+        def __init__(self, document_model, data_group: DataGroup.DataGroup, display_items: typing.Sequence[DisplayItem.DisplayItem]):
             super().__init__("Remove Library Item")
             self.__document_model = document_model
             self.__data_group_uuid = data_group.uuid
@@ -1578,7 +1579,7 @@ class DocumentController(Window.Window):
         data_element = { "data": data, "title": title }
         return self.add_data_element(data_element)
 
-    def show_display_item(self, display_item: DataItem.DisplayItem, source_data_item=None, request_focus=True) -> None:
+    def show_display_item(self, display_item: DisplayItem.DisplayItem, source_data_item=None, request_focus=True) -> None:
         data_item = display_item.data_item if display_item else None
         assert data_item is not None
         result_display_panel = self.next_result_display_panel()
@@ -1688,7 +1689,7 @@ class DocumentController(Window.Window):
             self.__data_menu_actions.append(action)
         self._window_menu_about_to_show()
 
-    def __get_crop_graphic(self, display_item: DataItem.DisplayItem) -> typing.Optional[Graphics.Graphic]:
+    def __get_crop_graphic(self, display_item: DisplayItem.DisplayItem) -> typing.Optional[Graphics.Graphic]:
         crop_graphic = None
         data_item = display_item.data_item if display_item else None
         display = display_item.display if display_item else None
@@ -1701,7 +1702,7 @@ class DocumentController(Window.Window):
                 crop_graphic = graphic
         return crop_graphic
 
-    def __get_mask_graphics(self, display_item: DataItem.DisplayItem) -> typing.List[Graphics.Graphic]:
+    def __get_mask_graphics(self, display_item: DisplayItem.DisplayItem) -> typing.List[Graphics.Graphic]:
         mask_graphics = list()
         data_item = display_item.data_item if display_item else None
         if data_item and len(data_item.dimensional_shape) == 2:
@@ -1713,31 +1714,31 @@ class DocumentController(Window.Window):
                     mask_graphics.append(graphic)
         return mask_graphics
 
-    def processing_fft(self) -> DataItem.DisplayItem:
+    def processing_fft(self) -> DisplayItem.DisplayItem:
         return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_fft_new))
 
-    def processing_ifft(self) -> DataItem.DisplayItem:
+    def processing_ifft(self) -> DisplayItem.DisplayItem:
         return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_ifft_new))
 
-    def processing_gaussian_blur(self) -> DataItem.DisplayItem:
+    def processing_gaussian_blur(self) -> DisplayItem.DisplayItem:
         return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_gaussian_blur_new))
 
-    def processing_resample(self) -> DataItem.DisplayItem:
+    def processing_resample(self) -> DisplayItem.DisplayItem:
         return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_resample_new))
 
-    def processing_crop(self) -> DataItem.DisplayItem:
+    def processing_crop(self) -> DisplayItem.DisplayItem:
         return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_crop_new))
 
-    def processing_slice(self) -> DataItem.DisplayItem:
+    def processing_slice(self) -> DisplayItem.DisplayItem:
         return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_slice_sum_new))
 
-    def processing_projection(self) -> DataItem.DisplayItem:
+    def processing_projection(self) -> DisplayItem.DisplayItem:
         return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_projection_new))
 
-    def processing_line_profile(self) -> DataItem.DisplayItem:
+    def processing_line_profile(self) -> DisplayItem.DisplayItem:
         return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_line_profile_new))
 
-    def processing_invert(self) -> DataItem.DisplayItem:
+    def processing_invert(self) -> DisplayItem.DisplayItem:
         return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_invert_new))
 
     class InsertDataItemCommand(Undo.UndoableCommand):
@@ -1837,7 +1838,7 @@ class DocumentController(Window.Window):
         if data_item:
             self._perform_snapshot(data_item)
 
-    def fix_display_limits(self, display_item: DataItem.DisplayItem) -> None:
+    def fix_display_limits(self, display_item: DisplayItem.DisplayItem) -> None:
         display = display_item.display if display_item else None
         if display:
             display.display_limits = display.get_calculated_display_values(True).data_range
@@ -2160,7 +2161,7 @@ class DocumentController(Window.Window):
         else:
             return receive_files_on_thread(file_paths, data_group, index, functools.partial(receive_files_complete, index))
 
-    def create_context_menu_for_display(self, display_item: DataItem.DisplayItem, container=None):
+    def create_context_menu_for_display(self, display_item: DisplayItem.DisplayItem, container=None):
         menu = self.create_context_menu()
 
         def show_in_new_window():

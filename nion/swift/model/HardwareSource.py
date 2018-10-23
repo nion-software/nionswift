@@ -32,6 +32,7 @@ import numpy
 from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.swift.model import DataItem
+from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
@@ -928,7 +929,7 @@ class HardwareSource:
     def add_channel_processor(self, channel_index: int, processor):
         self.__data_channels.append(DataChannel(self, len(self.__data_channels), processor.processor_id, None, channel_index, processor))
 
-    def clean_display_items(self, document_model, display_items: typing.Sequence[DataItem.DisplayItem], **kwargs) -> None:
+    def clean_display_items(self, document_model, display_items: typing.Sequence[DisplayItem.DisplayItem], **kwargs) -> None:
         """Clean the display items associated with this data channel.
 
         Invoked when the hardware source is registered with the document model. Useful for

@@ -7,8 +7,7 @@
 # local libraries
 from nion.data import Image
 from nion.swift import Thumbnails
-from nion.swift.model import DataItem
-from nion.swift.model import Display
+from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.ui import CanvasItem
 from nion.ui import Widgets
@@ -284,7 +283,7 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
         if callable(self.on_thumbnail_data_changed):
             self.on_thumbnail_data_changed(self.thumbnail_data)
 
-    def set_display_item(self, display_item: DataItem.DisplayItem) -> None:
+    def set_display_item(self, display_item: DisplayItem.DisplayItem) -> None:
         self.__detach_listeners()
         self.__display_item = display_item
         if display_item.display:
