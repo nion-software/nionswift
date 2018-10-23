@@ -570,24 +570,11 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         assert self.__container_weak_ref is None
         self.__container_weak_ref = weakref.ref(container)
 
-        # leave this infrastructure for child displays here for future work, but use an empty one.
-        self.__child_displays_model = ListModel.ListModel("displays")
-
-        def handle_display_changed(display):
-            self.display_changed_event.fire()
-
-        # watch the child display model for insert/removes from displays; and passes on the display_changed_event for each active display
-        self.__child_display_observer = ObservableListEventObserver(self.__child_displays_model, "displays", "display_changed_event", handle_display_changed)
-
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
         for graphic in self.graphics:
             graphic.about_to_be_removed()
         self.about_to_be_removed_event.fire()
-        self.__child_display_observer.close()
-        self.__child_display_observer = None
-        self.__child_displays_model.close()
-        self.__child_displays_model = None
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
 
@@ -614,10 +601,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     @property
     def _display_cache(self):
         return self.__cache
-
-    @property
-    def child_displays_model(self):
-        return self.__child_displays_model
 
     @property
     def title(self) -> str:
@@ -804,9 +787,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             # override
             if self.display_script:
                 display_type = "display_script"
-        if not valid_data and len(self.__child_displays_model.items) > 0:
-            if display_type not in ("line_plot", ):
-                display_type = "composite-image"
         return display_type
 
     @property
@@ -875,7 +855,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     # message sent when data changes.
     # thread safe
-    def update_data(self, data_and_metadata):
+    def update_xdata_list(self, xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata]) -> None:
+        data_and_metadata = xdata_list[0] if len(xdata_list) == 1 else None
         old_data_shape = self.__data_and_metadata.data_shape if self.__data_and_metadata else None
         self.__data_and_metadata = data_and_metadata
         new_data_shape = self.__data_and_metadata.data_shape if self.__data_and_metadata else None

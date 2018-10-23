@@ -296,8 +296,6 @@ def create_display_canvas_item(display_type: str, get_font_metrics_fn, delegate,
         return ImageCanvasItem.ImageCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
     elif display_type == "display_script":
         return DisplayScriptCanvasItem.DisplayScriptCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
-    elif display_type == "composite-image":
-        return CompositeDisplayCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
     else:
         return MissingDataCanvasItem(delegate)
 
@@ -419,12 +417,6 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
     def default_aspect_ratio(self):
         return 1.0
 
-    def display_inserted(self, display, index):
-        pass
-
-    def display_removed(self, display, index):
-        pass
-
     def display_rgba_changed(self, display, display_values):
         pass
 
@@ -458,119 +450,6 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
             drawing_context.line_to(canvas_width, 0)
             drawing_context.stroke_style = "#444"
             drawing_context.stroke()
-
-
-class CompositeDisplayCanvasItem(CanvasItem.LayerCanvasItem):
-    """ Canvas item to draw background_color. """
-    def __init__(self, get_font_metrics, delegate, event_loop, draw_background):
-        super().__init__()
-        self.__get_font_metrics = get_font_metrics
-        self.__delegate = delegate
-        self.__event_loop = event_loop
-        self.__draw_background = draw_background
-        self.__displays = list()
-        self.__display_trackers = list()
-        self.layout = CanvasItem.CanvasItemColumnLayout()
-        self.__closed = False
-
-    def close(self):
-        self.__closed = True
-        super().close()
-
-    def context_menu_event(self, x, y, gx, gy):
-        return self.__delegate.show_display_context_menu(gx, gy)
-
-    @property
-    def default_aspect_ratio(self):
-        return 1.0
-
-    def display_inserted(self, display, index):
-        self.__displays.insert(index, display)
-        display_tracker = DisplayTracker(display, self.__get_font_metrics, self, self.__event_loop, self.__draw_background)
-        self.__display_trackers.insert(index, display_tracker)
-        self.insert_canvas_item(index, display_tracker.display_canvas_item)
-
-    def display_removed(self, display, index):
-        if not self.__closed:
-            self.remove_canvas_item(self.__display_trackers[index].display_canvas_item)
-            self.__display_trackers[index].close()
-            del self.__displays[index]
-            del self.__display_trackers[index]
-
-    def display_rgba_changed(self, display, display_values):
-        pass
-
-    def display_data_and_metadata_changed(self, display, display_values):
-        pass
-
-    def update_display_values(self, display, display_values):
-        pass
-
-    def update_regions(self, display, graphic_selection):
-        pass
-
-    def handle_auto_display(self, display) -> bool:
-        # enter key has been pressed
-        return False
-
-    @property
-    def _displays(self):
-        return tuple(self.__displays)
-
-    # delegate for image canvas items
-
-    def show_display_context_menu(self, gx, gy) -> bool:
-        return self.__delegate.show_display_context_menu(gx, gy)
-
-    def begin_mouse_tracking(self):
-        self.__delegate.begin_mouse_tracking()
-
-    def end_mouse_tracking(self, undo_command):
-        self.__delegate.end_mouse_tracking(undo_command)
-
-    def delete_key_pressed(self):
-        self.__delegate.delete_key_pressed()
-
-    def enter_key_pressed(self):
-        self.__delegate.enter_key_pressed()
-
-    def cursor_changed(self, pos):
-        self.__delegate.cursor_changed(pos)
-
-    def add_index_to_selection(self, index):
-        self.__delegate.add_index_to_selection(index)
-
-    def remove_index_from_selection(self, index):
-        self.__delegate.remove_index_from_selection(index)
-
-    def set_selection(self, index):
-        self.__delegate.set_selection(index)
-
-    def clear_selection(self):
-        self.__delegate.clear_selection()
-
-    def image_clicked(self, image_position, modifiers):
-        return False
-
-    def image_mouse_pressed(self, image_position, modifiers):
-        return False
-
-    def image_mouse_released(self, image_position, modifiers):
-        return False
-
-    def image_mouse_position_changed(self, image_position, modifiers):
-        return False
-
-    def image_panel_get_font_metrics(self, font, text):
-        return self.__get_font_metrics(font, text)
-
-    @property
-    def tool_mode(self):
-        return self.__delegate.tool_mode
-
-    @tool_mode.setter
-    def tool_mode(self, value):
-        self.__delegate.tool_mode = value
 
 
 class DisplayTracker:
@@ -611,33 +490,13 @@ class DisplayTracker:
 
         self.__display_canvas_item = create_display_canvas_item(display.actual_display_type, get_font_metrics, delegate, event_loop, draw_background=self.__draw_background)
 
-        def child_display_inserted(key, display, index):
-            self.__display_canvas_item.display_inserted(display, index)
-
-        def child_display_removed(key, display, index):
-            self.__display_canvas_item.display_removed(display, index)
-
-        self.__child_display_inserted_event_listener = display.child_displays_model.item_inserted_event.listen(child_display_inserted)
-        self.__child_display_removed_event_listener = display.child_displays_model.item_removed_event.listen(child_display_removed)
-
-        for index, child_display in enumerate(display.child_displays_model.displays):
-            child_display_inserted("displays", child_display, index)
-
         def display_type_changed(display_type):
             # called when the display type of the data item changes.
-
-            child_display_count = len(display.child_displays_model.displays)
-            for index, child_display in enumerate(display.child_displays_model.displays):
-                self.__display_canvas_item.display_removed(child_display, child_display_count - 1 - index)
-
             old_display_canvas_item = self.__display_canvas_item
             new_display_canvas_item = create_display_canvas_item(display_type, self.__get_font_metrics, self.__delegate, self.__event_loop, draw_background=self.__draw_background)
             if callable(self.on_replace_display_canvas_item):
                 self.on_replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item)
             self.__display_canvas_item = new_display_canvas_item
-
-            for index, child_display in enumerate(display.child_displays_model.displays):
-                self.__display_canvas_item.display_inserted(child_display, index)
 
         self.__display_type_monitor = DisplayTypeMonitor(display)
         self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
@@ -684,9 +543,6 @@ class DisplayTracker:
         display_changed()
 
     def close(self):
-        child_display_count = len(self.__display.child_displays_model.displays)
-        for index, child_display in enumerate(self.__display.child_displays_model.displays):
-            self.__display_canvas_item.display_removed(child_display, child_display_count - 1 - index)
         with self.__closing_lock:  # ensures that display pipeline finishes
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
@@ -700,10 +556,6 @@ class DisplayTracker:
         self.__display_type_changed_event_listener = None
         self.__display_type_monitor.close()
         self.__display_type_monitor = None
-        self.__child_display_inserted_event_listener.close()
-        self.__child_display_inserted_event_listener = None
-        self.__child_display_removed_event_listener.close()
-        self.__child_display_removed_event_listener = None
         # decrement the ref count on the old item to release it from memory if no longer used.
         self.__display.decrement_display_ref_count()
         self.__display_about_to_be_removed_event_listener.close()
@@ -1894,8 +1746,6 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
     display_canvas_item = create_display_canvas_item(display_type, ui.get_font_metrics, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
-            for index, display_ in enumerate(display.child_displays_model.displays):
-                display_canvas_item.display_inserted(display_, index)
             display_canvas_item.update_display_values(display, display_values)
             display_canvas_item.update_regions(display, Display.GraphicSelection())
 

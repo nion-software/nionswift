@@ -73,12 +73,6 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
     def default_aspect_ratio(self):
         return 1.0
 
-    def display_inserted(self, display, index):
-        pass
-
-    def display_removed(self, display, index):
-        pass
-
     def display_rgba_changed(self, display, display_values):
         # when the display rgba data changes, no need to do anything
         pass

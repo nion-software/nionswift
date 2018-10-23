@@ -273,8 +273,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.display._item_changed()
 
     def _update_displays(self):
-        data_and_metadata = self.data_item.xdata if self.data_item else None
-        self.display.update_data(data_and_metadata)
+        xdata_list = [data_item.xdata if data_item else None for data_item in self.data_items]
+        self.display.update_xdata_list(xdata_list)
         self.display.title = self.displayed_title
 
     def _description_changed(self):

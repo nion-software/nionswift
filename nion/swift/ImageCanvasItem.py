@@ -473,16 +473,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def _info_overlay_canvas_item_for_test(self):
         return self.__info_overlay_canvas_item
 
-    def display_inserted(self, display, index):
-        # a display tracker follows the child display model of a display and calls this method when a new display
-        # is inserted.
-        pass
-
-    def display_removed(self, display, index):
-        # a display tracker follows the child display model of a display and calls this method when a display is
-        # removed.
-        pass
-
     def display_rgba_changed(self, display, display_values):
         # when the display rgba data changes, update the display.
         self.update_display_values(display, display_values)

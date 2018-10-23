@@ -236,41 +236,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def default_aspect_ratio(self):
         return (1 + 5 ** 0.5) / 2  # golden ratio
 
-    def display_inserted(self, display, index):
-        # a display tracker follows the child display model of a display and calls this method when a new display
-        # is inserted. this method configures a listener for the display changed event and then gets calculated
-        # display values for the changed display, stores the data into xdata list, and requests rendering.
-
-        def display_changed():
-            # update the data
-            display_values = display.get_calculated_display_values()
-            display_data_and_metadata = display_values.display_data_and_metadata
-            if display_data_and_metadata:
-                self.__xdata_list[self.__xdata_index0 + index] = display_data_and_metadata
-            else:
-                self.__xdata_list[self.__xdata_index0 + index] = None
-            # update the cursor info
-            self.__update_cursor_info()
-            # mark for update. prepare display will mark children for update if necesssary.
-            self.update()
-
-        self.__xdata_list.insert(self.__xdata_index0 + index, None)
-        self.__display_listeners.insert(index, display.display_changed_event.listen(display_changed))
-
-        display_changed()
-
-    def display_removed(self, display, index):
-        # a display tracker follows the child display model of a display and calls this method when a display is
-        # removed. this method removes the xdata and requests rendering.
-
-        del self.__xdata_list[self.__xdata_index0 + index]
-        self.__display_listeners[index].close()
-        del self.__display_listeners[index]
-        # update the cursor info
-        self.delegate.cursor_changed(None)
-        # mark for update. prepare display will mark children for update if necesssary.
-        self.update()
-
     def display_rgba_changed(self, display, display_values):
         # when the display rgba data changes, no need to do anything
         pass
