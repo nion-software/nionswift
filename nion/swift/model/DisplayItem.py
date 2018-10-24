@@ -37,7 +37,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("description", hidden=True, changed=self.__property_changed)
         self.define_property("session_id", hidden=True, changed=self.__property_changed)
         self.define_property("data_item_references", list(), changed=self.__property_changed)
-        self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
+        self.define_item("display", Display.display_factory, self.__display_changed)
         self.__data_items = list()
         self.__data_item_will_change_listeners = list()
         self.__data_item_did_change_listeners = list()
@@ -53,14 +53,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.about_to_be_removed_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
-        self.append_display(Display.Display())  # always have one display, for now
+        self.set_item("display", Display.Display())
         self.__display_about_to_be_removed_listener = self.display.about_to_be_removed_event.listen(self.about_to_be_removed_event.fire)
 
     def close(self):
         self.__display_about_to_be_removed_listener.close()
         self.__display_about_to_be_removed_listener = None
-        for display in self.displays:
-            display.close()
+        self.set_item("display", None)
         for data_item_will_change_listener in self.__data_item_will_change_listeners:
             data_item_will_change_listener.close()
         self.__data_item_will_change_listeners = list()
@@ -96,11 +95,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item_copy._set_persistent_property_value("description", self._get_persistent_property_value("description"))
         display_item_copy._set_persistent_property_value("session_id", self._get_persistent_property_value("session_id"))
         display_item_copy.created = self.created
-        # displays
-        for display in copy.copy(display_item_copy.displays):
-            display_item_copy.remove_display(display)
-        for display in self.displays:
-            display_item_copy.append_display(copy.deepcopy(display))
+        # display
+        display_item_copy.display = copy.deepcopy(self.display)
         display_item_copy.data_item_references = copy.deepcopy(self.data_item_references)
         memo[id(self)] = display_item_copy
         return display_item_copy
@@ -119,8 +115,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
         self.about_to_be_removed_event.fire()
-        for display in self.displays:
-            display.about_to_be_removed()
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
 
@@ -165,10 +159,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def clone(self) -> "DisplayItem":
         display_item = self.__class__()
         display_item.uuid = self.uuid
-        for display in copy.copy(display_item.displays):
-            display_item.remove_display(display)
-        for display in self.displays:
-            display_item.append_display(display.clone())
+        display_item.display = self.display.clone()
         return display_item
 
     def snapshot(self):
@@ -180,24 +171,18 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item._set_persistent_property_value("description", self._get_persistent_property_value("description"))
         display_item._set_persistent_property_value("session_id", self._get_persistent_property_value("session_id"))
         display_item.created = self.created
-        for display in copy.copy(display_item.displays):
-            display_item.remove_display(display)
-        for display in self.displays:
-            display_item.append_display(copy.deepcopy(display))
+        display_item.display = copy.deepcopy(self.display)
         return display_item
 
     def set_storage_cache(self, storage_cache):
         self.__suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
-        for display in self.displays:
-            display.set_storage_cache(self._suspendable_storage_cache)
+        self.display.set_storage_cache(self._suspendable_storage_cache)
 
     @property
     def _suspendable_storage_cache(self):
         return self.__suspendable_storage_cache
 
     def read_from_dict(self, properties):
-        for display in copy.copy(self.displays):
-            self.remove_display(display)
         super().read_from_dict(properties)
         if self.created is None:  # invalid timestamp -- set property to now but don't trigger change
             timestamp = datetime.datetime.now()
@@ -210,25 +195,18 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             return self.persistent_object_context.get_properties(self)
         return dict()
 
-    def __insert_display(self, name, before_index, display):
-        display.about_to_be_inserted(self)
-        display.title = self.displayed_title
-
-    def __remove_display(self, name, index, display):
-        display.about_to_be_removed()
-        display.close()
-
-    def append_display(self, display):
-        """Add a display, but do it through the container, so dependencies can be tracked."""
-        self.insert_model_item(self, "displays", self.item_count("displays"), display)
-        if self.__display_ref_count > 0:
-            display._become_master()
-
-    def remove_display(self, display: Display.Display) -> typing.Optional[typing.Sequence]:
-        """Remove display, but do it through the container, so dependencies can be tracked."""
-        if self.__display_ref_count > 0:
-            display._relinquish_master()
-        return self.remove_model_item(self, "displays", display)
+    def __display_changed(self, name, old_display, new_display):
+        if new_display != old_display:
+            if old_display:
+                if self.__display_ref_count > 0:
+                    old_display._relinquish_master()
+                old_display.about_to_be_removed()
+                old_display.close()
+            if new_display:
+                new_display.about_to_be_inserted(self)
+                new_display.title = self.displayed_title
+                if self.__display_ref_count > 0:
+                    new_display._become_master()
 
     def display_item_changes(self):
         # return a context manager to batch up a set of changes so that listeners
@@ -252,8 +230,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             change_count = self.__display_item_change_count
         # if the change count is now zero, it means that we're ready to notify listeners.
         if change_count == 0:
-            for display in self.displays:
-                display._item_changed()
+            self.display._item_changed()
             self._update_displays()  # this ensures that the display will validate
 
     def increment_display_ref_count(self, amount: int=1):
@@ -261,7 +238,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_ref_count = self.__display_ref_count
         self.__display_ref_count += amount
         if display_ref_count == 0:
-            for display in self.displays:
+            display = self.display
+            if display:
                 display._become_master()
         for data_item in self.data_items:
             for _ in range(amount):
@@ -272,7 +250,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         assert not self._closed
         self.__display_ref_count -= amount
         if self.__display_ref_count == 0:
-            for display in self.displays:
+            display = self.display
+            if display:
                 display._relinquish_master()
         for data_item in self.data_items:
             for _ in range(amount):
@@ -291,18 +270,15 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def _item_changed(self):
         # this event is only triggered when the data item changed live state; everything else goes through
         # the data changed messages.
-        for display in self.displays:
-            display._item_changed()
+        self.display._item_changed()
 
     def _update_displays(self):
         data_and_metadata = self.data_item.xdata if self.data_item else None
-        for display in self.displays:
-            display.update_data(data_and_metadata)
-            display.title = self.displayed_title
+        self.display.update_data(data_and_metadata)
+        self.display.title = self.displayed_title
 
     def _description_changed(self):
-        for display in self.displays:
-            display.title = self.displayed_title
+        self.display.title = self.displayed_title
 
     def __get_used_value(self, key: str, default_value):
         if self._get_persistent_property_value(key) is not None:
@@ -416,13 +392,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         return self.__data_items[0] if len(self.__data_items) == 1 else None
 
     @property
-    def display(self) -> typing.Optional[Display.Display]:
-        return self.displays[0] if len(self.displays) > 0 else None
-
-    @property
     def graphics(self) -> typing.Sequence[Graphics.Graphic]:
-        display = self.display
-        return display.graphics if display else list()
+        return self.display.graphics
 
     def insert_graphic(self, before_index: int, graphic: Graphics.Graphic) -> None:
         self.display.insert_graphic(before_index, graphic)

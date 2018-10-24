@@ -333,7 +333,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (0, 0))
         # make the slice_center be out of bounds
         library_storage_properties = memory_persistent_storage_system.library_storage_properties
-        library_storage_properties["display_items"][0]["displays"][0]["slice_center"] = 20
+        library_storage_properties["display_items"][0]["display"]["slice_center"] = 20
         memory_persistent_storage_system._set_properties(library_storage_properties)
         # read it back
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
@@ -1519,8 +1519,8 @@ class TestStorageClass(unittest.TestCase):
             data_item = document_model.data_items[0]
             display_item = document_model.display_items[0]
             self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
-            self.assertTrue("uuid" in display_item.properties["displays"][0])
-            self.assertTrue("uuid" in display_item.properties["displays"][0]["graphics"][0])
+            self.assertTrue("uuid" in display_item.properties["display"])
+            self.assertTrue("uuid" in display_item.properties["display"]["graphics"][0])
 
     def test_data_items_v3_migration(self):
         # construct v3 data item
