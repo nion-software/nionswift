@@ -51,6 +51,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__display_item_change_count = 0
         self.__display_item_change_count_lock = threading.RLock()
         self.__display_ref_count = 0
+        self.graphic_selection_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
         self.about_to_be_removed_event = Event.Event()
         self._about_to_be_removed = False
@@ -58,9 +59,17 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.set_item("display", Display.Display())
         self.__display_about_to_be_removed_listener = self.display.about_to_be_removed_event.listen(self.about_to_be_removed_event.fire)
 
+        def graphic_selection_changed():
+            # relay the message
+            self.graphic_selection_changed_event.fire(self.graphic_selection)
+
+        self.__graphic_selection_changed_event_listener = self.graphic_selection.changed_event.listen(graphic_selection_changed)
+
     def close(self):
         self.__display_about_to_be_removed_listener.close()
         self.__display_about_to_be_removed_listener = None
+        self.__graphic_selection_changed_event_listener.close()
+        self.__graphic_selection_changed_event_listener = None
         self.set_item("display", None)
         for data_item_will_change_listener in self.__data_item_will_change_listeners:
             data_item_will_change_listener.close()

@@ -765,7 +765,7 @@ class TargetRegionStream(Stream.AbstractStream):
             self.__display_graphic_selection_changed_event_listener.close()
             self.__display_graphic_selection_changed_event_listener = None
         if display_item and display_item.display:
-            self.__display_graphic_selection_changed_event_listener = display_item.display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
+            self.__display_graphic_selection_changed_event_listener = display_item.graphic_selection_changed_event.listen(display_graphic_selection_changed)
             display_graphic_selection_changed(display_item.graphic_selection)
         elif self.__value is not None:
             self.__value = None

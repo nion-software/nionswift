@@ -140,7 +140,7 @@ class InspectorPanel(Panel.Panel):
                     self.document_controller.add_task("update_display_inspector" + str(id(self)), self.__update_display_inspector)
 
             self.__display_changed_listener = display.display_changed_event.listen(display_changed)
-            self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
+            self.__display_graphic_selection_changed_event_listener = self.__display_item.graphic_selection_changed_event.listen(display_graphic_selection_changed)
 
         self.column.add(self.__display_inspector)
         stretch_column = self.ui.create_column_widget()

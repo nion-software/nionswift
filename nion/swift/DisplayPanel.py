@@ -538,7 +538,7 @@ class DisplayTracker:
                     self.__display_canvas_item.update_display_values(Display.DisplayProperties(display), display_values)
 
         self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
-        self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
+        self.__display_graphic_selection_changed_event_listener = display_item.graphic_selection_changed_event.listen(display_graphic_selection_changed)
         self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
         self.__display_property_changed_listener = display.property_changed_event.listen(display_property_changed)
 

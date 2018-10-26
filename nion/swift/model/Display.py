@@ -420,7 +420,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         - about_to_be_removed_event: fired when about to be removed from parent container.
         - display_changed_event: fired when display changes in a way to affect drawing.
         - display_data_will_change_event: fired when display data changes.
-        - display_graphic_selection_changed_event: fired when the graphic selection changes.
     """
 
     def __init__(self):
@@ -478,22 +477,13 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__graphic_changed_listeners = list()
         self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
         self.graphic_selection = GraphicSelection()
-
-        def graphic_selection_changed():
-            # relay the message
-            self.display_graphic_selection_changed_event.fire(self.graphic_selection)
-
-        self.__graphic_selection_changed_event_listener = self.graphic_selection.changed_event.listen(graphic_selection_changed)
         self.about_to_be_removed_event = Event.Event()
         self.display_changed_event = Event.Event()
         self.display_data_will_change_event = Event.Event()
-        self.display_graphic_selection_changed_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
 
     def close(self):
-        self.__graphic_selection_changed_event_listener.close()
-        self.__graphic_selection_changed_event_listener = None
         for graphic in copy.copy(self.graphics):
             self.__disconnect_graphic(graphic, 0)
             graphic.close()
