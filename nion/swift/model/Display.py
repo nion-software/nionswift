@@ -370,39 +370,6 @@ class DisplayValues:
         return self.__display_rgba_timestamp
 
 
-class ObservableListEventObserver:
-
-    def __init__(self, container, key, event, fn):
-        self.__event_listeners = list()
-
-        def item_inserted(key_, value, index):
-            if key == key_:
-                def handle_event(*args, **kwargs):
-                    fn(value, *args, **kwargs)
-
-                self.__event_listeners.insert(index, getattr(value, event).listen(handle_event))
-
-        def item_removed(key_, value, index):
-            if key_ == key:
-                self.__event_listeners[index].close()
-                del self.__event_listeners[index]
-
-        self.__item_inserted_event_listener = container.item_inserted_event.listen(item_inserted)
-        self.__item_removed_event_listener = container.item_removed_event.listen(item_removed)
-
-        for index, item in enumerate(getattr(container, key)):
-            item_inserted(key, item, index)
-
-    def close(self):
-        self.__item_inserted_event_listener.close()
-        self.__item_inserted_event_listener = None
-        self.__item_removed_event_listener.close()
-        self.__item_removed_event_listener = None
-        for event_listener in self.__event_listeners:
-            event_listener.close()
-        self.__event_listeners = None
-
-
 class Display(Observable.Observable, Persistence.PersistentObject):
     """The display properties for a DataItem.
 
