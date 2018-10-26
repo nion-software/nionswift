@@ -893,13 +893,12 @@ def make_display_type_chooser(document_controller, display_item: DisplayItem.Dis
     display_type_items = ((_("Default"), None), (_("Line Plot"), "line_plot"), (_("Image"), "image"), (_("Display Script"), "display_script"))
     display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2, "display_script": 3}
     display_type_chooser = ui.create_combo_box_widget(items=display_type_items, item_getter=operator.itemgetter(0))
-    display = display_item.display
 
     def property_changed(name):
         if name == "display_type":
             display_type_chooser.current_index = display_type_reverse_map[display_item.display_type]
 
-    listener = display.property_changed_event.listen(property_changed)
+    listener = display_item.property_changed_event.listen(property_changed)
 
     def change_display_type(item):
         if display_item.display_type != item[1]:
@@ -915,7 +914,7 @@ def make_display_type_chooser(document_controller, display_item: DisplayItem.Dis
     return display_type_row, listener
 
 
-def make_color_map_chooser(document_controller, display):
+def make_color_map_chooser(document_controller, display_item: DisplayItem.DisplayItem):
     ui = document_controller.ui
     color_map_row = ui.create_row_widget()
     color_map_options = [(_("Default"), None)]
@@ -924,11 +923,13 @@ def make_color_map_chooser(document_controller, display):
     color_map_reverse_map = {p[1]: i for i, p in enumerate(color_map_options)}
     color_map_chooser = ui.create_combo_box_widget(items=color_map_options, item_getter=operator.itemgetter(0))
 
+    display = display_item.display
+
     def property_changed(name):
         if name == "display_type":
             color_map_chooser.current_index = color_map_reverse_map[display.color_map_id]
 
-    listener = display.property_changed_event.listen(property_changed)
+    listener = display_item.property_changed_event.listen(property_changed)
 
     def change_color_map(item):
         if display.color_map_id != item[1]:
@@ -959,7 +960,7 @@ class ImageDisplayInspectorSection(InspectorSection):
         display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display_item)
 
         # color map
-        color_map_row, self.__color_map_changed_listener = make_color_map_chooser(document_controller, display)
+        color_map_row, self.__color_map_changed_listener = make_color_map_chooser(document_controller, display_item)
 
         # data_range model
         self.__data_range_model = Model.PropertyModel()
