@@ -230,7 +230,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             change_count = self.__display_item_change_count
         # if the change count is now zero, it means that we're ready to notify listeners.
         if change_count == 0:
-            self.display._item_changed()
+            self.__item_changed()
             self._update_displays()  # this ensures that the display will validate
 
     def increment_display_ref_count(self, amount: int=1):
@@ -267,10 +267,10 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def __data_item_did_change(self):
         self._end_display_item_changes()
 
-    def _item_changed(self):
+    def __item_changed(self):
         # this event is only triggered when the data item changed live state; everything else goes through
         # the data changed messages.
-        self.display._item_changed()
+        self.item_changed_event.fire()
 
     def _update_displays(self):
         xdata_list = [data_item.xdata if data_item else None for data_item in self.data_items]
@@ -343,9 +343,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         for data_item in self.__data_items:
             self.__data_item_will_change_listeners.append(data_item.will_change_event.listen(self.__data_item_will_change) if data_item else None)
             self.__data_item_did_change_listeners.append(data_item.did_change_event.listen(self.__data_item_did_change) if data_item else None)
-            self.__data_item_item_changed_listeners.append(data_item.item_changed_event.listen(self._item_changed) if data_item else None)
-            self.__data_item_data_item_changed_listeners.append(data_item.data_item_changed_event.listen(self._item_changed) if data_item else None)
-            self.__data_item_data_changed_listeners.append(data_item.data_changed_event.listen(self._item_changed) if data_item else None)
+            self.__data_item_item_changed_listeners.append(data_item.item_changed_event.listen(self.__item_changed) if data_item else None)
+            self.__data_item_data_item_changed_listeners.append(data_item.data_item_changed_event.listen(self.__item_changed) if data_item else None)
+            self.__data_item_data_changed_listeners.append(data_item.data_changed_event.listen(self.__item_changed) if data_item else None)
             self.__data_item_description_changed_listeners.append(data_item.description_changed_event.listen(self._description_changed) if data_item else None)
         self._update_displays()  # this ensures that the display will validate
 
@@ -358,9 +358,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__data_items.insert(before_index, data_item)
         self.__data_item_will_change_listeners.insert(before_index, data_item.will_change_event.listen(self.__data_item_will_change))
         self.__data_item_did_change_listeners.insert(before_index, data_item.did_change_event.listen(self.__data_item_did_change))
-        self.__data_item_item_changed_listeners.insert(before_index, data_item.item_changed_event.listen(self._item_changed))
-        self.__data_item_data_item_changed_listeners.insert(before_index, data_item.data_item_changed_event.listen(self._item_changed))
-        self.__data_item_data_changed_listeners.insert(before_index, data_item.data_changed_event.listen(self._item_changed))
+        self.__data_item_item_changed_listeners.insert(before_index, data_item.item_changed_event.listen(self.__item_changed))
+        self.__data_item_data_item_changed_listeners.insert(before_index, data_item.data_item_changed_event.listen(self.__item_changed))
+        self.__data_item_data_changed_listeners.insert(before_index, data_item.data_changed_event.listen(self.__item_changed))
         self.__data_item_description_changed_listeners.insert(before_index, data_item.description_changed_event.listen(self._description_changed))
         self.data_item_references = data_item_references
 

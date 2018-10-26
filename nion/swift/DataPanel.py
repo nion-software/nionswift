@@ -84,12 +84,10 @@ class DisplayItemAdapter:
         self.ui = ui
         self.needs_update_event = Event.Event()
 
-        display = self.__display_item.display if self.__display_item else None
-
-        def display_changed():
+        def display_item_changed():
             self.needs_update_event.fire()
 
-        self.__display_changed_event_listener = display.item_changed_event.listen(display_changed) if display else None
+        self.__display_changed_event_listener = display_item.item_changed_event.listen(display_item_changed) if display_item else None
 
         self.__thumbnail_updated_event_listener = None
         self.__thumbnail_source = None

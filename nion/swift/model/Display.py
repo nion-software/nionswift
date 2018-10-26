@@ -605,10 +605,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         """ Set the dimensional calibrations. """
         self._set_persistent_property_value("dimensional_calibrations", CalibrationList(dimensional_calibrations))
 
-    # when the data item changes, it will call this method so that item_changed can be fired.
-    def _item_changed(self):
-        self.item_changed_event.fire()
-
     def reset_display_limits(self):
         """Reset display limits so that they are auto calculated whenever the data changes."""
         self.display_limits = None
