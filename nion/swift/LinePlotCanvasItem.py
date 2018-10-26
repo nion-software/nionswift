@@ -236,15 +236,15 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def default_aspect_ratio(self):
         return (1 + 5 ** 0.5) / 2  # golden ratio
 
-    def display_rgba_changed(self, display, display_values):
+    def display_rgba_changed(self, display_properties, display_values) -> None:
         # when the display rgba data changes, no need to do anything
         pass
 
-    def display_data_and_metadata_changed(self, display, display_values):
+    def display_data_and_metadata_changed(self, display_properties, display_values) -> None:
         # when the data changes, update the display.
-        self.update_display_values(display, display_values)
+        self.update_display_values(display_properties, display_values)
 
-    def update_display_values(self, display, display_values):
+    def update_display_values(self, display_properties, display_values) -> None:
         """Update the display values. Called from display panel.
 
         This method saves the display values and data and triggers an update. It should be as fast as possible.
@@ -265,20 +265,20 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             if self.__closed:
                 return
 
-            dimensional_calibrations = display.dimensional_calibrations
-            displayed_dimensional_scales = display.displayed_dimensional_scales
-            displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
+            dimensional_calibrations = display_properties.dimensional_calibrations
+            displayed_dimensional_scales = display_properties.displayed_dimensional_scales
+            displayed_dimensional_calibrations = display_properties.displayed_dimensional_calibrations
             self.__data_scale = displayed_dimensional_scales[-1] if len(displayed_dimensional_scales) > 0 else 1
             self.__dimensional_calibration = dimensional_calibrations[-1] if dimensional_calibrations else None
             self.__displayed_dimensional_calibration = displayed_dimensional_calibrations[-1] if len(displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=displayed_dimensional_scales[-1])
-            self.__intensity_calibration = display.displayed_intensity_calibration
-            self.__calibration_style = display.calibration_style
-            self.__y_min = display.y_min
-            self.__y_max = display.y_max
-            self.__y_style = display.y_style
-            self.__left_channel = display.left_channel
-            self.__right_channel = display.right_channel
-            self.__legend_labels = display.legend_labels
+            self.__intensity_calibration = display_properties.displayed_intensity_calibration
+            self.__calibration_style = display_properties.calibration_style
+            self.__y_min = display_properties.y_min
+            self.__y_max = display_properties.y_max
+            self.__y_style = display_properties.y_style
+            self.__left_channel = display_properties.left_channel
+            self.__right_channel = display_properties.right_channel
+            self.__legend_labels = display_properties.legend_labels
 
             display_data_and_metadata = display_values.display_data_and_metadata
             if display_data_and_metadata:
@@ -288,7 +288,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                     self.__xdata_list = [display_data_and_metadata] + self.__xdata_list
                 else:
                     self.__xdata_list[0] = display_data_and_metadata
-                self.__update_frame(display.data_and_metadata_for_display_panel.metadata)
+                self.__update_frame(display_values.data_and_metadata.metadata)
             else:
                 if self.__xdata_index0 > 0:
                     self.__xdata_index0 = 0
@@ -315,9 +315,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__last_data_list = copy.copy(self.__xdata_list)
         super().update()
 
-    def update_regions(self, display, graphic_selection):
-        dimensional_scales = display.displayed_dimensional_scales
-        graphics = display.graphics
+    def update_graphics(self, graphics, graphic_selection, display_properties, display_values):
+        dimensional_scales = display_properties.displayed_dimensional_scales
 
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
@@ -326,7 +325,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             return
 
         data_scale = dimensional_scales[-1]
-        dimensional_calibration = display.displayed_dimensional_calibrations[-1] if len(display.displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=display.displayed_dimensional_scales[-1])
+        dimensional_calibration = display_properties.displayed_dimensional_calibrations[-1] if len(display_properties.displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=display_properties.displayed_dimensional_scales[-1])
 
         def convert_to_calibrated_value_str(f):
             return u"{0}".format(dimensional_calibration.convert_to_calibrated_value_str(f, value_range=(0, data_scale), samples=data_scale, include_units=False))

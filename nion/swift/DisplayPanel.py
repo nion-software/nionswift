@@ -417,16 +417,16 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
     def default_aspect_ratio(self):
         return 1.0
 
-    def display_rgba_changed(self, display, display_values):
+    def display_rgba_changed(self, display_properties, display_values) -> None:
         pass
 
-    def display_data_and_metadata_changed(self, display, display_values):
+    def display_data_and_metadata_changed(self, display_properties, display_values) -> None:
         pass
 
-    def update_display_values(self, display, display_values):
+    def update_display_values(self, display_properties, display_values) -> None:
         pass
 
-    def update_regions(self, display, graphic_selection):
+    def update_graphics(self, graphics, graphic_selection, display_properties, display_values) -> None:
         pass
 
     def handle_auto_display(self, display) -> bool:
@@ -503,15 +503,16 @@ class DisplayTracker:
 
         def display_graphic_selection_changed(graphic_selection):
             # this message comes from the display when the graphic selection changes
-            self.__display_canvas_item.update_regions(display, graphic_selection)
+            display_values = display.get_calculated_display_values()
+            self.__display_canvas_item.update_graphics(display.graphics, graphic_selection, Display.DisplayProperties(display), display_values)
 
         def display_rgba_changed(display_values):
             with self.__closing_lock:
-                self.__display_canvas_item.display_rgba_changed(display, display_values)
+                self.__display_canvas_item.display_rgba_changed(Display.DisplayProperties(display), display_values)
 
         def display_data_and_metadata_changed(display_values):
             with self.__closing_lock:
-                self.__display_canvas_item.display_data_and_metadata_changed(display, display_values)
+                self.__display_canvas_item.display_data_and_metadata_changed(Display.DisplayProperties(display), display_values)
 
         def display_changed():
             # called when anything in the data item changes, including things like graphics or the data itself.
@@ -531,7 +532,7 @@ class DisplayTracker:
             if property in ("y_min", "y_max", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode"):
                 with self.__closing_lock:
                     display_values = display.get_calculated_display_values()
-                    self.__display_canvas_item.update_display_values(display, display_values)
+                    self.__display_canvas_item.update_display_values(Display.DisplayProperties(display), display_values)
 
         self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
         self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
@@ -1746,8 +1747,9 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
     display_canvas_item = create_display_canvas_item(display_type, ui.get_font_metrics, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
-            display_canvas_item.update_display_values(display, display_values)
-            display_canvas_item.update_regions(display, Display.GraphicSelection())
+            display_properties = Display.DisplayProperties(display)
+            display_canvas_item.update_display_values(display_properties, display_values)
+            display_canvas_item.update_graphics(display.graphics, Display.GraphicSelection(), display_properties, display_values)
 
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)

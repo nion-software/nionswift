@@ -24,7 +24,6 @@ from nion.swift.model import Cache
 from nion.swift.model import ColorMaps
 from nion.swift.model import Graphics
 from nion.utils import Event
-from nion.utils import ListModel
 from nion.utils import Observable
 from nion.utils import Persistence
 
@@ -287,7 +286,11 @@ class DisplayValues:
         return self.__color_map_data
 
     @property
-    def display_data_and_metadata(self):
+    def data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_and_metadata
+
+    @property
+    def display_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
         with self.__lock:
             if self.__display_data_and_metadata_dirty:
                 self.__display_data_and_metadata_dirty = False
@@ -419,7 +422,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         - about_to_be_removed_event: fired when about to be removed from parent container.
         - display_changed_event: fired when display changes in a way to affect drawing.
         - display_data_will_change_event: fired when display data changes.
-        - display_type_changed_event: fired when the display type changes.
         - display_graphic_selection_changed_event: fired when the graphic selection changes.
     """
 
@@ -429,7 +431,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__cache = Cache.ShadowCache()
         self.__color_map_data = None
         # display type to use
-        self.define_property("display_type", changed=self.__display_type_changed)
+        self.define_property("display_type", changed=self.__property_changed)
         # conversion to scalar
         self.define_property("complex_display_type", changed=self.__property_changed)
         # calibration display
@@ -475,7 +477,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.display_values_changed_event = Event.Event()
         self.__calculated_display_values_available_event = Event.Event()
 
-        self.__graphics_map = dict()  # type: typing.MutableMapping[uuid.UUID, Graphics.Graphic]
         self.__graphic_changed_listeners = list()
         self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
         self.graphic_selection = GraphicSelection()
@@ -488,7 +489,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.about_to_be_removed_event = Event.Event()
         self.display_changed_event = Event.Event()
         self.display_data_will_change_event = Event.Event()
-        self.display_type_changed_event = Event.Event()
         self.display_graphic_selection_changed_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
@@ -800,10 +800,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__property_changed(name, value)
         self.notify_property_changed("slice_interval")
 
-    def __display_type_changed(self, property_name, value):
-        self.__property_changed(property_name, value)
-        self.display_type_changed_event.fire()
-
     def __color_map_id_changed(self, property_name, value):
         self.__property_changed(property_name, value)
         if value:
@@ -905,16 +901,14 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     def __insert_graphic(self, name, before_index, graphic):
         graphic.about_to_be_inserted(self)
-        graphic_changed_listener = graphic.graphic_changed_event.listen(functools.partial(self.graphic_changed, graphic))
+        graphic_changed_listener = graphic.graphic_changed_event.listen(functools.partial(self.__graphic_changed, graphic))
         self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
-        self.__graphics_map[graphic.uuid] = graphic
         self.graphic_selection.insert_index(before_index)
         self.display_changed_event.fire()
         self.notify_insert_item("graphics", graphic, before_index)
 
     def __remove_graphic(self, name, index, graphic):
         graphic.about_to_be_removed()
-        self.__graphics_map.pop(graphic.uuid)
         self.__disconnect_graphic(graphic, index)
         graphic.close()
 
@@ -938,12 +932,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         """Remove a graphic, but do it through the container, so dependencies can be tracked."""
         return self.remove_model_item(self, "graphics", graphic, safe=safe)
 
-    def get_graphic_by_uuid(self, graphic_uuid: uuid.UUID) -> Graphics.Graphic:
-        return self.__graphics_map.get(graphic_uuid)
-
     # this message comes from the graphic. the connection is established when a graphic
     # is added or removed from this object.
-    def graphic_changed(self, graphic):
+    def __graphic_changed(self, graphic):
         self.display_changed_event.fire()
 
     @property
@@ -970,8 +961,10 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             dimensional_scales = self.dimensional_scales
             dimensional_scales = [1] if dimensional_scales is None and self.display_type == "line_plot" else dimensional_scales
             dimensional_scales = [1, 1] if dimensional_scales is None and self.display_type == "image" else dimensional_scales
-            dimensional_calibrations = self.dimensional_calibrations if self.dimensional_calibrations else [Calibration.Calibration() for i in range(len(dimensional_scales))]
-            return calibration_style.get_dimensional_calibrations(dimensional_scales, dimensional_calibrations)
+            if dimensional_scales:
+                dimensional_calibrations = self.dimensional_calibrations if self.dimensional_calibrations else [Calibration.Calibration() for i in range(len(dimensional_scales))]
+                return calibration_style.get_dimensional_calibrations(dimensional_scales, dimensional_calibrations)
+            return list()
 
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
@@ -1102,3 +1095,27 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
 def display_factory(lookup_id):
     return Display()
+
+
+class DisplayProperties:
+
+    def __init__(self, display: Display):
+
+        self.dimensional_calibrations = display.dimensional_calibrations
+        self.displayed_dimensional_scales = display.displayed_dimensional_scales
+        self.displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
+        self.displayed_intensity_calibration = display.displayed_intensity_calibration
+        self.calibration_style = display.calibration_style
+
+        self.image_zoom = display.image_zoom
+        self.image_position = display.image_position
+        self.image_canvas_mode = display.image_canvas_mode
+
+        self.y_min = display.y_min
+        self.y_max = display.y_max
+        self.y_style = display.y_style
+        self.left_channel = display.left_channel
+        self.right_channel = display.right_channel
+        self.legend_labels = display.legend_labels
+
+        self.display_script = display.display_script

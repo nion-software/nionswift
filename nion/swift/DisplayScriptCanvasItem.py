@@ -73,20 +73,20 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
     def default_aspect_ratio(self):
         return 1.0
 
-    def display_rgba_changed(self, display, display_values):
+    def display_rgba_changed(self, display_properties, display_values) -> None:
         # when the display rgba data changes, no need to do anything
         pass
 
-    def display_data_and_metadata_changed(self, display, display_values):
+    def display_data_and_metadata_changed(self, display_properties, display_values) -> None:
         # when the data changes, update the display.
-        self.update_display_values(display, display_values)
+        self.update_display_values(display_properties, display_values)
 
-    def update_display_values(self, display, display_values):
-        self.__display_data = display.data_and_metadata_for_display_panel
-        self.__display_script = display.display_script
+    def update_display_values(self, display_properties, display_values) -> None:
+        self.__display_data = display_values.data_and_metadata
+        self.__display_script = display_properties.display_script
         self.update()
 
-    def update_regions(self, display, graphic_selection):
+    def update_graphics(self, graphics, graphic_selection, display_properties, display_values):
         pass
 
     def handle_auto_display(self, display) -> bool:

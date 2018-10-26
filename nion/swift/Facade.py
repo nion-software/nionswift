@@ -58,6 +58,7 @@ from nion.swift import Panel as PanelModule
 from nion.swift import Workspace
 from nion.swift.model import ApplicationData
 from nion.swift.model import DataItem as DataItemModule
+from nion.swift.model import Display as DisplayModule
 from nion.swift.model import DocumentModel as DocumentModelModule
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource as HardwareSourceModule
@@ -1271,10 +1272,8 @@ class DataItem(metaclass=SharedInstance):
         def get_font_metrics(font, text):
             return FontMetrics(width=6.5 * len(text), height=15, ascent=12, descent=3, leading=0)
 
-        aspect_ratio = None
-
         display_canvas_item = DisplayPanelModule.create_display_canvas_item(display.actual_display_type, None, None, None, draw_background=False)
-        aspect_ratio = display_canvas_item.default_aspect_ratio if not aspect_ratio else aspect_ratio
+        aspect_ratio = display_canvas_item.default_aspect_ratio
 
         view_box = Geometry.IntRect(Geometry.IntPoint(), Geometry.IntSize(width=320 * 1.25, height=240 * 1.25))
         view_box = Geometry.IntRect(Geometry.IntPoint(), Geometry.fit_to_aspect_ratio(view_box, aspect_ratio).size)
@@ -1284,7 +1283,7 @@ class DataItem(metaclass=SharedInstance):
         try:
             display_canvas_item.update_layout(view_box.origin, view_box.size, immediate=True)
             display_values = display.get_calculated_display_values(immediate=True)
-            display_canvas_item.update_display_values(display, display_values)
+            display_canvas_item.update_display_values(0, DisplayModule.DisplayProperties(display), display_values)
             dc = DrawingContext.DrawingContext()
             display_canvas_item.repaint_immediate(dc, size)
             return dc.to_svg(size, view_box)

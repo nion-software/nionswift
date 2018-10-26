@@ -358,6 +358,27 @@ def calculate_origin_and_size(canvas_size, data_shape, image_canvas_mode, image_
     return image_canvas_origin, image_canvas_size
 
 
+def calculate_image_shape(data_and_metadata) -> typing.Optional[typing.Tuple[int, ...]]:
+    if not data_and_metadata:
+        return None
+    dimensional_shape = data_and_metadata.dimensional_shape
+    next_dimension = 0
+    if data_and_metadata.is_sequence:
+        next_dimension += 1
+    if data_and_metadata.is_collection:
+        collection_dimension_count = data_and_metadata.collection_dimension_count
+        datum_dimension_count = data_and_metadata.datum_dimension_count
+        # next dimensions are treated as collection indexes.
+        if collection_dimension_count == 1 and datum_dimension_count == 1:
+            return dimensional_shape[next_dimension:next_dimension + collection_dimension_count + datum_dimension_count]
+        elif collection_dimension_count == 2 and datum_dimension_count == 1:
+            return dimensional_shape[next_dimension:next_dimension + collection_dimension_count]
+        else:  # default, "pick"
+            return dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
+    else:
+        return dimensional_shape[next_dimension:]
+
+
 class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     """A canvas item to paint an image.
 
@@ -365,7 +386,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
     They are expected to call the following functions to update the display:
         update_image_display_state
-        update_regions
+        update_graphics
 
     The delegate is expected to handle the following events:
         add_index_to_selection(index)
@@ -473,19 +494,19 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def _info_overlay_canvas_item_for_test(self):
         return self.__info_overlay_canvas_item
 
-    def display_rgba_changed(self, display, display_values):
+    def display_rgba_changed(self, display_properties, display_values) -> None:
         # when the display rgba data changes, update the display.
-        self.update_display_values(display, display_values)
+        self.update_display_values(display_properties, display_values)
 
-    def display_data_and_metadata_changed(self, display, display_values):
+    def display_data_and_metadata_changed(self, display_properties, display_values) -> None:
         # when the data changes, no need to do anything. waits for the display rgba to change instead.
         pass
 
-    def update_display_values(self, display, display_values):
+    def update_display_values(self, display_properties, display_values) -> None:
         # threadsafe
-        data_and_metadata = display.data_and_metadata_for_display_panel
+        data_and_metadata = display_values.data_and_metadata
         if data_and_metadata:
-            displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
+            displayed_dimensional_calibrations = display_properties.displayed_dimensional_calibrations
             if len(displayed_dimensional_calibrations) == 0:
                 dimensional_calibration = Calibration.Calibration()
             elif len(displayed_dimensional_calibrations) == 1:
@@ -503,7 +524,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 else:
                     dimensional_calibration = Calibration.Calibration()
 
-            data_shape = display.preview_2d_shape
+            data_shape = calculate_image_shape(data_and_metadata)
             metadata = data_and_metadata.metadata
 
             # this method may trigger a layout of its parent scroll area. however, the parent scroll
@@ -514,13 +535,13 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 if self.__closed:
                     return
 
-                if self.__image_zoom != display.image_zoom or self.__image_position != display.image_position or self.__image_canvas_mode != display.image_canvas_mode:
-                    if display.image_zoom is not None:
-                        self.__image_zoom = display.image_zoom
-                    if display.image_position is not None:
-                        self.__image_position = display.image_position
-                    if display.image_canvas_mode is not None:
-                        self.__image_canvas_mode = display.image_canvas_mode
+                if self.__image_zoom != display_properties.image_zoom or self.__image_position != display_properties.image_position or self.__image_canvas_mode != display_properties.image_canvas_mode:
+                    if display_properties.image_zoom is not None:
+                        self.__image_zoom = display_properties.image_zoom
+                    if display_properties.image_position is not None:
+                        self.__image_position = display_properties.image_position
+                    if display_properties.image_canvas_mode is not None:
+                        self.__image_canvas_mode = display_properties.image_canvas_mode
 
                 # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
                 self.__info_overlay_canvas_item.set_data_info(data_shape, dimensional_calibration, metadata)
@@ -569,10 +590,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                                             update_layout_handle.cancel()
                                         self.__update_layout_handle = None
 
-    def update_regions(self, display, graphic_selection):
-        self.__graphics = copy.copy(display.graphics)
+    def update_graphics(self, graphics, graphic_selection, display_properties, display_values) -> None:
+        self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
-        self.__graphics_canvas_item.update_graphics(display.preview_2d_shape, self.__graphics, self.__graphic_selection)
+        self.__graphics_canvas_item.update_graphics(calculate_image_shape(display_values.data_and_metadata), self.__graphics, self.__graphic_selection)
         self.__graphics_changed = True
 
     def handle_auto_display(self, display) -> bool:
