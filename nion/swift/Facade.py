@@ -58,6 +58,7 @@ from nion.swift import Panel as PanelModule
 from nion.swift import Workspace
 from nion.swift.model import ApplicationData
 from nion.swift.model import DataItem as DataItemModule
+from nion.swift.model import DisplayItem as DisplayItemModule
 from nion.swift.model import Display as DisplayModule
 from nion.swift.model import DocumentModel as DocumentModelModule
 from nion.swift.model import Graphics
@@ -885,8 +886,13 @@ class DataItem(metaclass=SharedInstance):
         return ObjectSpecifier("data_item_object", self.__data_item.uuid)
 
     @property
-    def __display(self):
+    def __display_item(self) -> DisplayItemModule.DisplayItem:
         display_item = self.__data_item.container.get_display_item_for_data_item(self.__data_item) if self.__data_item.container else None
+        return display_item
+
+    @property
+    def __display(self):
+        display_item = self.__display_item
         return display_item.display if display_item else None
 
     @property
@@ -1190,7 +1196,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return [Graphic(graphic) for graphic in self.__display.graphics]
+        return [Graphic(graphic) for graphic in self.__display_item.graphics]
 
     @property
     def display(self) -> "Display":
@@ -1209,45 +1215,45 @@ class DataItem(metaclass=SharedInstance):
         """
         graphic = Graphics.PointGraphic()
         graphic.position = Geometry.FloatPoint(y, x)
-        self.__display.add_graphic(graphic)
+        self.__display_item.add_graphic(graphic)
         return Graphic(graphic)
 
     def add_rectangle_region(self, center_y: float, center_x: float, height: float, width: float) -> Graphic:
         graphic = Graphics.RectangleGraphic()
         graphic.center = Geometry.FloatPoint(center_y, center_x)
         graphic.size = Geometry.FloatSize(height, width)
-        self.__display.add_graphic(graphic)
+        self.__display_item.add_graphic(graphic)
         return Graphic(graphic)
 
     def add_ellipse_region(self, center_y: float, center_x: float, height: float, width: float) -> Graphic:
         graphic = Graphics.EllipseGraphic()
         graphic.center = Geometry.FloatPoint(center_y, center_x)
         graphic.size = Geometry.FloatSize(height, width)
-        self.__display.add_graphic(graphic)
+        self.__display_item.add_graphic(graphic)
         return Graphic(graphic)
 
     def add_line_region(self, start_y: float, start_x: float, end_y: float, end_x: float) -> Graphic:
         graphic = Graphics.LineGraphic()
         graphic.start = Geometry.FloatPoint(start_y, start_x)
         graphic.end = Geometry.FloatPoint(end_y, end_x)
-        self.__display.add_graphic(graphic)
+        self.__display_item.add_graphic(graphic)
         return Graphic(graphic)
 
     def add_interval_region(self, start: float, end: float) -> Graphic:
         graphic = Graphics.IntervalGraphic()
         graphic.start = start
         graphic.end = end
-        self.__display.add_graphic(graphic)
+        self.__display_item.add_graphic(graphic)
         return Graphic(graphic)
 
     def add_channel_region(self, position: float) -> Graphic:
         graphic = Graphics.ChannelGraphic()
         graphic.position = position
-        self.__display.add_graphic(graphic)
+        self.__display_item.add_graphic(graphic)
         return Graphic(graphic)
 
     def remove_region(self, graphic: Graphic) -> None:
-        self.__display.remove_graphic(graphic._graphic)
+        self.__display_item.remove_graphic(graphic._graphic)
 
     def mask_xdata(self) -> DataAndMetadata.DataAndMetadata:
         """Return the mask by combining any mask graphics on this data item as extended data.
@@ -1258,7 +1264,7 @@ class DataItem(metaclass=SharedInstance):
         """
         shape = self.__display.preview_2d_shape
         mask = numpy.zeros(shape)
-        for graphic in self.__display.graphics:
+        for graphic in self.__display_item.graphics:
             if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                 mask = numpy.logical_or(mask, graphic.get_mask(shape))
         return DataAndMetadata.DataAndMetadata.from_data(mask)
@@ -1394,7 +1400,15 @@ class Display(metaclass=SharedInstance):
         self.__display = display
 
     @property
-    def _display(self):
+    def __display_item(self) -> DisplayItemModule.DisplayItem:
+        return self.__display.container if self.__display else None
+
+    @property
+    def _display_item(self) -> DisplayItemModule.DisplayItem:
+        return self.__display_item
+
+    @property
+    def _display(self) -> DisplayModule.Display:
         return self.__display
 
     @property
@@ -1421,11 +1435,11 @@ class Display(metaclass=SharedInstance):
 
     @property
     def selected_graphics(self) -> typing.List[Graphic]:
-        return [Graphic(graphic) for graphic in self.__display.selected_graphics]
+        return [Graphic(graphic) for graphic in self.__display_item.selected_graphics]
 
     @property
     def graphics(self) -> typing.List[Graphic]:
-        return [Graphic(graphic) for graphic in self.__display.graphics]
+        return [Graphic(graphic) for graphic in self.__display_item.graphics]
 
     @property
     def data_item(self) -> DataItem:
@@ -1438,11 +1452,11 @@ class Display(metaclass=SharedInstance):
     def add_point_graphic(self, y: float, x: float) -> Graphic:
         graphic = Graphics.PointGraphic()
         graphic.position = Geometry.FloatPoint(y, x)
-        self.__display.add_graphic(graphic)
+        self.__display_item.add_graphic(graphic)
         return Graphic(graphic)
 
     def get_graphic_by_id(self, graphic_id: str) -> Graphic:
-        for graphic in self.__display.graphics:
+        for graphic in self.__display_item.graphics:
             if graphic.graphic_id == graphic_id:
                 return Graphic(graphic)
         return None

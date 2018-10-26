@@ -435,7 +435,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             intermediate_display_item = document_model.get_display_item_for_data_item(intermediate_data_item)
             intermediate_display = intermediate_display_item.display
             interval_region = Graphics.IntervalGraphic()
-            intermediate_display.add_graphic(interval_region)
+            intermediate_display_item.add_graphic(interval_region)
             target_data_item = document_model.get_invert_new(source_data_item)
             target_computation = document_model.get_data_item_computation(target_data_item)
             target_computation.create_object("interval", document_model.get_object_specifier(interval_region), label="I")
@@ -455,11 +455,10 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(source_data_item)
             intermediate_data_item = document_model.get_pick_region_new(source_data_item)
             intermediate_display_item = document_model.get_display_item_for_data_item(intermediate_data_item)
-            intermediate_display = intermediate_display_item.display
             interval_region1 = Graphics.IntervalGraphic()
-            intermediate_display.add_graphic(interval_region1)
+            intermediate_display_item.add_graphic(interval_region1)
             interval_region2 = Graphics.IntervalGraphic()
-            intermediate_display.add_graphic(interval_region2)
+            intermediate_display_item.add_graphic(interval_region2)
             target_data_item = document_model.get_invert_new(source_data_item)
             target_computation = document_model.get_data_item_computation(target_data_item)
             target_computation.create_object("interval1", document_model.get_object_specifier(interval_region1), label="I")
@@ -467,12 +466,12 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertIn(source_data_item, document_model.data_items)
             self.assertIn(intermediate_data_item, document_model.data_items)
             self.assertIn(target_data_item, document_model.data_items)
-            intermediate_display.remove_graphic(interval_region2)  # this will cascade delete target and then interval_region1
+            intermediate_display_item.remove_graphic(interval_region2)  # this will cascade delete target and then interval_region1
             self.assertIn(source_data_item, document_model.data_items)
             self.assertIn(intermediate_data_item, document_model.data_items)
             self.assertNotIn(target_data_item, document_model.data_items)
-            self.assertNotIn(interval_region1, intermediate_display.graphics)
-            self.assertNotIn(interval_region2, intermediate_display.graphics)
+            self.assertNotIn(interval_region1, intermediate_display_item.graphics)
+            self.assertNotIn(interval_region2, intermediate_display_item.graphics)
 
     def test_delete_graphic_with_two_dependencies_deletes_both_dependencies(self):
         document_model = DocumentModel.DocumentModel()

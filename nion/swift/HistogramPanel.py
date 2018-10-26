@@ -529,8 +529,9 @@ class HistogramPanel(Panel.Panel):
         def calculate_histogram_widget_data_func(display_data_and_metadata_model_func, display_range):
             return functools.partial(calculate_histogram_widget_data, display_data_and_metadata_model_func, display_range)
 
+        display_item_stream = TargetDisplayItemStream(document_controller)
         display_stream = TargetDisplayStream(document_controller)
-        region_stream = TargetRegionStream(display_stream)
+        region_stream = TargetRegionStream(display_item_stream)
         def compare_data(a, b):
             return numpy.array_equal(a.data if a else None, b.data if b else None)
         display_data_and_metadata_stream = DisplayTransientsStream(display_stream, "display_data_and_metadata", cmp=compare_data)
@@ -650,6 +651,36 @@ class TargetDataItemStream(Stream.AbstractStream):
             self.__value = data_item
 
 
+class TargetDisplayItemStream(Stream.AbstractStream):
+
+    def __init__(self, document_controller):
+        super().__init__()
+        # outgoing messages
+        self.value_stream = Event.Event()
+        # cached values
+        self.__value = None
+        # listen for selected data item changes
+        self.__focused_display_item_changed_event_listener = document_controller.focused_display_item_changed_event.listen(self.__focused_display_item_changed)
+        # manually send the first data item changed message to set things up.
+        self.__focused_display_item_changed(document_controller.selected_display_item)
+
+    def close(self):
+        # disconnect data item binding
+        self.__focused_display_item_changed(None)
+        self.__focused_display_item_changed_event_listener.close()
+        self.__focused_display_item_changed_event_listener = None
+        super().close()
+
+    @property
+    def value(self):
+        return self.__value
+
+    def __focused_display_item_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
+        if display_item != self.__value:
+            self.value_stream.fire(display_item)
+            self.__value = display_item
+
+
 class TargetDisplayStream(Stream.AbstractStream):
 
     def __init__(self, document_controller):
@@ -683,37 +714,37 @@ class TargetDisplayStream(Stream.AbstractStream):
 
 class TargetRegionStream(Stream.AbstractStream):
 
-    def __init__(self, display_stream):
+    def __init__(self, display_item_stream):
         super().__init__()
         # outgoing messages
         self.value_stream = Event.Event()
         # references
-        self.__display_stream = display_stream.add_ref()
+        self.__display_item_stream = display_item_stream.add_ref()
         # initialize
         self.__display_graphic_selection_changed_event_listener = None
         self.__value = None
         # listen for display changes
-        self.__display_stream_listener = display_stream.value_stream.listen(self.__display_changed)
+        self.__display_stream_listener = display_item_stream.value_stream.listen(self.__display_item_changed)
         self.__graphic_changed_event_listener = None
-        self.__display_changed(display_stream.value)
+        self.__display_item_changed(display_item_stream.value)
 
     def close(self):
-        self.__display_changed(None)
+        self.__display_item_changed(None)
         self.__display_stream_listener.close()
         self.__display_stream_listener = None
-        self.__display_stream.remove_ref()
-        self.__display_stream = None
+        self.__display_item_stream.remove_ref()
+        self.__display_item_stream = None
         super().close()
 
     @property
     def value(self):
         return self.__value
 
-    def __display_changed(self, display):
+    def __display_item_changed(self, display_item):
         def display_graphic_selection_changed(graphic_selection):
             current_index = graphic_selection.current_index
             if current_index is not None:
-                new_value = display.graphics[current_index]
+                new_value = display_item.graphics[current_index]
                 if new_value != self.__value:
                     self.__value = new_value
                     def graphic_changed():
@@ -733,9 +764,9 @@ class TargetRegionStream(Stream.AbstractStream):
         if self.__display_graphic_selection_changed_event_listener:
             self.__display_graphic_selection_changed_event_listener.close()
             self.__display_graphic_selection_changed_event_listener = None
-        if display:
-            self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
-            display_graphic_selection_changed(display.graphic_selection)
+        if display_item and display_item.display:
+            self.__display_graphic_selection_changed_event_listener = display_item.display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
+            display_graphic_selection_changed(display_item.graphic_selection)
         elif self.__value is not None:
             self.__value = None
             self.value_stream.fire(None)

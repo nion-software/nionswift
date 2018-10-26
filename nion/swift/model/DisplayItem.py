@@ -409,6 +409,10 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         return self.display.graphic_selection
 
     @property
+    def selected_graphics(self) -> typing.Sequence[Graphics.Graphic]:
+        return [self.graphics[i] for i in self.graphic_selection.indexes]
+
+    @property
     def size_and_data_format_as_string(self) -> str:
         return self.data_item.size_and_data_format_as_string
 
