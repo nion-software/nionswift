@@ -289,7 +289,8 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         return False
 
 
-def create_display_canvas_item(display_type: str, get_font_metrics_fn, delegate, event_loop, draw_background: bool=True):
+def create_display_canvas_item(display_item: DisplayItem.DisplayItem, get_font_metrics_fn, delegate, event_loop, draw_background: bool=True):
+    display_type = display_item.used_display_type
     if display_type == "line_plot":
         return LinePlotCanvasItem.LinePlotCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
     elif display_type == "image":
@@ -312,22 +313,22 @@ class DisplayTypeMonitor:
     Provides the display_type r/o property.
     """
 
-    def __init__(self, display):
+    def __init__(self, display_item: DisplayItem.DisplayItem):
         self.display_type_changed_event = Event.Event()
         self.__display_changed_event_listener = None
         self.__display_type = None
         self.__first = True  # handle case where there is no data, so display_type is always None and doesn't change
-        if display:
-            self.__display_changed_event_listener = display.display_changed_event.listen(functools.partial(self.__update_display_type, display))
-        self.__update_display_type(display)
+        if display_item.display:
+            self.__display_changed_event_listener = display_item.display.display_changed_event.listen(functools.partial(self.__update_display_type, display_item))
+        self.__update_display_type(display_item)
 
     def close(self):
         if self.__display_changed_event_listener:
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
 
-    def __update_display_type(self, display):
-        display_type = display.actual_display_type if display else None
+    def __update_display_type(self, display_item: DisplayItem.DisplayItem) -> None:
+        display_type = display_item.used_display_type if display_item else None
         if self.__display_type != display_type or self.__first:
             self.__display_type = display_type
             self.display_type_changed_event.fire(display_type)
@@ -490,17 +491,17 @@ class DisplayTracker:
 
         # create a canvas item and add it to the container canvas item.
 
-        self.__display_canvas_item = create_display_canvas_item(display.actual_display_type, get_font_metrics, delegate, event_loop, draw_background=self.__draw_background)
+        self.__display_canvas_item = create_display_canvas_item(display_item, get_font_metrics, delegate, event_loop, draw_background=self.__draw_background)
 
         def display_type_changed(display_type):
             # called when the display type of the data item changes.
             old_display_canvas_item = self.__display_canvas_item
-            new_display_canvas_item = create_display_canvas_item(display_type, self.__get_font_metrics, self.__delegate, self.__event_loop, draw_background=self.__draw_background)
+            new_display_canvas_item = create_display_canvas_item(display_item, self.__get_font_metrics, self.__delegate, self.__event_loop, draw_background=self.__draw_background)
             if callable(self.on_replace_display_canvas_item):
                 self.on_replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item)
             self.__display_canvas_item = new_display_canvas_item
 
-        self.__display_type_monitor = DisplayTypeMonitor(display)
+        self.__display_type_monitor = DisplayTypeMonitor(display_item)
         self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
 
         def display_graphic_selection_changed(graphic_selection):
@@ -1722,10 +1723,9 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
 
 def preview(ui, display_item: DisplayItem.DisplayItem, width: int, height: int) -> DrawingContext.DrawingContext:
     display = display_item.display
-    display_type = display.actual_display_type
     display_values = display.get_calculated_display_values(True)
     drawing_context = DrawingContext.DrawingContext()
-    display_canvas_item = create_display_canvas_item(display_type, ui.get_font_metrics, None, None, draw_background=False)
+    display_canvas_item = create_display_canvas_item(display_item, ui.get_font_metrics, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
             display_properties = Display.DisplayProperties(display)

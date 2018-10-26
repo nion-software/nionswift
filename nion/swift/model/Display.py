@@ -8,10 +8,8 @@ import functools
 import gettext
 import math
 import numbers
-import operator
 import threading
 import typing
-import uuid
 import weakref
 
 import numpy
@@ -738,23 +736,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.slice_width = 1
             self.slice_center = self.slice_center
             self.slice_width = old_slice_width
-
-    @property
-    def actual_display_type(self):
-        display_type = self.display_type
-        data_and_metadata = self.__data_and_metadata
-        valid_data = functools.reduce(operator.mul, self.preview_2d_shape) > 0 if self.preview_2d_shape is not None else False
-        if valid_data and data_and_metadata and not display_type in ("line_plot", "image", "display_script"):
-            if data_and_metadata.collection_dimension_count == 2 and data_and_metadata.datum_dimension_count == 1:
-                display_type = "image"
-            elif data_and_metadata.datum_dimension_count == 1:
-                display_type = "line_plot"
-            elif data_and_metadata.datum_dimension_count == 2:
-                display_type = "image"
-            # override
-            if self.display_script:
-                display_type = "display_script"
-        return display_type
 
     @property
     def slice_interval(self):

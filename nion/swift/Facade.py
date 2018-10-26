@@ -1271,6 +1271,7 @@ class DataItem(metaclass=SharedInstance):
 
     def data_item_to_svg(self):
 
+        display_item = self.__display_item
         display = self.__display
 
         FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
@@ -1278,7 +1279,7 @@ class DataItem(metaclass=SharedInstance):
         def get_font_metrics(font, text):
             return FontMetrics(width=6.5 * len(text), height=15, ascent=12, descent=3, leading=0)
 
-        display_canvas_item = DisplayPanelModule.create_display_canvas_item(display.actual_display_type, None, None, None, draw_background=False)
+        display_canvas_item = DisplayPanelModule.create_display_canvas_item(display_item, None, None, None, draw_background=False)
         aspect_ratio = display_canvas_item.default_aspect_ratio
 
         view_box = Geometry.IntRect(Geometry.IntPoint(), Geometry.IntSize(width=320 * 1.25, height=240 * 1.25))
