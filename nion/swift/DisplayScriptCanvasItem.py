@@ -89,7 +89,7 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
     def update_graphics(self, graphics, graphic_selection, display_properties, display_values):
         pass
 
-    def handle_auto_display(self, display) -> bool:
+    def handle_auto_display(self) -> bool:
         # enter key has been pressed
         return False
 

@@ -429,7 +429,7 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
     def update_graphics(self, graphics, graphic_selection, display_properties, display_values) -> None:
         pass
 
-    def handle_auto_display(self, display) -> bool:
+    def handle_auto_display(self) -> bool:
         # enter key has been pressed
         return False
 
@@ -1482,7 +1482,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def enter_key_pressed(self):
         display = self.__get_display()
         command = ChangeDisplayCommand(self.__document_controller.document_model, display)
-        result = self.display_canvas_item.handle_auto_display(display)
+        result = self.display_canvas_item.handle_auto_display()
         if result:
             self.__document_controller.push_undo_command(command)
         else:

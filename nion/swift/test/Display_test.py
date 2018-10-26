@@ -440,7 +440,8 @@ class TestDisplayClass(unittest.TestCase):
 
     def test_auto_display_limits_works(self):
         document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
             data = numpy.empty((100, 100))
             data[0:50, :] = 1
             data[50:100, :] = 2
@@ -449,8 +450,11 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.enter_key_pressed()
             display = display_item.display
-            display.auto_display_limits()
             low, high = display.display_limits
             self.assertAlmostEqual(low, 0.0)
             self.assertAlmostEqual(high, 3.0)

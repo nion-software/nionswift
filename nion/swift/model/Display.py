@@ -653,16 +653,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.y_min = data_min * 1.2
             self.y_max = data_max * 1.2
 
-    def view_to_selected_graphics(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
-        """Change the view to encompass the selected graphic intervals."""
-        all_graphics = self.graphics
-        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.graphic_selection.contains(graphic_index)]
-        intervals = list()
-        for graphic in graphics:
-            if isinstance(graphic, Graphics.IntervalGraphic):
-                intervals.append(graphic.interval)
-        self.view_to_intervals(data_and_metadata, intervals)
-
     @property
     def preview_2d_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
         if not self.__data_and_metadata:

@@ -3,6 +3,7 @@ import collections
 import copy
 import math
 import threading
+import typing
 
 # third party libraries
 import numpy
@@ -360,10 +361,46 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
         self.__line_graph_regions_canvas_item.set_regions(regions)
 
-    def handle_auto_display(self, display) -> bool:
-        # enter key has been pressed
-        data_and_metadata = display.data_and_metadata_for_display_panel
-        display.view_to_selected_graphics(data_and_metadata)
+    def __view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
+        """Change the view to encompass the channels and data represented by the given intervals."""
+        left = None
+        right = None
+        for interval in intervals:
+            left = min(left, interval[0]) if left is not None else interval[0]
+            right = max(right, interval[1]) if right is not None else interval[1]
+        left = left if left is not None else 0.0
+        right = right if right is not None else 1.0
+        extra = (right - left) * 0.5
+        left_channel = int(max(0.0, left - extra) * data_and_metadata.data_shape[-1])
+        right_channel = int(min(1.0, right + extra) * data_and_metadata.data_shape[-1])
+        data_min = numpy.amin(data_and_metadata.data[..., left_channel:right_channel])
+        data_max = numpy.amax(data_and_metadata.data[..., left_channel:right_channel])
+        if data_min > 0 and data_max > 0:
+            y_min = 0.0
+            y_max = data_max * 1.2
+        elif data_min < 0 and data_max < 0:
+            y_min = data_min * 1.2
+            y_max = 0.0
+        else:
+            y_min = data_min * 1.2
+            y_max = data_max * 1.2
+        # command = self.delegate.create_change_display_command()
+        self.delegate.update_display_properties({"left_channel": left_channel, "right_channel": right_channel, "y_min": y_min, "y_max": y_max})
+        # self.delegate.push_undo_command(command)
+
+    def __view_to_selected_graphics(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
+        """Change the view to encompass the selected graphic intervals."""
+        all_graphics = self.__graphics
+        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__graphic_selection.contains(graphic_index)]
+        intervals = list()
+        for graphic in graphics:
+            if isinstance(graphic, Graphics.IntervalGraphic):
+                intervals.append(graphic.interval)
+        self.__view_to_intervals(data_and_metadata, intervals)
+
+    def handle_auto_display(self) -> bool:
+        if len(self.__xdata_list) > 0:
+            self.__view_to_selected_graphics(self.__xdata_list[0])
         return True
 
     def prepare_display(self):

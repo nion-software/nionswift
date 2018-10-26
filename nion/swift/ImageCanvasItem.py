@@ -425,6 +425,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__image_canvas_mode = "fit"
 
         self.__last_display_values = None
+        self.__last_display_xdata = None
         self.__graphics_changed = False
 
         # create the child canvas items
@@ -504,6 +505,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
     def update_display_values(self, display_properties, display_values) -> None:
         # threadsafe
+        self.__last_display_xdata = display_values.display_data_and_metadata
         data_and_metadata = display_values.data_and_metadata
         if data_and_metadata:
             displayed_dimensional_calibrations = display_properties.displayed_dimensional_calibrations
@@ -596,9 +598,18 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__graphics_canvas_item.update_graphics(calculate_image_shape(display_values.data_and_metadata), self.__graphics, self.__graphic_selection)
         self.__graphics_changed = True
 
-    def handle_auto_display(self, display) -> bool:
-        # enter key has been pressed
-        display.auto_display_limits()
+    def handle_auto_display(self) -> bool:
+        # enter key has been pressed. calculate best display limits and set them.
+        if self.__last_display_xdata:
+            display_data_and_metadata = self.__last_display_xdata
+            data = display_data_and_metadata.data if display_data_and_metadata else None
+            if data is not None:
+                # The old algorithm was a problem during EELS where the signal data
+                # is a small percentage of the overall data and was falling outside
+                # the included range. This is the new simplified algorithm. Future
+                # feature may allow user to select more complex algorithms.
+                mn, mx = numpy.nanmin(data), numpy.nanmax(data)
+                self.delegate.update_display_properties({"display_limits": (mn, mx)})
         return True
 
     def __update_image_canvas_zoom(self, new_image_zoom):
