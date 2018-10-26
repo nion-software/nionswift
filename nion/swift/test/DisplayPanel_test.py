@@ -17,7 +17,7 @@ from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
 from nion.swift import Thumbnails
 from nion.swift.model import DataItem
-from nion.swift.model import Display
+from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.ui import CanvasItem
@@ -38,7 +38,7 @@ class TestGraphicSelectionClass(unittest.TestCase):
         pass
 
     def test_selection_set(self):
-        selection = Display.GraphicSelection()
+        selection = DisplayItem.GraphicSelection()
         selection.set(0)
         selection.set(1)
         self.assertEqual(len(selection.indexes), 1)

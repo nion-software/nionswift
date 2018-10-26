@@ -867,11 +867,11 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
 
     def _get_modified_state(self):
         display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        return display_item.display.modified_state, self.__document_model.modified_state
+        return display_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
         display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        display_item.display.modified_state, self.__document_model.modified_state = modified_state
+        display_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
@@ -1830,7 +1830,7 @@ class GraphicsInspectorSection(InspectorSection):
         # create the widgets for each graphic
         # TODO: do not use dynamic list object in graphics inspector; the dynamic aspect is not utilized.
         list_widget = Widgets.TableWidget(ui, lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
-        list_widget.bind_items(Binding.ListBinding(display, "selected_graphics" if selected_only else "graphics"))
+        list_widget.bind_items(Binding.ListBinding(display_item, "selected_graphics" if selected_only else "graphics"))
         self.add_widget_to_content(list_widget)
         # create the display calibrations check box row
         display_calibrations_row = self.ui.create_row_widget()

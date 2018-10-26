@@ -490,7 +490,9 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
                     if data_item_uuid_str in display_item_properties.get("data_item_references", list()):
                         display_item_references.append(display_item_properties["uuid"])
         data_item_to_display_item_map = dict()
+        display_to_display_item_map = dict()
         for display_item_properties in library_storage_properties.get("display_items", list()):
+            display_to_display_item_map[display_item_properties["display"]["uuid"]] = display_item_properties["uuid"]
             for data_item_uuid_str in display_item_properties.get("data_item_references", list()):
                 data_item_to_display_item_map.setdefault(data_item_uuid_str, display_item_properties["uuid"])
         for workspace_properties in library_storage_properties.get("workspaces", list()):
@@ -504,6 +506,11 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
                     if display_item_uuid_str:
                         d["display_item_uuid"] = display_item_uuid_str
             replace1(workspace_properties["layout"])
+        for connection_dict in library_storage_properties.get("connections", list()):
+            if connection_dict["type"] == "interval-list-connection":
+                source_uuid_str = connection_dict["source_uuid"]
+                connection_dict["source_uuid"] = display_to_display_item_map.get(source_uuid_str, None)
+
         library_storage_properties["version"] = DocumentModel.DocumentModel.library_version
 
     # TODO: add consistency checks: no duplicated items [by uuid] such as connections or computations or data items

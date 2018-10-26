@@ -413,7 +413,7 @@ class TransactionManager:
                     self.__get_deep_transaction_item_set(connection._source, items)
             for item in items - old_items:
                 if isinstance(item, Graphics.Graphic):
-                    self.__get_deep_transaction_item_set(item.container.container, items)
+                    self.__get_deep_transaction_item_set(item.container, items)
 
     def __get_deep_dependent_item_set(self, item, item_set) -> None:
         """Return the list of data items containing data that directly depends on data in this item."""
@@ -1134,7 +1134,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 item.begin_reading()
                 item.read_from_dict(properties)
                 item.finish_reading()
-                self.get_display_by_uuid(uuid.UUID(entry["container"])).insert_graphic(index, item)
+                self.get_display_item_by_uuid(uuid.UUID(entry["container"])).insert_graphic(index, item)
             elif name == "connections":
                 item = Connection.connection_factory(properties.get)
                 item.begin_reading()
@@ -2656,7 +2656,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     connection = Connection.PropertyConnection(display0, connection_src_prop, new_regions[connection_dst], connection_dst_prop, parent=new_data_item)
                     self.append_connection(connection)
             elif connection_type == "interval_list":
-                connection = Connection.IntervalListConnection(display, region_map[connection_dst], parent=new_data_item)
+                connection = Connection.IntervalListConnection(display_item, region_map[connection_dst], parent=new_data_item)
                 self.append_connection(connection)
 
         # save setting the computation until last to work around threaded clone/merge operation bug.

@@ -1493,11 +1493,11 @@ class DocumentController(Window.Window):
 
         def _get_modified_state(self):
             display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
-            return display_item.display.modified_state, self.__document_controller.document_model.modified_state
+            return display_item.modified_state, self.__document_controller.document_model.modified_state
 
         def _set_modified_state(self, modified_state):
             display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
-            display_item.display.modified_state, self.__document_controller.document_model.modified_state = modified_state
+            display_item.modified_state, self.__document_controller.document_model.modified_state = modified_state
 
         def _undo(self):
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()

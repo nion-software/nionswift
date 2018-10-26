@@ -3,6 +3,7 @@ import copy
 import datetime
 import functools
 import gettext
+import numbers
 import operator
 import threading
 import time
@@ -25,6 +26,130 @@ from nion.utils import Persistence
 _ = gettext.gettext
 
 
+class GraphicSelection:
+    def __init__(self, indexes=None, anchor_index=None):
+        super().__init__()
+        self.__changed_event = Event.Event()
+        self.__indexes = copy.copy(indexes) if indexes else set()
+        self.__anchor_index = anchor_index
+
+    def __copy__(self):
+        return type(self)(self.__indexes, self.__anchor_index)
+
+    def __eq__(self, other):
+        return other is not None and self.indexes == other.indexes and self.anchor_index == other.anchor_index
+
+    def __ne__(self, other):
+        return other is None or self.indexes != other.indexes or self.anchor_index != other.anchor_index
+
+    @property
+    def changed_event(self):
+        return self.__changed_event
+
+    @property
+    def current_index(self):
+        if len(self.__indexes) == 1:
+            for index in self.__indexes:
+                return index
+        return None
+
+    @property
+    def anchor_index(self):
+        return self.__anchor_index
+
+    @property
+    def has_selection(self):
+        return len(self.__indexes) > 0
+
+    def contains(self, index):
+        return index in self.__indexes
+
+    @property
+    def indexes(self):
+        return self.__indexes
+
+    def clear(self):
+        old_index = self.__indexes.copy()
+        self.__indexes = set()
+        self.__anchor_index = None
+        if old_index != self.__indexes:
+            self.__changed_event.fire()
+
+    def __update_anchor_index(self):
+        for index in self.__indexes:
+            if self.__anchor_index is None or index < self.__anchor_index:
+                self.__anchor_index = index
+
+    def add(self, index):
+        assert isinstance(index, numbers.Integral)
+        old_index = self.__indexes.copy()
+        self.__indexes.add(index)
+        if len(old_index) == 0:
+            self.__anchor_index = index
+        if old_index != self.__indexes:
+            self.__changed_event.fire()
+
+    def remove(self, index):
+        assert isinstance(index, numbers.Integral)
+        old_index = self.__indexes.copy()
+        self.__indexes.remove(index)
+        if not self.__anchor_index in self.__indexes:
+            self.__update_anchor_index()
+        if old_index != self.__indexes:
+            self.__changed_event.fire()
+
+    def add_range(self, range):
+        for index in range:
+            self.add(index)
+
+    def set(self, index):
+        assert isinstance(index, numbers.Integral)
+        old_index = self.__indexes.copy()
+        self.__indexes = set()
+        self.__indexes.add(index)
+        self.__anchor_index = index
+        if old_index != self.__indexes:
+            self.__changed_event.fire()
+
+    def toggle(self, index):
+        assert isinstance(index, numbers.Integral)
+        if index in self.__indexes:
+            self.remove(index)
+        else:
+            self.add(index)
+
+    def insert_index(self, new_index):
+        new_indexes = set()
+        for index in self.__indexes:
+            if index < new_index:
+                new_indexes.add(index)
+            else:
+                new_indexes.add(index + 1)
+        if self.__anchor_index is not None:
+            if new_index <= self.__anchor_index:
+                self.__anchor_index += 1
+        if self.__indexes != new_indexes:
+            self.__indexes = new_indexes
+            self.changed_event.fire()
+
+    def remove_index(self, remove_index):
+        new_indexes = set()
+        for index in self.__indexes:
+            if index != remove_index:
+                if index > remove_index:
+                    new_indexes.add(index - 1)
+                else:
+                    new_indexes.add(index)
+        if self.__anchor_index is not None:
+            if remove_index == self.__anchor_index:
+                self.__update_anchor_index()
+            elif remove_index < self.__anchor_index:
+                self.__anchor_index -= 1
+        if self.__indexes != new_indexes:
+            self.__indexes = new_indexes
+            self.changed_event.fire()
+
+
 class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, item_uuid=None):
         super().__init__()
@@ -34,12 +159,14 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
         # this is not my favorite solution since it limits library item creation to 1000/s but until I find a better solution, this is my compromise.
         time.sleep(0.001)
+        self.define_property("display_type", changed=self.__display_type_changed)
         self.define_property("title", hidden=True, changed=self.__property_changed)
         self.define_property("caption", hidden=True, changed=self.__property_changed)
         self.define_property("description", hidden=True, changed=self.__property_changed)
         self.define_property("session_id", hidden=True, changed=self.__property_changed)
         self.define_property("data_item_references", list(), changed=self.__property_changed)
         self.define_item("display", Display.display_factory, self.__display_changed)
+        self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.__data_items = list()
         self.__data_item_will_change_listeners = list()
         self.__data_item_did_change_listeners = list()
@@ -47,10 +174,12 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__data_item_data_item_changed_listeners = list()
         self.__data_item_data_changed_listeners = list()
         self.__data_item_description_changed_listeners = list()
+        self.__graphic_changed_listeners = list()
         self.__suspendable_storage_cache = None
         self.__display_item_change_count = 0
         self.__display_item_change_count_lock = threading.RLock()
         self.__display_ref_count = 0
+        self.graphic_selection = GraphicSelection()
         self.graphic_selection_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
         self.about_to_be_removed_event = Event.Event()
@@ -90,6 +219,10 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             data_item_description_changed_listener.close()
         self.__data_item_description_changed_listeners = list()
         self.__data_items = list()
+        for graphic in copy.copy(self.graphics):
+            self.__disconnect_graphic(graphic, 0)
+            graphic.close()
+        self.graphic_selection = None
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
@@ -108,6 +241,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item_copy.created = self.created
         # display
         display_item_copy.display = copy.deepcopy(self.display)
+        for graphic in self.graphics:
+            display_item_copy.add_graphic(copy.deepcopy(graphic))
         display_item_copy.data_item_references = copy.deepcopy(self.data_item_references)
         memo[id(self)] = display_item_copy
         return display_item_copy
@@ -125,6 +260,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
+        for graphic in self.graphics:
+            graphic.about_to_be_removed()
         self.about_to_be_removed_event.fire()
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
@@ -164,6 +301,11 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         super().notify_property_changed(key)
         self._notify_display_item_content_changed()
 
+    def __display_type_changed(self, name, value):
+        self.__property_changed(name, value)
+        self.display._display_type = value
+        self.display.display_changed_event.fire()
+
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
         if name == "title":
@@ -173,6 +315,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item = self.__class__()
         display_item.uuid = self.uuid
         display_item.display = self.display.clone()
+        for graphic in self.graphics:
+            display_item.add_graphic(graphic.clone())
         return display_item
 
     def snapshot(self):
@@ -185,6 +329,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item._set_persistent_property_value("session_id", self._get_persistent_property_value("session_id"))
         display_item.created = self.created
         display_item.display = copy.deepcopy(self.display)
+        for graphic in self.graphics:
+            display_item.add_graphic(graphic.snapshot())
         return display_item
 
     def set_storage_cache(self, storage_cache):
@@ -403,25 +549,46 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         return self.__data_items[0] if len(self.__data_items) == 1 else None
 
     @property
-    def graphics(self) -> typing.Sequence[Graphics.Graphic]:
-        return self.display.graphics
-
-    def insert_graphic(self, before_index: int, graphic: Graphics.Graphic) -> None:
-        self.display.insert_graphic(before_index, graphic)
-
-    def add_graphic(self, graphic: Graphics.Graphic) -> None:
-        self.display.add_graphic(graphic)
-
-    def remove_graphic(self, graphic: Graphics.Graphic, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
-        return self.display.remove_graphic(graphic, safe=safe)
-
-    @property
-    def graphic_selection(self):
-        return self.display.graphic_selection
-
-    @property
     def selected_graphics(self) -> typing.Sequence[Graphics.Graphic]:
         return [self.graphics[i] for i in self.graphic_selection.indexes]
+
+    def __insert_graphic(self, name, before_index, graphic):
+        graphic.about_to_be_inserted(self)
+        graphic_changed_listener = graphic.graphic_changed_event.listen(functools.partial(self.__graphic_changed, graphic))
+        self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
+        self.graphic_selection.insert_index(before_index)
+        self.display.display_changed_event.fire()
+        self.notify_insert_item("graphics", graphic, before_index)
+
+    def __remove_graphic(self, name, index, graphic):
+        graphic.about_to_be_removed()
+        self.__disconnect_graphic(graphic, index)
+        graphic.close()
+
+    def __disconnect_graphic(self, graphic, index):
+        graphic_changed_listener = self.__graphic_changed_listeners[index]
+        graphic_changed_listener.close()
+        self.__graphic_changed_listeners.remove(graphic_changed_listener)
+        self.graphic_selection.remove_index(index)
+        self.display.display_changed_event.fire()
+        self.notify_remove_item("graphics", graphic, index)
+
+    def insert_graphic(self, before_index, graphic):
+        """Insert a graphic before the index, but do it through the container, so dependencies can be tracked."""
+        self.insert_model_item(self, "graphics", before_index, graphic)
+
+    def add_graphic(self, graphic):
+        """Append a graphic, but do it through the container, so dependencies can be tracked."""
+        self.insert_model_item(self, "graphics", self.item_count("graphics"), graphic)
+
+    def remove_graphic(self, graphic: Graphics.Graphic, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+        """Remove a graphic, but do it through the container, so dependencies can be tracked."""
+        return self.remove_model_item(self, "graphics", graphic, safe=safe)
+
+    # this message comes from the graphic. the connection is established when a graphic
+    # is added or removed from this object.
+    def __graphic_changed(self, graphic):
+        self.display.display_changed_event.fire()
 
     @property
     def size_and_data_format_as_string(self) -> str:

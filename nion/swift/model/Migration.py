@@ -120,7 +120,8 @@ def migrate_to_v13(reader_info_list, library_updates, migration_log: MigrationLo
 
                 display_properties_list = properties.pop("displays")
 
-                for display_properties in display_properties_list:
+                if len(display_properties_list) > 0:
+                    display_properties = display_properties_list[0]
                     display_item_properties = dict()
                     display_item_properties["type"] = "display_item"
                     display_item_properties["uuid"] = str(uuid.uuid4())
@@ -136,6 +137,8 @@ def migrate_to_v13(reader_info_list, library_updates, migration_log: MigrationLo
                     if not display_item_properties.get("calibration_style_id", None):
                         display_item_properties["calibration_style_id"] = "calibrated"
                     display_item_properties["display"] = display_properties
+                    display_item_properties["display_type"] = display_properties.pop("display_type", None)
+                    display_item_properties["graphics"] = display_properties.pop("graphics", list())
                     display_items.append(display_item_properties)
                     display_item_properties["data_item_references"] = [data_item_uuid_str]
                     display_item_properties["session_id"] = session_id

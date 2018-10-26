@@ -1519,7 +1519,7 @@ class TestStorageClass(unittest.TestCase):
             display_item = document_model.display_items[0]
             self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
             self.assertTrue("uuid" in display_item.properties["display"])
-            self.assertTrue("uuid" in display_item.properties["display"]["graphics"][0])
+            self.assertTrue("uuid" in display_item.properties["graphics"][0])
 
     def test_data_items_v3_migration(self):
         # construct v3 data item

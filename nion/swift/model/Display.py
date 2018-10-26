@@ -4,10 +4,8 @@
 
 # standard libraries
 import copy
-import functools
 import gettext
 import math
-import numbers
 import threading
 import typing
 import weakref
@@ -20,7 +18,6 @@ from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import Cache
 from nion.swift.model import ColorMaps
-from nion.swift.model import Graphics
 from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Persistence
@@ -53,130 +50,6 @@ class CalibrationList:
         for calibration in self.list:
             list.append(calibration.write_dict())
         return list
-
-
-class GraphicSelection:
-    def __init__(self, indexes=None, anchor_index=None):
-        super().__init__()
-        self.__changed_event = Event.Event()
-        self.__indexes = copy.copy(indexes) if indexes else set()
-        self.__anchor_index = anchor_index
-
-    def __copy__(self):
-        return type(self)(self.__indexes, self.__anchor_index)
-
-    def __eq__(self, other):
-        return other is not None and self.indexes == other.indexes and self.anchor_index == other.anchor_index
-
-    def __ne__(self, other):
-        return other is None or self.indexes != other.indexes or self.anchor_index != other.anchor_index
-
-    @property
-    def changed_event(self):
-        return self.__changed_event
-
-    @property
-    def current_index(self):
-        if len(self.__indexes) == 1:
-            for index in self.__indexes:
-                return index
-        return None
-
-    @property
-    def anchor_index(self):
-        return self.__anchor_index
-
-    @property
-    def has_selection(self):
-        return len(self.__indexes) > 0
-
-    def contains(self, index):
-        return index in self.__indexes
-
-    @property
-    def indexes(self):
-        return self.__indexes
-
-    def clear(self):
-        old_index = self.__indexes.copy()
-        self.__indexes = set()
-        self.__anchor_index = None
-        if old_index != self.__indexes:
-            self.__changed_event.fire()
-
-    def __update_anchor_index(self):
-        for index in self.__indexes:
-            if self.__anchor_index is None or index < self.__anchor_index:
-                self.__anchor_index = index
-
-    def add(self, index):
-        assert isinstance(index, numbers.Integral)
-        old_index = self.__indexes.copy()
-        self.__indexes.add(index)
-        if len(old_index) == 0:
-            self.__anchor_index = index
-        if old_index != self.__indexes:
-            self.__changed_event.fire()
-
-    def remove(self, index):
-        assert isinstance(index, numbers.Integral)
-        old_index = self.__indexes.copy()
-        self.__indexes.remove(index)
-        if not self.__anchor_index in self.__indexes:
-            self.__update_anchor_index()
-        if old_index != self.__indexes:
-            self.__changed_event.fire()
-
-    def add_range(self, range):
-        for index in range:
-            self.add(index)
-
-    def set(self, index):
-        assert isinstance(index, numbers.Integral)
-        old_index = self.__indexes.copy()
-        self.__indexes = set()
-        self.__indexes.add(index)
-        self.__anchor_index = index
-        if old_index != self.__indexes:
-            self.__changed_event.fire()
-
-    def toggle(self, index):
-        assert isinstance(index, numbers.Integral)
-        if index in self.__indexes:
-            self.remove(index)
-        else:
-            self.add(index)
-
-    def insert_index(self, new_index):
-        new_indexes = set()
-        for index in self.__indexes:
-            if index < new_index:
-                new_indexes.add(index)
-            else:
-                new_indexes.add(index + 1)
-        if self.__anchor_index is not None:
-            if new_index <= self.__anchor_index:
-                self.__anchor_index += 1
-        if self.__indexes != new_indexes:
-            self.__indexes = new_indexes
-            self.changed_event.fire()
-
-    def remove_index(self, remove_index):
-        new_indexes = set()
-        for index in self.__indexes:
-            if index != remove_index:
-                if index > remove_index:
-                    new_indexes.add(index - 1)
-                else:
-                    new_indexes.add(index)
-        if self.__anchor_index is not None:
-            if remove_index == self.__anchor_index:
-                self.__update_anchor_index()
-            elif remove_index < self.__anchor_index:
-                self.__anchor_index -= 1
-        if self.__indexes != new_indexes:
-            self.__indexes = new_indexes
-            self.changed_event.fire()
 
 
 def calculate_display_range(display_limits, data_range, data_sample, xdata, complex_display_type):
@@ -394,8 +267,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__container_weak_ref = None
         self.__cache = Cache.ShadowCache()
         self.__color_map_data = None
-        # display type to use
-        self.define_property("display_type", changed=self.__property_changed)
         # conversion to scalar
         self.define_property("complex_display_type", changed=self.__property_changed)
         # calibration display
@@ -424,8 +295,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
         # display script
         self.define_property("display_script", changed=self.__property_changed)
-        # graphics
-        self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
 
         self.item_changed_event = Event.Event()  # for indicated this display has mutated somehow
 
@@ -435,13 +304,12 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__last_display_values = None
         self.__current_display_values = None
         self.__is_master = True
+        self._display_type = None  # set by the display item
 
         self.display_values_changed_event = Event.Event()
         self.__calculated_display_values_available_event = Event.Event()
 
-        self.__graphic_changed_listeners = list()
         self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
-        self.graphic_selection = GraphicSelection()
         self.about_to_be_removed_event = Event.Event()
         self.display_changed_event = Event.Event()
         self.display_data_will_change_event = Event.Event()
@@ -449,10 +317,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self._closed = False
 
     def close(self):
-        for graphic in copy.copy(self.graphics):
-            self.__disconnect_graphic(graphic, 0)
-            graphic.close()
-        self.graphic_selection = None
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
@@ -476,7 +340,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.collection_index,
             self.slice_center,
             self.slice_interval,
-            self.display_type,
             self.display_script
         )
 
@@ -497,8 +360,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.collection_index = properties[13]
         self.slice_center = properties[14]
         self.slice_interval = properties[15]
-        self.display_type = properties[16]
-        self.display_script = properties[17]
+        self.display_script = properties[16]
 
     @property
     def container(self):
@@ -510,8 +372,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
-        for graphic in self.graphics:
-            graphic.about_to_be_removed()
         self.about_to_be_removed_event.fire()
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
@@ -532,8 +392,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def clone(self) -> "Display":
         display = Display()
         display.uuid = self.uuid
-        for graphic in self.graphics:
-            display.add_graphic(graphic.clone())
         return display
 
     @property
@@ -610,10 +468,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                 return dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
         else:
             return dimensional_shape[next_dimension:]
-
-    @property
-    def selected_graphics(self):
-        return [self.graphics[i] for i in self.graphic_selection.indexes]
 
     def __validate_display_limits(self, value):
         if value is not None:
@@ -795,44 +649,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def _relinquish_master(self):
         self.__is_master = False
 
-    def __insert_graphic(self, name, before_index, graphic):
-        graphic.about_to_be_inserted(self)
-        graphic_changed_listener = graphic.graphic_changed_event.listen(functools.partial(self.__graphic_changed, graphic))
-        self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
-        self.graphic_selection.insert_index(before_index)
-        self.display_changed_event.fire()
-        self.notify_insert_item("graphics", graphic, before_index)
-
-    def __remove_graphic(self, name, index, graphic):
-        graphic.about_to_be_removed()
-        self.__disconnect_graphic(graphic, index)
-        graphic.close()
-
-    def __disconnect_graphic(self, graphic, index):
-        graphic_changed_listener = self.__graphic_changed_listeners[index]
-        graphic_changed_listener.close()
-        self.__graphic_changed_listeners.remove(graphic_changed_listener)
-        self.graphic_selection.remove_index(index)
-        self.display_changed_event.fire()
-        self.notify_remove_item("graphics", graphic, index)
-
-    def insert_graphic(self, before_index, graphic):
-        """Insert a graphic before the index, but do it through the container, so dependencies can be tracked."""
-        self.insert_model_item(self, "graphics", before_index, graphic)
-
-    def add_graphic(self, graphic):
-        """Append a graphic, but do it through the container, so dependencies can be tracked."""
-        self.insert_model_item(self, "graphics", self.item_count("graphics"), graphic)
-
-    def remove_graphic(self, graphic: Graphics.Graphic, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
-        """Remove a graphic, but do it through the container, so dependencies can be tracked."""
-        return self.remove_model_item(self, "graphics", graphic, safe=safe)
-
-    # this message comes from the graphic. the connection is established when a graphic
-    # is added or removed from this object.
-    def __graphic_changed(self, graphic):
-        self.display_changed_event.fire()
-
     @property
     def displayed_dimensional_scales(self) -> typing.Sequence[float]:
         """The scale of the fractional coordinate system.
@@ -855,8 +671,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         else:
             calibration_style = CalibrationStyleNative() if calibration_style is None else calibration_style
             dimensional_scales = self.dimensional_scales
-            dimensional_scales = [1] if dimensional_scales is None and self.display_type == "line_plot" else dimensional_scales
-            dimensional_scales = [1, 1] if dimensional_scales is None and self.display_type == "image" else dimensional_scales
+            dimensional_scales = [1] if dimensional_scales is None and self._display_type == "line_plot" else dimensional_scales
+            dimensional_scales = [1, 1] if dimensional_scales is None and self._display_type == "image" else dimensional_scales
             if dimensional_scales:
                 dimensional_calibrations = self.dimensional_calibrations if self.dimensional_calibrations else [Calibration.Calibration() for i in range(len(dimensional_scales))]
                 return calibration_style.get_dimensional_calibrations(dimensional_scales, dimensional_calibrations)

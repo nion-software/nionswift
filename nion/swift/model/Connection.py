@@ -226,19 +226,19 @@ class IntervalListConnection(Connection):
     This is a one way connection from the display to the line profile graphic.
     """
 
-    def __init__(self, display=None, line_profile=None, *, parent=None):
+    def __init__(self, display_item=None, line_profile=None, *, parent=None):
         super().__init__("interval-list-connection", parent=parent)
         self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("target_uuid", converter=Converter.UuidToStringConverter())
         # these are only set in persistent object context changed
-        self.__source = display
+        self.__source = display_item
         self.__target = line_profile
         self.__item_inserted_event_listener = None
         self.__item_removed_event_listener = None
         self.__interval_mutated_listeners = list()
         # but setup if we were passed objects
-        if display is not None:
-            self.source_uuid = display.uuid
+        if display_item is not None:
+            self.source_uuid = display_item.uuid
         if line_profile is not None:
             self.target_uuid = line_profile.uuid
 

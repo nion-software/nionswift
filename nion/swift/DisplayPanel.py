@@ -610,11 +610,11 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
 
     def _get_modified_state(self):
         display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        return display_item.display.modified_state, self.__document_controller.workspace_controller.document_model.modified_state
+        return display_item.modified_state, self.__document_controller.workspace_controller.document_model.modified_state
 
     def _set_modified_state(self, modified_state):
         display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        display_item.display.modified_state, self.__document_controller.workspace_controller.document_model.modified_state = modified_state
+        display_item.modified_state, self.__document_controller.workspace_controller.document_model.modified_state = modified_state
 
     def _redo(self):
         display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
@@ -703,11 +703,11 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
 
     def _get_modified_state(self):
         display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        return display_item.display.modified_state, self.__document_model.modified_state
+        return display_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
         display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        display_item.display.modified_state, self.__document_model.modified_state = modified_state
+        display_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
@@ -1726,7 +1726,7 @@ def preview(ui, display_item: DisplayItem.DisplayItem, width: int, height: int) 
         with contextlib.closing(display_canvas_item):
             display_properties = Display.DisplayProperties(display)
             display_canvas_item.update_display_values(display_properties, display_values)
-            display_canvas_item.update_graphics(display_item.graphics, Display.GraphicSelection(), display_properties, display_values)
+            display_canvas_item.update_graphics(display_item.graphics, DisplayItem.GraphicSelection(), display_properties, display_values)
 
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)
