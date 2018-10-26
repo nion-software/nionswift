@@ -105,10 +105,6 @@ class DisplayItemAdapter:
             self.__display_changed_event_listener = None
 
     @property
-    def display(self) -> Display.Display:
-        return self.__display_item.display if self.__display_item else None
-
-    @property
     def display_item(self) -> DisplayItem.DisplayItem:
         return self.__display_item
 
@@ -128,8 +124,7 @@ class DisplayItemAdapter:
 
     def __create_thumbnail(self, draw_rect):
         drawing_context = DrawingContext.DrawingContext()
-        display = self.display
-        if display:
+        if self.__display_item:
             self.__create_thumbnail_source()
             thumbnail_data = self.__thumbnail_source.thumbnail_data
             if thumbnail_data is not None:
@@ -139,33 +134,25 @@ class DisplayItemAdapter:
 
     @property
     def title_str(self) -> str:
-        display = self.display
-        return display.title if display else str()
+        return self.__display_item.displayed_title if self.__display_item else str()
 
     @property
     def format_str(self) -> str:
-        display_item = self.display_item
-        return display_item.size_and_data_format_as_string if display_item else str()
+        return self.__display_item.size_and_data_format_as_string if self.__display_item else str()
 
     @property
     def datetime_str(self) -> str:
-        display_item = self.display_item
-        return display_item.date_for_sorting_local_as_string if display_item else str()
+        return self.__display_item.date_for_sorting_local_as_string if self.__display_item else str()
 
     @property
     def status_str(self) -> str:
-        display_item = self.display_item
-        if display_item:
-            return display_item.status_str
-        return str()
+        return self.__display_item.status_str if self.__display_item else str()
 
     def drag_started(self, ui, x, y, modifiers):
-        display = self.display
-        if display:
-            display_item = self.display_item
+        if self.__display_item:
             mime_data = self.ui.create_mime_data()
-            if display_item:
-                mime_data.set_data_as_string("text/display_item_uuid", str(display_item.uuid))
+            if self.__display_item:
+                mime_data.set_data_as_string("text/display_item_uuid", str(self.__display_item.uuid))
             self.__create_thumbnail_source()
             thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
             return mime_data, thumbnail_data
@@ -1228,8 +1215,8 @@ class DataPanel(Panel.Panel):
     def __notify_focus_changed(self):
         if self.__focused:
             if len(self.__selection.indexes) == 1:
-                display = self.__filtered_display_item_adapters_model.display_item_adapters[list(self.__selection.indexes)[0]].display
-                self.document_controller.notify_focused_display_changed(display)
+                display_item_adapter = self.__filtered_display_item_adapters_model.display_item_adapters[list(self.__selection.indexes)[0]]
+                self.document_controller.notify_focused_display_changed(display_item_adapter.display_item.display)
             else:
                 self.document_controller.notify_focused_display_changed(None)
 

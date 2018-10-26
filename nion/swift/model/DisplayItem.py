@@ -166,6 +166,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
+        if name == "title":
+            self.notify_property_changed("displayed_title")
 
     def clone(self) -> "DisplayItem":
         display_item = self.__class__()
@@ -215,7 +217,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
                 old_display.close()
             if new_display:
                 new_display.about_to_be_inserted(self)
-                new_display.title = self.displayed_title
                 if self.__display_ref_count > 0:
                     new_display._become_master()
 
@@ -286,10 +287,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def _update_displays(self):
         xdata_list = [data_item.xdata if data_item else None for data_item in self.data_items]
         self.display.update_xdata_list(xdata_list)
-        self.display.title = self.displayed_title
 
     def _description_changed(self):
-        self.display.title = self.displayed_title
+        self.notify_property_changed("displayed_title")
 
     def __get_used_value(self, key: str, default_value):
         if self._get_persistent_property_value(key) is not None:

@@ -427,8 +427,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         # graphics
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
 
-        self.__title = None  # not persistent during display panel transition
-
         self.item_changed_event = Event.Event()  # for indicated this display has mutated somehow
 
         # # last display values is the last one to be fully displayed.
@@ -541,15 +539,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     @property
     def _display_cache(self):
         return self.__cache
-
-    @property
-    def title(self) -> str:
-        return self.__title
-
-    @title.setter
-    def title(self, value: str) -> None:
-        self.__title = value
-        self.notify_property_changed("title")
 
     @property
     def dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:

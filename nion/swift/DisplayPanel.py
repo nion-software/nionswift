@@ -459,7 +459,6 @@ class DisplayTracker:
     def __init__(self, display_item, get_font_metrics, delegate, event_loop, draw_background):
         display = display_item.display
         self.__display_item = display_item
-        self.__display = display
         self.__get_font_metrics = get_font_metrics
         self.__delegate = delegate
         self.__event_loop = event_loop
@@ -478,13 +477,13 @@ class DisplayTracker:
             if callable(self.on_clear_display):
                 self.on_clear_display()
 
-        def display_property_changed(key):
-            if key == "title":
+        def display_item_property_changed(key):
+            if key == "displayed_title":
                 if callable(self.on_title_changed):
-                    self.on_title_changed(display.title)
+                    self.on_title_changed(display_item.displayed_title)
 
-        self.__display_about_to_be_removed_event_listener = display.about_to_be_removed_event.listen(clear_display)
-        self.__display_property_changed_event_listener = display.property_changed_event.listen(display_property_changed)
+        self.__display_about_to_be_removed_event_listener = display_item.about_to_be_removed_event.listen(clear_display)
+        self.__display_property_changed_event_listener = display_item.property_changed_event.listen(display_item_property_changed)
 
         # ensure data stays in memory while displayed
         display_item.increment_display_ref_count()
@@ -1202,14 +1201,12 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         # update the related icons canvas item with the new display.
         self.__related_icons_canvas_item.set_display_item(display_item)
 
-        has_display = display_item and display_item.display
-
-        self.header_canvas_item.title = display_item.display.title if has_display else None
+        self.header_canvas_item.title = display_item.displayed_title if display_item else None
 
         # update want mouse and selected status.
         if self.__display_composition_canvas_item:  # may be closed
             self.__display_composition_canvas_item.wants_mouse_events = self.display_canvas_item is None
-            self.__display_composition_canvas_item.selected = has_display and self._is_selected()
+            self.__display_composition_canvas_item.selected = display_item and self._is_selected()
 
         if did_display_change:
             if self._is_focused:
@@ -1310,10 +1307,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__display_changed = False
 
     def __update_selection_to_display(self):
-        displays = [display_item_adapter.display for display_item_adapter in self.__filtered_display_item_adapters_model.display_item_adapters]
-        display = self.__get_display()
-        if display in displays:
-            self.__selection.set(displays.index(display))
+        display_items = [display_item_adapter.display_item for display_item_adapter in self.__filtered_display_item_adapters_model.display_item_adapters]
+        if self.__display_item in display_items:
+            self.__selection.set(display_items.index(self.__display_item))
             self.__horizontal_data_grid_controller.make_selection_visible()
             self.__grid_data_grid_controller.make_selection_visible()
 
