@@ -1223,14 +1223,14 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
-            display = document_model.get_display_item_for_data_item(data_item).display
-            display.display_type = "image"
-            display.display_type = None
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "image"
+            display_item.display_type = None
         # make sure it reloads without changing modification
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
-            display = document_model.get_display_item_for_data_item(document_model.data_items[0]).display
-            self.assertIsNone(display.display_type)
+            display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
+            self.assertIsNone(display_item.display_type)
 
     def test_properties_with_no_data_reloads(self):
         current_working_directory = os.getcwd()

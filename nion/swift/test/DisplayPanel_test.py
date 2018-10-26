@@ -1336,7 +1336,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             data_item = document_model.get_crop_new(data_item1)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.display.display_type = "line_plot"
+            display_item.display_type = "line_plot"
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))

@@ -113,7 +113,7 @@ class InspectorPanel(Panel.Panel):
         new_data_shape = data_item.data_shape if data_item else ()
         new_display_data_shape = display.preview_2d_shape if display else ()
         new_display_data_shape = new_display_data_shape if new_display_data_shape is not None else ()
-        new_display_type = display.display_type if display else None
+        new_display_type = self.__display_item.display_type if self.__display_item else None
 
         self.__data_shape = new_data_shape
         self.__display_type = new_display_type
@@ -135,7 +135,7 @@ class InspectorPanel(Panel.Panel):
                 new_data_shape = data_item.data_shape if data_item else ()
                 new_display_data_shape = display.preview_2d_shape if display else ()
                 new_display_data_shape = new_display_data_shape if new_display_data_shape is not None else ()
-                new_display_type = display.display_type if display else None
+                new_display_type = self.__display_item.display_type if self.__display_item else None
                 if self.__data_shape != new_data_shape or self.__display_type != new_display_type or self.__display_data_shape != new_display_data_shape:
                     self.document_controller.add_task("update_display_inspector" + str(id(self)), self.__update_display_inspector)
 
@@ -845,27 +845,70 @@ class CalibrationsInspectorSection(InspectorSection):
         return column
 
 
-def make_display_type_chooser(document_controller, display: Display.Display):
+class ChangeDisplayTypeCommand(Undo.UndoableCommand):
+
+    def __init__(self, document_model, display_item: DisplayItem.DisplayItem, display_type: str):
+        super().__init__(_("Change Display Type"), command_id="change_display_type", is_mergeable=True)
+        self.__document_model = document_model
+        self.__display_item_uuid = display_item.uuid
+        self.__old_display_type = display_item.display_type
+        self.__display_type = display_type
+        self.initialize()
+
+    def close(self):
+        self.__document_model = None
+        self.__display_item_uuid = None
+        self.__old_display_type = None
+        super().close()
+
+    def perform(self):
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item.display_type = self.__display_type
+
+    def _get_modified_state(self):
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        return display_item.display.modified_state, self.__document_model.modified_state
+
+    def _set_modified_state(self, modified_state):
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item.display.modified_state, self.__document_model.modified_state = modified_state
+
+    def _compare_modified_states(self, state1, state2) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0]
+
+    def _undo(self):
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        old_display_type = self.__old_display_type
+        self.__old_display_type = display_item.display_type
+        display_item.display_type = old_display_type
+
+    def can_merge(self, command: Undo.UndoableCommand) -> bool:
+        return isinstance(command, ChangeDisplayTypeCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
+
+
+def make_display_type_chooser(document_controller, display_item: DisplayItem.DisplayItem):
     ui = document_controller.ui
     display_type_row = ui.create_row_widget()
     display_type_items = ((_("Default"), None), (_("Line Plot"), "line_plot"), (_("Image"), "image"), (_("Display Script"), "display_script"))
     display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2, "display_script": 3}
     display_type_chooser = ui.create_combo_box_widget(items=display_type_items, item_getter=operator.itemgetter(0))
+    display = display_item.display
 
     def property_changed(name):
         if name == "display_type":
-            display_type_chooser.current_index = display_type_reverse_map[display.display_type]
+            display_type_chooser.current_index = display_type_reverse_map[display_item.display_type]
 
     listener = display.property_changed_event.listen(property_changed)
 
     def change_display_type(item):
-        if display.display_type != item[1]:
-            command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display, display_type=item[1], title=_("Change Display Type"), command_id="change_display_type", is_mergeable=True)
+        if display_item.display_type != item[1]:
+            command = ChangeDisplayTypeCommand(document_controller.document_model, display_item, display_type=item[1])
             command.perform()
             document_controller.push_undo_command(command)
 
     display_type_chooser.on_current_item_changed = change_display_type
-    display_type_chooser.current_index = display_type_reverse_map.get(display.display_type, 0)
+    display_type_chooser.current_index = display_type_reverse_map.get(display_item.display_type, 0)
     display_type_row.add(ui.create_label_widget(_("Display Type:"), properties={"width": 120}))
     display_type_row.add(display_type_chooser)
     display_type_row.add_stretch()
@@ -907,12 +950,13 @@ class ImageDisplayInspectorSection(InspectorSection):
         Subclass InspectorSection to implement display limits inspector.
     """
 
-    def __init__(self, document_controller, display):
+    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
         super().__init__(document_controller.ui, "display-limits", _("Display"))
         ui = document_controller.ui
+        display = display_item.display
 
         # display type
-        display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display)
+        display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display_item)
 
         # color map
         color_map_row, self.__color_map_changed_listener = make_color_map_chooser(document_controller, display)
@@ -982,11 +1026,12 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         Subclass InspectorSection to implement display limits inspector.
     """
 
-    def __init__(self, document_controller, display):
+    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
         super().__init__(document_controller.ui, "line-plot", _("Display"))
+        display = display_item.display
 
         # display type
-        display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display)
+        display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display_item)
 
         # data_range model
         self.__data_range_model = Model.PropertyModel()
@@ -2240,11 +2285,11 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
             def focus_default():
                 pass
             self.__focus_default = focus_default
-        elif data_item and display and (len(display_data_shape) == 1 or display.display_type == "line_plot"):
+        elif data_item and display and (len(display_data_shape) == 1 or display_item.display_type == "line_plot"):
             inspector_sections.append(InfoInspectorSection(document_controller, data_item))
             inspector_sections.append(SessionInspectorSection(document_controller, data_item))
             inspector_sections.append(CalibrationsInspectorSection(document_controller, data_item, display))
-            inspector_sections.append(LinePlotDisplayInspectorSection(document_controller, display))
+            inspector_sections.append(LinePlotDisplayInspectorSection(document_controller, display_item))
             inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
             if data_item.is_sequence:
                 inspector_sections.append(SequenceInspectorSection(document_controller, data_item, display))
@@ -2258,11 +2303,11 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
                 inspector_sections[0].info_title_label.focused = True
                 inspector_sections[0].info_title_label.request_refocus()
             self.__focus_default = focus_default
-        elif data_item and display and (len(display_data_shape) == 2 or display.display_type == "image"):
+        elif data_item and display and (len(display_data_shape) == 2 or display_item.display_type == "image"):
             inspector_sections.append(InfoInspectorSection(document_controller, data_item))
             inspector_sections.append(SessionInspectorSection(document_controller, data_item))
             inspector_sections.append(CalibrationsInspectorSection(document_controller, data_item, display))
-            inspector_sections.append(ImageDisplayInspectorSection(document_controller, display))
+            inspector_sections.append(ImageDisplayInspectorSection(document_controller, display_item))
             inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
             if data_item.is_sequence:
                 inspector_sections.append(SequenceInspectorSection(document_controller, data_item, display))

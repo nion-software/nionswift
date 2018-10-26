@@ -332,7 +332,7 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display = display_item.display
-            inspector_section = Inspector.ImageDisplayInspectorSection(document_controller, display)
+            inspector_section = Inspector.ImageDisplayInspectorSection(document_controller, display_item)
             with contextlib.closing(inspector_section):
                 display.display_limits = None
                 self.assertEqual(inspector_section.display_limits_limit_low.text, None)
@@ -358,7 +358,7 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display = display_item.display
-            inspector_section = Inspector.ImageDisplayInspectorSection(document_controller, display)
+            inspector_section = Inspector.ImageDisplayInspectorSection(document_controller, display_item)
             with contextlib.closing(inspector_section):
                 self.assertEqual(display.display_limits, None)
                 inspector_section.display_limits_limit_low.text = "1"
@@ -1052,6 +1052,23 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual([Calibration.Calibration(), Calibration.Calibration()], data_item.dimensional_calibrations)
             document_controller.handle_redo()
             self.assertEqual([Calibration.Calibration(scale=2), Calibration.Calibration(scale=3)], data_item.dimensional_calibrations)
+
+    def test_change_display_type_command(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((2, 256)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
+            command = Inspector.ChangeDisplayTypeCommand(document_model, display_item, "image")
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual("image", display_item.display_type)
+            document_controller.handle_undo()
+            self.assertEqual("line_plot", display_item.display_type)
+            document_controller.handle_redo()
+            self.assertEqual("image", display_item.display_type)
 
 
 if __name__ == '__main__':

@@ -1427,11 +1427,11 @@ class Display(metaclass=SharedInstance):
 
     @property
     def display_type(self) -> str:
-        return self.__display.display_type
+        return self.__display_item.display_type
 
     @display_type.setter
     def display_type(self, value: str) -> None:
-        self.__display.display_type = value
+        self.__display_item.display_type = value
 
     @property
     def selected_graphics(self) -> typing.List[Graphic]:
