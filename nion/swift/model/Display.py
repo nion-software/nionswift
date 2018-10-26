@@ -609,10 +609,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def _item_changed(self):
         self.item_changed_event.fire()
 
-    @property
-    def data_and_metadata_for_display_panel(self):
-        return self.__data_and_metadata
-
     def reset_display_limits(self):
         """Reset display limits so that they are auto calculated whenever the data changes."""
         self.display_limits = None
@@ -870,24 +866,11 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             return self.__current_display_values
         return self.__last_display_values
 
-    def increment_display_ref_count(self, amount: int=1):
-        self.container.increment_display_ref_count(amount)
-
-    def decrement_display_ref_count(self, amount: int=1):
-        self.container.decrement_display_ref_count(amount)
-
     def _become_master(self):
         self.__is_master = True
 
     def _relinquish_master(self):
         self.__is_master = False
-
-    def _changes(self):
-        return self.container.display_item_changes()
-
-    @property
-    def is_live(self):
-        return self.container.is_live
 
     def __insert_graphic(self, name, before_index, graphic):
         graphic.about_to_be_inserted(self)

@@ -486,7 +486,7 @@ class DisplayTracker:
         self.__display_property_changed_event_listener = display.property_changed_event.listen(display_property_changed)
 
         # ensure data stays in memory while displayed
-        display.increment_display_ref_count()
+        display_item.increment_display_ref_count()
 
         # create a canvas item and add it to the container canvas item.
 
@@ -560,16 +560,12 @@ class DisplayTracker:
         self.__display_type_monitor.close()
         self.__display_type_monitor = None
         # decrement the ref count on the old item to release it from memory if no longer used.
-        self.__display.decrement_display_ref_count()
+        self.__display_item.decrement_display_ref_count()
         self.__display_about_to_be_removed_event_listener.close()
         self.__display_about_to_be_removed_event_listener = None
         self.__display_property_changed_event_listener.close()
         self.__display_property_changed_event_listener = None
         self.__display_canvas_item = None
-
-    @property
-    def display(self):
-        return self.__display
 
     @property
     def display_canvas_item(self):
@@ -1425,8 +1421,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             self.__document_controller.push_undo_command(command)
 
     def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
-        display = self.__get_display()
-        with display._changes():
+        with self.__display_item.display_item_changes():
             for graphic in graphic_drag_items:
                 index = self.__display_item.graphics.index(graphic)
                 part_data = (graphic_drag_part, ) + graphic_part_data[index]
