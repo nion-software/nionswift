@@ -117,7 +117,7 @@ class DocumentController(Window.Window):
 
         self.focused_display_item_changed_event = Event.Event()
         self.__focused_data_item = None
-        self.__focused_display = None
+        self.__focused_display_item = None
         self.notify_focused_display_changed(None)
 
         self.__consoles = list()
@@ -746,10 +746,9 @@ class DocumentController(Window.Window):
     # track the selected data item. this can be called by ui elements when
     # they get focus. the selected data item will stay the same until another ui
     # element gets focus or the data item is removed from the document.
-    def notify_focused_display_changed(self, display: typing.Optional[Display.Display]) -> None:
-        if self.__focused_display != display:
-            self.__focused_display = display
-        display_item = self.document_model._get_display_item_for_display(display)
+    def notify_focused_display_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
+        if self.__focused_display_item != display_item:
+            self.__focused_display_item = display_item
         data_item = display_item.data_item if display_item else None
         if self.__focused_data_item != data_item:
             self.__focused_data_item = data_item
@@ -761,9 +760,9 @@ class DocumentController(Window.Window):
         return self.__focused_data_item
 
     @property
-    def focused_display(self) -> Display.Display:
+    def focused_display_item(self) -> DisplayItem.DisplayItem:
         """Return the display with keyboard focus."""
-        return self.__focused_display
+        return self.__focused_display_item
 
     def select_data_item_in_data_panel(self, data_item: DataItem.DataItem) -> None:
         """Select the data item in the data panel."""
@@ -835,8 +834,8 @@ class DocumentController(Window.Window):
             self.workspace_controller.selected_display_panel_changed(self.selected_display_panel)
             # notify listeners that the data item has changed. in this case, a changing data item
             # means that which selected data item is selected has changed.
-            display = selected_display_panel.display if selected_display_panel else None
-            self.notify_focused_display_changed(display)
+            display_item = selected_display_panel.display_item if selected_display_panel else None
+            self.notify_focused_display_changed(display_item)
 
     def next_result_display_panel(self):
         for display_panel in self.workspace.display_panels:
@@ -1577,8 +1576,7 @@ class DocumentController(Window.Window):
                 result_display_panel.request_focus()
         self.select_data_item_in_data_panel(data_item)
         if request_focus:
-            display = display_item.display if display_item else None
-            self.notify_focused_display_changed(display)
+            self.notify_focused_display_changed(display_item)
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
@@ -1784,7 +1782,7 @@ class DocumentController(Window.Window):
             new_data_item.category = data_item.category
             self.select_data_item_in_data_panel(new_data_item)
             new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
-            self.notify_focused_display_changed(new_display_item.display)
+            self.notify_focused_display_changed(new_display_item)
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
@@ -1808,7 +1806,7 @@ class DocumentController(Window.Window):
                 # see https://github.com/nion-software/nionswift/issues/145
                 self.select_data_item_in_data_panel(data_item_copy)
                 new_display_item = self.document_model.get_display_item_for_data_item(data_item_copy)
-                self.notify_focused_display_changed(new_display_item.display)
+                self.notify_focused_display_changed(new_display_item)
                 inspector_panel = self.find_dock_widget("inspector-panel").panel
                 if inspector_panel is not None:
                     inspector_panel.request_focus = True

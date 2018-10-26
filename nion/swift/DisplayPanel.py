@@ -869,7 +869,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__filtered_display_item_adapters_model = ListModel.MappedListModel(container=document_controller.filtered_display_items_model, master_items_key="display_items", items_key="display_item_adapters", map_fn=map_display_item_to_display_item_adapter, unmap_fn=unmap_display_item_to_display_item_adapter)
 
         def notify_focus_changed():
-            self.__document_controller.notify_focused_display_changed(self.__get_display())
+            self.__document_controller.notify_focused_display_changed(self.__display_item)
 
         def display_item_adapter_selection_changed(display_item_adapters):
             indexes = set()
@@ -1024,7 +1024,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             self.request_focus()
 
         if is_selected:
-            document_controller.notify_focused_display_changed(self.__get_display())
+            document_controller.notify_focused_display_changed(self.__display_item)
 
         if callable(self.on_contents_changed):
             self.on_contents_changed()
@@ -1210,7 +1210,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         if did_display_change:
             if self._is_focused:
-                self.__document_controller.notify_focused_display_changed(self.__get_display())
+                self.__document_controller.notify_focused_display_changed(self.__display_item)
 
     def _select(self):
         self.content_canvas_item.request_focus()
@@ -1233,7 +1233,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__content_canvas_item.focused = focused
         if focused:
             self.__document_controller.selected_display_panel = self  # MARK
-            self.__document_controller.notify_focused_display_changed(self.__get_display())
+            self.__document_controller.notify_focused_display_changed(self.__display_item)
 
     def _is_focused(self):
         """ Used for testing. """

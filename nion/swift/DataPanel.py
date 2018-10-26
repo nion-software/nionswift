@@ -1216,7 +1216,7 @@ class DataPanel(Panel.Panel):
         if self.__focused:
             if len(self.__selection.indexes) == 1:
                 display_item_adapter = self.__filtered_display_item_adapters_model.display_item_adapters[list(self.__selection.indexes)[0]]
-                self.document_controller.notify_focused_display_changed(display_item_adapter.display_item.display)
+                self.document_controller.notify_focused_display_changed(display_item_adapter.display_item)
             else:
                 self.document_controller.notify_focused_display_changed(None)
 
