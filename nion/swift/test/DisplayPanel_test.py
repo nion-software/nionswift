@@ -1061,7 +1061,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # display panel should not have any display_canvas_item now since data is not valid
         self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDataCanvasItem)
         # thumbnails and processors
-        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, self.display_item.display)) as thumbnail_source:
+        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, self.display_item)) as thumbnail_source:
             thumbnail_source.recompute_data()
             self.assertIsNotNone(thumbnail_source.thumbnail_data)
         self.document_controller.periodic()
@@ -1072,7 +1072,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # display panel should not have any display_canvas_item now since data is not valid
         self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDataCanvasItem)
         # thumbnails and processors
-        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, self.display_item.display)) as thumbnail_source:
+        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, self.display_item)) as thumbnail_source:
             thumbnail_source.recompute_data()
         self.document_controller.periodic()
         self.document_controller.document_model.recompute_all()

@@ -1274,7 +1274,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         if self.__display_item:
             mime_data.set_data_as_string("text/display_item_uuid", str(self.__display_item.uuid))
         mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
-        thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(self.__get_display())
+        thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(self.__display_item)
         self.__begin_drag(mime_data, thumbnail_data)
 
     def __begin_drag(self, mime_data, thumbnail_data):
@@ -1506,15 +1506,14 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def drag_graphics(self, graphics):
         display_item = self.display_item
-        display = self.display
-        if display_item and display:
+        if display_item:
             mime_data = self.ui.create_mime_data()
             mime_data_content = dict()
             mime_data_content["display_item_uuid"] = str(display_item.uuid)
             if graphics and len(graphics) == 1:
                 mime_data_content["graphic_uuid"] = str(graphics[0].uuid)
             mime_data.set_data_as_string(DataItem.DataSource.DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
-            thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(display)
+            thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(display_item)
             self.__begin_drag(mime_data, thumbnail_data)
 
     def update_display_properties(self, display_properties):
@@ -1726,7 +1725,8 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         return dynamic_live_actions
 
 
-def preview(ui, display: Display.Display, width: int, height: int) -> DrawingContext.DrawingContext:
+def preview(ui, display_item: DisplayItem.DisplayItem, width: int, height: int) -> DrawingContext.DrawingContext:
+    display = display_item.display
     display_type = display.actual_display_type
     display_values = display.get_calculated_display_values(True)
     drawing_context = DrawingContext.DrawingContext()
@@ -1735,7 +1735,7 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
         with contextlib.closing(display_canvas_item):
             display_properties = Display.DisplayProperties(display)
             display_canvas_item.update_display_values(display_properties, display_values)
-            display_canvas_item.update_graphics(display.graphics, Display.GraphicSelection(), display_properties, display_values)
+            display_canvas_item.update_graphics(display_item.graphics, Display.GraphicSelection(), display_properties, display_values)
 
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)

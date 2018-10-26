@@ -12,7 +12,7 @@ import numpy
 # local libraries
 from nion.swift import DisplayPanel
 from nion.swift.model import Utility
-from nion.swift.model.Display import Display
+from nion.swift.model import DisplayItem
 from nion.ui import DrawingContext
 from nion.utils import Event
 from nion.utils import ReferenceCounting
@@ -21,9 +21,9 @@ from nion.utils import ReferenceCounting
 class ThumbnailProcessor:
     """Processes thumbnails for a display in a thread."""
 
-    def __init__(self, display):
-        self.__display = display
-        self.__cache = display._display_cache
+    def __init__(self, display_item: DisplayItem.DisplayItem):
+        self.__display_item = display_item
+        self.__cache = self.__display_item.display._display_cache
         self.__cache_property_name = "thumbnail_data"
         # the next two fields represent a memory cache -- a cache of the cache values.
         # if self.__cached_value_dirty is None then this first level cache has not yet
@@ -55,15 +55,15 @@ class ThumbnailProcessor:
     # thread safe
     def mark_data_dirty(self):
         """ Called from item to indicate its data or metadata has changed."""
-        self.__cache.set_cached_value_dirty(self.__display, self.__cache_property_name)
+        self.__cache.set_cached_value_dirty(self.__display_item.display, self.__cache_property_name)
         self.__initialize_cache()
         self.__cached_value_dirty = True
 
     def __initialize_cache(self):
         """Initialize the cache values (cache values are used for optimization)."""
         if self.__cached_value_dirty is None:
-            self.__cached_value_dirty = self.__cache.is_cached_value_dirty(self.__display, self.__cache_property_name)
-            self.__cached_value = self.__cache.get_cached_value(self.__display, self.__cache_property_name)
+            self.__cached_value_dirty = self.__cache.is_cached_value_dirty(self.__display_item.display, self.__cache_property_name)
+            self.__cached_value = self.__cache.get_cached_value(self.__display_item.display, self.__cache_property_name)
 
     def recompute_if_necessary(self, ui):
         """Recompute the data on a thread, if necessary.
@@ -116,7 +116,7 @@ class ThumbnailProcessor:
                     traceback.print_exc()
                     traceback.print_stack()
                     raise
-                self.__cache.set_cached_value(self.__display, self.__cache_property_name, calculated_data)
+                self.__cache.set_cached_value(self.__display_item.display, self.__cache_property_name, calculated_data)
                 self.__cached_value = calculated_data
                 self.__cached_value_dirty = False
                 self.__cached_value_time = time.time()
@@ -126,13 +126,13 @@ class ThumbnailProcessor:
                 calculated_data = self.get_default_data()
                 if calculated_data is not None:
                     # if the default is not None, treat is as valid cached data
-                    self.__cache.set_cached_value(self.__display, self.__cache_property_name, calculated_data)
+                    self.__cache.set_cached_value(self.__display_item.display, self.__cache_property_name, calculated_data)
                     self.__cached_value = calculated_data
                     self.__cached_value_dirty = False
                     self.__cached_value_time = time.time()
                 else:
                     # otherwise remove everything from the cache
-                    self.__cache.remove_cached_value(self.__display, self.__cache_property_name)
+                    self.__cache.remove_cached_value(self.__display_item.display, self.__cache_property_name)
                     self.__cached_value = None
                     self.__cached_value_dirty = None
                     self.__cached_value_time = 0
@@ -159,7 +159,7 @@ class ThumbnailProcessor:
         return self.__cached_value
 
     def get_calculated_data(self, ui):
-        drawing_context = DisplayPanel.preview(ui, self.__display, 512, 512)
+        drawing_context = DisplayPanel.preview(ui, self.__display_item, 512, 512)
         thumbnail_drawing_context = DrawingContext.DrawingContext()
         thumbnail_drawing_context.scale(self.width / 512, self.height / 512)
         thumbnail_drawing_context.add(drawing_context)
@@ -172,13 +172,13 @@ class ThumbnailProcessor:
 class ThumbnailSource(ReferenceCounting.ReferenceCounted):
     """Produce a thumbnail for a display."""
 
-    def __init__(self, ui, display: Display):
+    def __init__(self, ui, display_item: DisplayItem.DisplayItem):
         super().__init__()
         self._ui = ui
-        self._display = display
+        self._display_item = display_item
 
         self.thumbnail_updated_event = Event.Event()
-        self.__thumbnail_processor = ThumbnailProcessor(display)
+        self.__thumbnail_processor = ThumbnailProcessor(display_item)
         self._on_will_delete = None
 
         def thumbnail_changed():
@@ -189,8 +189,8 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
 
         no_cached_data = self.__thumbnail_processor.get_cached_data() is None
 
-        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(thumbnail_changed, send=no_cached_data)
-        self.__display_changed_event_listener = display.display_changed_event.listen(thumbnail_changed)
+        self.__next_calculated_display_values_listener = display_item.display.add_calculated_display_values_listener(thumbnail_changed, send=no_cached_data)
+        self.__display_changed_event_listener = display_item.display.display_changed_event.listen(thumbnail_changed)
 
         def thumbnail_updated():
             self.thumbnail_updated_event.fire()
@@ -204,7 +204,7 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
                 self.__thumbnail_processor.close()
                 self.__thumbnail_processor = None
 
-        self.__display_will_close_listener = display.about_to_be_removed_event.listen(display_will_close)
+        self.__display_will_close_listener = display_item.display.about_to_be_removed_event.listen(display_will_close)
 
     def close(self):
         self.remove_ref()
@@ -244,24 +244,25 @@ class ThumbnailManager(metaclass=Utility.Singleton):
         self.__thumbnail_sources = dict()
         self.__lock = threading.RLock()
 
-    def thumbnail_source_for_display(self, ui, display: Display) -> ThumbnailSource:
+    def thumbnail_source_for_display_item(self, ui, display_item: DisplayItem.DisplayItem) -> ThumbnailSource:
         """Returned ThumbnailSource must be closed."""
+        display = display_item.display
         with self.__lock:
-            thumbnail_source = self.__thumbnail_sources.get(display)
+            thumbnail_source = self.__thumbnail_sources.get(display_item)
             if not thumbnail_source:
-                thumbnail_source = ThumbnailSource(ui, display)
-                self.__thumbnail_sources[display] = thumbnail_source
+                thumbnail_source = ThumbnailSource(ui, display_item)
+                self.__thumbnail_sources[display_item] = thumbnail_source
 
                 def will_delete(thumbnail_source):
-                    del self.__thumbnail_sources[thumbnail_source._display]
+                    del self.__thumbnail_sources[thumbnail_source._display_item]
 
                 thumbnail_source._on_will_delete = will_delete
             else:
                 assert thumbnail_source._ui == ui
             return thumbnail_source.add_ref()
 
-    def thumbnail_data_for_display(self, display: Display) -> numpy.ndarray:
-        thumbnail_source = self.__thumbnail_sources.get(display) if display else None
+    def thumbnail_data_for_display_item(self, display_item: DisplayItem.DisplayItem) -> numpy.ndarray:
+        thumbnail_source = self.__thumbnail_sources.get(display_item) if display_item else None
         if thumbnail_source:
             return thumbnail_source.thumbnail_data
         return None

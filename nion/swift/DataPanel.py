@@ -120,9 +120,8 @@ class DisplayItemAdapter:
 
     def __create_thumbnail_source(self):
         # grab the display specifier and if there is a display, handle thumbnail updating.
-        display = self.display
-        if display and not self.__thumbnail_source:
-            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.ui, display)
+        if self.__display_item and not self.__thumbnail_source:
+            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, self.__display_item)
 
             def thumbnail_updated():
                 self.needs_update_event.fire()

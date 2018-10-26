@@ -240,7 +240,7 @@ class TestStorageClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             storage_cache.set_cached_value(display_item.display, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
             self.assertFalse(storage_cache.is_cached_value_dirty(display_item.display, "thumbnail_data"))
-            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display_item.display)) as thumbnail_source:
+            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)) as thumbnail_source:
                 thumbnail_source.recompute_data()
         # read it back
         storage_cache = storage_cache.clone()
@@ -250,7 +250,7 @@ class TestStorageClass(unittest.TestCase):
             read_display_item = document_model.get_display_item_for_data_item(read_data_item)
             # thumbnail data should still be valid
             self.assertFalse(storage_cache.is_cached_value_dirty(read_display_item.display, "thumbnail_data"))
-            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, read_display_item.display)) as thumbnail_source:
+            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, read_display_item)) as thumbnail_source:
                 self.assertFalse(thumbnail_source._is_thumbnail_dirty)
 
     def test_reload_data_item_initializes_display_data_range(self):
