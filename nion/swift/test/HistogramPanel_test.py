@@ -92,8 +92,8 @@ class TestHistogramPanelClass(unittest.TestCase):
         stats2_text = self.histogram_panel._statistics_widget._stats2_property.value
         rect_region = Graphics.RectangleGraphic()
         rect_region.bounds = (0.2, 0.2), (0.2, 0.2)
-        self.display_item.display.add_graphic(rect_region)
-        self.display_item.display.graphic_selection.set(0)
+        self.display_item.add_graphic(rect_region)
+        self.display_item.graphic_selection.set(0)
         self.histogram_panel._statistics_widget._statistics_func_value_model._run_until_complete()
         stats1_new_text = self.histogram_panel._statistics_widget._stats1_property.value
         stats2_new_text = self.histogram_panel._statistics_widget._stats2_property.value
@@ -112,8 +112,8 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.display_item.data_item.set_data(numpy.ones((10, 10), dtype=numpy.uint32))
         rect_region = Graphics.RectangleGraphic()
         rect_region.bounds = (10000, 10000), (1, 1)
-        self.display_item.display.add_graphic(rect_region)
-        self.display_item.display.graphic_selection.set(0)
+        self.display_item.add_graphic(rect_region)
+        self.display_item.graphic_selection.set(0)
         self.histogram_panel._histogram_widget._recompute()
 
     def test_histogram_statistics_on_slice(self):

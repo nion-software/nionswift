@@ -1019,7 +1019,6 @@ class DocumentController(Window.Window):
     def handle_paste(self):
         display_item = self.selected_display_item
         if display_item:
-            display = display_item.display
             mime_data = self.ui.clipboard_mime_data()
             if mime_data.has_format(GRAPHICS_MIME_TYPE):
                 json_str = mime_data.data_as_string(GRAPHICS_MIME_TYPE)
@@ -1031,12 +1030,12 @@ class DocumentController(Window.Window):
                     graphic.read_from_mime_data(graphic_dict, is_same_source)
                     if graphic:
                         graphics.append(graphic)
-                display.graphic_selection.clear()
-                command = DisplayPanel.InsertGraphicsCommand(self, display, graphics)
+                display_item.graphic_selection.clear()
+                command = DisplayPanel.InsertGraphicsCommand(self, display_item, graphics)
                 command.perform()
                 self.push_undo_command(command)
                 for graphic in graphics:
-                    display.graphic_selection.add(display.graphics.index(graphic))
+                    display_item.graphic_selection.add(display_item.graphics.index(graphic))
                 return True
         return False
 
@@ -1332,131 +1331,121 @@ class DocumentController(Window.Window):
     def add_line_graphic(self):
         display_item = self.selected_display_item
         if display_item and display_item.display:
-            display = display_item.display
             graphic = Graphics.LineGraphic()
             graphic.start = (0.2, 0.2)
             graphic.end = (0.8, 0.8)
-            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
-            display.graphic_selection.set(display.graphics.index(graphic))
+            display_item.graphic_selection.set(display_item.graphics.index(graphic))
             return graphic
         return None
 
     def add_rectangle_graphic(self):
         display_item = self.selected_display_item
         if display_item and display_item.display:
-            display = display_item.display
             graphic = Graphics.RectangleGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
-            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
-            display.graphic_selection.set(display.graphics.index(graphic))
+            display_item.graphic_selection.set(display_item.graphics.index(graphic))
             return graphic
         return None
 
     def add_ellipse_graphic(self):
         display_item = self.selected_display_item
         if display_item and display_item.display:
-            display = display_item.display
             graphic = Graphics.EllipseGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
-            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
-            display.graphic_selection.set(display.graphics.index(graphic))
+            display_item.graphic_selection.set(display_item.graphics.index(graphic))
             return graphic
         return None
 
     def add_point_graphic(self):
         display_item = self.selected_display_item
         if display_item and display_item.display:
-            display = display_item.display
             graphic = Graphics.PointGraphic()
             graphic.position = (0.5,0.5)
-            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
-            display.graphic_selection.set(display.graphics.index(graphic))
+            display_item.graphic_selection.set(display_item.graphics.index(graphic))
             return graphic
         return None
 
     def add_interval_graphic(self):
         display_item = self.selected_display_item
         if display_item and display_item.display:
-            display = display_item.display
             graphic = Graphics.IntervalGraphic()
             graphic.start = 0.25
             graphic.end = 0.75
-            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
-            display.graphic_selection.set(display.graphics.index(graphic))
+            display_item.graphic_selection.set(display_item.graphics.index(graphic))
             return graphic
         return None
 
     def add_channel_graphic(self):
         display_item = self.selected_display_item
         if display_item and display_item.display:
-            display = display_item.display
             graphic = Graphics.ChannelGraphic()
             graphic.position = 0.5
-            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
-            display.graphic_selection.set(display.graphics.index(graphic))
+            display_item.graphic_selection.set(display_item.graphics.index(graphic))
             return graphic
         return None
 
     def add_spot_graphic(self):
         display_item = self.selected_display_item
         if display_item and display_item.display:
-            display = display_item.display
             graphic = Graphics.SpotGraphic()
             graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
-            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
-            display.graphic_selection.set(display.graphics.index(graphic))
+            display_item.graphic_selection.set(display_item.graphics.index(graphic))
             return graphic
         return None
 
     def add_angle_graphic(self):
         display_item = self.selected_display_item
         if display_item and display_item.display:
-            display = display_item.display
             graphic = Graphics.WedgeGraphic()
             graphic.start_angle = 0
             graphic.end_angle = (3/4) * math.pi
-            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
-            display.graphic_selection.set(display.graphics.index(graphic))
+            display_item.graphic_selection.set(display_item.graphics.index(graphic))
             return graphic
         return None
 
     def add_band_pass_graphic(self):
         display_item = self.selected_display_item
         if display_item and display_item.display:
-            display = display_item.display
             graphic = Graphics.RingGraphic()
             graphic.radius_1 = 0.15
             graphic.radius_2 = 0.25
-            command = DisplayPanel.InsertGraphicsCommand(self, display, [graphic])
+            command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
-            display.graphic_selection.set(display.graphics.index(graphic))
+            display_item.graphic_selection.set(display_item.graphics.index(graphic))
             return graphic
         return None
 
     def copy_selected_graphics(self):
         display_item = self.selected_display_item
         if display_item and display_item.display:
-            display = display_item.display
-            if display.graphic_selection.has_selection:
+            if display_item.graphic_selection.has_selection:
                 graphic_dict_list = list()
-                graphics = [display.graphics[index] for index in display.graphic_selection.indexes]
+                graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
                 for graphic in graphics:
                     graphic_dict_list.append(graphic.mime_data_dict())
                 graphics_dict = {"src_uuid": str(display_item.data_item.uuid), "graphics": graphic_dict_list}
@@ -1470,47 +1459,46 @@ class DocumentController(Window.Window):
     def remove_selected_graphics(self) -> None:
         display_item = self.selected_display_item
         if display_item and display_item.display:
-            display = display_item.display
-            if display.graphic_selection.has_selection:
-                graphics = [display.graphics[index] for index in display.graphic_selection.indexes]
+            if display_item.graphic_selection.has_selection:
+                graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
                 if graphics:
-                    command = self.create_remove_graphics_command(display, graphics)
+                    command = self.create_remove_graphics_command(display_item, graphics)
                     command.perform()
                     self.push_undo_command(command)
 
     class RemoveGraphicsCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: "DocumentController", display: Display.Display, graphics: typing.Sequence[Graphics.Graphic]):
+        def __init__(self, document_controller: "DocumentController", display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic]):
             super().__init__(_("Remove Graphics"))
             self.__document_controller = document_controller
-            self.__display_uuid = display.uuid
+            self.__display_item_uuid = display_item.uuid
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
-            self.__graphic_indexes = [display.graphics.index(graphic) for graphic in graphics]
+            self.__graphic_indexes = [display_item.graphics.index(graphic) for graphic in graphics]
             self.initialize()
 
         def close(self):
             self.__document_controller = None
-            self.__display_uuid = None
+            self.__display_item_uuid = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             self.__graphic_indexes = None
             super().close()
 
         def perform(self):
-            display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
+            display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
             self.__undelete_logs = list()
-            graphics = [display.graphics[index] for index in self.__graphic_indexes]
+            graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
             for graphic in graphics:
-                self.__undelete_logs.append(display.remove_graphic(graphic, safe=True))
+                self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
 
         def _get_modified_state(self):
-            display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
-            return display.modified_state, self.__document_controller.document_model.modified_state
+            display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+            return display_item.display.modified_state, self.__document_controller.document_model.modified_state
 
         def _set_modified_state(self, modified_state):
-            display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
-            display.modified_state, self.__document_controller.document_model.modified_state = modified_state
+            display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+            display_item.display.modified_state, self.__document_controller.document_model.modified_state = modified_state
 
         def _undo(self):
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
@@ -1522,8 +1510,8 @@ class DocumentController(Window.Window):
             self.perform()
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
-    def create_remove_graphics_command(self, display, graphics):
-        return DocumentController.RemoveGraphicsCommand(self, display, graphics)
+    def create_remove_graphics_command(self, display_item, graphics):
+        return DocumentController.RemoveGraphicsCommand(self, display_item, graphics)
 
     class RemoveDataItemsCommand(Undo.UndoableCommand):
 
@@ -1692,9 +1680,8 @@ class DocumentController(Window.Window):
     def __get_crop_graphic(self, display_item: DisplayItem.DisplayItem) -> typing.Optional[Graphics.Graphic]:
         crop_graphic = None
         data_item = display_item.data_item if display_item else None
-        display = display_item.display if display_item else None
-        current_index = display.graphic_selection.current_index if display else None
-        graphic = display.graphics[current_index] if current_index is not None else None
+        current_index = display_item.graphic_selection.current_index if display_item else None
+        graphic = display_item.graphics[current_index] if current_index is not None else None
         if data_item and graphic:
             if data_item.is_datum_1d and isinstance(graphic, Graphics.IntervalGraphic):
                 crop_graphic = graphic
@@ -1706,10 +1693,9 @@ class DocumentController(Window.Window):
         mask_graphics = list()
         data_item = display_item.data_item if display_item else None
         if data_item and len(data_item.dimensional_shape) == 2:
-            display = display_item.display if display_item else None
-            current_index = display.graphic_selection.current_index
+            current_index = display_item.graphic_selection.current_index
             if current_index is not None:
-                graphic = display.graphics[current_index]
+                graphic = display_item.graphics[current_index]
                 if hasattr(graphic, 'get_mask'):
                     mask_graphics.append(graphic)
         return mask_graphics
@@ -1880,12 +1866,11 @@ class DocumentController(Window.Window):
         if len(selected_data_items) == 1:
             display_item = self.document_model.get_display_item_for_data_item(selected_data_items[0])
             data_item = display_item.data_item if display_item else None
-            display = display_item.display if display_item else None
-            if display and len(display.graphic_selection.indexes) == 2:
-                index1 = display.graphic_selection.anchor_index
-                index2 = list(display.graphic_selection.indexes.difference({index1}))[0]
-                graphic1 = display.graphics[index1]
-                graphic2 = display.graphics[index2]
+            if display_item and len(display_item.graphic_selection.indexes) == 2:
+                index1 = display_item.graphic_selection.anchor_index
+                index2 = list(display_item.graphic_selection.indexes.difference({index1}))[0]
+                graphic1 = display_item.graphics[index1]
+                graphic2 = display_item.graphics[index2]
                 if data_item:
                     if data_item.is_datum_1d and isinstance(graphic1, Graphics.IntervalGraphic) and isinstance(graphic2, Graphics.IntervalGraphic):
                         crop_graphic1 = graphic1
@@ -2014,11 +1999,10 @@ class DocumentController(Window.Window):
     def copy_uuid(self):
         display_item = self.selected_display_item
         data_item = display_item.data_item if display_item else None
-        display = display_item.display if display_item else None
-        if display:
-            current_index = display.graphic_selection.current_index
+        if display_item:
+            current_index = display_item.graphic_selection.current_index
             if current_index is not None:
-                graphic = display.graphics[current_index]
+                graphic = display_item.graphics[current_index]
                 uuid_str = str(graphic.uuid)
                 self.ui.clipboard_set_text(uuid_str)
                 return

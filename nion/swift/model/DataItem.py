@@ -1585,7 +1585,7 @@ class DataSource:
                     self.__changed_event.fire()
         self.__graphic_inserted_event_listener = display.item_inserted_event.listen(graphic_inserted) if display else None
         self.__graphic_removed_event_listener = display.item_removed_event.listen(graphic_removed) if display else None
-        for graphic in display.graphics if display else list():
+        for graphic in display_item.graphics if display_item else list():
             property_changed_listener = None
             if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                 property_changed_listener = graphic.property_changed_event.listen(filter_property_changed)

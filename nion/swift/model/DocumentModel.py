@@ -1841,8 +1841,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         def base_objects(self):
                             objects = {self._object}
                             display_item = self.document_model.get_display_item_for_data_item(self._object)
-                            display = display_item.display if display_item else None
-                            for graphic in display.graphics:
+                            for graphic in display_item.graphics:
                                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                                     objects.add(graphic)
                             return objects
@@ -2502,8 +2501,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         point_region = Graphics.PointGraphic()
                         for k, v in region_params.items():
                             setattr(point_region, k, v)
-                        if display:
-                            display.add_graphic(point_region)
+                        if display_item:
+                            display_item.add_graphic(point_region)
                     regions.append((region_name, point_region, region_label))
                     region_map[region_name] = point_region
                 elif region_type == "line":
@@ -2516,8 +2515,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         line_region.end = 0.75, 0.75
                         for k, v in region_params.items():
                             setattr(line_region, k, v)
-                        if display:
-                            display.add_graphic(line_region)
+                        if display_item:
+                            display_item.add_graphic(line_region)
                     regions.append((region_name, line_region, region_params.get("label")))
                     region_map[region_name] = line_region
                 elif region_type == "rectangle":
@@ -2530,8 +2529,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         rect_region.size = 0.5, 0.5
                         for k, v in region_params.items():
                             setattr(rect_region, k, v)
-                        if display:
-                            display.add_graphic(rect_region)
+                        if display_item:
+                            display_item.add_graphic(rect_region)
                     regions.append((region_name, rect_region, region_params.get("label")))
                     region_map[region_name] = rect_region
                 elif region_type == "ellipse":
@@ -2544,8 +2543,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         ellipse_region.size = 0.5, 0.5
                         for k, v in region_params.items():
                             setattr(ellipse_region, k, v)
-                        if display:
-                            display.add_graphic(ellipse_region)
+                        if display_item:
+                            display_item.add_graphic(ellipse_region)
                     regions.append((region_name, ellipse_region, region_params.get("label")))
                     region_map[region_name] = ellipse_region
                 elif region_type == "spot":
@@ -2558,8 +2557,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         spot_region.size = 0.1, 0.1
                         for k, v in region_params.items():
                             setattr(spot_region, k, v)
-                        if display:
-                            display.add_graphic(spot_region)
+                        if display_item:
+                            display_item.add_graphic(spot_region)
                     regions.append((region_name, spot_region, region_params.get("label")))
                     region_map[region_name] = spot_region
                 elif region_type == "interval":
@@ -2570,8 +2569,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         interval_region = Graphics.IntervalGraphic()
                         for k, v in region_params.items():
                             setattr(interval_region, k, v)
-                        if display:
-                            display.add_graphic(interval_region)
+                        if display_item:
+                            display_item.add_graphic(interval_region)
                     regions.append((region_name, interval_region, region_params.get("label")))
                     region_map[region_name] = interval_region
                 elif region_type == "channel":
@@ -2582,8 +2581,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         channel_region = Graphics.ChannelGraphic()
                         for k, v in region_params.items():
                             setattr(channel_region, k, v)
-                        if display:
-                            display.add_graphic(channel_region)
+                        if display_item:
+                            display_item.add_graphic(channel_region)
                     regions.append((region_name, channel_region, region_params.get("label")))
                     region_map[region_name] = channel_region
 
@@ -2639,7 +2638,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 interval_region = Graphics.IntervalGraphic()
                 for k, v in region_params.items():
                     setattr(interval_region, k, v)
-                display.add_graphic(interval_region)
+                display_item.add_graphic(interval_region)
                 new_regions[region_name] = interval_region
 
         # now come the connections between the source and target
@@ -2866,18 +2865,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def get_crop_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         display_item = self.get_display_item_for_data_item(data_item)
-        display = display_item.display if display_item else None
-        if data_item and display and not crop_region:
+        if data_item and display_item and not crop_region:
             if data_item.is_data_2d:
                 rect_region = Graphics.RectangleGraphic()
                 rect_region.center = 0.5, 0.5
                 rect_region.size = 0.5, 0.5
-                display.add_graphic(rect_region)
+                display_item.add_graphic(rect_region)
                 crop_region = rect_region
             elif data_item.is_data_1d:
                 interval_region = Graphics.IntervalGraphic()
                 interval_region.interval = 0.25, 0.75
-                display.add_graphic(interval_region)
+                display_item.add_graphic(interval_region)
                 crop_region = interval_region
         return self.__make_computation("crop", [(data_item, crop_region)])
 
@@ -2904,10 +2902,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def get_fourier_filter_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         display_item = self.get_display_item_for_data_item(data_item)
-        display = display_item.display if display_item else None
-        if data_item and display:
+        if data_item and display_item:
             has_mask = False
-            for graphic in display.graphics:
+            for graphic in display_item.graphics:
                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                     has_mask = True
                     break
@@ -2915,7 +2912,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 graphic = Graphics.RingGraphic()
                 graphic.radius_1 = 0.15
                 graphic.radius_2 = 0.25
-                display.add_graphic(graphic)
+                display_item.add_graphic(graphic)
         return self.__make_computation("filter", [(data_item, crop_region)])
 
     def get_sequence_measure_shifts_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:

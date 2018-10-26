@@ -1006,19 +1006,18 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
         """
         display_item = data_item_reference.display_item
         data_item = display_item.data_item if display_item else None
-        display = display_item.display if display_item else None
-        if data_item and display:
-            self.__connect_display(display)
+        if data_item and display_item:
+            self.__connect_display(display_item)
         else:
             def data_item_changed():
                 self.__data_item_changed_event_listener.close()
                 self.connect_data_item_reference(data_item_reference)  # ugh. recursive mess.
             self.__data_item_changed_event_listener = data_item_reference.data_item_changed_event.listen(data_item_changed)
 
-    def __connect_display(self, display):
+    def __connect_display(self, display_item):
         assert threading.current_thread() == threading.main_thread()
         crop_graphic = None
-        for graphic in display.graphics:
+        for graphic in display_item.graphics:
             if graphic.graphic_id == self.__processor_id:
                 crop_graphic = graphic
                 break
@@ -1037,7 +1036,7 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
             crop_graphic.is_bounds_constrained = True
             crop_graphic.graphic_id = self.__processor_id
             crop_graphic.label = _("Crop")
-            display.add_graphic(crop_graphic)
+            display_item.add_graphic(crop_graphic)
         if not self.__crop_listener:
             def property_changed(k):
                 if k == "bounds":
@@ -1046,7 +1045,7 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
                 if v == crop_graphic:
                     close_all()
             self.__crop_listener = crop_graphic.property_changed_event.listen(property_changed)
-            self.__remove_listener = display.item_removed_event.listen(graphic_removed)
+            self.__remove_listener = display_item.display.item_removed_event.listen(graphic_removed)
             self.__crop_graphic = crop_graphic
 
 

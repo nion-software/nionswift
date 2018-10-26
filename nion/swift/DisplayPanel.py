@@ -455,7 +455,9 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
 class DisplayTracker:
     """Tracks messages from a display and passes them to associated display canvas item."""
 
-    def __init__(self, display, get_font_metrics, delegate, event_loop, draw_background):
+    def __init__(self, display_item, get_font_metrics, delegate, event_loop, draw_background):
+        display = display_item.display
+        self.__display_item = display_item
         self.__display = display
         self.__get_font_metrics = get_font_metrics
         self.__delegate = delegate
@@ -504,7 +506,7 @@ class DisplayTracker:
         def display_graphic_selection_changed(graphic_selection):
             # this message comes from the display when the graphic selection changes
             display_values = display.get_calculated_display_values()
-            self.__display_canvas_item.update_graphics(display.graphics, graphic_selection, Display.DisplayProperties(display), display_values)
+            self.__display_canvas_item.update_graphics(display_item.graphics, graphic_selection, Display.DisplayProperties(display), display_values)
 
         def display_rgba_changed(display_values):
             with self.__closing_lock:
@@ -520,7 +522,7 @@ class DisplayTracker:
             # thread safe
             display_values = display.get_calculated_display_values()
             display_data_and_metadata_changed(display_values)
-            display_graphic_selection_changed(display.graphic_selection)
+            display_graphic_selection_changed(display_item.graphic_selection)
 
         def handle_next_calculated_display_values():
             # this notification is for the rgba values only
@@ -580,10 +582,10 @@ class DisplayTracker:
 
 class InsertGraphicsCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_controller, display: Display.Display, graphics: typing.Sequence[Graphics.Graphic]):
+    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic]):
         super().__init__(_("Insert Graphics"))
         self.__document_controller = document_controller
-        self.__display_uuid = display.uuid
+        self.__display_item_uuid = display_item.uuid
         self.__graphics = graphics  # only used for perform
         self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
         self.__new_workspace_layout = None
@@ -595,7 +597,7 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
     def close(self):
         self.__undelete_logs = None
         self.__graphics_properties = None
-        self.__display_uuid = None
+        self.__display_item_uuid = None
         self.__graphic_uuids = None
         self.__document_controller = None
         self.__old_workspace_layout = None
@@ -603,35 +605,35 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self):
-        display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
+        display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
         graphics = self.__graphics
         for graphic in graphics:
-            display.add_graphic(graphic)
+            display_item.add_graphic(graphic)
         self.__graphic_uuids = [graphic.uuid for graphic in graphics]
         self.__graphics = None
 
     def _get_modified_state(self):
-        display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
-        return display.modified_state, self.__document_controller.workspace_controller.document_model.modified_state
+        display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        return display_item.display.modified_state, self.__document_controller.workspace_controller.document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
-        display.modified_state, self.__document_controller.workspace_controller.document_model.modified_state = modified_state
+        display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item.display.modified_state, self.__document_controller.workspace_controller.document_model.modified_state = modified_state
 
     def _redo(self):
-        display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
+        display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
         for undelete_log in reversed(self.__undelete_logs):
             self.__document_controller.document_model.undelete_all(undelete_log)
-        self.__graphic_uuids = [graphic.uuid for graphic in display.graphics[-len(self.__graphic_uuids):]]
+        self.__graphic_uuids = [graphic.uuid for graphic in display_item.graphics[-len(self.__graphic_uuids):]]
         self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
     def _undo(self):
-        display = self.__document_controller.document_model.get_display_by_uuid(self.__display_uuid)
+        display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
         graphics = [self.__document_controller.document_model.get_graphic_by_uuid(graphic_uuid) for graphic_uuid in self.__graphic_uuids]
         self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
         self.__undelete_logs = list()
         for graphic in graphics:
-            self.__undelete_logs.append(display.remove_graphic(graphic, safe=True))
+            self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
         self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
 
@@ -680,11 +682,11 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
 
 class ChangeGraphicsCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, display, graphics, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+    def __init__(self, document_model, display_item, graphics, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Change Graphics"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
-        self.__display_uuid = display.uuid
-        self.__graphic_indexes = [display.graphics.index(graphic) for graphic in graphics]
+        self.__display_item_uuid = display_item.uuid
+        self.__graphic_indexes = [display_item.graphics.index(graphic) for graphic in graphics]
         self.__properties = [graphic.write_to_dict() for graphic in graphics]
         self.__value_dict = kwargs
         self.initialize()
@@ -692,40 +694,40 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
     def close(self):
         self.__document_model = None
         self.__properties = None
-        self.__display_uuid = None
+        self.__display_item_uuid = None
         self.__graphic_indexes = None
         super().close()
 
     def perform(self):
-        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
-        graphics = [display.graphics[index] for index in self.__graphic_indexes]
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
         for key, value in self.__value_dict.items():
             for graphic in graphics:
                 setattr(graphic, key, value)
 
     def _get_modified_state(self):
-        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
-        return display.modified_state, self.__document_model.modified_state
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        return display_item.display.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
-        display.modified_state, self.__document_model.modified_state = modified_state
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item.display.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
     def _undo(self):
-        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
         properties = self.__properties
-        graphics = [display.graphics[index] for index in self.__graphic_indexes]
+        graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
         self.__properties = [graphic.write_to_dict() for graphic in graphics]
         for graphic, properties in zip(graphics, properties):
             # NOTE: use read_properties_from_dict (read properties only), not read_from_dict (used for initialization).
             graphic.read_properties_from_dict(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeGraphicsCommand) and self.command_id and self.command_id == command.command_id and self.__display_uuid == command.__display_uuid and self.__graphic_indexes == command.__graphic_indexes
+        return isinstance(command, ChangeGraphicsCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid and self.__graphic_indexes == command.__graphic_indexes
 
 
 class ReplaceDisplayPanelCommand(Undo.UndoableCommand):
@@ -1188,7 +1190,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 def replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item):
                     self.__display_composition_canvas_item.replace_canvas_item(old_display_canvas_item, new_display_canvas_item)
 
-                self.__display_tracker = DisplayTracker(display_item.display, self.ui.get_font_metrics, self, self.__document_controller.event_loop, True)
+                self.__display_tracker = DisplayTracker(display_item, self.ui.get_font_metrics, self, self.__document_controller.event_loop, True)
                 self.__display_tracker.on_clear_display = clear_display
                 self.__display_tracker.on_title_changed = handle_title_changed
                 self.__display_tracker.on_replace_display_canvas_item = replace_display_canvas_item
@@ -1380,9 +1382,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             getattr(target, fn)(*args, **keywords)
 
     def select_all(self):
-        display = self.__get_display()
-        if display:
-            display.graphic_selection.add_range(range(len(display.graphics)))
+        if self.__display_item:
+            self.__display_item.graphic_selection.add_range(range(len(self.__display_item.graphics)))
         return True
 
     def __selection_changed(self):
@@ -1397,34 +1398,28 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     # messages from the display canvas item
 
     def add_index_to_selection(self, index):
-        display = self.__get_display()
-        display.graphic_selection.add(index)
+        self.__display_item.graphic_selection.add(index)
 
     def remove_index_from_selection(self, index):
-        display = self.__get_display()
-        display.graphic_selection.remove(index)
+        self.__display_item.graphic_selection.remove(index)
 
     def set_selection(self, index):
-        display = self.__get_display()
-        display.graphic_selection.set(index)
+        self.__display_item.graphic_selection.set(index)
 
     def clear_selection(self):
-        display = self.__get_display()
-        display.graphic_selection.clear()
+        self.__display_item.graphic_selection.clear()
 
     def add_and_select_region(self, region: Graphics.Graphic) -> Undo.UndoableCommand:
-        display = self.__get_display()
-        display.add_graphic(region)  # this will also make a drawn graphic
+        self.__display_item.add_graphic(region)  # this will also make a drawn graphic
         # hack to select it. it will be the last item.
-        display.graphic_selection.set(len(display.graphics) - 1)
-        return InsertGraphicsCommand(self.__document_controller, display, [region])
+        self.__display_item.graphic_selection.set(len(self.__display_item.graphics) - 1)
+        return InsertGraphicsCommand(self.__document_controller, self.__display_item, [region])
 
     def nudge_selected_graphics(self, mapping, delta):
-        display = self.__get_display()
-        all_graphics = display.graphics
-        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
+        all_graphics = self.__display_item.graphics
+        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display_item.graphic_selection.contains(graphic_index)]
         if graphics:
-            command = ChangeGraphicsCommand(self.__document_controller.document_model, display, graphics, command_id="nudge", is_mergeable=True)
+            command = ChangeGraphicsCommand(self.__document_controller.document_model, self.__display_item, graphics, command_id="nudge", is_mergeable=True)
             for graphic in graphics:
                 graphic.nudge(mapping, delta)
             self.__document_controller.push_undo_command(command)
@@ -1433,7 +1428,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         display = self.__get_display()
         with display._changes():
             for graphic in graphic_drag_items:
-                index = display.graphics.index(graphic)
+                index = self.__display_item.graphics.index(graphic)
                 part_data = (graphic_drag_part, ) + graphic_part_data[index]
                 graphic.adjust_part(widget_mapping, graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
 
@@ -1527,71 +1522,65 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             setattr(self.__get_display(), key, value)
 
     def create_insert_graphics_command(self, graphics: typing.Sequence[Graphics.Graphic]) -> InsertGraphicsCommand:
-        return InsertGraphicsCommand(self.__document_controller, self.__get_display(), graphics)
+        return InsertGraphicsCommand(self.__document_controller, self.__display_item, graphics)
 
     def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> ChangeDisplayCommand:
         return ChangeDisplayCommand(self.__document_controller.document_model, self.__get_display(), command_id=command_id, is_mergeable=is_mergeable)
 
     def create_change_graphics_command(self) -> ChangeGraphicsCommand:
-        display = self.__get_display()
-        all_graphics = display.graphics
-        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
-        return ChangeGraphicsCommand(self.__document_controller.document_model, display, graphics)
+        all_graphics = self.__display_item.graphics
+        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display_item.graphic_selection.contains(graphic_index)]
+        return ChangeGraphicsCommand(self.__document_controller.document_model, self.__display_item, graphics)
 
     def push_undo_command(self, command: Undo.UndoableCommand) -> None:
         self.__document_controller.push_undo_command(command)
 
     def create_rectangle(self, pos):
-        display = self.__get_display()
         bounds = tuple(pos), (0, 0)
-        display.graphic_selection.clear()
+        self.__display_item.graphic_selection.clear()
         region = Graphics.RectangleGraphic()
         region.bounds = bounds
-        display.add_graphic(region)
-        display.graphic_selection.set(display.graphics.index(region))
+        self.__display_item.add_graphic(region)
+        self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
     def create_ellipse(self, pos):
-        display = self.__get_display()
         bounds = tuple(pos), (0, 0)
-        display.graphic_selection.clear()
+        self.__display_item.graphic_selection.clear()
         region = Graphics.EllipseGraphic()
         region.bounds = bounds
-        display.add_graphic(region)
-        display.graphic_selection.set(display.graphics.index(region))
+        self.__display_item.add_graphic(region)
+        self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
     def create_line(self, pos):
-        display = self.__get_display()
         pos = tuple(pos)
-        display.graphic_selection.clear()
+        self.__display_item.graphic_selection.clear()
         region = Graphics.LineGraphic()
         region.start = pos
         region.end = pos
-        display.add_graphic(region)
-        display.graphic_selection.set(display.graphics.index(region))
+        self.__display_item.add_graphic(region)
+        self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
     def create_point(self, pos):
-        display = self.__get_display()
         pos = tuple(pos)
-        display.graphic_selection.clear()
+        self.__display_item.graphic_selection.clear()
         region = Graphics.PointGraphic()
         region.position = pos
-        display.add_graphic(region)
-        display.graphic_selection.set(display.graphics.index(region))
+        self.__display_item.add_graphic(region)
+        self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
     def create_line_profile(self, pos):
-        display = self.__get_display()
         data_item = self.data_item
         if data_item:
             pos = tuple(pos)
-            display.graphic_selection.clear()
+            self.__display_item.graphic_selection.clear()
             line_profile_region = Graphics.LineProfileGraphic()
             line_profile_region.start = pos
             line_profile_region.end = pos
-            display.add_graphic(line_profile_region)
+            self.__display_item.add_graphic(line_profile_region)
             document_controller = self.__document_controller
             document_model = document_controller.document_model
             line_profile_data_item = document_model.get_line_profile_new(data_item, None, line_profile_region)
@@ -1601,32 +1590,29 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return None
 
     def create_spot(self, pos):
-        display = self.__get_display()
         bounds = tuple(pos), (0, 0)
-        display.graphic_selection.clear()
+        self.__display_item.graphic_selection.clear()
         region = Graphics.SpotGraphic()
         region.bounds = bounds
-        display.add_graphic(region)
-        display.graphic_selection.set(display.graphics.index(region))
+        self.__display_item.add_graphic(region)
+        self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
     def create_wedge(self, angle):
-        display = self.__get_display()
-        display.graphic_selection.clear()
+        self.__display_item.graphic_selection.clear()
         region = Graphics.WedgeGraphic()
         region.end_angle = angle
         region.start_angle = angle + math.pi
-        display.add_graphic(region)
-        display.graphic_selection.set(display.graphics.index(region))
+        self.__display_item.add_graphic(region)
+        self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
     def create_ring(self, radius):
-        display = self.__get_display()
-        display.graphic_selection.clear()
+        self.__display_item.graphic_selection.clear()
         region = Graphics.RingGraphic()
         region.radius_1 = radius
-        display.add_graphic(region)
-        display.graphic_selection.set(display.graphics.index(region))
+        self.__display_item.add_graphic(region)
+        self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
 

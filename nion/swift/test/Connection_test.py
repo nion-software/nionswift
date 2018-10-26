@@ -37,7 +37,7 @@ class TestConnectionClass(unittest.TestCase):
             display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
             display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
             interval = Graphics.IntervalGraphic()
-            display_item_1d.display.add_graphic(interval)
+            display_item_1d.add_graphic(interval)
             connection = Connection.PropertyConnection(display_item_3d.display, "slice_center", interval, "start", parent=data_item_1d)
             document_model.append_connection(connection)
             # test to see if connection updates target when source changes
@@ -55,7 +55,7 @@ class TestConnectionClass(unittest.TestCase):
             display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
             display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
             interval = Graphics.IntervalGraphic()
-            display_item_1d.display.add_graphic(interval)
+            display_item_1d.add_graphic(interval)
             connection = Connection.PropertyConnection(display_item_3d.display, "slice_center", interval, "start", parent=data_item_1d)
             document_model.append_connection(connection)
             # test to see if connection updates target when source changes
@@ -74,7 +74,7 @@ class TestConnectionClass(unittest.TestCase):
             display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
             display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
             interval = Graphics.IntervalGraphic()
-            display_item_1d.display.add_graphic(interval)
+            display_item_1d.add_graphic(interval)
             connection = Connection.PropertyConnection(display_item_3d.display, "slice_center", interval, "start", parent=data_item_1d)
             document_model.append_connection(connection)
         # read it back
@@ -85,7 +85,7 @@ class TestConnectionClass(unittest.TestCase):
             data_item_1d = document_model.data_items[1]
             display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
             display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
-            interval = display_item_1d.display.graphics[0]
+            interval = display_item_1d.graphics[0]
             self.assertEqual(1, len(document_model.connections))
             # verify connection is working in both directions
             display_item_3d.display.slice_center = 11
@@ -103,7 +103,7 @@ class TestConnectionClass(unittest.TestCase):
             display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
             display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
             interval = Graphics.IntervalGraphic()
-            display_item_1d.display.add_graphic(interval)
+            display_item_1d.add_graphic(interval)
             connection = Connection.PropertyConnection(display_item_3d.display, "slice_center", interval, "start", parent=data_item_1d)
             document_model.append_connection(connection)
             self.assertFalse(connection._closed)
@@ -120,7 +120,7 @@ class TestConnectionClass(unittest.TestCase):
             display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
             display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
             interval = Graphics.IntervalGraphic()
-            display_item_1d.display.add_graphic(interval)
+            display_item_1d.add_graphic(interval)
             connection = Connection.PropertyConnection(display_item_3d.display, "slice_center", interval, "start", parent=data_item_1d)
             document_model.append_connection(connection)
             self.assertFalse(connection._closed)
@@ -136,12 +136,12 @@ class TestConnectionClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            line_profile_display = document_controller.processing_line_profile().display
+            line_profile_display_item = document_controller.processing_line_profile()
             interval_region = Graphics.IntervalGraphic()
             interval = 0.2, 0.3
             interval_region.interval = interval
-            line_profile_display.add_graphic(interval_region)
-            line_profile_graphic = display_item.display.graphics[0]
+            line_profile_display_item.add_graphic(interval_region)
+            line_profile_graphic = display_item.graphics[0]
             interval_descriptors = line_profile_graphic.interval_descriptors
             self.assertEqual(len(interval_descriptors), 1)
             self.assertEqual(interval_descriptors[0]["interval"], interval)
@@ -155,12 +155,12 @@ class TestConnectionClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            line_profile_display = document_controller.processing_line_profile().display
+            line_profile_display_item = document_controller.processing_line_profile()
             interval_region = Graphics.IntervalGraphic()
-            line_profile_display.add_graphic(interval_region)
+            line_profile_display_item.add_graphic(interval_region)
             interval = 0.2, 0.3
             interval_region.interval = interval
-            line_profile_graphic = display_item.display.graphics[0]
+            line_profile_graphic = display_item.graphics[0]
             interval_descriptors = line_profile_graphic.interval_descriptors
             self.assertEqual(len(interval_descriptors), 1)
             self.assertEqual(interval_descriptors[0]["interval"], interval)

@@ -80,11 +80,10 @@ class TestStorageClass(unittest.TestCase):
         data_item.metadata = metadata
         document_controller.document_model.append_data_item(data_item)
         display_item = document_controller.document_model.get_display_item_for_data_item(data_item)
-        display = display_item.display
-        display.add_graphic(Graphics.PointGraphic())
-        display.add_graphic(Graphics.LineGraphic())
-        display.add_graphic(Graphics.RectangleGraphic())
-        display.add_graphic(Graphics.EllipseGraphic())
+        display_item.add_graphic(Graphics.PointGraphic())
+        display_item.add_graphic(Graphics.LineGraphic())
+        display_item.add_graphic(Graphics.RectangleGraphic())
+        display_item.add_graphic(Graphics.EllipseGraphic())
         display_item.display.display_limits = (500, 1000)
         display_item.data_item.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "three"))
         data_group = DataGroup.DataGroup()
@@ -1006,7 +1005,7 @@ class TestStorageClass(unittest.TestCase):
         read_data_item = document_model.data_items[0]
         read_data_item_uuid = read_data_item.uuid
         read_display_item = document_model.get_display_item_for_data_item(read_data_item)
-        self.assertEqual(len(read_display_item.display.graphics), 9)  # verify assumptions
+        self.assertEqual(len(read_display_item.graphics), 9)  # verify assumptions
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
@@ -1015,7 +1014,7 @@ class TestStorageClass(unittest.TestCase):
         read_data_item = document_model.get_data_item_by_uuid(read_data_item_uuid)
         read_display_item = document_model.get_display_item_for_data_item(read_data_item)
         # verify graphics reload
-        self.assertEqual(len(read_display_item.display.graphics), 9)
+        self.assertEqual(len(read_display_item.graphics), 9)
         # clean up
         document_controller.close()
 
@@ -1113,7 +1112,7 @@ class TestStorageClass(unittest.TestCase):
         display_item = document_model.get_display_item_for_data_item(data_item)
         rect_graphic = Graphics.RectangleGraphic()
         rect_graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
-        display_item.display.add_graphic(rect_graphic)
+        display_item.add_graphic(rect_graphic)
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
@@ -1122,7 +1121,7 @@ class TestStorageClass(unittest.TestCase):
         read_data_item = document_model.data_items[0]
         read_display_item = document_model.get_display_item_for_data_item(read_data_item)
         # verify
-        self.assertEqual(len(read_display_item.display.graphics), 1)
+        self.assertEqual(len(read_display_item.graphics), 1)
         # clean up
         document_controller.close()
 
@@ -1137,7 +1136,7 @@ class TestStorageClass(unittest.TestCase):
         point_region = Graphics.PointGraphic()
         point_region.position = (0.6, 0.4)
         point_region_uuid = point_region.uuid
-        document_model.get_display_item_for_data_item(data_item).display.add_graphic(point_region)
+        document_model.get_display_item_for_data_item(data_item).add_graphic(point_region)
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
@@ -1146,9 +1145,9 @@ class TestStorageClass(unittest.TestCase):
         read_data_item = document_controller.document_model.data_items[0]
         read_display_item = document_model.get_display_item_for_data_item(read_data_item)
         # verify
-        self.assertEqual(read_display_item.display.graphics[0].type, "point-graphic")
-        self.assertEqual(read_display_item.display.graphics[0].uuid, point_region_uuid)
-        self.assertEqual(read_display_item.display.graphics[0].position, (0.6, 0.4))
+        self.assertEqual(read_display_item.graphics[0].type, "point-graphic")
+        self.assertEqual(read_display_item.graphics[0].uuid, point_region_uuid)
+        self.assertEqual(read_display_item.graphics[0].position, (0.6, 0.4))
         # clean up
         document_controller.close()
 
@@ -1339,7 +1338,7 @@ class TestStorageClass(unittest.TestCase):
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.display.add_graphic(crop_region)
+            display_item.add_graphic(crop_region)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             new_data_item = document_model.get_invert_new(data_item, crop_region)
@@ -1348,10 +1347,10 @@ class TestStorageClass(unittest.TestCase):
             read_data_item = document_model.data_items[0]
             read_display_item = document_model.get_display_item_for_data_item(read_data_item)
             computation_bounds = document_model.resolve_object_specifier(document_model.get_data_item_computation(document_model.data_items[1]).variables[0].secondary_specifier).value.bounds
-            self.assertEqual(read_display_item.display.graphics[0].bounds, computation_bounds)
-            read_display_item.display.graphics[0].bounds = ((0.3, 0.4), (0.5, 0.6))
+            self.assertEqual(read_display_item.graphics[0].bounds, computation_bounds)
+            read_display_item.graphics[0].bounds = ((0.3, 0.4), (0.5, 0.6))
             computation_bounds = document_model.resolve_object_specifier(document_model.get_data_item_computation(document_model.data_items[1]).variables[0].secondary_specifier).value.bounds
-            self.assertEqual(read_display_item.display.graphics[0].bounds, computation_bounds)
+            self.assertEqual(read_display_item.graphics[0].bounds, computation_bounds)
 
     def test_inverted_data_item_does_not_need_recompute_when_reloaded(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
@@ -1469,7 +1468,7 @@ class TestStorageClass(unittest.TestCase):
             read_display_item = document_model.get_display_item_for_data_item(read_data_item)
             read_data_item2 = document_model.data_items[1]
             read_display_item2 = document_model.get_display_item_for_data_item(read_data_item2)
-            read_display_item.display.graphics[0].bounds = (0.25, 0.25), (0.75, 0.75)
+            read_display_item.graphics[0].bounds = (0.25, 0.25), (0.75, 0.75)
             document_model.recompute_all()
             self.assertEqual(read_display_item2.data_item.data_shape, (6, 6))
 
@@ -2436,7 +2435,7 @@ class TestStorageClass(unittest.TestCase):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 1)
             display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
-            graphics = display_item.display.graphics
+            graphics = display_item.graphics
             self.assertEqual(len(graphics), 5)
             self.assertIsInstance(graphics[0], Graphics.PointGraphic)
             self.assertEqual(str(graphics[0].uuid), point_uuid_str)
@@ -2524,7 +2523,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             src_display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
             dst_display_item = document_model.get_display_item_for_data_item(document_model.data_items[1])
-            self.assertEqual(src_display_item.display.graphics[0], document_model.resolve_object_specifier(document_model.get_data_item_computation(dst_display_item.data_item).variables[1].variable_specifier).value)
+            self.assertEqual(src_display_item.graphics[0], document_model.resolve_object_specifier(document_model.get_data_item_computation(dst_display_item.data_item).variables[1].variable_specifier).value)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
@@ -3932,7 +3931,7 @@ class TestStorageClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             display_item.add_graphic(crop_region)
-            command = DisplayPanel.ChangeGraphicsCommand(document_model, display_item.display, [crop_region], command_id="nudge", is_mergeable=True)
+            command = DisplayPanel.ChangeGraphicsCommand(document_model, display_item, [crop_region], command_id="nudge", is_mergeable=True)
             old_bounds = crop_region.bounds
             new_bounds = ((0.1, 0.1), (0.2, 0.2))
             crop_region.bounds = new_bounds

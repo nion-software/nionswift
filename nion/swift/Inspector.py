@@ -292,14 +292,14 @@ class ChangeDisplayPropertyBinding(Binding.PropertyBinding):
 
 
 class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
-    def __init__(self, document_controller, display, graphic: Graphics.Graphic, property_name: str, converter=None, fallback=None):
+    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, property_name: str, converter=None, fallback=None):
         super().__init__(graphic, property_name, converter=converter, fallback=fallback)
         self.__property_name = property_name
         self.__old_source_setter = self.source_setter
 
         def set_value(value):
             if value != getattr(graphic, property_name):
-                command = DisplayPanel.ChangeGraphicsCommand(document_controller.document_model, display, [graphic], title=_("Change Display Type"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
+                command = DisplayPanel.ChangeGraphicsCommand(document_controller.document_model, display_item, [graphic], title=_("Change Display Type"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -333,12 +333,12 @@ class DisplayPropertyCommandModel(Model.PropertyModel):
 
 class GraphicPropertyCommandModel(Model.PropertyModel):
 
-    def __init__(self, document_controller, display, graphic, property_name, title, command_id):
+    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, graphic, property_name, title, command_id):
         super().__init__(getattr(graphic, property_name))
 
         def property_changed_from_user(value):
             if value != getattr(graphic, property_name):
-                command = DisplayPanel.ChangeGraphicsCommand(document_controller.document_model, display, [graphic], title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
+                command = DisplayPanel.ChangeGraphicsCommand(document_controller.document_model, display_item, [graphic], title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -1420,7 +1420,7 @@ def make_point_type_inspector(document_controller, graphic_widget, display_item:
     data_item = display_item.data_item if display_item else None
     display = display_item.display if display_item else None
 
-    position_model = GraphicPropertyCommandModel(document_controller, display, graphic, "position", title=_("Change Position"), command_id="change_point_position")
+    position_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "position", title=_("Change Position"), command_id="change_point_position")
 
     image_size = data_item.dimensional_shape
     if (len(image_size) > 1):
@@ -1499,9 +1499,9 @@ def make_line_type_inspector(document_controller, graphic_widget, display_item: 
     data_item = display_item.data_item if display_item else None
     display = display_item.display if display_item else None
 
-    start_model = GraphicPropertyCommandModel(document_controller, display, graphic, "start", title=_("Change Line Start"), command_id="change_line_start")
+    start_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "start", title=_("Change Line Start"), command_id="change_line_start")
 
-    end_model = GraphicPropertyCommandModel(document_controller, display, graphic, "end", title=_("Change Line End"), command_id="change_line_end")
+    end_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "end", title=_("Change Line End"), command_id="change_line_end")
 
     image_size = data_item.dimensional_shape
     if len(image_size) > 1:
@@ -1511,8 +1511,8 @@ def make_line_type_inspector(document_controller, graphic_widget, display_item: 
         start_y_binding = CalibratedValueBinding(data_item, 0, display, Binding.TuplePropertyBinding(start_model, "value", 0))
         end_x_binding = CalibratedValueBinding(data_item, 1, display, Binding.TuplePropertyBinding(end_model, "value", 1))
         end_y_binding = CalibratedValueBinding(data_item, 0, display, Binding.TuplePropertyBinding(end_model, "value", 0))
-        length_binding = CalibratedLengthBinding(data_item, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "start"), ChangeGraphicPropertyBinding(document_controller, display, graphic, "end"))
-        angle_binding = ChangeGraphicPropertyBinding(document_controller, display, graphic, "angle", RadianToDegreeStringConverter())
+        length_binding = CalibratedLengthBinding(data_item, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "start"), ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "end"))
+        angle_binding = ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "angle", RadianToDegreeStringConverter())
         graphic_start_x_line_edit.bind_text(start_x_binding)
         graphic_start_y_line_edit.bind_text(start_y_binding)
         graphic_end_x_line_edit.bind_text(end_x_binding)
@@ -1524,8 +1524,8 @@ def make_line_type_inspector(document_controller, graphic_widget, display_item: 
         graphic_start_y_line_edit.bind_text(Binding.TuplePropertyBinding(start_model, "value", 0))
         graphic_end_x_line_edit.bind_text(Binding.TuplePropertyBinding(end_model, "value", 1))
         graphic_end_y_line_edit.bind_text(Binding.TuplePropertyBinding(end_model, "value", 0))
-        graphic_param_l_line_edit.bind_text(ChangeGraphicPropertyBinding(document_controller, display, graphic, "length"))
-        graphic_param_a_line_edit.bind_text(ChangeGraphicPropertyBinding(document_controller, display, graphic, "angle", RadianToDegreeStringConverter()))
+        graphic_param_l_line_edit.bind_text(ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "length"))
+        graphic_param_a_line_edit.bind_text(ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "angle", RadianToDegreeStringConverter()))
 
     return [start_model, end_model]
 
@@ -1536,7 +1536,7 @@ def make_line_profile_inspector(document_controller, graphic_widget, display_ite
     # configure the bindings
     data_item = display_item.data_item if display_item else None
     display = display_item.display if display_item else None
-    width_binding = CalibratedWidthBinding(data_item, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "width"))
+    width_binding = CalibratedWidthBinding(data_item, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "width"))
     # create the ui
     graphic_width_row = ui.create_row_widget()
     graphic_width_row.add_spacing(20)
@@ -1597,9 +1597,9 @@ def make_rectangle_type_inspector(document_controller, graphic_widget, display_i
     data_item = display_item.data_item if display_item else None
     display = display_item.display if display_item else None
 
-    center_model = GraphicPropertyCommandModel(document_controller, display, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
+    center_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
 
-    size_model = GraphicPropertyCommandModel(document_controller, display, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
+    size_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
 
     # calculate values from rectangle type graphic
     image_size = data_item.dimensional_shape
@@ -1639,7 +1639,7 @@ def make_rectangle_type_inspector(document_controller, graphic_widget, display_i
         graphic_widget.add(rotation_row)
         graphic_widget.add_spacing(4)
 
-        rotation_model = GraphicPropertyCommandModel(document_controller, display, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
+        rotation_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
         rotation_line_edit.bind_text(Binding.PropertyBinding(rotation_model, "value", converter=RadianToDegreeStringConverter()))
 
         closeables.append(rotation_model)
@@ -1667,17 +1667,14 @@ def make_wedge_type_inspector(document_controller, graphic_widget, display_item:
     graphic_widget.add(graphic_center_end_angle_row)
     graphic_widget.add_spacing(4)
 
-    data_item = display_item.data_item if display_item else None
-    display = display_item.display if display_item else None
-
-    angle_interval_model = GraphicPropertyCommandModel(document_controller, display, graphic, "angle_interval", title=_("Change Angle Interval"), command_id="change_angle_interval")
+    angle_interval_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "angle_interval", title=_("Change Angle Interval"), command_id="change_angle_interval")
 
     graphic_center_start_angle_line_edit.bind_text(Binding.TuplePropertyBinding(angle_interval_model, "value", 0, RadianToDegreeStringConverter()))
     graphic_center_angle_measure_line_edit.bind_text(Binding.TuplePropertyBinding(angle_interval_model, "value", 1, RadianToDegreeStringConverter()))
 
     return [angle_interval_model]
 
-def make_annular_ring_mode_chooser(document_controller, display, ring):
+def make_annular_ring_mode_chooser(document_controller, display_item: DisplayItem.DisplayItem, ring):
     ui = document_controller.ui
     annular_ring_mode_options = ((_("Band Pass"), "band-pass"), (_("Low Pass"), "low-pass"), (_("High Pass"), "high-pass"))
     annular_ring_mode_reverse_map = {"band-pass": 0, "low-pass": 1, "high-pass": 2}
@@ -1695,7 +1692,7 @@ def make_annular_ring_mode_chooser(document_controller, display, ring):
                 return "band-pass"
 
     display_calibration_style_chooser = ui.create_combo_box_widget(items=annular_ring_mode_options, item_getter=operator.itemgetter(0))
-    display_calibration_style_chooser.bind_current_index(ChangeGraphicPropertyBinding(document_controller, display, ring, "mode", converter=AnnularRingModeIndexConverter(), fallback=0))
+    display_calibration_style_chooser.bind_current_index(ChangeGraphicPropertyBinding(document_controller, display_item, ring, "mode", converter=AnnularRingModeIndexConverter(), fallback=0))
 
     return display_calibration_style_chooser
 
@@ -1723,15 +1720,15 @@ def make_ring_type_inspector(document_controller, graphic_widget, display_item: 
     ring_mode_row = ui.create_row_widget()
     ring_mode_row.add_spacing(20)
     ring_mode_row.add(ui.create_label_widget(_("Mode"), properties={"width": 60}))
-    ring_mode_row.add(make_annular_ring_mode_chooser(document_controller, display, graphic))
+    ring_mode_row.add(make_annular_ring_mode_chooser(document_controller, display_item, graphic))
     ring_mode_row.add_stretch()
 
     graphic_widget.add(graphic_radius_1_row)
     graphic_widget.add(graphic_radius_2_row)
     graphic_widget.add(ring_mode_row)
 
-    graphic_radius_1_line_edit.bind_text(CalibratedSizeBinding(data_item, 0, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "radius_1")))
-    graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(data_item, 0, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "radius_2")))
+    graphic_radius_1_line_edit.bind_text(CalibratedSizeBinding(data_item, 0, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "radius_1")))
+    graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(data_item, 0, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "radius_2")))
 
 
 def make_interval_type_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
@@ -1739,8 +1736,8 @@ def make_interval_type_inspector(document_controller, graphic_widget, display_it
     # configure the bindings
     data_item = display_item.data_item if display_item else None
     display = display_item.display if display_item else None
-    start_binding = CalibratedValueBinding(data_item, -1, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "start"))
-    end_binding = CalibratedValueBinding(data_item, -1, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "end"))
+    start_binding = CalibratedValueBinding(data_item, -1, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "start"))
+    end_binding = CalibratedValueBinding(data_item, -1, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "end"))
     # create the ui
     graphic_start_row = ui.create_row_widget()
     graphic_start_row.add_spacing(20)
@@ -1779,7 +1776,7 @@ class GraphicsInspectorSection(InspectorSection):
         data_item = display_item.data_item if display_item else None
         display = display_item.display if display_item else None
         self.__image_size = data_item.dimensional_shape
-        self.__graphics = display.graphics
+        self.__graphics = display_item.graphics
         self.__items_to_close = list()
         # ui
         header_widget = self.__create_header_widget()
@@ -2238,7 +2235,7 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
         inspector_sections = list()
         display_data_shape = display.preview_2d_shape if display else ()
         display_data_shape = display_data_shape if display_data_shape is not None else ()
-        if data_item and display and display.graphic_selection.has_selection:
+        if data_item and display_item and display_item.graphic_selection.has_selection:
             inspector_sections.append(GraphicsInspectorSection(document_controller, display_item, selected_only=True))
             def focus_default():
                 pass

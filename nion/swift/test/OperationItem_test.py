@@ -611,12 +611,12 @@ class TestProcessingClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
         display_panel.set_display_panel_display_item(display_item)
-        self.assertEqual(len(display_item.display.graphics), 0)
+        self.assertEqual(len(display_item.graphics), 0)
         crop_region = Graphics.RectangleGraphic()
         crop_region.center = (0.5, 0.5)
         crop_region.size = (0.5, 1.0)
         display_item.add_graphic(crop_region)
-        display_item.display.graphic_selection.set(0)
+        display_item.graphic_selection.set(0)
         document_controller.processing_crop().data_item
         document_controller.close()
 
@@ -628,26 +628,26 @@ class TestProcessingClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
         display_panel.set_display_panel_display_item(display_item)
-        self.assertEqual(len(display_item.display.graphics), 0)
+        self.assertEqual(len(display_item.graphics), 0)
         crop_region = Graphics.RectangleGraphic()
         crop_region.center = (0.5, 0.5)
         crop_region.size = (0.5, 1.0)
         display_item.add_graphic(crop_region)
-        display_item.display.graphic_selection.set(0)
+        display_item.graphic_selection.set(0)
         cropped_data_item = document_controller.processing_crop().data_item
         document_controller.periodic()  # TODO: remove need to let the inspector catch up
-        self.assertEqual(len(display_item.display.graphics), 1)
+        self.assertEqual(len(display_item.graphics), 1)
         self.assertTrue(cropped_data_item in document_model.data_items)
-        display_item.display.graphic_selection.clear()
-        display_item.display.graphic_selection.add(0)
+        display_item.graphic_selection.clear()
+        display_item.graphic_selection.add(0)
         # make sure assumptions are correct
         self.assertEqual(document_model.get_source_data_items(cropped_data_item)[0], data_item)
         self.assertTrue(cropped_data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
         display_panel.set_display_panel_display_item(display_item)
         document_controller.remove_selected_graphics()
-        self.assertEqual(len(display_item.display.graphics), 0)
-        self.assertEqual(len(display_item.display.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
+        self.assertEqual(len(display_item.graphics), 0)
+        self.assertEqual(len(display_item.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
         self.assertFalse(cropped_data_item in document_model.data_items)
         # clean up
         document_controller.close()
@@ -660,25 +660,25 @@ class TestProcessingClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
         display_panel.set_display_panel_display_item(display_item)
-        self.assertEqual(len(display_item.display.graphics), 0)
+        self.assertEqual(len(display_item.graphics), 0)
         crop_region = Graphics.RectangleGraphic()
         crop_region.center = (0.5, 0.5)
         crop_region.size = (0.5, 1.0)
         display_item.add_graphic(crop_region)
-        display_item.display.graphic_selection.set(0)
+        display_item.graphic_selection.set(0)
         projection_data_item = document_controller.processing_projection().data_item
         document_controller.periodic()
         self.assertTrue(projection_data_item in document_model.data_items)
-        display_item.display.graphic_selection.clear()
-        display_item.display.graphic_selection.add(0)
+        display_item.graphic_selection.clear()
+        display_item.graphic_selection.add(0)
         # make sure assumptions are correct
         self.assertEqual(document_model.get_source_data_items(projection_data_item)[0], data_item)
         self.assertTrue(projection_data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
         display_panel.set_display_panel_display_item(display_item)
         document_controller.remove_selected_graphics()
-        self.assertEqual(len(display_item.display.graphics), 0)
-        self.assertEqual(len(display_item.display.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
+        self.assertEqual(len(display_item.graphics), 0)
+        self.assertEqual(len(display_item.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
         self.assertFalse(projection_data_item in document_model.data_items)
         # clean up
         document_controller.close()
@@ -884,14 +884,13 @@ class TestProcessingClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display = display_item.display
             crop_region = Graphics.RectangleGraphic()
             crop_region.center = (0.5, 0.5)
             crop_region.size = (0.5, 1.0)
-            display.add_graphic(crop_region)
+            display_item.add_graphic(crop_region)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            display.graphic_selection.set(0)
+            display_item.graphic_selection.set(0)
             data_sources = document_controller._get_two_data_sources()
             self.assertEqual(data_sources[0][0], data_item)
             self.assertEqual(data_sources[0][1], crop_region)
@@ -907,19 +906,18 @@ class TestProcessingClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display = display_item.display
             crop_region1 = Graphics.RectangleGraphic()
             crop_region1.center = (0.5, 0.5)
             crop_region1.size = (0.5, 1.0)
-            display.add_graphic(crop_region1)
+            display_item.add_graphic(crop_region1)
             crop_region2 = Graphics.RectangleGraphic()
             crop_region2.center = (0.6, 0.5)
             crop_region2.size = (0.5, 1.0)
-            display.add_graphic(crop_region2)
+            display_item.add_graphic(crop_region2)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            display.graphic_selection.set(0)
-            display.graphic_selection.add(1)
+            display_item.graphic_selection.set(0)
+            display_item.graphic_selection.add(1)
             data_sources = document_controller._get_two_data_sources()
             self.assertEqual(data_sources[0][0], data_item)
             self.assertEqual(data_sources[0][1], crop_region1)
@@ -935,12 +933,11 @@ class TestProcessingClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display = display_item.display
             for i in range(3):
-                display.add_graphic(Graphics.RectangleGraphic())
+                display_item.add_graphic(Graphics.RectangleGraphic())
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            display.graphic_selection.add_range(range(3))
+            display_item.graphic_selection.add_range(range(3))
             data_sources = document_controller._get_two_data_sources()
             self.assertEqual(data_sources[0][0], data_item)
             self.assertEqual(data_sources[0][1], None)
@@ -957,11 +954,10 @@ class TestProcessingClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.IntervalGraphic()
             crop_region.interval = (0.5, 1.0)
-            display = display_item.display
-            display.add_graphic(crop_region)
+            display_item.add_graphic(crop_region)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            display.graphic_selection.set(0)
+            display_item.graphic_selection.set(0)
             cropped_data_item = document_controller.processing_crop().data_item
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(cropped_data_item.data, data_item.data[4:8]))
@@ -977,11 +973,10 @@ class TestProcessingClass(unittest.TestCase):
             crop_region = Graphics.RectangleGraphic()
             crop_region.center = (0.5, 0.5)
             crop_region.size = (0.5, 1.0)
-            display = display_item.display
-            display.add_graphic(crop_region)
+            display_item.add_graphic(crop_region)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            display.graphic_selection.set(0)
+            display_item.graphic_selection.set(0)
             cropped_data_item = document_controller.processing_crop().data_item
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(cropped_data_item.data, data_item.data[2:6, 0:8]))

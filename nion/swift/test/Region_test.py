@@ -22,8 +22,8 @@ class TestRegionClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             point_region = Graphics.PointGraphic()
-            display_item.display.add_graphic(point_region)
-            drawn_graphic = display_item.display.graphics[0]
+            display_item.add_graphic(point_region)
+            drawn_graphic = display_item.graphics[0]
             self.assertEqual(point_region.position, drawn_graphic.position)
             point_region.position = (0.3, 0.7)
             self.assertEqual(point_region.position, drawn_graphic.position)
@@ -35,8 +35,8 @@ class TestRegionClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             point_region = Graphics.PointGraphic()
-            display_item.display.add_graphic(point_region)
-            drawn_graphic = display_item.display.graphics[0]
+            display_item.add_graphic(point_region)
+            drawn_graphic = display_item.graphics[0]
             self.assertEqual(point_region.position, drawn_graphic.position)
             drawn_graphic.position = (0.3, 0.7)
             self.assertEqual(point_region.position, drawn_graphic.position)
@@ -59,8 +59,8 @@ class TestRegionClass(unittest.TestCase):
                 region.is_position_locked = False
                 region.is_shape_locked = False
                 region.is_bounds_constrained = False
-                display_item.display.add_graphic(region)
-                drawn_graphic = display_item.display.graphics[-1]
+                display_item.add_graphic(region)
+                drawn_graphic = display_item.graphics[-1]
                 self.assertEqual(region.label, drawn_graphic.label)
                 self.assertEqual(region.is_position_locked, drawn_graphic.is_position_locked)
                 self.assertEqual(region.is_shape_locked, drawn_graphic.is_shape_locked)
@@ -87,9 +87,9 @@ class TestRegionClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             point_region = Graphics.PointGraphic()
-            display_item.display.add_graphic(point_region)
+            display_item.add_graphic(point_region)
             self.assertFalse(point_region._closed)
-            display_item.display.remove_graphic(point_region)
+            display_item.remove_graphic(point_region)
             self.assertTrue(point_region._closed)
 
     def test_removing_data_item_closes_point_region(self):
@@ -99,7 +99,7 @@ class TestRegionClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             point_region = Graphics.PointGraphic()
-            display_item.display.add_graphic(point_region)
+            display_item.add_graphic(point_region)
             self.assertFalse(point_region._closed)
             document_model.remove_data_item(data_item)
             self.assertTrue(point_region._closed)

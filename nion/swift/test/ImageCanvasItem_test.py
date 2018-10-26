@@ -140,9 +140,9 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item.add_graphic(rect_region)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.display_canvas_item.simulate_click((50, 950))
-            self.assertEqual(display_item.display.graphic_selection.indexes, set((0, )))
+            self.assertEqual(display_item.graphic_selection.indexes, set((0, )))
             display_panel.display_canvas_item.simulate_click((500, 500))
-            self.assertEqual(display_item.display.graphic_selection.indexes, set((0, )))
+            self.assertEqual(display_item.graphic_selection.indexes, set((0, )))
 
     def test_specific_parts_take_priority_over_all_part(self):
         # setup
@@ -168,7 +168,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             # clicking on line should select it
             display_panel.display_canvas_item.simulate_click((500, 600))
-            self.assertEqual(display_item.display.graphic_selection.indexes, set((0, )))
+            self.assertEqual(display_item.graphic_selection.indexes, set((0, )))
 
     def test_specific_parts_take_priority_when_another_selected(self):
         # setup
@@ -192,9 +192,9 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             # clicking on line should select it
             display_panel.display_canvas_item.simulate_click((700, 700))
-            self.assertEqual(display_item.display.graphic_selection.indexes, set((1, )))
+            self.assertEqual(display_item.graphic_selection.indexes, set((1, )))
             display_panel.display_canvas_item.simulate_click((600, 200))
-            self.assertEqual(display_item.display.graphic_selection.indexes, set((0, )))
+            self.assertEqual(display_item.graphic_selection.indexes, set((0, )))
 
     def test_hit_testing_occurs_same_as_draw_order(self):
         # draw order occurs from 0 -> n
@@ -218,7 +218,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item.add_graphic(rect_region2)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.display_canvas_item.simulate_click((500, 500))
-            self.assertEqual(display_item.display.graphic_selection.indexes, set((1, )))
+            self.assertEqual(display_item.graphic_selection.indexes, set((1, )))
 
     def test_1d_data_displayed_as_2d(self):
         # setup

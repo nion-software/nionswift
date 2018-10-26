@@ -220,15 +220,15 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             line_graphic = document_controller.add_line_graphic()
             # make sure assumptions are correct
-            self.assertEqual(len(display_item.display.graphic_selection.indexes), 1)
-            self.assertTrue(0 in display_item.display.graphic_selection.indexes)
-            self.assertEqual(len(display_item.display.graphics), 1)
-            self.assertEqual(display_item.display.graphics[0], line_graphic)
+            self.assertEqual(len(display_item.graphic_selection.indexes), 1)
+            self.assertTrue(0 in display_item.graphic_selection.indexes)
+            self.assertEqual(len(display_item.graphics), 1)
+            self.assertEqual(display_item.graphics[0], line_graphic)
             # remove the graphic and make sure things are as expected
             display_panel.set_display_panel_display_item(display_item)
             document_controller.remove_selected_graphics()
-            self.assertEqual(len(display_item.display.graphic_selection.indexes), 0)
-            self.assertEqual(len(display_item.display.graphics), 0)
+            self.assertEqual(len(display_item.graphic_selection.indexes), 0)
+            self.assertEqual(len(display_item.graphics), 0)
 
     def test_remove_line_profile_does_not_remove_data_item_itself(self):
         document_model = DocumentModel.DocumentModel()
@@ -242,8 +242,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             line_profile_data_item = document_controller.processing_line_profile().data_item
             document_controller.periodic()  # TODO: remove need to let the inspector catch up
             display_panel.set_display_panel_display_item(display_item)
-            display_item.display.graphic_selection.clear()
-            display_item.display.graphic_selection.add(0)
+            display_item.graphic_selection.clear()
+            display_item.graphic_selection.add(0)
             # make sure assumptions are correct
             self.assertEqual(document_model.get_source_data_items(line_profile_data_item)[0], data_item)
             self.assertTrue(line_profile_data_item in document_model.data_items)
@@ -261,23 +261,22 @@ class TestDocumentControllerClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display = display_item.display
             # ensure first data item is displayed
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             # make a line profile
             line_profile_data_item = document_controller.processing_line_profile().data_item
             # set up the selection
-            display.graphic_selection.clear()
-            display.graphic_selection.add(0)
+            display_item.graphic_selection.clear()
+            display_item.graphic_selection.add(0)
             # make sure assumptions are correct
             self.assertEqual(document_model.get_source_data_items(line_profile_data_item)[0], data_item)
             self.assertTrue(line_profile_data_item in document_model.data_items)
             # ensure data item is selected, then remove the graphic
             display_panel.set_display_panel_display_item(display_item)
             document_controller.remove_selected_graphics()
-            self.assertEqual(0, len(display.graphics))
-            self.assertEqual(0, len(display.graphic_selection.indexes))  # disabled until test_remove_line_profile_updates_graphic_selection
+            self.assertEqual(0, len(display_item.graphics))
+            self.assertEqual(0, len(display_item.graphic_selection.indexes))  # disabled until test_remove_line_profile_updates_graphic_selection
             self.assertFalse(line_profile_data_item in document_model.data_items)
 
     def test_document_model_closed_only_after_all_document_controllers_closed(self):
@@ -303,7 +302,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.display.add_graphic(crop_region)
+            display_item.add_graphic(crop_region)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             new_data_item = document_model.get_invert_new(data_item, crop_region)
@@ -319,7 +318,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         crop_region = Graphics.RectangleGraphic()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
-        document_model.get_display_item_for_data_item(data_item).display.add_graphic(crop_region)
+        document_model.get_display_item_for_data_item(data_item).add_graphic(crop_region)
         new_data_item = document_model.get_invert_new(data_item, crop_region)
         self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(document_model.get_data_item_computation(new_data_item).variables[0].secondary_specifier).value.bounds)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
@@ -333,7 +332,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         crop_region = Graphics.RectangleGraphic()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
-        document_model.get_display_item_for_data_item(data_item).display.add_graphic(crop_region)
+        document_model.get_display_item_for_data_item(data_item).add_graphic(crop_region)
         cropped_data_item = document_model.get_invert_new(data_item, crop_region)
         document_model.recompute_all()
         self.assertFalse(document_model.get_data_item_computation(cropped_data_item).needs_update)
@@ -382,7 +381,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.display.add_graphic(crop_region)
+            display_item.add_graphic(crop_region)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             data_item_result = document_model.get_invert_new(data_item, crop_region)
@@ -396,9 +395,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             target_data_item = document_model.get_line_profile_new(source_data_item, None)
-            display = document_model.get_display_item_for_data_item(source_data_item).display
+            display_item = document_model.get_display_item_for_data_item(source_data_item)
             self.assertIn(target_data_item, document_model.data_items)
-            display.remove_graphic(display.graphics[0])
+            display_item.remove_graphic(display_item.graphics[0])
             self.assertNotIn(target_data_item, document_model.data_items)
 
     def test_delete_source_data_item_of_computation_deletes_target_data_item(self):
@@ -419,11 +418,11 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             target_data_item = document_model.get_line_profile_new(source_data_item, None)
-            display = document_model.get_display_item_for_data_item(source_data_item).display
+            display_item = document_model.get_display_item_for_data_item(source_data_item)
             self.assertIn(target_data_item, document_model.data_items)
-            self.assertEqual(len(display.graphics), 1)
+            self.assertEqual(len(display_item.graphics), 1)
             document_model.remove_data_item(target_data_item)
-            self.assertEqual(len(display.graphics), 0)
+            self.assertEqual(len(display_item.graphics), 0)
             self.assertNotIn(target_data_item, document_model.data_items)
 
     def test_delete_data_item_with_source_region_also_cascade_deletes_target(self):
@@ -543,7 +542,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.display.add_graphic(crop_region)
+            display_item.add_graphic(crop_region)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             document_controller.processing_duplicate()
@@ -642,35 +641,34 @@ class TestDocumentControllerClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display = display_item.display
-            display.add_graphic(Graphics.RectangleGraphic())
-            display.add_graphic(Graphics.EllipseGraphic())
-            self.assertEqual(2, len(display.graphics))
-            self.assertIsInstance(display.graphics[0], Graphics.RectangleGraphic)
-            self.assertIsInstance(display.graphics[1], Graphics.EllipseGraphic)
+            display_item.add_graphic(Graphics.RectangleGraphic())
+            display_item.add_graphic(Graphics.EllipseGraphic())
+            self.assertEqual(2, len(display_item.graphics))
+            self.assertIsInstance(display_item.graphics[0], Graphics.RectangleGraphic)
+            self.assertIsInstance(display_item.graphics[1], Graphics.EllipseGraphic)
             document_controller.show_display_item(document_model.get_display_item_for_data_item(data_item))
-            display.graphic_selection.set(0)
-            display.graphic_selection.add(1)
+            display_item.graphic_selection.set(0)
+            display_item.graphic_selection.add(1)
             # handle cut, undo, redo
             document_controller.handle_cut()
-            self.assertEqual(0, len(display.graphics))
+            self.assertEqual(0, len(display_item.graphics))
             document_controller.handle_undo()
-            self.assertEqual(2, len(display.graphics))
-            self.assertIsInstance(display.graphics[0], Graphics.RectangleGraphic)
-            self.assertIsInstance(display.graphics[1], Graphics.EllipseGraphic)
+            self.assertEqual(2, len(display_item.graphics))
+            self.assertIsInstance(display_item.graphics[0], Graphics.RectangleGraphic)
+            self.assertIsInstance(display_item.graphics[1], Graphics.EllipseGraphic)
             document_controller.handle_redo()
-            self.assertEqual(0, len(display.graphics))
+            self.assertEqual(0, len(display_item.graphics))
             # handle paste, undo, redo
             document_controller.handle_paste()
-            self.assertEqual(2, len(display.graphics))
-            self.assertIsInstance(display.graphics[0], Graphics.RectangleGraphic)
-            self.assertIsInstance(display.graphics[1], Graphics.EllipseGraphic)
+            self.assertEqual(2, len(display_item.graphics))
+            self.assertIsInstance(display_item.graphics[0], Graphics.RectangleGraphic)
+            self.assertIsInstance(display_item.graphics[1], Graphics.EllipseGraphic)
             document_controller.handle_undo()
-            self.assertEqual(0, len(display.graphics))
+            self.assertEqual(0, len(display_item.graphics))
             document_controller.handle_redo()
-            self.assertEqual(2, len(display.graphics))
-            self.assertIsInstance(display.graphics[0], Graphics.RectangleGraphic)
-            self.assertIsInstance(display.graphics[1], Graphics.EllipseGraphic)
+            self.assertEqual(2, len(display_item.graphics))
+            self.assertIsInstance(display_item.graphics[0], Graphics.RectangleGraphic)
+            self.assertIsInstance(display_item.graphics[1], Graphics.EllipseGraphic)
 
     def test_snapshot_undo_redo_cycle(self):
         app = Application.Application(TestUI.UserInterface(), set_global=False)

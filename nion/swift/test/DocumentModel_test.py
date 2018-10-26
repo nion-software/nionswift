@@ -134,10 +134,10 @@ class TestDocumentModelClass(unittest.TestCase):
             pick_data_item = document_model.get_pick_new(data_item)
             pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
             display = display_item.display
-            self.assertEqual(len(display.graphics), 1)
+            self.assertEqual(len(display_item.graphics), 1)
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(pick_data_item.data, d[4, 4, :]))
-            display.graphics[0].position = 0, 0
+            display_item.graphics[0].position = 0, 0
             document_model.recompute_all()
             self.assertFalse(numpy.array_equal(pick_data_item.data, d[4, 4, :]))
             self.assertTrue(numpy.array_equal(pick_data_item.data, d[0, 0, :]))

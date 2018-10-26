@@ -326,8 +326,8 @@ class TestGraphicsClass(unittest.TestCase):
                     region.is_shape_locked = True
                 elif constraint == "position":
                     region.is_position_locked = True
-            display_item.display.add_graphic(region)
-            display_item.display.graphic_selection.set(0)
+            display_item.add_graphic(region)
+            display_item.graphic_selection.set(0)
             display_panel.display_canvas_item.simulate_drag(*d["drag"])
             for property, expected_value in d["output"]["properties"].items():
                 actual_value = get_extended_attr(region, property)
@@ -354,7 +354,7 @@ class TestGraphicsClass(unittest.TestCase):
                         self.assertAlmostEqual(actual_value, expected_value.value)
                     else:
                         raise Exception("Unknown value type %s", type(actual_value))
-            display_item.display.remove_graphic(region)
+            display_item.remove_graphic(region)
             region.is_bounds_constrained = False
 
         def rotate(p, o, angle):
@@ -1004,9 +1004,9 @@ class TestGraphicsClass(unittest.TestCase):
             rect_graphic2 = Graphics.RectangleGraphic()
             rect_graphic1.bounds = (0.4, 0.4), (0.2, 0.2)
             rect_graphic2.bounds = (0.25, 0.25), (0.5, 0.5)
-            display_item.display.add_graphic(rect_graphic1)
-            display_item.display.add_graphic(rect_graphic2)
-            display_item.display.graphic_selection.set(0)
+            display_item.add_graphic(rect_graphic1)
+            display_item.add_graphic(rect_graphic2)
+            display_item.graphic_selection.set(0)
             # now the smaller rectangle (selected) is behind the larger one
             display_panel.display_canvas_item.simulate_drag((500, 500), (600, 600))
             # make sure the smaller one gets dragged
@@ -1024,9 +1024,9 @@ class TestGraphicsClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             graphic = Graphics.PointGraphic()
-            display_item.display.add_graphic(graphic)
+            display_item.add_graphic(graphic)
             self.assertFalse(graphic._closed)
-            display_item.display.remove_graphic(graphic)
+            display_item.remove_graphic(graphic)
             self.assertTrue(graphic._closed)
 
     def test_removing_data_item_closes_graphic_attached_to_display(self):
@@ -1040,7 +1040,7 @@ class TestGraphicsClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             graphic = Graphics.PointGraphic()
-            display_item.display.add_graphic(graphic)
+            display_item.add_graphic(graphic)
             self.assertFalse(graphic._closed)
             document_model.remove_data_item(data_item)
             self.assertTrue(graphic._closed)
@@ -1052,10 +1052,10 @@ class TestGraphicsClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             point_region = Graphics.PointGraphic()
-            display_item.display.add_graphic(point_region)
-            drawn_graphic = display_item.display.graphics[0]
+            display_item.add_graphic(point_region)
+            drawn_graphic = display_item.graphics[0]
             self.assertFalse(drawn_graphic._closed)
-            display_item.display.remove_graphic(point_region)
+            display_item.remove_graphic(point_region)
             self.assertTrue(drawn_graphic._closed)
 
     def test_removing_data_item_closes_associated_drawn_graphic(self):
@@ -1065,8 +1065,8 @@ class TestGraphicsClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             point_region = Graphics.PointGraphic()
-            display_item.display.add_graphic(point_region)
-            drawn_graphic = display_item.display.graphics[0]
+            display_item.add_graphic(point_region)
+            drawn_graphic = display_item.graphics[0]
             self.assertFalse(drawn_graphic._closed)
             document_model.remove_data_item(data_item)
             self.assertTrue(drawn_graphic._closed)
@@ -1078,10 +1078,10 @@ class TestGraphicsClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
-            display_item.display.add_graphic(crop_region)
+            display_item.add_graphic(crop_region)
             cropped_data_item = document_model.get_crop_new(data_item, crop_region)
             self.assertIn(cropped_data_item, document_model.data_items)
-            display_item.display.remove_graphic(crop_region)
+            display_item.remove_graphic(crop_region)
             self.assertNotIn(cropped_data_item, document_model.data_items)
 
     def test_removing_one_of_two_graphics_with_dependent_data_only_removes_the_one(self):
@@ -1091,15 +1091,15 @@ class TestGraphicsClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region1 = Graphics.RectangleGraphic()
-            display_item.display.add_graphic(crop_region1)
+            display_item.add_graphic(crop_region1)
             crop_region2 = Graphics.RectangleGraphic()
-            display_item.display.add_graphic(crop_region2)
+            display_item.add_graphic(crop_region2)
             document_model.get_crop_new(data_item, crop_region1)
             document_model.get_crop_new(data_item, crop_region2)
-            self.assertIn(crop_region1, display_item.display.graphics)
-            self.assertIn(crop_region2, display_item.display.graphics)
-            display_item.display.remove_graphic(crop_region1)
-            self.assertIn(crop_region2, display_item.display.graphics)
+            self.assertIn(crop_region1, display_item.graphics)
+            self.assertIn(crop_region2, display_item.graphics)
+            display_item.remove_graphic(crop_region1)
+            self.assertIn(crop_region2, display_item.graphics)
 
     def test_changing_data_length_does_not_update_graphics(self):
         document_model = DocumentModel.DocumentModel()
