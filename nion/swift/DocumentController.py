@@ -1822,11 +1822,6 @@ class DocumentController(Window.Window):
         if data_item:
             self._perform_snapshot(data_item)
 
-    def fix_display_limits(self, display_item: DisplayItem.DisplayItem) -> None:
-        display = display_item.display if display_item else None
-        if display:
-            display.display_limits = display.get_calculated_display_values(True).data_range
-
     def processing_computation(self, expression, map=None):
         if map is None:
             map = dict()

@@ -633,6 +633,49 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
 
+class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
+
+    def __init__(self, document_model, display_data_channel: DisplayItem.DisplayDataChannel, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+        super().__init__(title if title else _("Change Display"), command_id=command_id, is_mergeable=is_mergeable)
+        self.__document_model = document_model
+        self.__display_data_channel_uuid = display_data_channel.uuid
+        self.__properties = display_data_channel.save_properties()
+        self.__value_dict = kwargs
+        self.initialize()
+
+    def close(self):
+        self.__document_model = None
+        self.__display_data_channel_uuid = None
+        self.__properties = None
+        super().close()
+
+    def perform(self):
+        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
+        for key, value in self.__value_dict.items():
+            setattr(display_data_channel, key, value)
+
+    def _get_modified_state(self):
+        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
+        return display_data_channel.modified_state, self.__document_model.modified_state
+
+    def _set_modified_state(self, modified_state):
+        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
+        display_data_channel.modified_state, self.__document_model.modified_state = modified_state
+
+    def _compare_modified_states(self, state1, state2) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0]
+
+    def _undo(self):
+        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
+        properties = self.__properties
+        self.__properties = display_data_channel.save_properties()
+        display_data_channel.restore_properties(properties)
+
+    def can_merge(self, command: Undo.UndoableCommand) -> bool:
+        return isinstance(command, ChangeDisplayDataChannelCommand) and self.command_id and self.command_id == command.command_id and self.__display_data_channel_uuid == command.__display_data_channel_uuid
+
+
 class ChangeDisplayCommand(Undo.UndoableCommand):
 
     def __init__(self, document_model, display: Display.Display, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
@@ -1425,24 +1468,24 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 graphic.adjust_part(widget_mapping, graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
 
     def nudge_slice(self, delta) -> None:
-        display = self.__get_display()
-        data_item = self.data_item
-        if data_item:
+        display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
+        if display_data_channel:
+            data_item = display_data_channel.data_item
             if data_item.is_sequence:
                 mx = data_item.dimensional_shape[0] - 1  # sequence_index
-                value = display.sequence_index + delta
+                value = display_data_channel.sequence_index + delta
                 if 0 <= value <= mx:
                     property_name = "sequence_index"
-                    command = ChangeDisplayCommand(self.__document_controller.document_model, display, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{property_name: value})
+                    command = ChangeDisplayDataChannelCommand(self.__document_controller.document_model, display_data_channel, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{property_name: value})
                     command.perform()
                     self.__document_controller.push_undo_command(command)
             if data_item.is_collection and data_item.collection_dimension_count == 1:
                 # it's not a sequence at this point
                 mx = data_item.dimensional_shape[0] - 1  # sequence_index
-                value = display.collection_index[0] + delta
+                value = display_data_channel.collection_index[0] + delta
                 if 0 <= value <= mx:
                     property_name = "collection_index"
-                    command = ChangeDisplayCommand(self.__document_controller.document_model, display, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{property_name: (value, )})
+                    command = ChangeDisplayDataChannelCommand(self.__document_controller.document_model, display_data_channel, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{property_name: (value, )})
                     command.perform()
                     self.__document_controller.push_undo_command(command)
 
@@ -1511,6 +1554,12 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def update_display_properties(self, display_properties):
         for key, value in iter(display_properties.items()):
             setattr(self.__get_display(), key, value)
+
+    def update_display_data_channel_properties(self, display_data_channel_properties: typing.Mapping) -> None:
+        display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
+        if display_data_channel:
+            for key, value in iter(display_data_channel_properties.items()):
+                setattr(display_data_channel, key, value)
 
     def create_insert_graphics_command(self, graphics: typing.Sequence[Graphics.Graphic]) -> InsertGraphicsCommand:
         return InsertGraphicsCommand(self.__document_controller, self.__display_item, graphics)

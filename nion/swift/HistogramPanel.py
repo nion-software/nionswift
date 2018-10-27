@@ -323,12 +323,12 @@ class HistogramWidgetData:
 
 class HistogramWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, document_controller, display_stream, histogram_widget_data_model, color_map_data_model, cursor_changed_fn):
+    def __init__(self, document_controller, display_item_stream, histogram_widget_data_model, color_map_data_model, cursor_changed_fn):
         super().__init__(document_controller.ui.create_column_widget(properties={"min-height": 84, "max-height": 84}))
 
         ui = document_controller.ui
 
-        self.__display_stream = display_stream.add_ref()
+        self.__display_item_stream = display_item_stream.add_ref()
 
         self.__histogram_data_model = histogram_widget_data_model
         self.__color_map_data_model = color_map_data_model
@@ -350,8 +350,9 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
             # based on those data values combined with display_limits.
             # then we set the display_limits on the display, which have
             # the same units as the data values.
-            display = self.__display_stream.value
-            if display:
+            display_item = self.__display_item_stream.value
+            display_data_channel = display_item.display_data_channel if display_item else None
+            if display_data_channel:
                 new_display_limits = None
                 if display_limits is not None and self.__display_range is not None:
                     data_min, data_max = self.__display_range
@@ -359,7 +360,7 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
                     upper_display_limit = data_min + display_limits[1] * (data_max - data_min)
                     new_display_limits = (lower_display_limit, upper_display_limit)
 
-                command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display, display_limits=new_display_limits, title=_("Change Display Limits"))
+                command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, display_limits=new_display_limits, title=_("Change Display Limits"))
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -392,8 +393,8 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
     def close(self):
         self.__color_map_data_stream_listener.close()
         self.__color_map_data_stream_listener = None
-        self.__display_stream.remove_ref()
-        self.__display_stream = None
+        self.__display_item_stream.remove_ref()
+        self.__display_item_stream = None
         self.__histogram_canvas_item = None
         self.__histogram_data_property_changed_event_listener.close()
         self.__histogram_data_property_changed_event_listener = None
@@ -538,7 +539,7 @@ class HistogramPanel(Panel.Panel):
         display_range_stream = DisplayTransientsStream(display_stream, "display_range")
         region_data_and_metadata_func_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, region_stream), calculate_region_data_func)
         histogram_widget_data_func_stream = Stream.CombineLatestStream((region_data_and_metadata_func_stream, display_range_stream), calculate_histogram_widget_data_func)
-        color_map_data_stream = DisplayPropertyStream(display_stream, "color_map_data", cmp=numpy.array_equal)
+        color_map_data_stream = StreamPropertyStream(StreamPropertyStream(display_item_stream, "display_data_channel"), "color_map_data", cmp=numpy.array_equal)
         if debounce:
             histogram_widget_data_func_stream = Stream.DebounceStream(histogram_widget_data_func_stream, 0.05, document_controller.event_loop)
         if sample:
@@ -559,7 +560,7 @@ class HistogramPanel(Panel.Panel):
         self.__histogram_widget_data_model = Model.FuncStreamValueModel(histogram_widget_data_func_stream, document_controller.event_loop, value=HistogramWidgetData(), cmp=numpy.array_equal)
         self.__color_map_data_model = Model.StreamValueModel(color_map_data_stream, cmp=numpy.array_equal)
 
-        self._histogram_widget = HistogramWidget(document_controller, display_stream, self.__histogram_widget_data_model, self.__color_map_data_model, cursor_changed_fn)
+        self._histogram_widget = HistogramWidget(document_controller, display_item_stream, self.__histogram_widget_data_model, self.__color_map_data_model, cursor_changed_fn)
 
         def calculate_statistics(display_data_and_metadata_func, display_data_range, region, displayed_intensity_calibration):
             display_data_and_metadata = display_data_and_metadata_func()
@@ -588,7 +589,7 @@ class HistogramPanel(Panel.Panel):
             return functools.partial(calculate_statistics, display_data_and_metadata_model_func, display_data_range, region, displayed_intensity_calibration)
 
         display_data_range_stream = DisplayTransientsStream(display_stream, "data_range")
-        displayed_intensity_calibration_stream = DisplayPropertyStream(display_stream, 'displayed_intensity_calibration')
+        displayed_intensity_calibration_stream = StreamPropertyStream(display_stream, 'displayed_intensity_calibration')
         statistics_func_stream = Stream.CombineLatestStream((region_data_and_metadata_func_stream, display_data_range_stream, region_stream, displayed_intensity_calibration_stream), calculate_statistics_func)
         if debounce:
             statistics_func_stream = Stream.DebounceStream(statistics_func_stream, 0.05, document_controller.event_loop)
@@ -772,48 +773,48 @@ class TargetRegionStream(Stream.AbstractStream):
             self.value_stream.fire(None)
 
 
-class DisplayPropertyStream(Stream.AbstractStream):
+class StreamPropertyStream(Stream.AbstractStream):
     # TODO: add a display_data_changed to Display class and use it here
 
-    def __init__(self, display_stream, property_name, cmp=None):
+    def __init__(self, stream, property_name, cmp=None):
         super().__init__()
         # outgoing messages
         self.value_stream = Event.Event()
         # references
-        self.__display_stream = display_stream.add_ref()
+        self.__stream = stream.add_ref()
         # initialize
         self.__property_name = property_name
         self.__property_changed_event_listener = None
         self.__value = None
         self.__cmp = cmp if cmp else operator.eq
         # listen for display changes
-        self.__display_stream_listener = display_stream.value_stream.listen(self.__display_changed)
-        self.__display_changed(display_stream.value)
+        self.__stream_listener = stream.value_stream.listen(self.__stream_changed)
+        self.__stream_changed(stream.value)
 
     def close(self):
-        self.__display_changed(None)
-        self.__display_stream_listener.close()
-        self.__display_stream_listener = None
-        self.__display_stream.remove_ref()
-        self.__display_stream = None
+        self.__stream_changed(None)
+        self.__stream_listener.close()
+        self.__stream_listener = None
+        self.__stream.remove_ref()
+        self.__stream = None
         super().close()
 
     @property
     def value(self):
         return self.__value
 
-    def __display_changed(self, display):
+    def __stream_changed(self, item):
         def property_changed(key):
             if key == self.__property_name:
-                new_value = getattr(display, self.__property_name)
+                new_value = getattr(item, self.__property_name)
                 if not self.__cmp(new_value, self.__value):
                     self.__value = new_value
                     self.value_stream.fire(self.__value)
         if self.__property_changed_event_listener:
             self.__property_changed_event_listener.close()
             self.__property_changed_event_listener = None
-        if display:
-            self.__property_changed_event_listener = display.property_changed_event.listen(property_changed)
+        if item:
+            self.__property_changed_event_listener = item.property_changed_event.listen(property_changed)
             property_changed(self.__property_name)
         else:
             self.__value = None

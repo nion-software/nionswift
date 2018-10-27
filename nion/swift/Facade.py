@@ -1262,7 +1262,8 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        shape = self.__display.preview_2d_shape
+        display_data_channel = self.__display_item.display_data_channel
+        shape = display_data_channel.display_data_shape
         mask = numpy.zeros(shape)
         for graphic in self.__display_item.graphics:
             if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):

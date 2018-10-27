@@ -270,6 +270,8 @@ class ImageCanvasItemDelegate:
 
     def update_display_properties(self, display_properties: typing.Mapping) -> None: ...
 
+    def update_display_data_channel_properties(self, display_data_channel_properties: typing.Mapping) -> None: ...
+
     def create_insert_graphics_command(self, graphics: typing.Sequence[Graphics.Graphic]) -> Undo.UndoableCommand: ...
 
     def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> Undo.UndoableCommand: ...
@@ -609,7 +611,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 # the included range. This is the new simplified algorithm. Future
                 # feature may allow user to select more complex algorithms.
                 mn, mx = numpy.nanmin(data), numpy.nanmax(data)
-                self.delegate.update_display_properties({"display_limits": (mn, mx)})
+                self.delegate.update_display_data_channel_properties({"display_limits": (mn, mx)})
         return True
 
     def __update_image_canvas_zoom(self, new_image_zoom):

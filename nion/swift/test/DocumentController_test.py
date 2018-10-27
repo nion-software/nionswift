@@ -585,8 +585,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(DataItem.DataItem(numpy.ones((2, ) + data_size, numpy.float32)))
             for data_item in document_model.data_items:
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                document_controller.fix_display_limits(display_item)
-                self.assertEqual(len(display_item.display_data_channels[0].display_limits), 2)
+                display_data_channel = display_item.display_data_channels[0]
+                display_data_channel.display_limits = display_data_channel.get_calculated_display_values(True).data_range
+                self.assertEqual(len(display_data_channel.display_limits), 2)
 
     def test_delete_by_context_menu_actually_deletes_item_from_library(self):
         document_model = DocumentModel.DocumentModel()

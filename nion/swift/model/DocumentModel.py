@@ -2662,6 +2662,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     display0 = display_item.display if display_item else None
                     connection = Connection.PropertyConnection(display0, connection_src_prop, new_regions[connection_dst], connection_dst_prop, parent=new_data_item)
                     self.append_connection(connection)
+                if connection_src == "display_data_channel":
+                    # TODO: how to refer to the data_items? hardcode to data_item0 for now.
+                    display_item = self.get_display_item_for_data_item(data_item0)
+                    display_data_channel0 = display_item.display_data_channel if display_item else None
+                    connection = Connection.PropertyConnection(display_data_channel0, connection_src_prop, new_regions[connection_dst], connection_dst_prop, parent=new_data_item)
+                    self.append_connection(connection)
             elif connection_type == "interval_list":
                 connection = Connection.IntervalListConnection(display_item, region_map[connection_dst], parent=new_data_item)
                 self.append_connection(connection)
@@ -2766,13 +2772,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 "parameters": [slice_center_param, slice_width_param]}
             pick_in_region = {"name": "pick_region", "type": "point", "params": {"label": _("Pick Point")}}
             pick_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice")}}
-            pick_connection = {"type": "property", "src": "display", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
+            pick_connection = {"type": "property", "src": "display_data_channel", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
             vs["pick-point"] = {"title": _("Pick"), "expression": "xd.pick({src}, pick_region.position)",
                 "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_in_region], "requirements": [requirement_3d]}],
                 "out_regions": [pick_out_region], "connections": [pick_connection]}
             pick_sum_in_region = {"name": "region", "type": "rectangle", "params": {"label": _("Pick Region")}}
             pick_sum_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice")}}
-            pick_sum_connection = {"type": "property", "src": "display", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
+            pick_sum_connection = {"type": "property", "src": "display_data_channel", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
             vs["pick-mask-sum"] = {"title": _("Pick Sum"), "expression": "xd.sum_region({src}, region.mask_xdata_with_shape({src}.data_shape[0:2]))",
                 "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
                 "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}

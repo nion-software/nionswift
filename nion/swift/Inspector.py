@@ -106,12 +106,13 @@ class InspectorPanel(Panel.Panel):
             self.__display_inspector = None
 
         data_item = self.__display_item.data_item if self.__display_item else None
+        display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
         display = self.__display_item.display if self.__display_item else None
 
         self.__display_inspector = DisplayInspector(self.ui, self.document_controller, self.__display_item)
 
         new_data_shape = data_item.data_shape if data_item else ()
-        new_display_data_shape = display.preview_2d_shape if display else ()
+        new_display_data_shape = display_data_channel.display_data_shape if display_data_channel else ()
         new_display_data_shape = new_display_data_shape if new_display_data_shape is not None else ()
         new_display_type = self.__display_item.display_type if self.__display_item else None
 
@@ -132,8 +133,9 @@ class InspectorPanel(Panel.Panel):
             def display_changed():
                 # not really a recursive call; only delayed
                 # this may come in on a thread (superscan probe position connection closing). delay even more.
+                display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
                 new_data_shape = data_item.data_shape if data_item else ()
-                new_display_data_shape = display.preview_2d_shape if display else ()
+                new_display_data_shape = display_data_channel.display_data_shape if display_data_channel else ()
                 new_display_data_shape = new_display_data_shape if new_display_data_shape is not None else ()
                 new_display_type = self.__display_item.display_type if self.__display_item else None
                 if self.__data_shape != new_data_shape or self.__display_type != new_display_type or self.__display_data_shape != new_display_data_shape:
@@ -307,49 +309,6 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
 
 
-class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
-
-    def __init__(self, document_model, display_data_channel: DisplayItem.DisplayDataChannel, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
-        super().__init__(title if title else _("Change Display"), command_id=command_id, is_mergeable=is_mergeable)
-        self.__document_model = document_model
-        self.__display_data_channel_uuid = display_data_channel.uuid
-        self.__properties = display_data_channel.save_properties()
-        self.__value_dict = kwargs
-        self.initialize()
-
-    def close(self):
-        self.__document_model = None
-        self.__display_data_channel_uuid = None
-        self.__properties = None
-        super().close()
-
-    def perform(self):
-        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
-        for key, value in self.__value_dict.items():
-            setattr(display_data_channel, key, value)
-
-    def _get_modified_state(self):
-        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
-        return display_data_channel.modified_state, self.__document_model.modified_state
-
-    def _set_modified_state(self, modified_state):
-        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
-        display_data_channel.modified_state, self.__document_model.modified_state = modified_state
-
-    def _compare_modified_states(self, state1, state2) -> bool:
-        # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
-
-    def _undo(self):
-        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
-        properties = self.__properties
-        self.__properties = display_data_channel.save_properties()
-        display_data_channel.restore_properties(properties)
-
-    def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDisplayDataChannelCommand) and self.command_id and self.command_id == command.command_id and self.__display_data_channel_uuid == command.__display_data_channel_uuid
-
-
 class ChangePropertyBinding(Binding.PropertyBinding):
     def __init__(self, document_controller, item, property_name: str, converter=None, fallback=None):
         super().__init__(item, property_name, converter=converter, fallback=fallback)
@@ -388,7 +347,7 @@ class ChangeDisplayDataChannelPropertyBinding(Binding.PropertyBinding):
 
         def set_value(value):
             if value != getattr(display_data_channel, property_name):
-                command = ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
+                command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -417,7 +376,7 @@ class DisplayDataChannelPropertyCommandModel(Model.PropertyModel):
 
         def property_changed_from_user(value):
             if value != getattr(display_data_channel, property_name):
-                command = ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
+                command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -1071,7 +1030,7 @@ def make_display_type_chooser(document_controller, display_item: DisplayItem.Dis
     return display_type_row, listener
 
 
-def make_color_map_chooser(document_controller, display_item: DisplayItem.DisplayItem):
+def make_color_map_chooser(document_controller, display_data_channel: DisplayItem.DisplayDataChannel):
     ui = document_controller.ui
     color_map_row = ui.create_row_widget()
     color_map_options = [(_("Default"), None)]
@@ -1080,22 +1039,20 @@ def make_color_map_chooser(document_controller, display_item: DisplayItem.Displa
     color_map_reverse_map = {p[1]: i for i, p in enumerate(color_map_options)}
     color_map_chooser = ui.create_combo_box_widget(items=color_map_options, item_getter=operator.itemgetter(0))
 
-    display = display_item.display
-
     def property_changed(name):
-        if name == "display_type":
-            color_map_chooser.current_index = color_map_reverse_map[display.color_map_id]
+        if name == "color_map_id":
+            color_map_chooser.current_index = color_map_reverse_map[display_data_channel.color_map_id]
 
-    listener = display_item.property_changed_event.listen(property_changed)
+    listener = display_data_channel.property_changed_event.listen(property_changed)
 
     def change_color_map(item):
-        if display.color_map_id != item[1]:
-            command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display, color_map_id=item[1], title=_("Change Color Map"), command_id="change_color_map", is_mergeable=True)
+        if display_data_channel.color_map_id != item[1]:
+            command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, color_map_id=item[1], title=_("Change Color Map"), command_id="change_color_map", is_mergeable=True)
             command.perform()
             document_controller.push_undo_command(command)
 
     color_map_chooser.on_current_item_changed = change_color_map
-    color_map_chooser.current_index = color_map_reverse_map.get(display.color_map_id, 0)
+    color_map_chooser.current_index = color_map_reverse_map.get(display_data_channel.color_map_id, 0)
     color_map_row.add(ui.create_label_widget(_("Color Map:"), properties={"width": 120}))
     color_map_row.add(color_map_chooser)
     color_map_row.add_stretch()
@@ -1116,7 +1073,7 @@ class ImageDisplayInspectorSection(InspectorSection):
         display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display_item)
 
         # color map
-        color_map_row, self.__color_map_changed_listener = make_color_map_chooser(document_controller, display_item)
+        color_map_row, self.__color_map_changed_listener = make_color_map_chooser(document_controller, display_data_channel)
 
         # data_range model
         self.__data_range_model = Model.PropertyModel()
