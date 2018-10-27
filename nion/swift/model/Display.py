@@ -643,6 +643,10 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             return self.__current_display_values
         return self.__last_display_values
 
+    @property
+    def display_data_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
+        return self.preview_2d_shape
+
     def _become_master(self):
         self.__is_master = True
 

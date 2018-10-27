@@ -602,7 +602,7 @@ class TestDataPanelClass(unittest.TestCase):
             def display_changed():
                 display_changed_ref[0] = True
             with contextlib.closing(display_item.display.display_changed_event.listen(display_changed)):
-                display_item.display.display_limits = (0.25, 0.75)
+                display_item.display_data_channels[0].display_limits = (0.25, 0.75)
                 self.assertTrue(display_changed_ref[0])
 
     def test_change_from_group_with_selected_items_to_group_with_no_items_updates_data_items_correctly(self):

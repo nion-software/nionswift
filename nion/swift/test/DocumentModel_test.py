@@ -133,7 +133,7 @@ class TestDocumentModelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             pick_data_item = document_model.get_pick_new(data_item)
             pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
-            display = display_item.display
+            display_data_channel = display_item.display_data_channels[0]
             self.assertEqual(len(display_item.graphics), 1)
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(pick_data_item.data, d[4, 4, :]))
@@ -141,16 +141,16 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertFalse(numpy.array_equal(pick_data_item.data, d[4, 4, :]))
             self.assertTrue(numpy.array_equal(pick_data_item.data, d[0, 0, :]))
-            self.assertEqual(pick_display_item.graphics[0].interval, display.slice_interval)
+            self.assertEqual(pick_display_item.graphics[0].interval, display_data_channel.slice_interval)
             # set up interval to be on pixel boundaries; and only even width intervals will map exactly
             interval1 = 5 / d.shape[-1], 9 / d.shape[-1]
             pick_display_item.graphics[0].interval = interval1
-            self.assertEqual(pick_display_item.graphics[0].interval, display.slice_interval)
+            self.assertEqual(pick_display_item.graphics[0].interval, display_data_channel.slice_interval)
             self.assertEqual(pick_display_item.graphics[0].interval, interval1)
             # set up interval to be on pixel boundaries; and only even width intervals will map exactly
             interval2 = 10 / d.shape[-1], 16 / d.shape[-1]
-            display.slice_interval = interval2
-            self.assertEqual(pick_display_item.graphics[0].interval, display.slice_interval)
+            display_data_channel.slice_interval = interval2
+            self.assertEqual(pick_display_item.graphics[0].interval, display_data_channel.slice_interval)
             self.assertEqual(pick_display_item.graphics[0].interval, interval2)
 
     def test_recompute_after_data_item_deleted_does_not_update_data_on_deleted_data_item(self):
@@ -1543,8 +1543,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.display.slice_center = 2
-            display_item.display.slice_width = 1
+            display_data_channel = display_item.display_data_channels[0]
+            display_data_channel.slice_center = 2
+            display_data_channel.slice_width = 1
             computation = document_model.create_computation()
             computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "display_xdata"))
             computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
@@ -1593,8 +1594,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.display.slice_center = 2
-            display_item.display.slice_width = 1
+            display_data_channel = display_item.display_data_channels[0]
+            display_data_channel.slice_center = 2
+            display_data_channel.slice_width = 1
             graphic = Graphics.RectangleGraphic()
             graphic.bounds = (0, 0), (0.5, 0.5)
             display_item.add_graphic(graphic)
@@ -1937,10 +1939,11 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.connections))
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
-            self.assertEqual(pick_display_item.graphics[0].interval, display_item.display.slice_interval)
+            display_data_channel = display_item.display_data_channels[0]
+            self.assertEqual(pick_display_item.graphics[0].interval, display_data_channel.slice_interval)
             # only even width intervals aligned to pixels are represented exactly by slices
             pick_display_item.graphics[0].interval = (12 / 100, 16 / 100)
-            self.assertEqual(pick_display_item.graphics[0].interval, display_item.display.slice_interval)
+            self.assertEqual(pick_display_item.graphics[0].interval, display_data_channel.slice_interval)
             # delete the pick and verify
             undelete_log = document_model.remove_data_item(pick_data_item, safe=True)
             self.assertEqual(0, len(document_model.connections))
@@ -1955,7 +1958,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(2, len(document_model.data_items))
             # ensure connection works
             pick_display_item.graphics[0].interval = (56/100, 64/100)
-            self.assertEqual(pick_display_item.graphics[0].interval, display_item.display.slice_interval)
+            self.assertEqual(pick_display_item.graphics[0].interval, display_data_channel.slice_interval)
 
     def test_undeleted_connection_is_properly_restored_into_persistent_object_context(self):
         document_model = DocumentModel.DocumentModel()

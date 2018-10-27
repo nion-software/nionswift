@@ -586,7 +586,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             for data_item in document_model.data_items:
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 document_controller.fix_display_limits(display_item)
-                self.assertEqual(len(display_item.display.display_limits), 2)
+                self.assertEqual(len(display_item.display_data_channels[0].display_limits), 2)
 
     def test_delete_by_context_menu_actually_deletes_item_from_library(self):
         document_model = DocumentModel.DocumentModel()
@@ -624,7 +624,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_controller.prepare_data_item_script(do_log=False)
             self.assertEqual(data_item.r_var, "r01")
 
-    def test_display_data_item_when_it_is_immediately_filtered(self):
+    def test_display_data_channel_when_it_is_immediately_filtered(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):

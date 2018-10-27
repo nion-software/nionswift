@@ -150,6 +150,151 @@ class GraphicSelection:
             self.changed_event.fire()
 
 
+class DisplayDataChannel:
+    def __init__(self, data_item: DataItem.DataItem, display: Display.Display):
+        self.__data_item = data_item
+        self.__display = display
+        self.modified_state = 0
+        self.property_changed_event = Event.Event()
+
+        def property_changed(property_name):
+            self.modified_state += 1
+            self.property_changed_event.fire(property_name)
+
+        self.__data_item_property_changed_event_listener = None
+        self.__display_property_changed_event_listener = None
+
+        if self.__data_item:
+            self.__data_item_property_changed_event_listener = self.__data_item.property_changed_event.listen(property_changed)
+        if self.__display:
+            self.__display_property_changed_event_listener = self.__display.property_changed_event.listen(property_changed)
+
+    def close(self):
+        if self.__data_item_property_changed_event_listener:
+            self.__data_item_property_changed_event_listener.close()
+            self.__data_item_property_changed_event_listener = None
+        if self.__display_property_changed_event_listener:
+            self.__display_property_changed_event_listener.close()
+            self.__display_property_changed_event_listener = None
+
+    @property
+    def data_item(self) -> DataItem.DataItem:
+        return self.__data_item
+
+    @property
+    def created_local_as_string(self) -> str:
+        return self.__data_item.created_local_as_string
+
+    @property
+    def size_and_data_format_as_string(self) -> str:
+        return self.__data_item.size_and_data_format_as_string
+
+    @property
+    def uuid(self) -> uuid.UUID:
+        return self.__display.uuid
+
+    @property
+    def collection_index(self):
+        return self.__display.collection_index
+
+    @collection_index.setter
+    def collection_index(self, value):
+        self.__display.collection_index = value
+
+    @property
+    def color_map_data(self):
+        return self.__display.color_map_data
+
+    @property
+    def color_map_id(self):
+        return self.__display.color_map_id
+
+    @color_map_id.setter
+    def color_map_id(self, value):
+        self.__display.color_map_id = value
+
+    @property
+    def complex_display_type(self):
+        return self.__display.complex_display_type
+
+    @complex_display_type.setter
+    def complex_display_type(self, value):
+        self.__display.complex_display_type = value
+
+    @property
+    def display_data_shape(self):
+        return self.__display.display_data_shape
+
+    @property
+    def display_limits(self):
+        return self.__display.display_limits
+
+    @display_limits.setter
+    def display_limits(self, value):
+        self.__display.display_limits = value
+
+    @property
+    def sequence_index(self):
+        return self.__display.sequence_index
+
+    @sequence_index.setter
+    def sequence_index(self, value):
+        self.__display.sequence_index = value
+
+    @property
+    def slice_center(self):
+        return self.__display.slice_center
+
+    @slice_center.setter
+    def slice_center(self, value):
+        self.__display.slice_center = value
+
+    @property
+    def slice_interval(self):
+        return self.__display.slice_interval
+
+    @slice_interval.setter
+    def slice_interval(self, value):
+        self.__display.slice_interval = value
+
+    @property
+    def slice_width(self):
+        return self.__display.slice_width
+
+    @slice_width.setter
+    def slice_width(self, value):
+        self.__display.slice_width = value
+
+    def save_properties(self) -> typing.Tuple:
+        return (
+            self.complex_display_type,
+            self.display_limits,
+            self.color_map_id,
+            self.sequence_index,
+            self.collection_index,
+            self.slice_center,
+            self.slice_interval,
+        )
+
+    def restore_properties(self, properties: typing.Tuple) -> None:
+        self.complex_display_type = properties[0]
+        self.display_limits = properties[1]
+        self.color_map_id = properties[2]
+        self.sequence_index = properties[3]
+        self.collection_index = properties[4]
+        self.slice_center = properties[5]
+        self.slice_interval = properties[6]
+
+    def add_calculated_display_values_listener(self, callback, send=True):
+        return self.__display.add_calculated_display_values_listener(callback, send)
+
+    def get_calculated_display_values(self, immediate: bool=False) -> Display.DisplayValues:
+        return self.__display.get_calculated_display_values(immediate)
+
+    def reset_display_limits(self):
+        self.__display.reset_display_limits()
+
+
 class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, item_uuid=None):
         super().__init__()
@@ -186,6 +331,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self._about_to_be_removed = False
         self._closed = False
         self.set_item("display", Display.Display())
+        self.__display_data_channels = list()
         self.__display_about_to_be_removed_listener = self.display.about_to_be_removed_event.listen(self.about_to_be_removed_event.fire)
 
         def graphic_selection_changed():
@@ -218,6 +364,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         for data_item_description_changed_listener in self.__data_item_description_changed_listeners:
             data_item_description_changed_listener.close()
         self.__data_item_description_changed_listeners = list()
+        for display_data_channel in self.__display_data_channels:
+            display_data_channel.close()
+        self.__display_data_channels = list()
         self.__data_items = list()
         for graphic in copy.copy(self.graphics):
             self.__disconnect_graphic(graphic, 0)
@@ -430,11 +579,23 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         # the data changed messages.
         self.item_changed_event.fire()
 
+    @property
+    def display_data_channels(self) -> typing.Sequence[DisplayDataChannel]:
+        return self.__display_data_channels
+
+    @property
+    def display_data_channel(self) -> DisplayDataChannel:
+        return self.__display_data_channels[0] if len(self.__display_data_channels) > 0 else None
+
     def _update_displays(self):
         xdata_list = [data_item.xdata if data_item else None for data_item in self.data_items]
         self.display.update_xdata_list(xdata_list)
 
     def _description_changed(self):
+        self.notify_property_changed("title")
+        self.notify_property_changed("caption")
+        self.notify_property_changed("description")
+        self.notify_property_changed("session_id")
         self.notify_property_changed("displayed_title")
 
     def __get_used_value(self, key: str, default_value):
@@ -496,7 +657,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__set_cascaded_value("session_id", str(value) if value is not None else str())
 
     def connect_data_items(self, lookup_data_item):
+        display = self.display
         self.__data_items = [lookup_data_item(uuid.UUID(data_item_reference)) for data_item_reference in self.data_item_references]
+        self.__display_data_channels = [DisplayDataChannel(data_item, display) for data_item in self.__data_items]
         for data_item in self.__data_items:
             self.__data_item_will_change_listeners.append(data_item.will_change_event.listen(self.__data_item_will_change) if data_item else None)
             self.__data_item_did_change_listeners.append(data_item.did_change_event.listen(self.__data_item_did_change) if data_item else None)
@@ -513,6 +676,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         data_item_references = self.data_item_references
         data_item_references.insert(before_index, str(data_item.uuid))
         self.__data_items.insert(before_index, data_item)
+        self.__display_data_channels.insert(before_index, DisplayDataChannel(data_item, self.display))
         self.__data_item_will_change_listeners.insert(before_index, data_item.will_change_event.listen(self.__data_item_will_change))
         self.__data_item_did_change_listeners.insert(before_index, data_item.did_change_event.listen(self.__data_item_did_change))
         self.__data_item_item_changed_listeners.insert(before_index, data_item.item_changed_event.listen(self.__item_changed))
@@ -538,6 +702,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__data_item_description_changed_listeners[index].close()
         del self.__data_item_description_changed_listeners[index]
         del self.__data_items[index]
+        self.__display_data_channels[index].close()
+        del self.__display_data_channels[index]
         self.data_item_references = data_item_references
 
     @property
@@ -610,6 +776,10 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         created_utc = self.created
         tz_minutes = Utility.local_utcoffset_minutes(created_utc)
         return created_utc + datetime.timedelta(minutes=tz_minutes)
+
+    @property
+    def created_local_as_string(self) -> str:
+        return self.created_local.strftime("%c")
 
     @property
     def is_live(self) -> bool:

@@ -313,8 +313,9 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((4, 4, 32), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.display.slice_center = 16
-            display_item.display.slice_width = 4
+            display_data_channel = display_item.display_data_channels[0]
+            display_data_channel.slice_center = 16
+            display_data_channel.slice_width = 4
             slice_inspector_section = Inspector.SliceInspectorSection(document_controller, data_item, display_item.display)
             with contextlib.closing(slice_inspector_section):
                 self.assertEqual(slice_inspector_section._slice_center_slider_widget.value, 16)
@@ -331,22 +332,22 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display = display_item.display
+            display_data_channel = display_item.display_data_channels[0]
             inspector_section = Inspector.ImageDisplayInspectorSection(document_controller, display_item)
             with contextlib.closing(inspector_section):
-                display.display_limits = None
+                display_data_channel.display_limits = None
                 self.assertEqual(inspector_section.display_limits_limit_low.text, None)
                 self.assertEqual(inspector_section.display_limits_limit_high.text, None)
-                display.display_limits = (None, None)
+                display_data_channel.display_limits = (None, None)
                 self.assertEqual(inspector_section.display_limits_limit_low.text, None)
                 self.assertEqual(inspector_section.display_limits_limit_high.text, None)
-                display.display_limits = (1, None)
+                display_data_channel.display_limits = (1, None)
                 self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0000")
                 self.assertEqual(inspector_section.display_limits_limit_high.text, None)
-                display.display_limits = (None, 2)
+                display_data_channel.display_limits = (None, 2)
                 self.assertEqual(inspector_section.display_limits_limit_low.text, None)
                 self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0000")
-                display.display_limits = (1, 2)
+                display_data_channel.display_limits = (1, 2)
                 self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0000")
                 self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0000")
 
@@ -357,22 +358,22 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display = display_item.display
+            display_data_channel = display_item.display_data_channels[0]
             inspector_section = Inspector.ImageDisplayInspectorSection(document_controller, display_item)
             with contextlib.closing(inspector_section):
-                self.assertEqual(display.display_limits, None)
+                self.assertEqual(display_data_channel.display_limits, None)
                 inspector_section.display_limits_limit_low.text = "1"
                 inspector_section.display_limits_limit_low.editing_finished("1")
-                self.assertEqual(display.display_limits, (1.0, None))
+                self.assertEqual(display_data_channel.display_limits, (1.0, None))
                 inspector_section.display_limits_limit_high.text = "2"
                 inspector_section.display_limits_limit_high.editing_finished("2")
-                self.assertEqual(display.display_limits, (1.0, 2.0))
+                self.assertEqual(display_data_channel.display_limits, (1.0, 2.0))
                 inspector_section.display_limits_limit_low.text = ""
                 inspector_section.display_limits_limit_low.editing_finished("")
-                self.assertEqual(display.display_limits, (None, 2.0))
+                self.assertEqual(display_data_channel.display_limits, (None, 2.0))
                 inspector_section.display_limits_limit_high.text = ""
                 inspector_section.display_limits_limit_high.editing_finished("")
-                self.assertEqual(display.display_limits, None)
+                self.assertEqual(display_data_channel.display_limits, None)
 
     def test_inspector_handles_deleted_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -497,7 +498,7 @@ class TestInspectorClass(unittest.TestCase):
             def property_changed(property_name):
                 if property_name == "display_limits":
                     count[0] += 1
-            property_changed_listener = display_item.display.property_changed_event.listen(property_changed)
+            property_changed_listener = display_item.display_data_channels[0].property_changed_event.listen(property_changed)
             document_model.recompute_all()
             document_model.recompute_all()
             self.assertEqual(count[0], 0)

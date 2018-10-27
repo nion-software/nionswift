@@ -147,8 +147,8 @@ class TestInfoPanelClass(unittest.TestCase):
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_data_channels[0].sequence_index = 4
             display = display_item.display
-            display.sequence_index = 4
             display.calibration_style_id = "pixels-top-left"
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
@@ -174,7 +174,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display = display_item.display
             display.calibration_style_id = "pixels-top-left"
-            display.collection_index = 20, 30
+            display_item.display_data_channels[0].collection_index = 20, 30
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
             info_panel = document_controller.find_dock_widget("info-panel").panel

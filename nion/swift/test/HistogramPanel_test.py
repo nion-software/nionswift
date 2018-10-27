@@ -38,23 +38,24 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.document_controller.close()
 
     def test_drag_to_set_limits(self):
-        self.assertEqual(self.display_item.display.get_calculated_display_values(True).display_range, (200, 650))
-        self.assertIsNone(self.display_item.display.display_limits)
+        display_data_channel = self.display_item.display_data_channels[0]
+        self.assertEqual(display_data_channel.get_calculated_display_values(True).display_range, (200, 650))
+        self.assertIsNone(display_data_channel.display_limits)
         self.histogram_panel._histogram_widget._histogram_data_func_value_model._run_until_complete()
         # drag
         self.histogram_canvas_item.mouse_pressed(60, 58, 0)
         self.histogram_canvas_item.mouse_position_changed(80, 58, 0)
         self.histogram_canvas_item.mouse_released(90, 58, 0)
-        self.assertIsNotNone(self.display_item.display.display_limits)
-        self.assertEqual(self.display_item.display.get_calculated_display_values(True).display_range, (290, 320))
+        self.assertIsNotNone(display_data_channel.display_limits)
+        self.assertEqual(display_data_channel.get_calculated_display_values(True).display_range, (290, 320))
         # double click and return to None
         self.histogram_canvas_item.mouse_pressed(121, 51, 0)
         self.histogram_canvas_item.mouse_released(121, 51, 0)
         self.histogram_canvas_item.mouse_pressed(121, 51, 0)
         self.histogram_canvas_item.mouse_double_clicked(121, 51, 0)
         self.histogram_canvas_item.mouse_released(121, 51, 0)
-        self.assertIsNone(self.display_item.display.display_limits)
-        self.assertEqual(self.display_item.display.get_calculated_display_values(True).display_range, (200, 650))
+        self.assertIsNone(display_data_channel.display_limits)
+        self.assertEqual(display_data_channel.get_calculated_display_values(True).display_range, (200, 650))
 
     def test_changing_source_data_marks_histogram_as_dirty_then_recomputes_via_model(self):
         # verify assumptions
@@ -119,8 +120,9 @@ class TestHistogramPanelClass(unittest.TestCase):
     def test_histogram_statistics_on_slice(self):
         data = numpy.multiply(numpy.abs(numpy.random.randn(2, 2, 20)), 100).astype(numpy.uint32)
         self.display_item.data_item.set_data(data)
-        self.display_item.display.slice_center = 15
-        self.display_item.display.slice_width = 2
+        display_data_channel = self.display_item.display_data_channels[0]
+        display_data_channel.slice_center = 15
+        display_data_channel.slice_width = 2
         # get the values twice: one to finish anything pending, and one to get the correct values
         statistics_dict = self.histogram_panel._statistics_widget._statistics_func_value_model._evaluate_immediate()
         self.assertAlmostEqual(float(statistics_dict["mean"]), numpy.average(numpy.sum(data[..., 14:16], -1)))

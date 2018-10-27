@@ -1528,6 +1528,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def _get_display_item_for_display(self, display: Display.Display) -> typing.Optional[DisplayItem.DisplayItem]:
         return display.container if display else None
 
+    def get_display_data_channel_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DisplayItem.DisplayDataChannel]:
+        for display_item in self.display_items:
+            for display_data_channel in display_item.display_data_channels:
+                if display_data_channel.uuid == uuid:
+                    return display_data_channel
+        return None
+
     def get_or_create_data_group(self, group_name):
         data_group = DataGroup.get_data_group_in_container_by_title(self, group_name)
         if data_group is None:

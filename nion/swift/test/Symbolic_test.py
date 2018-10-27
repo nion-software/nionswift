@@ -429,7 +429,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(data[0, 0, ...], computed_data_item.data))
             # change display, check
-            display_item.display.collection_index = 1, 1
+            display_item.display_data_channels[0].collection_index = 1, 1
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(data[1, 1, ...], computed_data_item.data))
 

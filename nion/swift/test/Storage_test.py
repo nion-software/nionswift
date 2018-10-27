@@ -84,7 +84,7 @@ class TestStorageClass(unittest.TestCase):
         display_item.add_graphic(Graphics.LineGraphic())
         display_item.add_graphic(Graphics.RectangleGraphic())
         display_item.add_graphic(Graphics.EllipseGraphic())
-        display_item.display.display_limits = (500, 1000)
+        display_item.display_data_channels[0].display_limits = (500, 1000)
         display_item.data_item.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "three"))
         data_group = DataGroup.DataGroup()
         data_group.append_display_item(document_controller.document_model.get_display_item_for_data_item(data_item))
@@ -188,14 +188,14 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                data_range = display_item.display.get_calculated_display_values(True).data_range
+                data_range = display_item.display_data_channels[0].get_calculated_display_values(True).data_range
             # read it back
             storage_cache = Cache.DictStorageCache()
             document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
-                self.assertEqual(read_display_item.display.get_calculated_display_values(True).data_range, data_range)
+                self.assertEqual(read_display_item.display_data_channels[0].get_calculated_display_values(True).data_range, data_range)
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -260,12 +260,12 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
-            self.assertIsNotNone(display_item.display.get_calculated_display_values(True).data_range)
+            self.assertIsNotNone(display_item.display_data_channels[0].get_calculated_display_values(True).data_range)
         # read it back
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
-            self.assertIsNotNone(display_item.display.get_calculated_display_values(True).data_range)
+            self.assertIsNotNone(display_item.display_data_channels[0].get_calculated_display_values(True).data_range)
 
     @unittest.expectedFailure
     def test_reload_data_item_does_not_recalculate_display_data_range(self):
@@ -282,7 +282,7 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         with contextlib.closing(document_model):
             display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
-            self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, data_range)
+            self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).data_range, data_range)
 
     def test_reload_data_item_does_not_load_actual_data(self):
         # reloading data from disk should not have to load the data, otherwise bad performance ensues
@@ -309,14 +309,16 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((4, 4, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
-            display_item.display.slice_center = 5
-            display_item.display.slice_width = 3
+            display_data_channel = display_item.display_data_channels[0]
+            display_data_channel.slice_center = 5
+            display_data_channel.slice_width = 3
         # read it back
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
-            self.assertEqual(display_item.display.slice_center, 5)
-            self.assertEqual(display_item.display.slice_width, 3)
+            display_data_channel = display_item.display_data_channels[0]
+            self.assertEqual(display_data_channel.slice_center, 5)
+            self.assertEqual(display_data_channel.slice_width, 3)
 
     def test_reload_data_item_validates_display_slice_and_has_valid_data_and_stats(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
@@ -327,9 +329,10 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
-            display_item.display.slice_center = 5
-            display_item.display.slice_width = 1
-            self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (0, 0))
+            display_data_channel = display_item.display_data_channels[0]
+            display_data_channel.slice_center = 5
+            display_data_channel.slice_width = 1
+            self.assertEqual(display_data_channel.get_calculated_display_values(True).data_range, (0, 0))
         # make the slice_center be out of bounds
         library_storage_properties = memory_persistent_storage_system.library_storage_properties
         library_storage_properties["display_items"][0]["display"]["slice_center"] = 20
@@ -338,10 +341,11 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
-            self.assertEqual(display_item.display.slice_center, 7)
-            self.assertEqual(display_item.display.slice_width, 1)
+            display_data_channel = display_item.display_data_channels[0]
+            self.assertEqual(display_data_channel.slice_center, 7)
+            self.assertEqual(display_data_channel.slice_width, 1)
             self.assertIsNotNone(document_model.data_items[0].data)
-            self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (1, 1))
+            self.assertEqual(display_data_channel.get_calculated_display_values(True).data_range, (1, 1))
 
     def test_save_load_document_to_files(self):
         current_working_directory = os.getcwd()
@@ -410,7 +414,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_item1_uuid, new_data_item1.uuid)
         self.assertEqual(data_item1_data_items_len, new_data_item1_data_items_len)
         # check over the data item
-        self.assertEqual(new_data_item0_display_item.display.display_limits, (500, 1000))
+        self.assertEqual(new_data_item0_display_item.display_data_channels[0].display_limits, (500, 1000))
         self.assertEqual(new_data_item0_display_item.data_item.intensity_calibration.offset, 1.0)
         self.assertEqual(new_data_item0_display_item.data_item.intensity_calibration.scale, 2.0)
         self.assertEqual(new_data_item0_display_item.data_item.intensity_calibration.units, "three")
@@ -3368,13 +3372,14 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.display.get_calculated_display_values(True).data_range  # trigger storage
+            display_data_channel = display_item.display_data_channels[0]
+            display_data_channel.get_calculated_display_values(True).data_range  # trigger storage
             cached_data_range = storage_cache.cache[display_item.uuid]["data_range"]
             self.assertEqual(cached_data_range, (1, 1))
-            self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (1, 1))
+            self.assertEqual(display_data_channel.get_calculated_display_values(True).data_range, (1, 1))
             with document_model.data_item_transaction(data_item):
                 data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
-                self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (0, 0))
+                self.assertEqual(display_data_channel.get_calculated_display_values(True).data_range, (0, 0))
                 self.assertEqual(cached_data_range, storage_cache.cache[display_item.uuid]["data_range"])
                 self.assertEqual(cached_data_range, (1, 1))
             self.assertEqual(storage_cache.cache[display_item.uuid]["data_range"], (0, 0))
@@ -3413,7 +3418,7 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                display_item.display.display_limits = (numpy.float32(1.0), numpy.float32(1.0))
+                display_item.display_data_channels[0].display_limits = (numpy.float32(1.0), numpy.float32(1.0))
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)

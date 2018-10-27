@@ -65,7 +65,7 @@ class TestDataItemClass(unittest.TestCase):
             metadata.setdefault("test", dict())["one"] = 1
             metadata.setdefault("test", dict())["two"] = 22
             data_item.metadata = metadata
-            display_item.display.display_limits = (100, 900)
+            display_item.display_data_channels[0].display_limits = (100, 900)
             display_item.add_graphic(Graphics.RectangleGraphic())
             display_item2 = document_model.deepcopy_display_item(display_item)
             data_item_copy = display_item2.data_item
@@ -87,9 +87,9 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(data_item.timezone_offset, data_item_copy.timezone_offset)
             data_item.title = "data_item1"
             self.assertNotEqual(data_item.title, data_item_copy.title)
-            self.assertEqual(display_item.display.display_limits, display_item2.display.display_limits)
-            display_item.display.display_limits = (150, 200)
-            self.assertNotEqual(display_item.display.display_limits, display_item2.display.display_limits)
+            self.assertEqual(display_item.display_data_channels[0].display_limits, display_item2.display_data_channels[0].display_limits)
+            display_item.display_data_channels[0].display_limits = (150, 200)
+            self.assertNotEqual(display_item.display_data_channels[0].display_limits, display_item2.display_data_channels[0].display_limits)
             # make sure dates are independent
             self.assertIsNot(data_item.created, data_item_copy.created)
             self.assertIsNot(data_item.created, data_item_copy.created)
@@ -495,13 +495,13 @@ class TestDataItemClass(unittest.TestCase):
             xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
             with display_item.data_item.data_ref() as data_ref:
                 data_ref.master_data = 50 * (xx + yy) + 25
-                data_range = display_item.display.get_calculated_display_values(True).data_range
+                data_range = display_item.display_data_channels[0].get_calculated_display_values(True).data_range
                 self.assertEqual(data_range, (25, 125))
                 # now test complex
                 data_ref.master_data = numpy.zeros((8, 8), numpy.complex64)
                 xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
                 data_ref.master_data = (2 + xx * 10) + 1j * (3 + yy * 10)
-            data_range = display_item.display.get_calculated_display_values(True).data_range
+            data_range = display_item.display_data_channels[0].get_calculated_display_values(True).data_range
             data_min = math.log(math.sqrt(2*2 + 3*3))
             data_max = math.log(math.sqrt(12*12 + 13*13))
             self.assertEqual(int(data_min*1e6), int(data_range[0]*1e6))
@@ -513,11 +513,11 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (0, 0))
+            self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).data_range, (0, 0))
             with data_item.data_ref() as data_ref:
                 data_ref.data[:] = 1
                 data_ref.data_updated()
-            self.assertEqual(display_item.display.get_calculated_display_values(True).data_range, (1, 1))
+            self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).data_range, (1, 1))
 
     def test_removing_dependent_data_item_with_graphic(self):
         document_model = DocumentModel.DocumentModel()
