@@ -41,7 +41,8 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             data_item.title = "Title1"
             document_model.append_data_item(data_item)
-            inspector_section = Inspector.InfoInspectorSection(document_controller, data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            inspector_section = Inspector.InfoInspectorSection(document_controller, display_item)
             with contextlib.closing(inspector_section):
                 self.assertEqual(inspector_section.info_title_label.text, "Title1")
                 data_item.title = "Title2"
@@ -97,7 +98,7 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_item.set_dimensional_calibration(0, Calibration.Calibration(offset=5.1, scale=1.2, units="mm"))
-            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, data_item, display_item.display)
+            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
             with contextlib.closing(inspector_section):
                 calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
                 calibration_row = calibration_list_widget.find_widget_by_id("content_section").children[0]
@@ -121,7 +122,7 @@ class TestInspectorClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
             data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
-            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, data_item, display_item.display)
+            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
             with contextlib.closing(inspector_section):
                 calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
                 calibration_row = calibration_list_widget.find_widget_by_id("content_section").children[0]
@@ -316,7 +317,7 @@ class TestInspectorClass(unittest.TestCase):
             display_data_channel = display_item.display_data_channels[0]
             display_data_channel.slice_center = 16
             display_data_channel.slice_width = 4
-            slice_inspector_section = Inspector.SliceInspectorSection(document_controller, data_item, display_item.display)
+            slice_inspector_section = Inspector.SliceInspectorSection(document_controller, display_item.display_data_channels[0])
             with contextlib.closing(slice_inspector_section):
                 self.assertEqual(slice_inspector_section._slice_center_slider_widget.value, 16)
                 self.assertEqual(slice_inspector_section._slice_center_slider_widget.maximum, 31)
@@ -333,7 +334,7 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            inspector_section = Inspector.ImageDisplayInspectorSection(document_controller, display_item)
+            inspector_section = Inspector.ImageDisplayInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
             with contextlib.closing(inspector_section):
                 display_data_channel.display_limits = None
                 self.assertEqual(inspector_section.display_limits_limit_low.text, None)
@@ -359,7 +360,7 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            inspector_section = Inspector.ImageDisplayInspectorSection(document_controller, display_item)
+            inspector_section = Inspector.ImageDisplayInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
             with contextlib.closing(inspector_section):
                 self.assertEqual(display_data_channel.display_limits, None)
                 inspector_section.display_limits_limit_low.text = "1"
@@ -814,7 +815,7 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, )))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, data_item, display_item.display)
+            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
             with contextlib.closing(inspector_section):
                 calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
                 content_section = calibration_list_widget.find_widget_by_id("content_section")
@@ -830,7 +831,7 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, data_item, display_item.display)
+            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
             with contextlib.closing(inspector_section):
                 calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
                 content_section = calibration_list_widget.find_widget_by_id("content_section")
@@ -845,7 +846,7 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8, 16)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, data_item, display_item.display)
+            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
             with contextlib.closing(inspector_section):
                 calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
                 content_section = calibration_list_widget.find_widget_by_id("content_section")

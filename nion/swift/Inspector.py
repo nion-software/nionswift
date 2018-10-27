@@ -215,6 +215,52 @@ class InspectorSection(Widgets.CompositeWidgetBase):
         return self.__section_content_column
 
 
+class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
+    def __init__(self, document_model, display_item: DisplayItem.DisplayItem, property_name: str, value):
+        super().__init__(_("Change Display Item Info"), command_id="change_property_" + property_name, is_mergeable=True)
+        self.__document_model = document_model
+        self.__display_item_uuid = display_item.uuid
+        self.__property_name = property_name
+        self.__new_value = value
+        self.__old_value = getattr(display_item, property_name)
+        self.initialize()
+
+    def close(self):
+        self.__document_model = None
+        self.__display_item_uuid = None
+        self.__property_name = None
+        self.__new_value = None
+        self.__old_value = None
+        super().close()
+
+    def perform(self):
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        setattr(display_item, self.__property_name, self.__new_value)
+
+    def _get_modified_state(self):
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        return display_item.modified_state, self.__document_model.modified_state
+
+    def _set_modified_state(self, modified_state) -> None:
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item.modified_state, self.__document_model.modified_state = modified_state
+
+    def _compare_modified_states(self, state1, state2) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0]
+
+    def _undo(self) -> None:
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        self.__new_value = getattr(display_item, self.__property_name)
+        setattr(display_item, self.__property_name, self.__old_value)
+
+    def _redo(self) -> None:
+        self.perform()
+
+    def can_merge(self, command: Undo.UndoableCommand) -> bool:
+        return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
+
+
 class ChangePropertyCommand(Undo.UndoableCommand):
     def __init__(self, document_model, data_item: DataItem.DataItem, property_name: str, value):
         super().__init__(_("Change Data Item Info"), command_id="change_property_" + property_name, is_mergeable=True)
@@ -261,14 +307,57 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
 
 
+class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
+
+    def __init__(self, document_model, display_data_channel: DisplayItem.DisplayDataChannel, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+        super().__init__(title if title else _("Change Display"), command_id=command_id, is_mergeable=is_mergeable)
+        self.__document_model = document_model
+        self.__display_data_channel_uuid = display_data_channel.uuid
+        self.__properties = display_data_channel.save_properties()
+        self.__value_dict = kwargs
+        self.initialize()
+
+    def close(self):
+        self.__document_model = None
+        self.__display_data_channel_uuid = None
+        self.__properties = None
+        super().close()
+
+    def perform(self):
+        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
+        for key, value in self.__value_dict.items():
+            setattr(display_data_channel, key, value)
+
+    def _get_modified_state(self):
+        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
+        return display_data_channel.modified_state, self.__document_model.modified_state
+
+    def _set_modified_state(self, modified_state):
+        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
+        display_data_channel.modified_state, self.__document_model.modified_state = modified_state
+
+    def _compare_modified_states(self, state1, state2) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0]
+
+    def _undo(self):
+        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
+        properties = self.__properties
+        self.__properties = display_data_channel.save_properties()
+        display_data_channel.restore_properties(properties)
+
+    def can_merge(self, command: Undo.UndoableCommand) -> bool:
+        return isinstance(command, ChangeDisplayDataChannelCommand) and self.command_id and self.command_id == command.command_id and self.__display_data_channel_uuid == command.__display_data_channel_uuid
+
+
 class ChangePropertyBinding(Binding.PropertyBinding):
-    def __init__(self, document_controller, data_item: DataItem.DataItem, property_name: str, converter=None, fallback=None):
-        super().__init__(data_item, property_name, converter=converter, fallback=fallback)
+    def __init__(self, document_controller, item, property_name: str, converter=None, fallback=None):
+        super().__init__(item, property_name, converter=converter, fallback=fallback)
         self.__property_name = property_name
         self.__old_source_setter = self.source_setter
 
         def set_value(value):
-            if value != getattr(data_item, property_name):
+            if value != getattr(item, property_name):
                 command = ChangePropertyCommand(document_controller.document_model, self.source, self.__property_name, value)
                 command.perform()
                 document_controller.push_undo_command(command)
@@ -291,6 +380,21 @@ class ChangeDisplayPropertyBinding(Binding.PropertyBinding):
         self.source_setter = set_value
 
 
+class ChangeDisplayDataChannelPropertyBinding(Binding.PropertyBinding):
+    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, property_name: str, converter=None, fallback=None):
+        super().__init__(display_data_channel, property_name, converter=converter, fallback=fallback)
+        self.__property_name = property_name
+        self.__old_source_setter = self.source_setter
+
+        def set_value(value):
+            if value != getattr(display_data_channel, property_name):
+                command = ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
+                command.perform()
+                document_controller.push_undo_command(command)
+
+        self.source_setter = set_value
+
+
 class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
     def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, property_name: str, converter=None, fallback=None):
         super().__init__(graphic, property_name, converter=converter, fallback=fallback)
@@ -304,6 +408,31 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
                 document_controller.push_undo_command(command)
 
         self.source_setter = set_value
+
+
+class DisplayDataChannelPropertyCommandModel(Model.PropertyModel):
+
+    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, property_name, title, command_id):
+        super().__init__(getattr(display_data_channel, property_name))
+
+        def property_changed_from_user(value):
+            if value != getattr(display_data_channel, property_name):
+                command = ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
+                command.perform()
+                document_controller.push_undo_command(command)
+
+        self.on_value_changed = property_changed_from_user
+
+        def property_changed_from_display(name):
+            if name == property_name:
+                self.value = getattr(display_data_channel, property_name)
+
+        self.__changed_listener = display_data_channel.property_changed_event.listen(property_changed_from_display)
+
+    def close(self):
+        self.__changed_listener.close()
+        self.__changed_listener = None
+        super().close()
 
 
 class DisplayPropertyCommandModel(Model.PropertyModel):
@@ -362,14 +491,14 @@ class InfoInspectorSection(InspectorSection):
         Subclass InspectorSection to implement info inspector.
     """
 
-    def __init__(self, document_controller, data_item):
+    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
         super().__init__(document_controller.ui, "info", _("Info"))
         ui = document_controller.ui
         # title
         self.info_section_title_row = self.ui.create_row_widget()
         self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width": 60}))
         self.info_title_label = self.ui.create_line_edit_widget()
-        self.info_title_label.bind_text(ChangePropertyBinding(document_controller, data_item, "title"))
+        self.info_title_label.bind_text(ChangePropertyBinding(document_controller, display_item, "title"))
         self.info_section_title_row.add(self.info_title_label)
         self.info_section_title_row.add_spacing(8)
         # caption
@@ -384,13 +513,13 @@ class InfoInspectorSection(InspectorSection):
         self.caption_static_column = self.ui.create_column_widget()
         self.caption_static_text = self.ui.create_text_edit_widget(properties={"height": 60})
         self.caption_static_text.editable = False
-        caption_binding = Binding.PropertyBinding(data_item, "caption")
+        caption_binding = Binding.PropertyBinding(display_item, "caption")
         caption_binding.source_setter = None
         self.caption_static_text.bind_text(caption_binding)
         self.caption_static_button_row = self.ui.create_row_widget()
         self.caption_static_edit_button = self.ui.create_push_button_widget(_("Edit"))
         def begin_caption_edit():
-            self.caption_editable_text.text = data_item.caption
+            self.caption_editable_text.text = display_item.caption
             self.caption_static_text.unbind_text()
             self.caption_edit_stack.current_index = 1
         self.caption_static_edit_button.on_clicked = begin_caption_edit
@@ -406,12 +535,12 @@ class InfoInspectorSection(InspectorSection):
         self.caption_editable_save_button = self.ui.create_push_button_widget(_("Save"))
         self.caption_editable_cancel_button = self.ui.create_push_button_widget(_("Cancel"))
         def end_caption_edit():
-            caption_binding = Binding.PropertyBinding(data_item, "caption")
+            caption_binding = Binding.PropertyBinding(display_item, "caption")
             caption_binding.source_setter = None
             self.caption_static_text.bind_text(caption_binding)
             self.caption_edit_stack.current_index = 0
         def save_caption_edit():
-            command = ChangePropertyCommand(document_controller.document_model, data_item, "caption", self.caption_editable_text.text)
+            command = ChangeDisplayItemPropertyCommand(document_controller.document_model, display_item, "caption", self.caption_editable_text.text)
             command.perform()
             document_controller.push_undo_command(command)
             end_caption_edit()
@@ -435,27 +564,48 @@ class InfoInspectorSection(InspectorSection):
         self.info_section_session_row = self.ui.create_row_widget()
         self.info_section_session_row.add(self.ui.create_label_widget(_("Session"), properties={"width": 60}))
         self.info_session_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_session_label.bind_text(Binding.PropertyBinding(data_item, "session_id"))
+        self.info_session_label.bind_text(Binding.PropertyBinding(display_item, "session_id"))
         self.info_section_session_row.add(self.info_session_label)
         self.info_section_session_row.add_stretch()
         # date
         self.info_section_datetime_row = self.ui.create_row_widget()
         self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
         self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_datetime_label.bind_text(Binding.PropertyBinding(data_item, "created_local_as_string"))
+        self.info_datetime_label.bind_text(Binding.PropertyBinding(display_item, "created_local_as_string"))
+        self.info_section_datetime_row.add(self.info_datetime_label)
+        self.info_section_datetime_row.add_stretch()
+        # add all of the rows to the section content
+        self.add_widget_to_content(self.info_section_title_row)
+        self.add_widget_to_content(self.caption_row)
+        self.add_widget_to_content(self.info_section_session_row)
+        self.add_widget_to_content(self.info_section_datetime_row)
+        self.finish_widget_content()
+
+
+class DataInfoInspectorSection(InspectorSection):
+
+    """
+        Subclass InspectorSection to implement info inspector.
+    """
+
+    def __init__(self, document_controller, display_data_channel):
+        super().__init__(document_controller.ui, "data_info", _("Data Info"))
+        ui = document_controller.ui
+        # date
+        self.info_section_datetime_row = self.ui.create_row_widget()
+        self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
+        self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
+        self.info_datetime_label.bind_text(Binding.PropertyBinding(display_data_channel, "created_local_as_string"))
         self.info_section_datetime_row.add(self.info_datetime_label)
         self.info_section_datetime_row.add_stretch()
         # format (size, datatype)
         self.info_section_format_row = self.ui.create_row_widget()
         self.info_section_format_row.add(self.ui.create_label_widget(_("Data"), properties={"width": 60}))
         self.info_format_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_format_label.bind_text(Binding.PropertyBinding(data_item, "size_and_data_format_as_string"))
+        self.info_format_label.bind_text(Binding.PropertyBinding(display_data_channel, "size_and_data_format_as_string"))
         self.info_section_format_row.add(self.info_format_label)
         self.info_section_format_row.add_stretch()
         # add all of the rows to the section content
-        self.add_widget_to_content(self.info_section_title_row)
-        self.add_widget_to_content(self.caption_row)
-        self.add_widget_to_content(self.info_section_session_row)
         self.add_widget_to_content(self.info_section_datetime_row)
         self.add_widget_to_content(self.info_section_format_row)
         self.finish_widget_content()
@@ -674,8 +824,11 @@ class CalibrationToObservable(Observable.Observable):
         self.notify_property_changed("units")
 
 
-def make_calibration_style_chooser(document_controller, display):
+def make_calibration_style_chooser(document_controller, display_item: DisplayItem.DisplayItem):
     ui = document_controller.ui
+
+    display = display_item.display
+
     calibration_styles = display.calibration_styles
 
     display_calibration_style_options = [(calibration_style.label, calibration_style.calibration_style_id) for calibration_style in calibration_styles]
@@ -727,10 +880,11 @@ def make_calibration_row_widget(ui, calibration_observable, label: str=None):
 class CalibrationsInspectorSection(InspectorSection):
     """Calibration inspector."""
 
-    def __init__(self, document_controller, data_item, display):
+    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem):
         super().__init__(document_controller.ui, "calibrations", _("Calibrations"))
         self.__document_controller = document_controller
-        self.__data_item = data_item
+        self.__display_data_channel = display_data_channel
+        self.__display_item = display_item
         self.__calibration_observables = list()
         ui = document_controller.ui
         header_widget = self.__create_header_widget()
@@ -739,11 +893,13 @@ class CalibrationsInspectorSection(InspectorSection):
         self.__list_widget.widget_id = "calibration_list_widget"
         self.add_widget_to_content(self.__list_widget)
 
+        data_item = self.__display_data_channel.data_item
+
         # create the intensity row
-        intensity_calibration = self.__data_item.intensity_calibration or Calibration.Calibration()
+        intensity_calibration = data_item.intensity_calibration or Calibration.Calibration()
 
         def change_intensity_calibration(intensity_calibration):
-            command = ChangeIntensityCalibrationCommand(document_controller.document_model, self.__data_item, intensity_calibration)
+            command = ChangeIntensityCalibrationCommand(document_controller.document_model, data_item, intensity_calibration)
             command.perform()
             document_controller.push_undo_command(command)
 
@@ -757,14 +913,14 @@ class CalibrationsInspectorSection(InspectorSection):
             else:
                 self.__build_calibration_list()
 
-        self.__data_item_changed_event_listener = self.__data_item.data_item_changed_event.listen(handle_data_item_changed)
+        self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(handle_data_item_changed)
         self.__build_calibration_list()
 
         self.add_widget_to_content(intensity_row)
         # create the display calibrations check box row
         self.display_calibrations_row = self.ui.create_row_widget()
         self.display_calibrations_row.add(self.ui.create_label_widget(_("Display"), properties={"width": 60}))
-        self.display_calibrations_row.add(make_calibration_style_chooser(document_controller, display))
+        self.display_calibrations_row.add(make_calibration_style_chooser(document_controller, self.__display_item))
         self.display_calibrations_row.add_stretch()
         self.add_widget_to_content(self.display_calibrations_row)
         self.finish_widget_content()
@@ -782,7 +938,8 @@ class CalibrationsInspectorSection(InspectorSection):
 
     # not thread safe
     def __build_calibration_list(self):
-        dimensional_calibrations = self.__data_item.dimensional_calibrations or list()
+        data_item = self.__display_data_channel.data_item
+        dimensional_calibrations = data_item.dimensional_calibrations or list()
         while len(dimensional_calibrations) < self.__list_widget.list_item_count:
             self.__list_widget.remove_item(len(self.__calibration_observables) - 1)
             self.__calibration_observables[-1].close()
@@ -791,9 +948,9 @@ class CalibrationsInspectorSection(InspectorSection):
             index = self.__list_widget.list_item_count
 
             def change_dimensional_calibration(index, dimensional_calibration):
-                dimensional_calibrations = self.__data_item.dimensional_calibrations
+                dimensional_calibrations = data_item.dimensional_calibrations
                 dimensional_calibrations[index] = dimensional_calibration
-                command = ChangeDimensionalCalibrationsCommand(self.__document_controller.document_model, self.__data_item, dimensional_calibrations)
+                command = ChangeDimensionalCalibrationsCommand(self.__document_controller.document_model, data_item, dimensional_calibrations)
                 command.perform()
                 self.__document_controller.push_undo_command(command)
 
@@ -810,7 +967,7 @@ class CalibrationsInspectorSection(InspectorSection):
             else:
                 row_label_text = str(index)
             self.__list_widget.list_items[index].find_widget_by_id("label").text = row_label_text
-        self.__intensity_calibration_observable.copy_from(self.__data_item.intensity_calibration or Calibration.Calibration())
+        self.__intensity_calibration_observable.copy_from(data_item.intensity_calibration or Calibration.Calibration())
 
     # not thread safe
     def __create_header_widget(self):
@@ -951,10 +1108,9 @@ class ImageDisplayInspectorSection(InspectorSection):
         Subclass InspectorSection to implement display limits inspector.
     """
 
-    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
+    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem):
         super().__init__(document_controller.ui, "display-limits", _("Display"))
         ui = document_controller.ui
-        display = display_item.display
 
         # display type
         display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display_item)
@@ -984,7 +1140,7 @@ class ImageDisplayInspectorSection(InspectorSection):
         self.display_limits_limit_low.placeholder_text = _("Auto")
         self.display_limits_limit_high.placeholder_text = _("Auto")
 
-        self.__display_limits_model = DisplayPropertyCommandModel(document_controller, display, "display_limits", title=_("Change Display Limits"), command_id="change_display_limits")
+        self.__display_limits_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "display_limits", title=_("Change Display Limits"), command_id="change_display_limits")
 
         self.display_limits_limit_low.bind_text(Binding.TuplePropertyBinding(self.__display_limits_model, "value", 0, float_point_2_none_converter))
         self.display_limits_limit_high.bind_text(Binding.TuplePropertyBinding(self.__display_limits_model, "value", 1, float_point_2_none_converter))
@@ -1002,10 +1158,10 @@ class ImageDisplayInspectorSection(InspectorSection):
         self.finish_widget_content()
 
         def handle_next_calculated_display_values():
-            calculated_display_values = display.get_calculated_display_values(True)
+            calculated_display_values = display_data_channel.get_calculated_display_values(True)
             self.__data_range_model.value = calculated_display_values.data_range
 
-        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
+        self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(handle_next_calculated_display_values)
 
     def close(self):
         self.__display_limits_model.close()
@@ -1124,16 +1280,18 @@ class SequenceInspectorSection(InspectorSection):
         Subclass InspectorSection to implement slice inspector.
     """
 
-    def __init__(self, document_controller, data_item, display):
+    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel):
         super().__init__(document_controller.ui, "sequence", _("Sequence"))
+
+        data_item = display_data_channel.data_item
 
         sequence_index_row_widget = self.ui.create_row_widget()
         sequence_index_label_widget = self.ui.create_label_widget(_("Index"))
         sequence_index_line_edit_widget = self.ui.create_line_edit_widget()
         sequence_index_slider_widget = self.ui.create_slider_widget()
         sequence_index_slider_widget.maximum = data_item.dimensional_shape[0] - 1  # sequence_index
-        sequence_index_slider_widget.bind_value(ChangeDisplayPropertyBinding(document_controller, display, "sequence_index"))
-        sequence_index_line_edit_widget.bind_text(ChangeDisplayPropertyBinding(document_controller, display, "sequence_index", converter=Converter.IntegerToStringConverter()))
+        sequence_index_slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "sequence_index"))
+        sequence_index_line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "sequence_index", converter=Converter.IntegerToStringConverter()))
         sequence_index_row_widget.add(sequence_index_label_widget)
         sequence_index_row_widget.add_spacing(8)
         sequence_index_row_widget.add(sequence_index_slider_widget)
@@ -1155,8 +1313,10 @@ class CollectionIndexInspectorSection(InspectorSection):
         Subclass InspectorSection to implement slice inspector.
     """
 
-    def __init__(self, document_controller, data_item, display):
+    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel):
         super().__init__(document_controller.ui, "collection-index", _("Index"))
+
+        data_item = display_data_channel.data_item
 
         column_widget = self.ui.create_column_widget()
         collection_index_base = 1 if data_item.is_sequence else 0
@@ -1167,7 +1327,7 @@ class CollectionIndexInspectorSection(InspectorSection):
             index_slider_widget = self.ui.create_slider_widget()
             index_slider_widget.maximum = data_item.dimensional_shape[collection_index_base + index] - 1
 
-            self.__collection_index_model = DisplayPropertyCommandModel(document_controller, display, "collection_index", title=_("Change Collection Index"), command_id="change_collection_index")
+            self.__collection_index_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "collection_index", title=_("Change Collection Index"), command_id="change_collection_index")
 
             index_slider_widget.bind_value(Binding.TuplePropertyBinding(self.__collection_index_model, "value", index))
             index_line_edit_widget.bind_text(Binding.TuplePropertyBinding(self.__collection_index_model, "value", index, converter=Converter.IntegerToStringConverter()))
@@ -1197,16 +1357,18 @@ class SliceInspectorSection(InspectorSection):
         Subclass InspectorSection to implement slice inspector.
     """
 
-    def __init__(self, document_controller, data_item, display):
+    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel):
         super().__init__(document_controller.ui, "slice", _("Slice"))
+
+        data_item = display_data_channel.data_item
 
         slice_center_row_widget = self.ui.create_row_widget()
         slice_center_label_widget = self.ui.create_label_widget(_("Slice"))
         slice_center_line_edit_widget = self.ui.create_line_edit_widget()
         slice_center_slider_widget = self.ui.create_slider_widget()
         slice_center_slider_widget.maximum = data_item.dimensional_shape[-1] - 1  # signal_index
-        slice_center_slider_widget.bind_value(ChangeDisplayPropertyBinding(document_controller, display, "slice_center"))
-        slice_center_line_edit_widget.bind_text(ChangeDisplayPropertyBinding(document_controller, display, "slice_center", converter=Converter.IntegerToStringConverter()))
+        slice_center_slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_center"))
+        slice_center_line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_center", converter=Converter.IntegerToStringConverter()))
         slice_center_row_widget.add(slice_center_label_widget)
         slice_center_row_widget.add_spacing(8)
         slice_center_row_widget.add(slice_center_slider_widget)
@@ -1219,8 +1381,8 @@ class SliceInspectorSection(InspectorSection):
         slice_width_line_edit_widget = self.ui.create_line_edit_widget()
         slice_width_slider_widget = self.ui.create_slider_widget()
         slice_width_slider_widget.maximum = data_item.dimensional_shape[-1] - 1  # signal_index
-        slice_width_slider_widget.bind_value(ChangeDisplayPropertyBinding(document_controller, display, "slice_width"))
-        slice_width_line_edit_widget.bind_text(ChangeDisplayPropertyBinding(document_controller, display, "slice_width", converter=Converter.IntegerToStringConverter()))
+        slice_width_slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_width"))
+        slice_width_line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_width", converter=Converter.IntegerToStringConverter()))
         slice_width_row_widget.add(slice_width_label_widget)
         slice_width_row_widget.add_spacing(8)
         slice_width_row_widget.add(slice_width_slider_widget)
@@ -1835,7 +1997,7 @@ class GraphicsInspectorSection(InspectorSection):
         # create the display calibrations check box row
         display_calibrations_row = self.ui.create_row_widget()
         display_calibrations_row.add(self.ui.create_label_widget(_("Display"), properties={"width": 60}))
-        display_calibrations_row.add(make_calibration_style_chooser(document_controller, display))
+        display_calibrations_row.add(make_calibration_style_chooser(document_controller, self.__display_item))
         display_calibrations_row.add_stretch()
         self.add_widget_to_content(display_calibrations_row)
         self.finish_widget_content()
@@ -2267,10 +2429,10 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
 
         content_widget = self.content_widget
         content_widget.add_spacing(4)
-        if data_item:
+        if display_item:
             title_row = self.ui.create_row_widget()
             title_label_widget = self.ui.create_label_widget(properties={"stylesheet": "font-weight: bold"})
-            title_label_widget.bind_text(Binding.PropertyBinding(data_item, "title"))
+            title_label_widget.bind_text(Binding.PropertyBinding(display_item, "title"))
             title_row.add_spacing(20)
             title_row.add(title_label_widget)
             title_row.add_stretch()
@@ -2279,52 +2441,60 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
 
         self.__focus_default = None
         inspector_sections = list()
-        display_data_shape = display.preview_2d_shape if display else ()
-        display_data_shape = display_data_shape if display_data_shape is not None else ()
-        if data_item and display_item and display_item.graphic_selection.has_selection:
+        if display_item and display_item.graphic_selection.has_selection:
             inspector_sections.append(GraphicsInspectorSection(document_controller, display_item, selected_only=True))
             def focus_default():
                 pass
             self.__focus_default = focus_default
-        elif data_item and display and (len(display_data_shape) == 1 or display_item.display_type == "line_plot"):
-            inspector_sections.append(InfoInspectorSection(document_controller, data_item))
-            inspector_sections.append(SessionInspectorSection(document_controller, data_item))
-            inspector_sections.append(CalibrationsInspectorSection(document_controller, data_item, display))
+        elif display_item and display_item.used_display_type == "line_plot":
+            inspector_sections.append(InfoInspectorSection(document_controller, display_item))
             inspector_sections.append(LinePlotDisplayInspectorSection(document_controller, display_item))
             inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
-            if data_item.is_sequence:
-                inspector_sections.append(SequenceInspectorSection(document_controller, data_item, display))
-            if data_item.is_collection:
-                if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
-                    inspector_sections.append(SliceInspectorSection(document_controller, data_item, display))
-                else:  # default, pick
-                    inspector_sections.append(CollectionIndexInspectorSection(document_controller, data_item, display))
-            inspector_sections.append(ComputationInspectorSection(document_controller, data_item))
+            for display_data_channel in display_item.display_data_channels:
+                data_item = display_data_channel.data_item
+                display = display_item.display
+                inspector_sections.append(DataInfoInspectorSection(document_controller, display_data_channel))
+                inspector_sections.append(SessionInspectorSection(document_controller, data_item))
+                inspector_sections.append(CalibrationsInspectorSection(document_controller, display_data_channel, display_item))
+                if data_item.is_sequence:
+                    inspector_sections.append(SequenceInspectorSection(document_controller, display_data_channel))
+                if data_item.is_collection:
+                    if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
+                        inspector_sections.append(SliceInspectorSection(document_controller, display_data_channel))
+                    else:  # default, pick
+                        inspector_sections.append(CollectionIndexInspectorSection(document_controller, display_data_channel))
+                inspector_sections.append(ComputationInspectorSection(document_controller, data_item))
             def focus_default():
                 inspector_sections[0].info_title_label.focused = True
                 inspector_sections[0].info_title_label.request_refocus()
             self.__focus_default = focus_default
-        elif data_item and display and (len(display_data_shape) == 2 or display_item.display_type == "image"):
-            inspector_sections.append(InfoInspectorSection(document_controller, data_item))
-            inspector_sections.append(SessionInspectorSection(document_controller, data_item))
-            inspector_sections.append(CalibrationsInspectorSection(document_controller, data_item, display))
-            inspector_sections.append(ImageDisplayInspectorSection(document_controller, display_item))
+        elif display_item and display_item.used_display_type == "image":
+            inspector_sections.append(InfoInspectorSection(document_controller, display_item))
             inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
-            if data_item.is_sequence:
-                inspector_sections.append(SequenceInspectorSection(document_controller, data_item, display))
-            if data_item.is_collection:
-                if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
-                    inspector_sections.append(SliceInspectorSection(document_controller, data_item, display))
-                else:  # default, pick
-                    inspector_sections.append(CollectionIndexInspectorSection(document_controller, data_item, display))
-            inspector_sections.append(ComputationInspectorSection(document_controller, data_item))
+            for display_data_channel in display_item.display_data_channels:
+                data_item = display_data_channel.data_item
+                inspector_sections.append(DataInfoInspectorSection(document_controller, display_data_channel))
+                inspector_sections.append(SessionInspectorSection(document_controller, data_item))
+                inspector_sections.append(CalibrationsInspectorSection(document_controller, display_data_channel, display_item))
+                inspector_sections.append(ImageDisplayInspectorSection(document_controller, display_data_channel, display_item))
+                if data_item.is_sequence:
+                    inspector_sections.append(SequenceInspectorSection(document_controller, display_data_channel))
+                if data_item.is_collection:
+                    if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
+                        inspector_sections.append(SliceInspectorSection(document_controller, display_data_channel))
+                    else:  # default, pick
+                        inspector_sections.append(CollectionIndexInspectorSection(document_controller, display_data_channel))
+                inspector_sections.append(ComputationInspectorSection(document_controller, data_item))
             def focus_default():
                 inspector_sections[0].info_title_label.focused = True
                 inspector_sections[0].info_title_label.request_refocus()
             self.__focus_default = focus_default
-        elif data_item:
-            inspector_sections.append(InfoInspectorSection(document_controller, data_item))
-            inspector_sections.append(SessionInspectorSection(document_controller, data_item))
+        elif display_item:
+            inspector_sections.append(InfoInspectorSection(document_controller, display_item))
+            for display_data_channel in display_item.display_data_channels:
+                data_item = display_data_channel.data_item
+                inspector_sections.append(DataInfoInspectorSection(document_controller, display_data_channel))
+                inspector_sections.append(SessionInspectorSection(document_controller, data_item))
             def focus_default():
                 inspector_sections[0].info_title_label.focused = True
                 inspector_sections[0].info_title_label.request_refocus()
