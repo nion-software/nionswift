@@ -427,7 +427,7 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
     def update_display_values(self, display_properties, display_values) -> None:
         pass
 
-    def update_graphics(self, graphics, graphic_selection, display_properties, display_values) -> None:
+    def update_graphics(self, graphics, graphic_selection, display_properties) -> None:
         pass
 
     def handle_auto_display(self) -> bool:
@@ -506,8 +506,7 @@ class DisplayTracker:
 
         def display_graphic_selection_changed(graphic_selection):
             # this message comes from the display when the graphic selection changes
-            display_values = display_data_channel.get_calculated_display_values()
-            self.__display_canvas_item.update_graphics(display_item.graphics, graphic_selection, Display.DisplayProperties(display), display_values)
+            self.__display_canvas_item.update_graphics(display_item.graphics, graphic_selection, Display.DisplayProperties(display))
 
         def display_rgba_changed(display_values):
             with self.__closing_lock:
@@ -1780,7 +1779,7 @@ def preview(ui, display_item: DisplayItem.DisplayItem, width: int, height: int) 
         with contextlib.closing(display_canvas_item):
             display_properties = Display.DisplayProperties(display)
             display_canvas_item.update_display_values(display_properties, display_values)
-            display_canvas_item.update_graphics(display_item.graphics, DisplayItem.GraphicSelection(), display_properties, display_values)
+            display_canvas_item.update_graphics(display_item.graphics, DisplayItem.GraphicSelection(), display_properties)
 
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)

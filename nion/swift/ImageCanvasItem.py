@@ -360,27 +360,6 @@ def calculate_origin_and_size(canvas_size, data_shape, image_canvas_mode, image_
     return image_canvas_origin, image_canvas_size
 
 
-def calculate_image_shape(data_and_metadata) -> typing.Optional[typing.Tuple[int, ...]]:
-    if not data_and_metadata:
-        return None
-    dimensional_shape = data_and_metadata.dimensional_shape
-    next_dimension = 0
-    if data_and_metadata.is_sequence:
-        next_dimension += 1
-    if data_and_metadata.is_collection:
-        collection_dimension_count = data_and_metadata.collection_dimension_count
-        datum_dimension_count = data_and_metadata.datum_dimension_count
-        # next dimensions are treated as collection indexes.
-        if collection_dimension_count == 1 and datum_dimension_count == 1:
-            return dimensional_shape[next_dimension:next_dimension + collection_dimension_count + datum_dimension_count]
-        elif collection_dimension_count == 2 and datum_dimension_count == 1:
-            return dimensional_shape[next_dimension:next_dimension + collection_dimension_count]
-        else:  # default, "pick"
-            return dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
-    else:
-        return dimensional_shape[next_dimension:]
-
-
 class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     """A canvas item to paint an image.
 
@@ -528,7 +507,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 else:
                     dimensional_calibration = Calibration.Calibration()
 
-            data_shape = calculate_image_shape(data_and_metadata)
+            data_shape = display_properties.display_data_shape
             metadata = data_and_metadata.metadata
 
             # this method may trigger a layout of its parent scroll area. however, the parent scroll
@@ -594,10 +573,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                                             update_layout_handle.cancel()
                                         self.__update_layout_handle = None
 
-    def update_graphics(self, graphics, graphic_selection, display_properties, display_values) -> None:
+    def update_graphics(self, graphics, graphic_selection, display_properties) -> None:
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
-        self.__graphics_canvas_item.update_graphics(calculate_image_shape(display_values.data_and_metadata), self.__graphics, self.__graphic_selection)
+        self.__graphics_canvas_item.update_graphics(display_properties.display_data_shape, self.__graphics, self.__graphic_selection)
         self.__graphics_changed = True
 
     def handle_auto_display(self) -> bool:

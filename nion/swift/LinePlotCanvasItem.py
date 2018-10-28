@@ -318,7 +318,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__last_data_list = copy.copy(self.__xdata_list)
         super().update()
 
-    def update_graphics(self, graphics, graphic_selection, display_properties, display_values):
+    def update_graphics(self, graphics, graphic_selection, display_properties):
         dimensional_scales = display_properties.displayed_dimensional_scales
 
         self.__graphics = copy.copy(graphics)

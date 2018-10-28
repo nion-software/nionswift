@@ -816,6 +816,8 @@ class DisplayProperties:
 
     def __init__(self, display: Display):
 
+        self.display_data_shape = display.display_data_shape
+
         self.dimensional_calibrations = display.dimensional_calibrations
         self.displayed_dimensional_scales = display.displayed_dimensional_scales
         self.displayed_dimensional_calibrations = display.displayed_dimensional_calibrations

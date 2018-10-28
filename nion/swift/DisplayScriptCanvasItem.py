@@ -86,7 +86,7 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
         self.__display_script = display_properties.display_script
         self.update()
 
-    def update_graphics(self, graphics, graphic_selection, display_properties, display_values):
+    def update_graphics(self, graphics, graphic_selection, display_properties):
         pass
 
     def handle_auto_display(self) -> bool:
