@@ -1140,7 +1140,7 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         Subclass InspectorSection to implement display limits inspector.
     """
 
-    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
+    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem):
         super().__init__(document_controller.ui, "line-plot", _("Display"))
         display = display_item.display
 
@@ -1216,10 +1216,10 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         self.finish_widget_content()
 
         def handle_next_calculated_display_values():
-            calculated_display_values = display.get_calculated_display_values(True)
+            calculated_display_values = display_data_channel.get_calculated_display_values(True)
             self.__data_range_model.value = calculated_display_values.data_range
 
-        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
+        self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(handle_next_calculated_display_values)
 
     def close(self):
         self.__display_type_changed_listener.close()
@@ -2405,14 +2405,13 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
             self.__focus_default = focus_default
         elif display_item and display_item.used_display_type == "line_plot":
             inspector_sections.append(InfoInspectorSection(document_controller, display_item))
-            inspector_sections.append(LinePlotDisplayInspectorSection(document_controller, display_item))
             inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
             for display_data_channel in display_item.display_data_channels:
                 data_item = display_data_channel.data_item
-                display = display_item.display
                 inspector_sections.append(DataInfoInspectorSection(document_controller, display_data_channel))
                 inspector_sections.append(SessionInspectorSection(document_controller, data_item))
                 inspector_sections.append(CalibrationsInspectorSection(document_controller, display_data_channel, display_item))
+                inspector_sections.append(LinePlotDisplayInspectorSection(document_controller, display_data_channel, display_item))
                 if data_item.is_sequence:
                     inspector_sections.append(SequenceInspectorSection(document_controller, display_data_channel))
                 if data_item.is_collection:

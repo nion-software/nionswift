@@ -1756,8 +1756,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         @property
                         def value(self):
                             display_item = self.document_model.get_display_item_for_data_item(self._object)
-                            display = display_item.display if display_item else None
-                            return display.get_calculated_display_values(True).display_data_and_metadata if display else None
+                            display_data_channel = display_item.display_data_channel if display_item else None
+                            return display_data_channel.get_calculated_display_values(True).display_data_and_metadata if display_data_channel else None
                     return BoundDataItem(self, data_item)
             elif specifier_type == "cropped_xdata":
                 specifier_uuid_str = specifier.get("uuid")
@@ -1791,8 +1791,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         @property
                         def value(self):
                             display_item = self.document_model.get_display_item_for_data_item(self._object)
-                            display = display_item.display if display_item else None
-                            xdata = display.get_calculated_display_values(True).display_data_and_metadata
+                            display_data_channel = display_item.display_data_channel if display_item else None
+                            xdata = display_data_channel.get_calculated_display_values(True).display_data_and_metadata
                             graphic = self._graphic
                             if graphic:
                                 if hasattr(graphic, "bounds"):
@@ -1810,8 +1810,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         @property
                         def value(self):
                             display_item = self.document_model.get_display_item_for_data_item(self._object)
-                            display = display_item.display if display_item else None
-                            shape = display.get_calculated_display_values(True).display_data_and_metadata.data_shape
+                            display_data_channel = display_item.display_data_channel if display_item else None
+                            shape = display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
                             mask = numpy.zeros(shape)
                             for graphic in display_item.graphics:
                                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):

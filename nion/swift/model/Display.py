@@ -259,7 +259,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     In addition to regular observable events, this class also generates the following events:
         - about_to_be_removed_event: fired when about to be removed from parent container.
         - display_changed_event: fired when display changes in a way to affect drawing.
-        - display_data_will_change_event: fired when display data changes.
     """
 
     def __init__(self):

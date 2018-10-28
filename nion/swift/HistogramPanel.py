@@ -531,15 +531,16 @@ class HistogramPanel(Panel.Panel):
             return functools.partial(calculate_histogram_widget_data, display_data_and_metadata_model_func, display_range)
 
         display_item_stream = TargetDisplayItemStream(document_controller)
+        display_data_channel_stream = StreamPropertyStream(display_item_stream, "display_data_channel")
         display_stream = TargetDisplayStream(document_controller)
         region_stream = TargetRegionStream(display_item_stream)
         def compare_data(a, b):
             return numpy.array_equal(a.data if a else None, b.data if b else None)
-        display_data_and_metadata_stream = DisplayTransientsStream(display_stream, "display_data_and_metadata", cmp=compare_data)
-        display_range_stream = DisplayTransientsStream(display_stream, "display_range")
+        display_data_and_metadata_stream = DisplayDataChannelTransientsStream(display_data_channel_stream, "display_data_and_metadata", cmp=compare_data)
+        display_range_stream = DisplayDataChannelTransientsStream(display_data_channel_stream, "display_range")
         region_data_and_metadata_func_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, region_stream), calculate_region_data_func)
         histogram_widget_data_func_stream = Stream.CombineLatestStream((region_data_and_metadata_func_stream, display_range_stream), calculate_histogram_widget_data_func)
-        color_map_data_stream = StreamPropertyStream(StreamPropertyStream(display_item_stream, "display_data_channel"), "color_map_data", cmp=numpy.array_equal)
+        color_map_data_stream = StreamPropertyStream(display_data_channel_stream, "color_map_data", cmp=numpy.array_equal)
         if debounce:
             histogram_widget_data_func_stream = Stream.DebounceStream(histogram_widget_data_func_stream, 0.05, document_controller.event_loop)
         if sample:
@@ -588,7 +589,7 @@ class HistogramPanel(Panel.Panel):
         def calculate_statistics_func(display_data_and_metadata_model_func, display_data_range, region, displayed_intensity_calibration):
             return functools.partial(calculate_statistics, display_data_and_metadata_model_func, display_data_range, region, displayed_intensity_calibration)
 
-        display_data_range_stream = DisplayTransientsStream(display_stream, "data_range")
+        display_data_range_stream = DisplayDataChannelTransientsStream(display_data_channel_stream, "data_range")
         displayed_intensity_calibration_stream = StreamPropertyStream(display_stream, 'displayed_intensity_calibration')
         statistics_func_stream = Stream.CombineLatestStream((region_data_and_metadata_func_stream, display_data_range_stream, region_stream, displayed_intensity_calibration_stream), calculate_statistics_func)
         if debounce:
@@ -821,10 +822,10 @@ class StreamPropertyStream(Stream.AbstractStream):
             self.value_stream.fire(None)
 
 
-class DisplayTransientsStream(Stream.AbstractStream):
+class DisplayDataChannelTransientsStream(Stream.AbstractStream):
     # TODO: add a display_data_changed to Display class and use it here
 
-    def __init__(self, display_stream, property_name, cmp=None):
+    def __init__(self, display_data_channel_stream, property_name, cmp=None):
         super().__init__()
         # outgoing messages
         self.value_stream = Event.Event()
@@ -835,25 +836,25 @@ class DisplayTransientsStream(Stream.AbstractStream):
         self.__next_calculated_display_values_listener = None
         self.__cmp = cmp if cmp else operator.eq
         # listen for display changes
-        self.__display_stream = display_stream.add_ref()
-        self.__display_stream_listener = display_stream.value_stream.listen(self.__display_changed)
-        self.__display_changed(display_stream.value)
+        self.__display_data_channel_stream = display_data_channel_stream.add_ref()
+        self.__display_data_channel_stream_listener = display_data_channel_stream.value_stream.listen(self.__display_data_channel_changed)
+        self.__display_data_channel_changed(display_data_channel_stream.value)
 
     def close(self):
-        self.__display_changed(None)
-        self.__display_stream_listener.close()
-        self.__display_stream_listener = None
-        self.__display_stream.remove_ref()
-        self.__display_stream = None
+        self.__display_data_channel_changed(None)
+        self.__display_data_channel_stream_listener.close()
+        self.__display_data_channel_stream_listener = None
+        self.__display_data_channel_stream.remove_ref()
+        self.__display_data_channel_stream = None
         super().close()
 
     @property
     def value(self):
         return self.__value
 
-    def __display_changed(self, display):
+    def __display_data_channel_changed(self, display_data_channel):
         def display_values_changed():
-            display_values = display.get_calculated_display_values(True)
+            display_values = display_data_channel.get_calculated_display_values(True)
             new_value = getattr(display_values, self.__property_name)
             if not self.__cmp(new_value, self.__value):
                 self.__value = new_value
@@ -864,12 +865,12 @@ class DisplayTransientsStream(Stream.AbstractStream):
         if self.__display_values_changed_listener:
             self.__display_values_changed_listener.close()
             self.__display_values_changed_listener = None
-        if display:
+        if display_data_channel:
             # there are two listeners - the first when new display properties have triggered new display values.
             # the second whenever actual new display values arrive. this ensures the display gets updated after
             # the user changes it. could use some rethinking.
-            self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(display_values_changed)
-            self.__display_values_changed_listener = display.display_values_changed_event.listen(display_values_changed)
+            self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(display_values_changed)
+            self.__display_values_changed_listener = display_data_channel.display_values_changed_event.listen(display_values_changed)
             display_values_changed()
         else:
             self.__value = None

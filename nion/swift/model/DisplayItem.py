@@ -156,6 +156,8 @@ class DisplayDataChannel:
         self.__display = display
         self.modified_state = 0
         self.property_changed_event = Event.Event()
+        self.display_values_changed_event = Event.Event()
+        self.display_data_will_change_event = Event.Event()
 
         def property_changed(property_name):
             self.modified_state += 1
@@ -163,11 +165,15 @@ class DisplayDataChannel:
 
         self.__data_item_property_changed_event_listener = None
         self.__display_property_changed_event_listener = None
+        self.__display_values_changed_event_listener = None
+        self.__display_data_will_change_event_listener = None
 
         if self.__data_item:
             self.__data_item_property_changed_event_listener = self.__data_item.property_changed_event.listen(property_changed)
         if self.__display:
             self.__display_property_changed_event_listener = self.__display.property_changed_event.listen(property_changed)
+            self.__display_values_changed_event_listener = self.__display.display_values_changed_event.listen(self.display_values_changed_event.fire)
+            self.__display_data_will_change_event_listener = self.__display.display_data_will_change_event.listen(self.display_data_will_change_event.fire)
 
     def close(self):
         if self.__data_item_property_changed_event_listener:
@@ -176,6 +182,12 @@ class DisplayDataChannel:
         if self.__display_property_changed_event_listener:
             self.__display_property_changed_event_listener.close()
             self.__display_property_changed_event_listener = None
+        if self.__display_values_changed_event_listener:
+            self.__display_values_changed_event_listener.close()
+            self.__display_values_changed_event_listener = None
+        if self.__display_data_will_change_event_listener:
+            self.__display_data_will_change_event_listener.close()
+            self.__display_data_will_change_event_listener = None
 
     @property
     def data_item(self) -> DataItem.DataItem:

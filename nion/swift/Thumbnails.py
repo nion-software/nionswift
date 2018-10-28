@@ -187,9 +187,6 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
                 thumbnail_processor.mark_data_dirty()
                 thumbnail_processor.recompute_if_necessary(ui)
 
-        no_cached_data = self.__thumbnail_processor.get_cached_data() is None
-
-        self.__next_calculated_display_values_listener = display_item.display.add_calculated_display_values_listener(thumbnail_changed, send=no_cached_data)
         self.__display_changed_event_listener = display_item.display.display_changed_event.listen(thumbnail_changed)
 
         def thumbnail_updated():
@@ -218,9 +215,6 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
         if self.__display_changed_event_listener:
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
-        if self.__next_calculated_display_values_listener:
-            self.__next_calculated_display_values_listener.close()
-            self.__next_calculated_display_values_listener = None
         self._on_will_delete(self)
         self._on_will_delete = None
 

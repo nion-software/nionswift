@@ -1575,12 +1575,13 @@ class DataSource:
         self.__graphic = graphic
         self.__changed_event = changed_event  # not public since it is passed in
         data_item = display_item.data_item if display_item else None
+        display_data_channel = display_item.display_data_channel if display_item else None
         display = display_item.display if display_item else None
         self.__data_item = data_item
         self.__display = display
         self.__data_item_changed_event_listener = None
         self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(self.__changed_event.fire) if data_item else None
-        self.__display_values_event_listener = display.display_data_will_change_event.listen(self.__changed_event.fire) if display else None
+        self.__display_values_event_listener = display_data_channel.display_data_will_change_event.listen(self.__changed_event.fire) if display_data_channel else None
         self.__property_changed_listener = None
         def property_changed(key):
             self.__changed_event.fire()
@@ -1655,8 +1656,8 @@ class DataSource:
 
     @property
     def display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        display = self.display
-        return display.get_calculated_display_values(True).display_data_and_metadata if display else None
+        display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
+        return display_data_channel.get_calculated_display_values(True).display_data_and_metadata if display_data_channel else None
 
     @property
     def cropped_display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:

@@ -1008,7 +1008,8 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return self.__display.get_calculated_display_values(True).display_data_and_metadata
+        display_data_channel = self.__display_item.display_data_channel
+        return display_data_channel.get_calculated_display_values(True).display_data_and_metadata
 
     @property
     def intensity_calibration(self) -> CalibrationModule.Calibration:
@@ -1273,6 +1274,7 @@ class DataItem(metaclass=SharedInstance):
     def data_item_to_svg(self):
 
         display_item = self.__display_item
+        display_data_channel = display_item.display_data_channel
         display = self.__display
 
         FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
@@ -1290,7 +1292,7 @@ class DataItem(metaclass=SharedInstance):
 
         try:
             display_canvas_item.update_layout(view_box.origin, view_box.size, immediate=True)
-            display_values = display.get_calculated_display_values(immediate=True)
+            display_values = display_data_channel.get_calculated_display_values(immediate=True)
             display_canvas_item.update_display_values(0, DisplayModule.DisplayProperties(display), display_values)
             dc = DrawingContext.DrawingContext()
             display_canvas_item.repaint_immediate(dc, size)
