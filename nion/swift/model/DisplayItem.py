@@ -1115,7 +1115,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def size_and_data_format_as_string(self) -> str:
-        return self.data_item.size_and_data_format_as_string
+        data_item = self.data_item
+        return data_item.size_and_data_format_as_string if data_item else str()
 
     @property
     def date_for_sorting(self):
@@ -1126,7 +1127,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def date_for_sorting_local_as_string(self) -> str:
-        return self.data_item.date_for_sorting_local_as_string
+        data_item = self.data_item
+        if data_item:
+            return data_item.date_for_sorting_local_as_string
+        date_utc = self.date_for_sorting
+        tz_minutes = Utility.local_utcoffset_minutes(date_utc)
+        date_local = date_utc + datetime.timedelta(minutes=tz_minutes)
+        return date_local.strftime("%c")
 
     @property
     def created_local(self) -> datetime.datetime:
@@ -1148,10 +1155,11 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def status_str(self) -> str:
-        if self.data_item.is_live:
-            live_metadata = self.data_item.metadata.get("hardware_source", dict())
+        data_item = self.data_item
+        if data_item and data_item.is_live:
+            live_metadata = data_item.metadata.get("hardware_source", dict())
             frame_index_str = str(live_metadata.get("frame_index", str()))
-            partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), self.data_item.dimensional_shape[0]) if "valid_rows" in live_metadata else str()
+            partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), data_item.dimensional_shape[0]) if "valid_rows" in live_metadata else str()
             return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
         return str()
 
