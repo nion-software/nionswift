@@ -1293,7 +1293,7 @@ class DataItem(metaclass=SharedInstance):
         try:
             display_canvas_item.update_layout(view_box.origin, view_box.size, immediate=True)
             display_values = display_data_channel.get_calculated_display_values(immediate=True)
-            display_canvas_item.update_display_values(display_values)
+            display_canvas_item.update_display_values([display_values])
             display_canvas_item.update_display_properties(DisplayModule.DisplayProperties(display))
             dc = DrawingContext.DrawingContext()
             display_canvas_item.repaint_immediate(dc, size)

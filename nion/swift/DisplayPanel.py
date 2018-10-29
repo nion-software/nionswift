@@ -418,7 +418,7 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
     def default_aspect_ratio(self):
         return 1.0
 
-    def update_display_values(self, display_values) -> None:
+    def update_display_values(self, display_values_list) -> None:
         pass
 
     def update_display_properties(self, display_properties) -> None:
@@ -455,7 +455,6 @@ class DisplayTracker:
 
     def __init__(self, display_item, get_font_metrics, delegate, event_loop, draw_background):
         display = display_item.display
-        display_data_channel = display_item.display_data_channel
         self.__display_item = display_item
         self.__get_font_metrics = get_font_metrics
         self.__delegate = delegate
@@ -509,8 +508,8 @@ class DisplayTracker:
             # this notification is for the rgba values only
             # thread safe
             with self.__closing_lock:
-                display_values = display_data_channel.get_calculated_display_values()
-                self.__display_canvas_item.update_display_values(display_values)
+                display_values_list = [display_data_channel.get_calculated_display_values() for display_data_channel in display_item.display_data_channels]
+                self.__display_canvas_item.update_display_values(display_values_list)
 
         def display_changed():
             # called when anything in the data item changes, including things like graphics or the data itself.
@@ -525,8 +524,26 @@ class DisplayTracker:
                 with self.__closing_lock:
                     self.__display_canvas_item.update_display_properties(Display.DisplayProperties(display))
 
-        self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(handle_next_calculated_display_values)
-        self.__display_data_channel_property_changed_listener = display_data_channel.property_changed_event.listen(display_property_changed)
+        self.__next_calculated_display_values_listeners = list()
+
+        def display_data_channel_inserted(key, value, before_index):
+            if key == "display_data_channels":
+                self.__next_calculated_display_values_listeners.insert(before_index, value.add_calculated_display_values_listener(handle_next_calculated_display_values))
+                handle_next_calculated_display_values()
+
+        def display_data_channel_removed(key, value, index):
+            if key == "display_data_channels":
+                self.__next_calculated_display_values_listeners[index].close()
+                del self.__next_calculated_display_values_listeners[index]
+                handle_next_calculated_display_values()
+
+        self.__item_inserted_listener = display_item.item_inserted_event.listen(display_data_channel_inserted)
+        self.__item_removed_listener = display_item.item_removed_event.listen(display_data_channel_removed)
+
+        for index, display_data_channel in enumerate(display_item.display_data_channels):
+            display_data_channel_inserted("display_data_channels", display_data_channel, index)
+
+        self.__display_data_channel_property_changed_listener = display_item.property_changed_event.listen(display_property_changed)
         self.__display_graphic_selection_changed_event_listener = display_item.graphic_selection_changed_event.listen(display_graphic_selection_changed)
         self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
         self.__display_property_changed_listener = display.property_changed_event.listen(display_property_changed)
@@ -546,8 +563,13 @@ class DisplayTracker:
             self.__display_data_channel_property_changed_listener = None
             self.__display_graphic_selection_changed_event_listener.close()
             self.__display_graphic_selection_changed_event_listener = None
-            self.__next_calculated_display_values_listener.close()
-            self.__next_calculated_display_values_listener = None
+            for next_calculated_display_values_listener in self.__next_calculated_display_values_listeners:
+                next_calculated_display_values_listener.close()
+            self.__next_calculated_display_values_listeners = list()
+            self.__item_inserted_listener.close()
+            self.__item_inserted_listener = None
+            self.__item_removed_listener.close()
+            self.__item_removed_listener = None
         self.__display_type_changed_event_listener.close()
         self.__display_type_changed_event_listener = None
         self.__display_type_monitor.close()
@@ -1768,7 +1790,7 @@ def preview(ui, display_item: DisplayItem.DisplayItem, width: int, height: int) 
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
             display_properties = Display.DisplayProperties(display)
-            display_canvas_item.update_display_values(display_values)
+            display_canvas_item.update_display_values([display_values])
             display_canvas_item.update_display_properties(display_properties)
             display_canvas_item.update_graphics(display_item.graphics, DisplayItem.GraphicSelection(), display_properties)
 

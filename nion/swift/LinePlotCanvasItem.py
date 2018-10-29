@@ -241,8 +241,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def default_aspect_ratio(self):
         return (1 + 5 ** 0.5) / 2  # golden ratio
 
-    def update_display_values(self, display_values) -> None:
-        self.__display_values = display_values
+    def update_display_values(self, display_values_list) -> None:
+        self.__display_values = display_values_list[0] if display_values_list else None
 
     def update_display_properties(self, display_properties) -> None:
         """Update the display values. Called from display panel.

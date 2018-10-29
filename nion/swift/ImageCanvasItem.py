@@ -476,8 +476,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def _info_overlay_canvas_item_for_test(self):
         return self.__info_overlay_canvas_item
 
-    def update_display_values(self, display_values) -> None:
-        self.__display_values = display_values
+    def update_display_values(self, display_values_list) -> None:
+        self.__display_values = display_values_list[0] if display_values_list else None
 
     def update_display_properties(self, display_properties) -> None:
         # threadsafe

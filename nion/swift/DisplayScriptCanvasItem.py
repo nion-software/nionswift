@@ -73,8 +73,8 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
     def default_aspect_ratio(self):
         return 1.0
 
-    def update_display_values(self, display_values) -> None:
-        self.__display_data = display_values.data_and_metadata
+    def update_display_values(self, display_values_list) -> None:
+        self.__display_data = display_values_list[0].data_and_metadata if display_values_list else None
 
     def update_display_properties(self, display_properties) -> None:
         self.__display_script = display_properties.display_script
