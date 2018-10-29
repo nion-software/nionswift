@@ -483,7 +483,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
             data_metadata = self._get_data_metadata()
             if data_metadata and data_metadata.dimensional_shape is not None:
                 return max(min(int(value), data_metadata.max_sequence_index - 1), 0) if data_metadata.is_sequence else 0
-        return 0
+        return value if self._is_reading else 0
 
     def __validate_collection_index(self, value: typing.Tuple[int, int, int]) -> typing.Tuple[int, int, int]:
         if not self._is_reading:
@@ -496,7 +496,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
                 i1 = max(min(int(value[1]), dimensional_shape[collection_base_index + 1] - 1), 0) if collection_dimension_count > 1 else 0
                 i2 = max(min(int(value[2]), dimensional_shape[collection_base_index + 2] - 1), 0) if collection_dimension_count > 2 else 0
                 return i0, i1, i2
-        return (0, 0, 0)
+        return value if self._is_reading else (0, 0, 0)
 
     def __validate_slice_center_for_width(self, value, slice_width):
         data_metadata = self._get_data_metadata()
