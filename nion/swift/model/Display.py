@@ -6,18 +6,14 @@
 import copy
 import gettext
 import math
-import threading
 import typing
 import weakref
 
 import numpy
 
 from nion.data import Calibration
-from nion.data import Core
 from nion.data import DataAndMetadata
-from nion.data import Image
 from nion.swift.model import Cache
-from nion.swift.model import ColorMaps
 from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Persistence
@@ -50,20 +46,6 @@ class CalibrationList:
         for calibration in self.list:
             list.append(calibration.write_dict())
         return list
-
-
-def calculate_display_range(display_limits, data_range, data_sample, xdata, complex_display_type):
-    if display_limits is not None:
-        display_limit_low = display_limits[0] if display_limits[0] is not None else data_range[0]
-        display_limit_high = display_limits[1] if display_limits[1] is not None else data_range[1]
-        return display_limit_low, display_limit_high
-    if xdata and xdata.is_data_complex_type and complex_display_type is None:  # log absolute
-        if data_sample is not None:
-            fraction = 0.05
-            display_limit_low = data_sample[int(data_sample.shape[0] * fraction)]
-            display_limit_high = data_range[1]
-            return display_limit_low, display_limit_high
-    return data_range
 
 
 class CalibrationStyle:
@@ -119,130 +101,6 @@ class CalibrationStyleFractionalCenter(CalibrationStyle):
         return [Calibration.Calibration(scale=2.0/display_dimension, offset=-1.0) for display_dimension in dimensional_shape]
 
 
-class DisplayValues:
-    """Display data used to render the display."""
-
-    def __init__(self, data_and_metadata, sequence_index, collection_index, slice_center, slice_width, display_limits, complex_display_type, color_map_data):
-        self.__lock = threading.RLock()
-        self.__data_and_metadata = data_and_metadata
-        self.__sequence_index = sequence_index
-        self.__collection_index = collection_index
-        self.__slice_center = slice_center
-        self.__slice_width = slice_width
-        self.__display_limits = display_limits
-        self.__complex_display_type = complex_display_type
-        self.__color_map_data = color_map_data
-        self.__display_data_and_metadata_dirty = True
-        self.__display_data_and_metadata = None
-        self.__data_range_dirty = True
-        self.__data_range = None
-        self.__data_sample_dirty = True
-        self.__data_sample = None
-        self.__display_range_dirty = True
-        self.__display_range = None
-        self.__display_rgba_dirty = True
-        self.__display_rgba = None
-        self.__display_rgba_timestamp = data_and_metadata.timestamp if data_and_metadata else None
-        self.__finalized = False
-        self.on_finalize = None
-
-    def finalize(self):
-        with self.__lock:
-            self.__finalized = True
-        if callable(self.on_finalize):
-            self.on_finalize(self)
-
-    @property
-    def color_map_data(self):
-        return self.__color_map_data
-
-    @property
-    def data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
-        return self.__data_and_metadata
-
-    @property
-    def display_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
-        with self.__lock:
-            if self.__display_data_and_metadata_dirty:
-                self.__display_data_and_metadata_dirty = False
-                data_and_metadata = self.__data_and_metadata
-                if data_and_metadata is not None:
-                    timestamp = data_and_metadata.timestamp
-                    data_and_metadata, modified = Core.function_display_data_no_copy(data_and_metadata, self.__sequence_index, self.__collection_index, self.__slice_center, self.__slice_width, self.__complex_display_type)
-                    if data_and_metadata:
-                        data_and_metadata.data_metadata.timestamp = timestamp
-                    self.__display_data_and_metadata = data_and_metadata
-            return self.__display_data_and_metadata
-
-    @property
-    def data_range(self):
-        with self.__lock:
-            if self.__data_range_dirty:
-                self.__data_range_dirty = False
-                display_data_and_metadata = self.display_data_and_metadata
-                display_data = display_data_and_metadata.data if display_data_and_metadata else None
-                if display_data is not None and display_data.size and self.__data_and_metadata:
-                    data_shape = self.__data_and_metadata.data_shape
-                    data_dtype = self.__data_and_metadata.data_dtype
-                    if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
-                        self.__data_range = (0, 255)
-                    elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
-                        self.__data_range = (numpy.amin(display_data), numpy.amax(display_data))
-                    else:
-                        self.__data_range = (numpy.amin(display_data), numpy.amax(display_data))
-                else:
-                    self.__data_range = None
-                if self.__data_range is not None:
-                    if math.isnan(self.__data_range[0]) or math.isnan(self.__data_range[1]) or math.isinf(self.__data_range[0]) or math.isinf(self.__data_range[1]):
-                        self.__data_range = (0.0, 0.0)
-            return self.__data_range
-
-    @property
-    def display_range(self):
-        with self.__lock:
-            if self.__display_range_dirty:
-                self.__display_range_dirty = False
-                self.__display_range = calculate_display_range(self.__display_limits, self.data_range, self.data_sample, self.__data_and_metadata, self.__complex_display_type)
-            return self.__display_range
-
-    @property
-    def data_sample(self):
-        with self.__lock:
-            if self.__data_sample_dirty:
-                self.__data_sample_dirty = False
-                display_data_and_metadata = self.display_data_and_metadata
-                display_data = display_data_and_metadata.data if display_data_and_metadata else None
-                if display_data is not None and display_data.size and self.__data_and_metadata:
-                    data_shape = self.__data_and_metadata.data_shape
-                    data_dtype = self.__data_and_metadata.data_dtype
-                    if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
-                        self.__data_sample = None
-                    elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
-                        self.__data_sample = numpy.sort(numpy.random.choice(display_data.reshape(numpy.product(display_data.shape, dtype=numpy.uint64)), 200))
-                    else:
-                        self.__data_sample = None
-                else:
-                    self.__data_sample = None
-            return self.__data_sample
-
-    @property
-    def display_rgba(self):
-        with self.__lock:
-            if self.__display_rgba_dirty:
-                self.__display_rgba_dirty = False
-                display_data_and_metadata = self.display_data_and_metadata
-                if display_data_and_metadata is not None and self.__data_and_metadata is not None:
-                    if self.data_range is not None:  # workaround until validating and retrieving data stats is an atomic operation
-                        # display_range is just display_limits but calculated if display_limits is None
-                        display_range = self.display_range
-                        self.__display_rgba = Core.function_display_rgba(display_data_and_metadata, display_range, self.__color_map_data).data
-            return self.__display_rgba
-
-    @property
-    def display_rgba_timestamp(self):
-        return self.__display_rgba_timestamp
-
-
 class Display(Observable.Observable, Persistence.PersistentObject):
     """The display properties for a DataItem.
 
@@ -265,14 +123,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         super().__init__()
         self.__container_weak_ref = None
         self.__cache = Cache.ShadowCache()
-        self.__color_map_data = None
-        # conversion to scalar
-        self.define_property("complex_display_type", changed=self.__property_changed)
         # calibration display
         self.define_property("calibration_style_id", "calibrated", key="dimensional_calibration_style", changed=self.__property_changed)
-        # data scaling and color (raster)
-        self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__property_changed)
-        self.define_property("color_map_id", changed=self.__color_map_id_changed)
         # image zoom and position
         self.define_property("image_zoom", 1.0, changed=self.__property_changed)
         self.define_property("image_position", (0.5, 0.5), changed=self.__property_changed)
@@ -287,31 +139,16 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.define_property("intensity_calibration", None, make=Calibration.Calibration, changed=self.__property_changed)
         self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__property_changed)
         self.define_property("dimensional_scales", None, changed=self.__property_changed)
-        # slicing data to 1d or 2d
-        self.define_property("sequence_index", 0, validate=self.__validate_sequence_index, changed=self.__property_changed)
-        self.define_property("collection_index", (0, 0, 0), validate=self.__validate_collection_index, changed=self.__property_changed)
-        self.define_property("slice_center", 0, validate=self.__validate_slice_center, changed=self.__slice_interval_changed)
-        self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
         # display script
         self.define_property("display_script", changed=self.__property_changed)
 
-        self.item_changed_event = Event.Event()  # for indicated this display has mutated somehow
+        self.display_changed_event = Event.Event()
 
-        # # last display values is the last one to be fully displayed.
-        # # when the current display values makes it all the way to display, it will fire an event.
-        # # the display will listen for that event and update last display values.
-        self.__last_display_values = None
-        self.__current_display_values = None
-        self.__is_master = True
         self._display_type = None  # set by the display item
 
-        self.display_values_changed_event = Event.Event()
-        self.__calculated_display_values_available_event = Event.Event()
-
         self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
+
         self.about_to_be_removed_event = Event.Event()
-        self.display_changed_event = Event.Event()
-        self.display_data_will_change_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
 
@@ -320,46 +157,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         assert not self._closed
         self._closed = True
         self.__container_weak_ref = None
-
-    def save_properties(self) -> typing.Tuple:
-        return (
-            self.left_channel,
-            self.right_channel,
-            self.y_min,
-            self.y_max,
-            self.y_style,
-            self.image_zoom,
-            self.image_position,
-            self.image_canvas_mode,
-            self.complex_display_type,
-            self.calibration_style_id,
-            self.display_limits,
-            self.color_map_id,
-            self.sequence_index,
-            self.collection_index,
-            self.slice_center,
-            self.slice_interval,
-            self.display_script
-        )
-
-    def restore_properties(self, properties: typing.Tuple) -> None:
-        self.left_channel = properties[0]
-        self.right_channel = properties[1]
-        self.y_min = properties[2]
-        self.y_max = properties[3]
-        self.y_style = properties[4]
-        self.image_zoom = properties[5]
-        self.image_position = properties[6]
-        self.image_canvas_mode = properties[7]
-        self.complex_display_type = properties[8]
-        self.calibration_style_id = properties[9]
-        self.display_limits = properties[10]
-        self.color_map_id = properties[11]
-        self.sequence_index = properties[12]
-        self.collection_index = properties[13]
-        self.slice_center = properties[14]
-        self.slice_interval = properties[15]
-        self.display_script = properties[16]
 
     @property
     def container(self):
@@ -393,6 +190,32 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         display.uuid = self.uuid
         return display
 
+    def save_properties(self) -> typing.Tuple:
+        return (
+            self.left_channel,
+            self.right_channel,
+            self.y_min,
+            self.y_max,
+            self.y_style,
+            self.image_zoom,
+            self.image_position,
+            self.image_canvas_mode,
+            self.calibration_style_id,
+            self.display_script
+        )
+
+    def restore_properties(self, properties: typing.Tuple) -> None:
+        self.left_channel = properties[0]
+        self.right_channel = properties[1]
+        self.y_min = properties[2]
+        self.y_max = properties[3]
+        self.y_style = properties[4]
+        self.image_zoom = properties[5]
+        self.image_position = properties[6]
+        self.image_canvas_mode = properties[7]
+        self.calibration_style_id = properties[8]
+        self.display_script = properties[9]
+
     @property
     def _display_cache(self):
         return self.__cache
@@ -405,22 +228,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def dimensional_calibrations(self, dimensional_calibrations: typing.Sequence[Calibration.Calibration]) -> None:
         """ Set the dimensional calibrations. """
         self._set_persistent_property_value("dimensional_calibrations", CalibrationList(dimensional_calibrations))
-
-    def reset_display_limits(self):
-        """Reset display limits so that they are auto calculated whenever the data changes."""
-        self.display_limits = None
-
-    def auto_display_limits(self):
-        """Calculate best display limits and set them."""
-        display_data_and_metadata = self.get_calculated_display_values(True).display_data_and_metadata
-        data = display_data_and_metadata.data if display_data_and_metadata else None
-        if data is not None:
-            # The old algorithm was a problem during EELS where the signal data
-            # is a small percentage of the overall data and was falling outside
-            # the included range. This is the new simplified algorithm. Future
-            # feature may allow user to select more complex algorithms.
-            mn, mx = numpy.nanmin(data), numpy.nanmax(data)
-            self.display_limits = mn, mx
 
     def view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
         """Change the view to encompass the channels and data represented by the given intervals."""
@@ -446,8 +253,33 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.y_min = data_min * 1.2
             self.y_max = data_max * 1.2
 
+    def __property_changed(self, property_name, value):
+        # when one of the defined properties changes, this gets called
+        self.notify_property_changed(property_name)
+        if property_name in ("calibration_style_id", ):
+            self.notify_property_changed("displayed_dimensional_scales")
+            self.notify_property_changed("displayed_dimensional_calibrations")
+            self.notify_property_changed("displayed_intensity_calibration")
+        if property_name in ("dimensional_calibrations", "intensity_calibration", "dimensional_scales"):
+            self.notify_property_changed("displayed_dimensional_scales")
+            self.notify_property_changed("displayed_dimensional_calibrations")
+            self.notify_property_changed("displayed_intensity_calibration")
+        self.display_changed_event.fire()
+
+    # message sent when data changes.
+    # thread safe
+    def update_xdata_list(self, xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata]) -> None:
+        data_and_metadata = xdata_list[0] if len(xdata_list) == 1 else None
+        self.__data_and_metadata = data_and_metadata
+        self.notify_property_changed("displayed_dimensional_calibrations")
+        self.notify_property_changed("displayed_intensity_calibration")
+        self.display_changed_event.fire()
+
+    def set_storage_cache(self, storage_cache):
+        self.__cache.set_storage_cache(storage_cache, self)
+
     @property
-    def preview_2d_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
+    def display_data_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
         if not self.__data_and_metadata:
             return None
         data_and_metadata = self.__data_and_metadata
@@ -467,190 +299,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                 return dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
         else:
             return dimensional_shape[next_dimension:]
-
-    def __validate_display_limits(self, value):
-        if value is not None:
-            if len(value) == 0:
-                return None
-            elif len(value) == 1:
-                return (value[0], None) if value[0] is not None else None
-            elif value[0] is not None and value[1] is not None:
-                return min(value[0], value[1]), max(value[0], value[1])
-            elif value[0] is None and value[1] is None:
-                return None
-            else:
-                return value[0], value[1]
-        return value
-
-    def __validate_sequence_index(self, value: int) -> int:
-        if not self._is_reading:
-            if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
-                return max(min(int(value), self.__data_and_metadata.max_sequence_index - 1), 0) if self.__data_and_metadata.is_sequence else 0
-        return 0
-
-    def __validate_collection_index(self, value: typing.Tuple[int, int, int]) -> typing.Tuple[int, int, int]:
-        if not self._is_reading:
-            if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
-                dimensional_shape = self.__data_and_metadata.dimensional_shape
-                collection_base_index = 1 if self.__data_and_metadata.is_sequence else 0
-                collection_dimension_count = self.__data_and_metadata.collection_dimension_count
-                i0 = max(min(int(value[0]), dimensional_shape[collection_base_index + 0] - 1), 0) if collection_dimension_count > 0 else 0
-                i1 = max(min(int(value[1]), dimensional_shape[collection_base_index + 1] - 1), 0) if collection_dimension_count > 1 else 0
-                i2 = max(min(int(value[2]), dimensional_shape[collection_base_index + 2] - 1), 0) if collection_dimension_count > 2 else 0
-                return i0, i1, i2
-        return (0, 0, 0)
-
-    def __validate_slice_center_for_width(self, value, slice_width):
-        if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
-            depth = self.__data_and_metadata.dimensional_shape[-1]
-            mn = max(int(slice_width * 0.5), 0)
-            mx = min(int(depth - slice_width * 0.5), depth - 1)
-            return min(max(int(value), mn), mx)
-        return value if self._is_reading else 0
-
-    def __validate_slice_center(self, value):
-        return self.__validate_slice_center_for_width(value, self.slice_width)
-
-    def __validate_slice_width(self, value):
-        if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
-            depth = self.__data_and_metadata.dimensional_shape[-1]  # signal_index
-            slice_center = self.slice_center
-            mn = 1
-            mx = max(min(slice_center, depth - slice_center) * 2, 1)
-            return min(max(value, mn), mx)
-        return value if self._is_reading else 1
-
-    def validate_slice_indexes(self) -> None:
-        sequence_index = self.__validate_sequence_index(self.sequence_index)
-        if sequence_index != self.sequence_index:
-            self.sequence_index = sequence_index
-
-        collection_index = self.__validate_collection_index(self.collection_index)
-        if collection_index != self.collection_index:
-            self.collection_index = collection_index
-
-        slice_center = self.__validate_slice_center_for_width(self.slice_center, 1)
-        if slice_center != self.slice_center:
-            old_slice_width = self.slice_width
-            self.slice_width = 1
-            self.slice_center = self.slice_center
-            self.slice_width = old_slice_width
-
-    @property
-    def slice_interval(self):
-        if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
-            depth = self.__data_and_metadata.dimensional_shape[-1]  # signal_index
-            if depth > 0:
-                slice_interval_start = round(self.slice_center - self.slice_width * 0.5)
-                slice_interval_end = slice_interval_start + self.slice_width
-                return (float(slice_interval_start) / depth, float(slice_interval_end) / depth)
-            return 0, 0
-        return None
-
-    @slice_interval.setter
-    def slice_interval(self, slice_interval):
-        if self.__data_and_metadata.dimensional_shape is not None:
-            depth = self.__data_and_metadata.dimensional_shape[-1]  # signal_index
-            if depth > 0:
-                slice_interval_center = round(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
-                slice_interval_width = round((slice_interval[1] - slice_interval[0]) * depth)
-                self.slice_center = slice_interval_center
-                self.slice_width = slice_interval_width
-
-    def __slice_interval_changed(self, name, value):
-        # notify for dependent slice_interval property
-        self.__property_changed(name, value)
-        self.notify_property_changed("slice_interval")
-
-    def __color_map_id_changed(self, property_name, value):
-        self.__property_changed(property_name, value)
-        if value:
-            self.__color_map_data = ColorMaps.get_color_map_data_by_id(value)
-        else:
-            self.__color_map_data = None
-        self.__property_changed("color_map_data", self.__color_map_data)
-
-    @property
-    def color_map_data(self) -> typing.Optional[numpy.ndarray]:
-        """Return the color map data as a uint8 ndarray with shape (256, 3)."""
-        if self.preview_2d_shape is None:  # is there display data?
-            return None
-        else:
-            return self.__color_map_data if self.__color_map_data is not None else ColorMaps.get_color_map_data_by_id("grayscale")
-
-    def __property_changed(self, property_name, value):
-        # when one of the defined properties changes, this gets called
-        self.notify_property_changed(property_name)
-        self.display_changed_event.fire()
-        if property_name in ("sequence_index", "collection_index", "slice_center", "slice_width", "complex_display_type", "display_limits", "color_map_data"):
-            self.display_data_will_change_event.fire()
-            self.__send_next_calculated_display_values()
-        if property_name in ("calibration_style_id", ):
-            self.notify_property_changed("displayed_dimensional_scales")
-            self.notify_property_changed("displayed_dimensional_calibrations")
-            self.notify_property_changed("displayed_intensity_calibration")
-        if property_name in ("dimensional_calibrations", "intensity_calibration", "dimensional_scales"):
-            self.notify_property_changed("displayed_dimensional_scales")
-            self.notify_property_changed("displayed_dimensional_calibrations")
-            self.notify_property_changed("displayed_intensity_calibration")
-
-    # message sent when data changes.
-    # thread safe
-    def update_xdata_list(self, xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata]) -> None:
-        data_and_metadata = xdata_list[0] if len(xdata_list) == 1 else None
-        old_data_shape = self.__data_and_metadata.data_shape if self.__data_and_metadata else None
-        self.__data_and_metadata = data_and_metadata
-        new_data_shape = self.__data_and_metadata.data_shape if self.__data_and_metadata else None
-        if old_data_shape != new_data_shape:
-            self.validate_slice_indexes()
-        self.__send_next_calculated_display_values()
-        self.notify_property_changed("displayed_dimensional_calibrations")
-        self.notify_property_changed("displayed_intensity_calibration")
-        self.display_changed_event.fire()
-
-    def set_storage_cache(self, storage_cache):
-        self.__cache.set_storage_cache(storage_cache, self)
-
-    def add_calculated_display_values_listener(self, callback, send=True):
-        listener = self.__calculated_display_values_available_event.listen(callback)
-        if send:
-            self.__send_next_calculated_display_values()
-        return listener
-
-    def __send_next_calculated_display_values(self) -> None:
-        """Fire event to signal new display values are available."""
-        self.__current_display_values = None
-        self.__calculated_display_values_available_event.fire()
-
-    def get_calculated_display_values(self, immediate: bool=False) -> DisplayValues:
-        """Return the display values.
-
-        Return the current (possibly uncalculated) display values unless 'immediate' is specified.
-
-        If 'immediate', return the existing (calculated) values if they exist. Using the 'immediate' values
-        avoids calculation except in cases where the display values haven't already been calculated.
-        """
-        if not immediate or not self.__is_master or not self.__last_display_values:
-            if not self.__current_display_values:
-                self.__current_display_values = DisplayValues(self.__data_and_metadata, self.sequence_index, self.collection_index, self.slice_center, self.slice_width, self.display_limits, self.complex_display_type, self.__color_map_data)
-
-                def finalize(display_values):
-                    self.__last_display_values = display_values
-                    self.display_values_changed_event.fire()
-
-                self.__current_display_values.on_finalize = finalize
-            return self.__current_display_values
-        return self.__last_display_values
-
-    @property
-    def display_data_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
-        return self.preview_2d_shape
-
-    def _become_master(self):
-        self.__is_master = True
-
-    def _relinquish_master(self):
-        self.__is_master = False
 
     @property
     def displayed_dimensional_scales(self) -> typing.Sequence[float]:
@@ -727,7 +375,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         else:
             return str(value)
 
-    def get_value_and_position_text(self, pos) -> (str, str):
+    def get_value_and_position_text(self, display_data_channel, pos) -> (str, str):
         data_and_metadata = self.__data_and_metadata
         dimensional_calibrations = self.displayed_dimensional_calibrations
         intensity_calibration = self.displayed_intensity_calibration
@@ -739,11 +387,11 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         collection_dimension_count = data_and_metadata.collection_dimension_count
         datum_dimension_count = data_and_metadata.datum_dimension_count
         if is_sequence:
-            pos = (self.sequence_index, ) + pos
+            pos = (display_data_channel.sequence_index, ) + pos
         if collection_dimension_count == 2 and datum_dimension_count == 1:
-            pos = pos + (self.slice_center, )
+            pos = pos + (display_data_channel.slice_center, )
         else:
-            pos = tuple(self.collection_index[0:collection_dimension_count]) + pos
+            pos = tuple(display_data_channel.collection_index[0:collection_dimension_count]) + pos
 
         while len(pos) < data_and_metadata.datum_dimension_count:
             pos = (0,) + tuple(pos)

@@ -733,8 +733,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__insert_data_item(before_index, data_item, do_write)
         # automatically add a display
         if auto_display:
-            display_item = DisplayItem.DisplayItem()
-            display_item.append_data_item(data_item)
+            display_item = DisplayItem.DisplayItem(data_item=data_item)
             self.append_display_item(display_item)
 
     def __insert_data_item(self, before_index, data_item, do_write):
@@ -831,15 +830,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def deepcopy_display_item(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
         display_item_copy = copy.deepcopy(display_item)
-        data_item_references = list()
+        data_item_copies = list()
         for data_item in display_item.data_items:
             if data_item:
                 data_item_copy = copy.deepcopy(data_item)
                 self.append_data_item(data_item_copy, False)
-                data_item_references.append(str(data_item_copy.uuid))
+                data_item_copies.append(data_item_copy)
             else:
-                data_item_references.append(None)
-        display_item_copy.data_item_references = data_item_references
+                data_item_copies.append(None)
+        for display_data_channel in copy.copy(display_item_copy.display_data_channels):
+            display_item_copy.remove_display_data_channel(display_data_channel)
+        for data_item_copy, display_data_channel in zip(data_item_copies, display_item.display_data_channels):
+            display_data_channel_copy = DisplayItem.DisplayDataChannel(data_item=data_item_copy)
+            display_data_channel_copy.copy_display_data_properties_from(display_data_channel)
+            display_item_copy.append_display_data_channel(display_data_channel_copy)
         self.append_display_item(display_item_copy)
         return display_item_copy
 
@@ -849,8 +853,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def insert_display_item(self, before_index, display_item):
         self.insert_item("display_items", before_index, display_item)
         self.display_item_inserted_event.fire(self, display_item, before_index, False)
-        self.notify_insert_item("display_items", display_item, before_index)
         display_item.connect_data_items(self.get_data_item_by_uuid)
+        self.notify_insert_item("display_items", display_item, before_index)
 
     def remove_display_item(self, display_item) -> typing.Optional[typing.Sequence]:
         return self.__cascade_delete(display_item)

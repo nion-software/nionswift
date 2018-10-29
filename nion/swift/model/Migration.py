@@ -139,8 +139,26 @@ def migrate_to_v13(reader_info_list, library_updates, migration_log: MigrationLo
                     display_item_properties["display"] = display_properties
                     display_item_properties["display_type"] = display_properties.pop("display_type", None)
                     display_item_properties["graphics"] = display_properties.pop("graphics", list())
+                    display_data_properties = dict()
+                    if "complex_data_type" in display_properties:
+                        display_data_properties["complex_data_type"] = display_properties.pop("complex_data_type")
+                    if "display_limits" in display_properties:
+                        display_data_properties["display_limits"] = display_properties.pop("display_limits")
+                    if "color_map_id" in display_properties:
+                        display_data_properties["color_map_id"] = display_properties.pop("color_map_id")
+                    if "sequence_index" in display_properties:
+                        display_data_properties["sequence_index"] = display_properties.pop("sequence_index")
+                    if "collection_index" in display_properties:
+                        display_data_properties["collection_index"] = display_properties.pop("collection_index")
+                    if "slice_center" in display_properties:
+                        display_data_properties["slice_center"] = display_properties.pop("slice_center")
+                    if "slice_width" in display_properties:
+                        display_data_properties["slice_width"] = display_properties.pop("slice_width")
+                    display_data_properties["data_item_reference"] = data_item_uuid_str
+                    display_data_properties["type"] = "display_data_channel"
+                    display_data_properties["uuid"] = str(uuid.uuid4())
                     display_items.append(display_item_properties)
-                    display_item_properties["data_item_references"] = [data_item_uuid_str]
+                    display_item_properties["display_data_channels"] = [display_data_properties]
                     display_item_properties["session_id"] = session_id
 
                 library_updates.setdefault(data_item_uuid, dict()).setdefault("display_items", list()).extend(display_items)

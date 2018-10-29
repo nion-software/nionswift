@@ -1543,7 +1543,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         position_text, value_text = str(), str()
         try:
             if pos is not None:
-                position_text, value_text = self.__get_display().get_value_and_position_text(pos)
+                position_text, value_text = self.__get_display().get_value_and_position_text(self.__display_item.display_data_channel, pos)
         except Exception as e:
             global _test_log_exceptions
             if _test_log_exceptions:

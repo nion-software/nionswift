@@ -61,9 +61,10 @@ class TestInfoPanelClass(unittest.TestCase):
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 1))
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
-            display = document_model.get_display_item_for_data_item(data_item).display
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
             display.calibration_style_id = "pixels-top-left"
-            p, v = display.get_value_and_position_text((500,))
+            p, v = display.get_value_and_position_text(display_item.display_data_channel, (500,))
             self.assertEqual(p, "500.0, 0.0")
             self.assertEqual(v, "0")
 
@@ -73,9 +74,10 @@ class TestInfoPanelClass(unittest.TestCase):
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
-            display = document_model.get_display_item_for_data_item(data_item).display
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
             display.calibration_style_id = "pixels-top-left"
-            p, v = display.get_value_and_position_text((500,))
+            p, v = display.get_value_and_position_text(display_item.display_data_channel, (500,))
             self.assertEqual(p, "500.0, 0.0")
             self.assertEqual(v, "0")
 
@@ -85,9 +87,10 @@ class TestInfoPanelClass(unittest.TestCase):
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 1))
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
-            display = document_model.get_display_item_for_data_item(data_item).display
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
             display.calibration_style_id = "pixels-top-left"
-            p, v = display.get_value_and_position_text((500,))
+            p, v = display.get_value_and_position_text(display_item.display_data_channel, (500,))
             self.assertEqual(p, "500.0, 0.0")
             self.assertEqual(v, "0")
 
@@ -96,9 +99,10 @@ class TestInfoPanelClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((50,)))
             document_model.append_data_item(data_item)
-            display = document_model.get_display_item_for_data_item(data_item).display
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display = display_item.display
             display.calibration_style_id = "pixels-top-left"
-            p, v = display.get_value_and_position_text((25, ))
+            p, v = display.get_value_and_position_text(display_item.display_data_channel, (25, ))
             self.assertEqual(p, "25.0")
             self.assertEqual(v, "0")
 

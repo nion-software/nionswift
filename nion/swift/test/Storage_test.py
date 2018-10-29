@@ -335,7 +335,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(display_data_channel.get_calculated_display_values(True).data_range, (0, 0))
         # make the slice_center be out of bounds
         library_storage_properties = memory_persistent_storage_system.library_storage_properties
-        library_storage_properties["display_items"][0]["display"]["slice_center"] = 20
+        library_storage_properties["display_items"][0]["display_data_channels"][0]["slice_center"] = 20
         memory_persistent_storage_system._set_properties(library_storage_properties)
         # read it back
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)

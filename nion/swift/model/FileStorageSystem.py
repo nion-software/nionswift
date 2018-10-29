@@ -487,13 +487,17 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
             data_item_uuid_strs = data_group_properties.pop("data_item_uuids", list())
             for data_item_uuid_str in data_item_uuid_strs:
                 for display_item_properties in library_storage_properties.get("display_items", list()):
-                    if data_item_uuid_str in display_item_properties.get("data_item_references", list()):
+                    data_item_references = [d.get("data_item_reference", None) for d in display_item_properties.get("display_data_channels", list())]
+                    if data_item_uuid_str in data_item_references:
                         display_item_references.append(display_item_properties["uuid"])
         data_item_to_display_item_map = dict()
         display_to_display_item_map = dict()
+        display_to_display_data_channel_map = dict()
         for display_item_properties in library_storage_properties.get("display_items", list()):
             display_to_display_item_map[display_item_properties["display"]["uuid"]] = display_item_properties["uuid"]
-            for data_item_uuid_str in display_item_properties.get("data_item_references", list()):
+            display_to_display_data_channel_map[display_item_properties["display"]["uuid"]] = display_item_properties["display_data_channels"][0]["uuid"]
+            data_item_references = [d.get("data_item_reference", None) for d in display_item_properties.get("display_data_channels", list())]
+            for data_item_uuid_str in data_item_references:
                 data_item_to_display_item_map.setdefault(data_item_uuid_str, display_item_properties["uuid"])
         for workspace_properties in library_storage_properties.get("workspaces", list()):
             def replace1(d):
@@ -507,9 +511,11 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
                         d["display_item_uuid"] = display_item_uuid_str
             replace1(workspace_properties["layout"])
         for connection_dict in library_storage_properties.get("connections", list()):
+            source_uuid_str = connection_dict["source_uuid"]
             if connection_dict["type"] == "interval-list-connection":
-                source_uuid_str = connection_dict["source_uuid"]
                 connection_dict["source_uuid"] = display_to_display_item_map.get(source_uuid_str, None)
+            if connection_dict["type"] == "property-connection" and connection_dict["source_property"] == "slice_interval":
+                connection_dict["source_uuid"] = display_to_display_data_channel_map.get(source_uuid_str, None)
 
         library_storage_properties["version"] = DocumentModel.DocumentModel.library_version
 
