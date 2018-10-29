@@ -418,13 +418,10 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
     def default_aspect_ratio(self):
         return 1.0
 
-    def display_rgba_changed(self, display_properties, display_values) -> None:
+    def update_display_values(self, display_values) -> None:
         pass
 
-    def display_data_and_metadata_changed(self, display_properties, display_values) -> None:
-        pass
-
-    def update_display_values(self, display_properties, display_values) -> None:
+    def update_display_properties(self, display_properties) -> None:
         pass
 
     def update_graphics(self, graphics, graphic_selection, display_properties) -> None:
@@ -508,33 +505,25 @@ class DisplayTracker:
             # this message comes from the display when the graphic selection changes
             self.__display_canvas_item.update_graphics(display_item.graphics, graphic_selection, Display.DisplayProperties(display))
 
-        def display_rgba_changed(display_values):
+        def handle_next_calculated_display_values():
+            # this notification is for the rgba values only
+            # thread safe
             with self.__closing_lock:
-                self.__display_canvas_item.display_rgba_changed(Display.DisplayProperties(display), display_values)
-
-        def display_data_and_metadata_changed(display_values):
-            with self.__closing_lock:
-                self.__display_canvas_item.display_data_and_metadata_changed(Display.DisplayProperties(display), display_values)
+                display_values = display_data_channel.get_calculated_display_values()
+                self.__display_canvas_item.update_display_values(display_values)
 
         def display_changed():
             # called when anything in the data item changes, including things like graphics or the data itself.
             # this notification does not cover the rgba data, which is handled in the function below.
             # thread safe
-            display_values = display_data_channel.get_calculated_display_values()
-            display_data_and_metadata_changed(display_values)
+            self.__display_canvas_item.update_display_properties(Display.DisplayProperties(display))
+            # graphics content changes will also trigger display changed event; so update graphics here
             display_graphic_selection_changed(display_item.graphic_selection)
 
-        def handle_next_calculated_display_values():
-            # this notification is for the rgba values only
-            # thread safe
-            display_values = display_data_channel.get_calculated_display_values()
-            display_rgba_changed(display_values)
-
         def display_property_changed(property: str) -> None:
-            if property in ("y_min", "y_max", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode"):
+            if property in ("y_min", "y_max", "y_style", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode"):
                 with self.__closing_lock:
-                    display_values = display_data_channel.get_calculated_display_values()
-                    self.__display_canvas_item.update_display_values(Display.DisplayProperties(display), display_values)
+                    self.__display_canvas_item.update_display_properties(Display.DisplayProperties(display))
 
         self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(handle_next_calculated_display_values)
         self.__display_data_channel_property_changed_listener = display_data_channel.property_changed_event.listen(display_property_changed)
@@ -545,6 +534,7 @@ class DisplayTracker:
         # this may throw exceptions (during testing). make sure to close if that happens, ensuring that the
         # layer items (image/line plot) get shut down.
         display_changed()
+        display_graphic_selection_changed(display_item.graphic_selection)
 
     def close(self):
         with self.__closing_lock:  # ensures that display pipeline finishes
@@ -1778,7 +1768,8 @@ def preview(ui, display_item: DisplayItem.DisplayItem, width: int, height: int) 
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
             display_properties = Display.DisplayProperties(display)
-            display_canvas_item.update_display_values(display_properties, display_values)
+            display_canvas_item.update_display_values(display_values)
+            display_canvas_item.update_display_properties(display_properties)
             display_canvas_item.update_graphics(display_item.graphics, DisplayItem.GraphicSelection(), display_properties)
 
             with drawing_context.saver():

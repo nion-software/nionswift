@@ -185,6 +185,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
         self.add_canvas_item(line_graph_background_canvas_item)
 
+        self.__display_values = None
+
         # used for tracking undo
         self.__undo_command = None
 
@@ -239,15 +241,10 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def default_aspect_ratio(self):
         return (1 + 5 ** 0.5) / 2  # golden ratio
 
-    def display_rgba_changed(self, display_properties, display_values) -> None:
-        # when the display rgba data changes, no need to do anything
-        pass
+    def update_display_values(self, display_values) -> None:
+        self.__display_values = display_values
 
-    def display_data_and_metadata_changed(self, display_properties, display_values) -> None:
-        # when the data changes, update the display.
-        self.update_display_values(display_properties, display_values)
-
-    def update_display_values(self, display_properties, display_values) -> None:
+    def update_display_properties(self, display_properties) -> None:
         """Update the display values. Called from display panel.
 
         This method saves the display values and data and triggers an update. It should be as fast as possible.
@@ -283,7 +280,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__right_channel = display_properties.right_channel
             self.__legend_labels = display_properties.legend_labels
 
-            display_data_and_metadata = display_values.display_data_and_metadata
+            display_data_and_metadata = self.__display_values.display_data_and_metadata if self.__display_values else None
             if display_data_and_metadata:
                 # store the pending display parameters
                 if self.__xdata_index0 == 0:
@@ -291,7 +288,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                     self.__xdata_list = [display_data_and_metadata] + self.__xdata_list
                 else:
                     self.__xdata_list[0] = display_data_and_metadata
-                self.__update_frame(display_values.data_and_metadata.metadata)
+                self.__update_frame(self.__display_values.data_and_metadata.metadata)
             else:
                 if self.__xdata_index0 > 0:
                     self.__xdata_index0 = 0

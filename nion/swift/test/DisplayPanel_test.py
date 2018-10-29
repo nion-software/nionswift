@@ -1427,7 +1427,6 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 640))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
-            display = document_model.get_display_item_for_data_item(data_item)
             update_count = display_panel.display_canvas_item._update_count
             document_controller.periodic()
             self.display_panel.root_container.refresh_layout_immediate()

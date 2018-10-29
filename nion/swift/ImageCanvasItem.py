@@ -405,9 +405,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__image_position = (0.5, 0.5)
         self.__image_canvas_mode = "fit"
 
+        self.__last_display_properties = None
         self.__last_display_values = None
         self.__last_display_xdata = None
-        self.__graphics_changed = False
 
         # create the child canvas items
         # the background
@@ -476,18 +476,12 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def _info_overlay_canvas_item_for_test(self):
         return self.__info_overlay_canvas_item
 
-    def display_rgba_changed(self, display_properties, display_values) -> None:
-        # when the display rgba data changes, update the display.
-        self.update_display_values(display_properties, display_values)
+    def update_display_values(self, display_values) -> None:
+        self.__display_values = display_values
 
-    def display_data_and_metadata_changed(self, display_properties, display_values) -> None:
-        # when the data changes, no need to do anything. waits for the display rgba to change instead.
-        pass
-
-    def update_display_values(self, display_properties, display_values) -> None:
+    def update_display_properties(self, display_properties) -> None:
         # threadsafe
-        self.__last_display_xdata = display_values.display_data_and_metadata
-        data_and_metadata = display_values.data_and_metadata
+        data_and_metadata = self.__display_values.data_and_metadata if self.__display_values else None
         if data_and_metadata:
             displayed_dimensional_calibrations = display_properties.displayed_dimensional_calibrations
             if len(displayed_dimensional_calibrations) == 0:
@@ -526,21 +520,19 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                     if display_properties.image_canvas_mode is not None:
                         self.__image_canvas_mode = display_properties.image_canvas_mode
 
-                # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
-                self.__info_overlay_canvas_item.set_data_info(data_shape, dimensional_calibration, metadata)
                 # if the data changes, update the display.
-                if display_values is not self.__display_values or self.__graphics_changed:
-                    self.__graphics_changed = False
-                    self.__display_values = display_values
+                new_display_xdata = self.__display_values.display_data_and_metadata if self.__display_values else None
+                if display_properties != self.__last_display_properties or (self.__display_values is not self.__last_display_values and new_display_xdata is not self.__last_display_xdata):
+                    self.__last_display_properties = copy.deepcopy(display_properties)
+                    self.__last_display_values = self.__display_values
+                    self.__last_display_xdata = new_display_xdata
                     self.__data_shape = data_shape
                     if self.__display_frame_rate_id:
                         frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
                         if frame_index != self.__display_frame_rate_last_index:
                             Utility.fps_tick("frame_"+self.__display_frame_rate_id)
                             self.__display_frame_rate_last_index = frame_index
-                        if id(self.__display_values) != id(self.__last_display_values):
-                            Utility.fps_tick("update_"+self.__display_frame_rate_id)
-                            self.__last_display_values = self.__display_values
+                        Utility.fps_tick("update_"+self.__display_frame_rate_id)
                     # update the cursor info
                     self.__update_cursor_info()
 
@@ -573,11 +565,13 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                                             update_layout_handle.cancel()
                                         self.__update_layout_handle = None
 
+                # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
+                self.__info_overlay_canvas_item.set_data_info(data_shape, dimensional_calibration, metadata)
+
     def update_graphics(self, graphics, graphic_selection, display_properties) -> None:
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
         self.__graphics_canvas_item.update_graphics(display_properties.display_data_shape, self.__graphics, self.__graphic_selection)
-        self.__graphics_changed = True
 
     def handle_auto_display(self) -> bool:
         # enter key has been pressed. calculate best display limits and set them.

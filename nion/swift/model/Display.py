@@ -818,10 +818,10 @@ class DisplayProperties:
 
         self.display_data_shape = display.display_data_shape
 
-        self.dimensional_calibrations = display.dimensional_calibrations
+        self.dimensional_calibrations = copy.deepcopy(display.dimensional_calibrations)
         self.displayed_dimensional_scales = display.displayed_dimensional_scales
-        self.displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
-        self.displayed_intensity_calibration = display.displayed_intensity_calibration
+        self.displayed_dimensional_calibrations = copy.deepcopy(display.displayed_dimensional_calibrations)
+        self.displayed_intensity_calibration = copy.deepcopy(display.displayed_intensity_calibration)
         self.calibration_style = display.calibration_style
 
         self.image_zoom = display.image_zoom
@@ -836,3 +836,40 @@ class DisplayProperties:
         self.legend_labels = display.legend_labels
 
         self.display_script = display.display_script
+
+    def __ne__(self, display_properties):
+        if not display_properties:
+            return True
+        if  self.display_data_shape != display_properties.display_data_shape:
+            return True
+        if  self.dimensional_calibrations != display_properties.dimensional_calibrations:
+            return True
+        if  self.displayed_dimensional_scales != display_properties.displayed_dimensional_scales:
+            return True
+        if  self.displayed_dimensional_calibrations != display_properties.displayed_dimensional_calibrations:
+            return True
+        if  self.displayed_intensity_calibration != display_properties.displayed_intensity_calibration:
+            return True
+        if  type(self.calibration_style) != type(display_properties.calibration_style):
+            return True
+        if  self.image_zoom != display_properties.image_zoom:
+            return True
+        if  self.image_position != display_properties.image_position:
+            return True
+        if  self.image_canvas_mode != display_properties.image_canvas_mode:
+            return True
+        if  self.y_min != display_properties.y_min:
+            return True
+        if  self.y_max != display_properties.y_max:
+            return True
+        if  self.y_style != display_properties.y_style:
+            return True
+        if  self.left_channel != display_properties.left_channel:
+            return True
+        if  self.right_channel != display_properties.right_channel:
+            return True
+        if  self.legend_labels != display_properties.legend_labels:
+            return True
+        if  self.display_script != display_properties.display_script:
+            return True
+        return False
