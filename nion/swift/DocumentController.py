@@ -116,7 +116,6 @@ class DocumentController(Window.Window):
         self.filter_controller = FilterPanel.FilterController(self)
 
         self.focused_display_item_changed_event = Event.Event()
-        self.__focused_data_item = None
         self.__focused_display_item = None
         self.notify_focused_display_changed(None)
 
@@ -749,15 +748,12 @@ class DocumentController(Window.Window):
     def notify_focused_display_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
         if self.__focused_display_item != display_item:
             self.__focused_display_item = display_item
-        data_item = display_item.data_item if display_item else None
-        if self.__focused_data_item != data_item:
-            self.__focused_data_item = data_item
-            self.focused_display_item_changed_event.fire(self.document_model.get_display_item_for_data_item(data_item))
+            self.focused_display_item_changed_event.fire(display_item)
 
     @property
-    def focused_data_item(self) -> DataItem.DataItem:
+    def focused_data_item(self) -> typing.Optional[DataItem.DataItem]:
         """Return the data item with keyboard focus."""
-        return self.__focused_data_item
+        return self.__focused_display_item.data_item if self.__focused_display_item else None
 
     @property
     def focused_display_item(self) -> DisplayItem.DisplayItem:

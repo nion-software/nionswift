@@ -1938,9 +1938,6 @@ class GraphicsInspectorSection(InspectorSection):
         ui = document_controller.ui
         self.__document_controller = document_controller
         self.__display_item = display_item
-        data_item = display_item.data_item if display_item else None
-        display = display_item.display if display_item else None
-        self.__image_size = data_item.dimensional_shape
         self.__graphics = display_item.graphics
         self.__items_to_close = list()
         # ui
@@ -1974,7 +1971,6 @@ class GraphicsInspectorSection(InspectorSection):
     def __create_list_item_widget(self, graphic):
         # NOTE: it is not valid to access self.__graphics here. graphic may or may not be in that list due to threading.
         # graphic_section_index = self.__graphics.index(graphic)
-        image_size = self.__image_size
         graphic_widget = self.ui.create_column_widget()
         # create the title row
         title_row = self.ui.create_row_widget()
@@ -2380,9 +2376,6 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
         super().__init__(ui.create_column_widget())
 
         self.ui = ui
-
-        data_item = display_item.data_item if display_item else None
-        display = display_item.display if display_item else None
 
         content_widget = self.content_widget
         content_widget.add_spacing(4)
