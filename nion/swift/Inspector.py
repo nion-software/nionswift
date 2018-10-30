@@ -309,15 +309,15 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
 
 
-class ChangePropertyBinding(Binding.PropertyBinding):
-    def __init__(self, document_controller, item, property_name: str, converter=None, fallback=None):
-        super().__init__(item, property_name, converter=converter, fallback=fallback)
+class ChangeDisplayItemPropertyBinding(Binding.PropertyBinding):
+    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, property_name: str, converter=None, fallback=None):
+        super().__init__(display_item, property_name, converter=converter, fallback=fallback)
         self.__property_name = property_name
         self.__old_source_setter = self.source_setter
 
         def set_value(value):
-            if value != getattr(item, property_name):
-                command = ChangePropertyCommand(document_controller.document_model, self.source, self.__property_name, value)
+            if value != getattr(display_item, property_name):
+                command = ChangeDisplayItemPropertyCommand(document_controller.document_model, self.source, self.__property_name, value)
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -457,7 +457,7 @@ class InfoInspectorSection(InspectorSection):
         self.info_section_title_row = self.ui.create_row_widget()
         self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width": 60}))
         self.info_title_label = self.ui.create_line_edit_widget()
-        self.info_title_label.bind_text(ChangePropertyBinding(document_controller, display_item, "title"))
+        self.info_title_label.bind_text(ChangeDisplayItemPropertyBinding(document_controller, display_item, "title"))
         self.info_section_title_row.add(self.info_title_label)
         self.info_section_title_row.add_spacing(8)
         # caption

@@ -50,6 +50,19 @@ class TestInspectorClass(unittest.TestCase):
                 data_item.title = "Title2"
                 self.assertEqual(inspector_section.info_title_label.text, "Title2")
 
+    def test_display_item_title_follows_title_change_in_inspector(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item.title = "Title1"
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            inspector_section = Inspector.InfoInspectorSection(document_controller, display_item)
+            with contextlib.closing(inspector_section):
+                inspector_section.info_title_label.editing_finished("Title2")
+                self.assertEqual("Title2", display_item.title)
+
     def test_display_limits_inspector_should_bind_to_display_without_errors(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
