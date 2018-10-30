@@ -121,7 +121,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
         self.__line_graph_xdata_list = list()
 
-        self.__xdata_index0 = 0
         self.__xdata_list = list()
         self.__last_data_list = list()
 
@@ -185,7 +184,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
         self.add_canvas_item(line_graph_background_canvas_item)
 
-        self.__display_values = None
+        self.__display_values_list = None
 
         # used for tracking undo
         self.__undo_command = None
@@ -242,7 +241,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         return (1 + 5 ** 0.5) / 2  # golden ratio
 
     def update_display_values(self, display_values_list) -> None:
-        self.__display_values = display_values_list[0] if display_values_list else None
+        self.__display_values_list = display_values_list
 
     def update_display_properties(self, display_properties) -> None:
         """Update the display values. Called from display panel.
@@ -280,19 +279,10 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__right_channel = display_properties.right_channel
             self.__legend_labels = display_properties.legend_labels
 
-            display_data_and_metadata = self.__display_values.display_data_and_metadata if self.__display_values else None
-            if display_data_and_metadata:
-                # store the pending display parameters
-                if self.__xdata_index0 == 0:
-                    self.__xdata_index0 = 1
-                    self.__xdata_list = [display_data_and_metadata] + self.__xdata_list
-                else:
-                    self.__xdata_list[0] = display_data_and_metadata
-                self.__update_frame(self.__display_values.data_and_metadata.metadata)
+            if self.__display_values_list and len(self.__display_values_list) > 0:
+                self.__xdata_list = [display_values.display_data_and_metadata if display_values else None for display_values in self.__display_values_list]
             else:
-                if self.__xdata_index0 > 0:
-                    self.__xdata_index0 = 0
-                    self.__xdata_list = list()
+                self.__xdata_list = list()
 
             # update the cursor info
             self.__update_cursor_info()
