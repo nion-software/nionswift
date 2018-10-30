@@ -321,8 +321,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             return self.dimensional_scales
         return [1, 1]
 
-    def get_dimensional_calibrations_with_calibration_style(self, calibration_style_id: typing.Optional[str]) -> typing.Sequence[Calibration.Calibration]:
-        calibration_style = self.__get_calibration_style_for_id(calibration_style_id)
+    @property
+    def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
+        calibration_style = self.__get_calibration_style_for_id(self.calibration_style_id)
         if self.__data_and_metadata:
             calibration_style = CalibrationStyleNative() if calibration_style is None else calibration_style
             return calibration_style.get_dimensional_calibrations(self.__data_and_metadata.dimensional_shape, self.__data_and_metadata.dimensional_calibrations)
@@ -337,11 +338,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             return list()
 
     @property
-    def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
-        return self.get_dimensional_calibrations_with_calibration_style(self.calibration_style_id)
-
-    def get_intensity_calibration_with_calibration_style(self, calibration_style_id: typing.Optional[str]) -> Calibration.Calibration:
-        calibration_style = self.__get_calibration_style_for_id(calibration_style_id)
+    def displayed_intensity_calibration(self) -> Calibration.Calibration:
+        calibration_style = self.__get_calibration_style_for_id(self.calibration_style_id)
         if calibration_style is None or self.__data_and_metadata is None:
             if self.__data_and_metadata:
                 return self.__data_and_metadata.intensity_calibration
@@ -349,10 +347,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                 return self.intensity_calibration
             return Calibration.Calibration()
         return calibration_style.get_intensity_calibration(self.__data_and_metadata)
-
-    @property
-    def displayed_intensity_calibration(self) -> Calibration.Calibration:
-        return self.get_intensity_calibration_with_calibration_style(self.calibration_style_id)
 
     @property
     def calibration_styles(self) -> typing.List[CalibrationStyle]:
