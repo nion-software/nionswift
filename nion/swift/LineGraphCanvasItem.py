@@ -273,22 +273,22 @@ def draw_background(drawing_context, plot_rect, background_color):
 
 def draw_horizontal_grid_lines(drawing_context, plot_width, plot_origin_x, y_ticks):
     with drawing_context.saver():
+        drawing_context.begin_path()
         for y, _ in y_ticks:
-            drawing_context.begin_path()
             drawing_context.move_to(plot_origin_x, y)
             drawing_context.line_to(plot_origin_x + plot_width, y)
-        drawing_context.line_width = 1
+        drawing_context.line_width = 0.5
         drawing_context.stroke_style = '#DDD'
         drawing_context.stroke()
 
 
 def draw_vertical_grid_lines(drawing_context, plot_height, plot_origin_y, x_ticks):
     with drawing_context.saver():
+        drawing_context.begin_path()
         for x, _ in x_ticks:
-            drawing_context.begin_path()
             drawing_context.move_to(x, plot_origin_y)
             drawing_context.line_to(x, plot_origin_y + plot_height)
-        drawing_context.line_width = 1
+        drawing_context.line_width = 0.5
         drawing_context.stroke_style = '#DDD'
         drawing_context.stroke()
 
