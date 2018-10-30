@@ -388,7 +388,7 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            inspector_section = Inspector.ImageDisplayInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
+            inspector_section = Inspector.ImageDataInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
             with contextlib.closing(inspector_section):
                 display_data_channel.display_limits = None
                 self.assertEqual(inspector_section.display_limits_limit_low.text, None)
@@ -414,7 +414,7 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            inspector_section = Inspector.ImageDisplayInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
+            inspector_section = Inspector.ImageDataInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
             with contextlib.closing(inspector_section):
                 self.assertEqual(display_data_channel.display_limits, None)
                 inspector_section.display_limits_limit_low.text = "1"

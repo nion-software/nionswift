@@ -570,6 +570,93 @@ class DataInfoInspectorSection(InspectorSection):
         self.finish_widget_content()
 
 
+class ImageDataInspectorSection(InspectorSection):
+
+    """
+        Subclass InspectorSection to implement display limits inspector.
+    """
+
+    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem):
+        super().__init__(document_controller.ui, "display-limits", _("Image Data"))
+        ui = document_controller.ui
+
+        # color map
+        color_map_row, self.__color_map_changed_listener = make_color_map_chooser(document_controller, display_data_channel)
+
+        # data_range model
+        self.__data_range_model = Model.PropertyModel()
+
+        # date
+        self.info_section_datetime_row = self.ui.create_row_widget()
+        self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
+        self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
+        self.info_datetime_label.bind_text(Binding.PropertyBinding(display_data_channel, "created_local_as_string"))
+        self.info_section_datetime_row.add(self.info_datetime_label)
+        self.info_section_datetime_row.add_stretch()
+
+        # format (size, datatype)
+        self.info_section_format_row = self.ui.create_row_widget()
+        self.info_section_format_row.add(self.ui.create_label_widget(_("Data"), properties={"width": 60}))
+        self.info_format_label = self.ui.create_label_widget(properties={"width": 240})
+        self.info_format_label.bind_text(Binding.PropertyBinding(display_data_channel, "size_and_data_format_as_string"))
+        self.info_section_format_row.add(self.info_format_label)
+        self.info_section_format_row.add_stretch()
+
+        # configure the display limit editor
+        self.display_limits_range_row = ui.create_row_widget()
+        self.display_limits_range_low = ui.create_label_widget(properties={"width": 80})
+        self.display_limits_range_high = ui.create_label_widget(properties={"width": 80})
+        float_point_2_converter = Converter.FloatToStringConverter(format="{0:#.5g}")
+        float_point_2_none_converter = Converter.FloatToStringConverter(format="{0:#.5g}", pass_none=True)
+        self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 0, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 1, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_range_row.add(ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
+        self.display_limits_range_row.add(self.display_limits_range_low)
+        self.display_limits_range_row.add_spacing(8)
+        self.display_limits_range_row.add(self.display_limits_range_high)
+        self.display_limits_range_row.add_stretch()
+        self.display_limits_limit_row = ui.create_row_widget()
+        self.display_limits_limit_low = ui.create_line_edit_widget(properties={"width": 80})
+        self.display_limits_limit_high = ui.create_line_edit_widget(properties={"width": 80})
+        self.display_limits_limit_low.placeholder_text = _("Auto")
+        self.display_limits_limit_high.placeholder_text = _("Auto")
+
+        self.__display_limits_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "display_limits", title=_("Change Display Limits"), command_id="change_display_limits")
+
+        self.display_limits_limit_low.bind_text(Binding.TuplePropertyBinding(self.__display_limits_model, "value", 0, float_point_2_none_converter))
+        self.display_limits_limit_high.bind_text(Binding.TuplePropertyBinding(self.__display_limits_model, "value", 1, float_point_2_none_converter))
+        self.display_limits_limit_row.add(ui.create_label_widget(_("Display Limits:"), properties={"width": 120}))
+        self.display_limits_limit_row.add(self.display_limits_limit_low)
+        self.display_limits_limit_row.add_spacing(8)
+        self.display_limits_limit_row.add(self.display_limits_limit_high)
+        self.display_limits_limit_row.add_stretch()
+
+        self.add_widget_to_content(self.info_section_datetime_row)
+        self.add_widget_to_content(self.info_section_format_row)
+        self.add_widget_to_content(self.display_limits_range_row)
+        self.add_widget_to_content(self.display_limits_limit_row)
+        self.add_widget_to_content(color_map_row)
+
+        self.finish_widget_content()
+
+        def handle_next_calculated_display_values():
+            calculated_display_values = display_data_channel.get_calculated_display_values(True)
+            self.__data_range_model.value = calculated_display_values.data_range
+
+        self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(handle_next_calculated_display_values)
+
+    def close(self):
+        self.__display_limits_model.close()
+        self.__display_limits_model = None
+        self.__color_map_changed_listener.close()
+        self.__color_map_changed_listener = None
+        self.__next_calculated_display_values_listener.close()
+        self.__next_calculated_display_values_listener = None
+        self.__data_range_model.close()
+        self.__data_range_model = None
+        super().close()
+
+
 class SessionInspectorSection(InspectorSection):
 
     def __init__(self, document_controller, data_item):
@@ -1060,77 +1147,21 @@ def make_color_map_chooser(document_controller, display_data_channel: DisplayIte
 
 
 class ImageDisplayInspectorSection(InspectorSection):
+    """Display type inspector."""
 
-    """
-        Subclass InspectorSection to implement display limits inspector.
-    """
-
-    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem):
-        super().__init__(document_controller.ui, "display-limits", _("Display"))
-        ui = document_controller.ui
+    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
+        super().__init__(document_controller.ui, "display-limits", _("Image Display"))
 
         # display type
         display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display_item)
 
-        # color map
-        color_map_row, self.__color_map_changed_listener = make_color_map_chooser(document_controller, display_data_channel)
-
-        # data_range model
-        self.__data_range_model = Model.PropertyModel()
-
-        # configure the display limit editor
-        self.display_limits_range_row = ui.create_row_widget()
-        self.display_limits_range_low = ui.create_label_widget(properties={"width": 80})
-        self.display_limits_range_high = ui.create_label_widget(properties={"width": 80})
-        float_point_2_converter = Converter.FloatToStringConverter(format="{0:#.5g}")
-        float_point_2_none_converter = Converter.FloatToStringConverter(format="{0:#.5g}", pass_none=True)
-        self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 0, float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 1, float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_range_row.add(ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
-        self.display_limits_range_row.add(self.display_limits_range_low)
-        self.display_limits_range_row.add_spacing(8)
-        self.display_limits_range_row.add(self.display_limits_range_high)
-        self.display_limits_range_row.add_stretch()
-        self.display_limits_limit_row = ui.create_row_widget()
-        self.display_limits_limit_low = ui.create_line_edit_widget(properties={"width": 80})
-        self.display_limits_limit_high = ui.create_line_edit_widget(properties={"width": 80})
-        self.display_limits_limit_low.placeholder_text = _("Auto")
-        self.display_limits_limit_high.placeholder_text = _("Auto")
-
-        self.__display_limits_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "display_limits", title=_("Change Display Limits"), command_id="change_display_limits")
-
-        self.display_limits_limit_low.bind_text(Binding.TuplePropertyBinding(self.__display_limits_model, "value", 0, float_point_2_none_converter))
-        self.display_limits_limit_high.bind_text(Binding.TuplePropertyBinding(self.__display_limits_model, "value", 1, float_point_2_none_converter))
-        self.display_limits_limit_row.add(ui.create_label_widget(_("Display Limits:"), properties={"width": 120}))
-        self.display_limits_limit_row.add(self.display_limits_limit_low)
-        self.display_limits_limit_row.add_spacing(8)
-        self.display_limits_limit_row.add(self.display_limits_limit_high)
-        self.display_limits_limit_row.add_stretch()
-
         self.add_widget_to_content(display_type_row)
-        self.add_widget_to_content(color_map_row)
-        self.add_widget_to_content(self.display_limits_range_row)
-        self.add_widget_to_content(self.display_limits_limit_row)
 
         self.finish_widget_content()
 
-        def handle_next_calculated_display_values():
-            calculated_display_values = display_data_channel.get_calculated_display_values(True)
-            self.__data_range_model.value = calculated_display_values.data_range
-
-        self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(handle_next_calculated_display_values)
-
     def close(self):
-        self.__display_limits_model.close()
-        self.__display_limits_model = None
         self.__display_type_changed_listener.close()
         self.__display_type_changed_listener = None
-        self.__color_map_changed_listener.close()
-        self.__color_map_changed_listener = None
-        self.__next_calculated_display_values_listener.close()
-        self.__next_calculated_display_values_listener = None
-        self.__data_range_model.close()
-        self.__data_range_model = None
         super().close()
 
 
@@ -1140,27 +1171,12 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         Subclass InspectorSection to implement display limits inspector.
     """
 
-    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem):
-        super().__init__(document_controller.ui, "line-plot", _("Display"))
+    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
+        super().__init__(document_controller.ui, "line-plot", _("Line Plot Display"))
         display = display_item.display
 
         # display type
         display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display_item)
-
-        # data_range model
-        self.__data_range_model = Model.PropertyModel()
-
-        self.display_limits_range_row = self.ui.create_row_widget()
-        self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 80})
-        self.display_limits_range_high = self.ui.create_label_widget(properties={"width": 80})
-        float_point_2_converter = Converter.FloatToStringConverter(format="{0:#.5g}")
-        self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 0, float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 1, float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_range_row.add(self.ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
-        self.display_limits_range_row.add(self.display_limits_range_low)
-        self.display_limits_range_row.add_spacing(8)
-        self.display_limits_range_row.add(self.display_limits_range_high)
-        self.display_limits_range_row.add_stretch()
 
         float_point_2_none_converter = Converter.FloatToStringConverter(format="{0:#.5g}", pass_none=True)
 
@@ -1208,26 +1224,15 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         self.style_row.add_stretch()
 
         self.add_widget_to_content(display_type_row)
-        self.add_widget_to_content(self.display_limits_range_row)
         self.add_widget_to_content(self.display_limits_limit_row)
         self.add_widget_to_content(self.channels_row)
         self.add_widget_to_content(self.style_row)
 
         self.finish_widget_content()
 
-        def handle_next_calculated_display_values():
-            calculated_display_values = display_data_channel.get_calculated_display_values(True)
-            self.__data_range_model.value = calculated_display_values.data_range
-
-        self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(handle_next_calculated_display_values)
-
     def close(self):
         self.__display_type_changed_listener.close()
         self.__display_type_changed_listener = None
-        self.__next_calculated_display_values_listener.close()
-        self.__next_calculated_display_values_listener = None
-        self.__data_range_model.close()
-        self.__data_range_model = None
         super().close()
 
 
@@ -2390,13 +2395,25 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
             self.__focus_default = focus_default
         elif display_item and display_item.used_display_type == "line_plot":
             inspector_sections.append(InfoInspectorSection(document_controller, display_item))
-            inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
-            for display_data_channel in display_item.display_data_channels:
+            inspector_sections.append(LinePlotDisplayInspectorSection(document_controller, display_item))
+            for index, display_data_channel in enumerate(display_item.display_data_channels):
+
+                if len(display_item.display_data_channels) > 1:
+                    section_title_row = self.ui.create_row_widget()
+                    section_title_label_widget = self.ui.create_label_widget(properties={"stylesheet": "font-weight: bold"})
+                    section_title_label_widget.text = "{} #{}".format(_("Data"), index + 1)
+                    section_title_row.add_spacing(20)
+                    section_title_row.add(section_title_label_widget)
+                    section_title_row.add_stretch()
+                    section_title_column = self.ui.create_column_widget()
+                    section_title_column.add(section_title_row)
+                    section_title_column.add_spacing(4)
+                    inspector_sections.append(section_title_column)
+
                 data_item = display_data_channel.data_item
                 inspector_sections.append(DataInfoInspectorSection(document_controller, display_data_channel))
-                inspector_sections.append(SessionInspectorSection(document_controller, data_item))
                 inspector_sections.append(CalibrationsInspectorSection(document_controller, display_data_channel, display_item))
-                inspector_sections.append(LinePlotDisplayInspectorSection(document_controller, display_data_channel, display_item))
+                inspector_sections.append(SessionInspectorSection(document_controller, data_item))
                 if data_item.is_sequence:
                     inspector_sections.append(SequenceInspectorSection(document_controller, display_data_channel))
                 if data_item.is_collection:
@@ -2405,19 +2422,20 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
                     else:  # default, pick
                         inspector_sections.append(CollectionIndexInspectorSection(document_controller, display_data_channel))
                 inspector_sections.append(ComputationInspectorSection(document_controller, data_item))
+            if len(display_item.graphics) > 0:
+                inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
             def focus_default():
                 inspector_sections[0].info_title_label.focused = True
                 inspector_sections[0].info_title_label.request_refocus()
             self.__focus_default = focus_default
         elif display_item and display_item.used_display_type == "image":
             inspector_sections.append(InfoInspectorSection(document_controller, display_item))
-            inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
+            inspector_sections.append(ImageDisplayInspectorSection(document_controller, display_item))
             for display_data_channel in display_item.display_data_channels:
                 data_item = display_data_channel.data_item
-                inspector_sections.append(DataInfoInspectorSection(document_controller, display_data_channel))
-                inspector_sections.append(SessionInspectorSection(document_controller, data_item))
+                inspector_sections.append(ImageDataInspectorSection(document_controller, display_data_channel, display_item))
                 inspector_sections.append(CalibrationsInspectorSection(document_controller, display_data_channel, display_item))
-                inspector_sections.append(ImageDisplayInspectorSection(document_controller, display_data_channel, display_item))
+                inspector_sections.append(SessionInspectorSection(document_controller, data_item))
                 if data_item.is_sequence:
                     inspector_sections.append(SequenceInspectorSection(document_controller, display_data_channel))
                 if data_item.is_collection:
@@ -2426,6 +2444,8 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
                     else:  # default, pick
                         inspector_sections.append(CollectionIndexInspectorSection(document_controller, display_data_channel))
                 inspector_sections.append(ComputationInspectorSection(document_controller, data_item))
+            if len(display_item.graphics) > 0:
+                inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
             def focus_default():
                 inspector_sections[0].info_title_label.focused = True
                 inspector_sections[0].info_title_label.request_refocus()
