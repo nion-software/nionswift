@@ -393,10 +393,14 @@ class TransactionManager:
             # first the dependent items, also keep track of which items are added
             old_items = copy.copy(items)
             self.__get_deep_dependent_item_set(item, items)
-            # next, the graphics and connections (where item is source)
             if isinstance(item, DisplayItem.DisplayItem):
+                for display_data_channel in item.display_data_channels:
+                    self.__get_deep_transaction_item_set(display_data_channel, items)
                 for graphic in item.graphics:
                     self.__get_deep_transaction_item_set(graphic, items)
+            if isinstance(item, DisplayItem.DisplayDataChannel):
+                if item.data_item:
+                    self.__get_deep_transaction_item_set(item.data_item, items)
             if isinstance(item, DataItem.DataItem):
                 for display_item in self.__document_model.get_display_items_for_data_item(item):
                     self.__get_deep_transaction_item_set(display_item, items)
@@ -1340,11 +1344,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def begin_display_transaction(self, display: Display.Display) -> Transaction:
         display_item = self._get_display_item_for_display(display)
-        data_item = display_item.data_item if display_item else None
-        if data_item:
-            return self.item_transaction(data_item)
+        if display_item:
+            return self.item_transaction(display_item)
         else:
-            return Transaction(self.__transaction_manager, set(), list())
+            return self.__transaction_manager.item_transaction(set())
 
     def data_item_live(self, data_item):
         """ Return a context manager to put the data item in a 'live state'. """
