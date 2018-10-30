@@ -1793,7 +1793,6 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.periodic()
             line_plot_canvas_item = display_panel.display_canvas_item
             line_plot_canvas_item._mouse_dragged(0.3, 0.5)
-            print("???")
 
 
 if __name__ == '__main__':

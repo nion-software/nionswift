@@ -203,7 +203,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__axes = None
 
         self.__data_scale = None
-        self.__dimensional_calibration = None
         self.__displayed_dimensional_calibration = None
         self.__intensity_calibration = None
         self.__calibration_style = None
@@ -264,11 +263,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             if self.__closed:
                 return
 
-            dimensional_calibrations = display_properties.dimensional_calibrations
             displayed_dimensional_scales = display_properties.displayed_dimensional_scales
             displayed_dimensional_calibrations = display_properties.displayed_dimensional_calibrations
             self.__data_scale = displayed_dimensional_scales[-1] if len(displayed_dimensional_scales) > 0 else 1
-            self.__dimensional_calibration = dimensional_calibrations[-1] if dimensional_calibrations else None
             self.__displayed_dimensional_calibration = displayed_dimensional_calibrations[-1] if len(displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=displayed_dimensional_scales[-1])
             self.__intensity_calibration = display_properties.displayed_intensity_calibration
             self.__calibration_style = display_properties.calibration_style
@@ -422,9 +419,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                     scalar_data = Image.convert_to_grayscale(scalar_data)
                     scalar_intensity_calibration = calibration_style.get_intensity_calibration(xdata)
                     scalar_dimensional_calibrations = calibration_style.get_dimensional_calibrations(xdata.dimensional_shape, xdata.dimensional_calibrations)
-                    # check whether there is common units between the data and the display
-                    if not displayed_dimensional_calibration.units and self.__dimensional_calibration and scalar_dimensional_calibrations[-1].units == self.__dimensional_calibration.units:
-                        scalar_dimensional_calibrations = scalar_dimensional_calibrations[0:-1] + [Calibration.Calibration(scale=self.__data_scale)]
                     if displayed_dimensional_calibration.units == scalar_dimensional_calibrations[-1].units and intensity_calibration.units == scalar_intensity_calibration.units:
                         # the data needs to have an intensity scale matching intensity_calibration. convert the data to use the common scale.
                         scale = scalar_intensity_calibration.scale / intensity_calibration.scale

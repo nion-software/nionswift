@@ -136,9 +136,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.define_property("left_channel", changed=self.__property_changed)
         self.define_property("right_channel", changed=self.__property_changed)
         self.define_property("legend_labels", changed=self.__property_changed)
-        self.define_property("intensity_calibration", None, make=Calibration.Calibration, changed=self.__property_changed)
-        self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__property_changed)
-        self.define_property("dimensional_scales", None, changed=self.__property_changed)
         # display script
         self.define_property("display_script", changed=self.__property_changed)
 
@@ -147,6 +144,10 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self._display_type = None  # set by the display item
 
         self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
+        self.__dimensional_calibrations = None
+        self.__intensity_calibration = None
+        self.__dimensional_shape = None
+        self.__scales = None
 
         self.about_to_be_removed_event = Event.Event()
         self._about_to_be_removed = False
@@ -220,15 +221,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def _display_cache(self):
         return self.__cache
 
-    @property
-    def dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
-        return copy.deepcopy(self._get_persistent_property_value("dimensional_calibrations", CalibrationList()).list)
-
-    @dimensional_calibrations.setter
-    def dimensional_calibrations(self, dimensional_calibrations: typing.Sequence[Calibration.Calibration]) -> None:
-        """ Set the dimensional calibrations. """
-        self._set_persistent_property_value("dimensional_calibrations", CalibrationList(dimensional_calibrations))
-
     def view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
         """Change the view to encompass the channels and data represented by the given intervals."""
         left = None
@@ -260,20 +252,45 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.notify_property_changed("displayed_dimensional_scales")
             self.notify_property_changed("displayed_dimensional_calibrations")
             self.notify_property_changed("displayed_intensity_calibration")
-        if property_name in ("dimensional_calibrations", "intensity_calibration", "dimensional_scales"):
-            self.notify_property_changed("displayed_dimensional_scales")
-            self.notify_property_changed("displayed_dimensional_calibrations")
-            self.notify_property_changed("displayed_intensity_calibration")
         self.display_changed_event.fire()
 
     # message sent when data changes.
     # thread safe
     def update_xdata_list(self, xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata]) -> None:
         data_and_metadata = xdata_list[0] if len(xdata_list) == 1 else None
+
+        if len(xdata_list) > 0 and xdata_list[0]:
+            dimensional_calibrations = xdata_list[0].dimensional_calibrations
+            if len(dimensional_calibrations) > 1:
+                self.__dimensional_calibrations = dimensional_calibrations
+                self.__intensity_calibration = xdata_list[0].intensity_calibration
+                self.__scales = 0, xdata_list[0].dimensional_shape[-1]
+                self.__dimensional_shape = xdata_list[0].dimensional_shape
+            else:
+                units = dimensional_calibrations[-1].units
+                mn = math.inf
+                mx = -math.inf
+                for xdata in xdata_list:
+                    if xdata and xdata.dimensional_calibrations[-1].units == units:
+                        v = dimensional_calibrations[0].convert_from_calibrated_value(xdata.dimensional_calibrations[-1].convert_to_calibrated_value(0))
+                        mn = min(mn, v)
+                        mx = max(mx, v)
+                        v = dimensional_calibrations[0].convert_from_calibrated_value(xdata.dimensional_calibrations[-1].convert_to_calibrated_value(xdata.dimensional_shape[-1]))
+                        mn = min(mn, v)
+                        mx = max(mx, v)
+                self.__dimensional_calibrations = dimensional_calibrations
+                self.__intensity_calibration = xdata_list[0].intensity_calibration
+                self.__scales = mn, mx
+                self.__dimensional_shape = (mx - mn, )
+        else:
+            self.__dimensional_calibrations = None
+            self.__intensity_calibration = None
+            self.__scales = 0, 1
+            self.__dimensional_shape = None
         self.__data_and_metadata = data_and_metadata
+        self.notify_property_changed("displayed_dimensional_scales")
         self.notify_property_changed("displayed_dimensional_calibrations")
         self.notify_property_changed("displayed_intensity_calibration")
-        self.notify_property_changed("displayed_data_shape")
         self.display_changed_event.fire()
 
     def set_storage_cache(self, storage_cache):
@@ -315,38 +332,22 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
         For displays associated with a composite data item, this must be stored in this class.
         """
-        if self.__data_and_metadata:
-            return self.__data_and_metadata.dimensional_shape
-        if self.dimensional_scales:
-            return self.dimensional_scales
-        return [1, 1]
+        return self.__scales
 
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         calibration_style = self.__get_calibration_style_for_id(self.calibration_style_id)
-        if self.__data_and_metadata:
-            calibration_style = CalibrationStyleNative() if calibration_style is None else calibration_style
-            return calibration_style.get_dimensional_calibrations(self.__data_and_metadata.dimensional_shape, self.__data_and_metadata.dimensional_calibrations)
-        else:
-            calibration_style = CalibrationStyleNative() if calibration_style is None else calibration_style
-            dimensional_scales = self.dimensional_scales
-            dimensional_scales = [1] if dimensional_scales is None and self._display_type == "line_plot" else dimensional_scales
-            dimensional_scales = [1, 1] if dimensional_scales is None and self._display_type == "image" else dimensional_scales
-            if dimensional_scales:
-                dimensional_calibrations = self.dimensional_calibrations if self.dimensional_calibrations else [Calibration.Calibration() for i in range(len(dimensional_scales))]
-                return calibration_style.get_dimensional_calibrations(dimensional_scales, dimensional_calibrations)
-            return list()
+        calibration_style = CalibrationStyleNative() if not calibration_style else calibration_style
+        if self.__dimensional_calibrations:
+            return calibration_style.get_dimensional_calibrations(self.__dimensional_shape, self.__dimensional_calibrations)
+        return [Calibration.Calibration() for c in self.__dimensional_calibrations] if self.__dimensional_calibrations else [Calibration.Calibration()]
 
     @property
     def displayed_intensity_calibration(self) -> Calibration.Calibration:
         calibration_style = self.__get_calibration_style_for_id(self.calibration_style_id)
-        if calibration_style is None or self.__data_and_metadata is None:
-            if self.__data_and_metadata:
-                return self.__data_and_metadata.intensity_calibration
-            if self.intensity_calibration:
-                return self.intensity_calibration
-            return Calibration.Calibration()
-        return calibration_style.get_intensity_calibration(self.__data_and_metadata)
+        if self.__intensity_calibration and (not calibration_style or calibration_style.is_calibrated):
+            return self.__intensity_calibration
+        return Calibration.Calibration()
 
     @property
     def calibration_styles(self) -> typing.List[CalibrationStyle]:
@@ -467,7 +468,6 @@ class DisplayProperties:
 
         self.display_data_shape = display.display_data_shape
 
-        self.dimensional_calibrations = copy.deepcopy(display.dimensional_calibrations)
         self.displayed_dimensional_scales = display.displayed_dimensional_scales
         self.displayed_dimensional_calibrations = copy.deepcopy(display.displayed_dimensional_calibrations)
         self.displayed_intensity_calibration = copy.deepcopy(display.displayed_intensity_calibration)
@@ -490,8 +490,6 @@ class DisplayProperties:
         if not display_properties:
             return True
         if  self.display_data_shape != display_properties.display_data_shape:
-            return True
-        if  self.dimensional_calibrations != display_properties.dimensional_calibrations:
             return True
         if  self.displayed_dimensional_scales != display_properties.displayed_dimensional_scales:
             return True
