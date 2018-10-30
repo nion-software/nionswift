@@ -273,6 +273,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__data_and_metadata = data_and_metadata
         self.notify_property_changed("displayed_dimensional_calibrations")
         self.notify_property_changed("displayed_intensity_calibration")
+        self.notify_property_changed("displayed_data_shape")
         self.display_changed_event.fire()
 
     def set_storage_cache(self, storage_cache):
@@ -299,6 +300,12 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                 return dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
         else:
             return dimensional_shape[next_dimension:]
+
+    @property
+    def dimensional_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
+        if not self.__data_and_metadata:
+            return None
+        return self.__data_and_metadata.dimensional_shape
 
     @property
     def displayed_dimensional_scales(self) -> typing.Sequence[float]:

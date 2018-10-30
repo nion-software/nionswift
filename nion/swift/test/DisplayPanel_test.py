@@ -1774,6 +1774,27 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(0, len(display_item.graphics))
             self.assertEqual(None, display_panel.data_item)
 
+    def test_line_plot_with_two_data_items_interval_inspector(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((32, )))
+            data_item2 = DataItem.DataItem(numpy.zeros((32, )))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2, False)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 1000))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
+            document_controller.periodic()
+            line_plot_canvas_item = display_panel.display_canvas_item
+            line_plot_canvas_item._mouse_dragged(0.3, 0.5)
+            print("???")
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

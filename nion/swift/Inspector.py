@@ -1372,8 +1372,7 @@ class CalibratedValueFloatToStringConverter:
     """
         Converter object to convert from calibrated value to string and back.
     """
-    def __init__(self, data_item, display, index):
-        self.__data_item = data_item
+    def __init__(self, display, index):
         self.__display = display
         self.__index = index
     def __get_calibration(self):
@@ -1387,7 +1386,7 @@ class CalibratedValueFloatToStringConverter:
             return Calibration.Calibration()
     def __get_data_size(self):
         index = self.__index
-        dimensional_shape = self.__data_item.dimensional_shape
+        dimensional_shape = self.__display.dimensional_shape
         dimension_count = len(dimensional_shape) if dimensional_shape is not None else 0
         if index < 0:
             index = dimension_count + index
@@ -1420,8 +1419,7 @@ class CalibratedSizeFloatToStringConverter:
     """
         Converter object to convert from calibrated size to string and back.
         """
-    def __init__(self, data_item, display, index, factor=1.0):
-        self.__data_item = data_item
+    def __init__(self, display, index, factor=1.0):
         self.__display = display
         self.__index = index
         self.__factor = factor
@@ -1436,11 +1434,11 @@ class CalibratedSizeFloatToStringConverter:
             return Calibration.Calibration()
     def __get_data_size(self):
         index = self.__index
-        dimension_count = len(self.__data_item.dimensional_shape)
+        dimension_count = len(self.__display.dimensional_shape)
         if index < 0:
             index = dimension_count + index
         if index >= 0 and index < dimension_count:
-            return self.__data_item.dimensional_shape[index]
+            return self.__display.dimensional_shape[index]
         else:
             return 1.0
     def convert_calibrated_value_to_str(self, calibrated_value):
@@ -1461,20 +1459,17 @@ class CalibratedSizeFloatToStringConverter:
 
 
 class CalibratedBinding(Binding.Binding):
-    def __init__(self, data_item, display, value_binding, converter):
+    def __init__(self, display, value_binding, converter):
         super().__init__(None, converter=converter)
         self.__value_binding = value_binding
         def update_target(value):
             self.update_target_direct(self.get_target_value())
         self.__value_binding.target_setter = update_target
-        self.__metadata_changed_event_listener = data_item.metadata_changed_event.listen(lambda: update_target(None))
         def calibrations_changed(k):
             if k == "displayed_dimensional_calibrations":
                 update_target(display.displayed_dimensional_calibrations)
         self.__calibrations_changed_event_listener = display.property_changed_event.listen(calibrations_changed)
     def close(self):
-        self.__metadata_changed_event_listener.close()
-        self.__metadata_changed_event_listener = None
         self.__value_binding.close()
         self.__value_binding = None
         self.__calibrations_changed_event_listener.close()
@@ -1492,44 +1487,41 @@ class CalibratedBinding(Binding.Binding):
 
 
 class CalibratedValueBinding(CalibratedBinding):
-    def __init__(self, data_item, index, display, value_binding):
-        converter = CalibratedValueFloatToStringConverter(data_item, display, index)
-        super().__init__(data_item, display, value_binding, converter)
+    def __init__(self, index, display, value_binding):
+        converter = CalibratedValueFloatToStringConverter(display, index)
+        super().__init__(display, value_binding, converter)
 
 
 class CalibratedSizeBinding(CalibratedBinding):
-    def __init__(self, data_item, index, display, value_binding):
-        converter = CalibratedSizeFloatToStringConverter(data_item, display, index)
-        super().__init__(data_item, display, value_binding, converter)
+    def __init__(self, index, display, value_binding):
+        converter = CalibratedSizeFloatToStringConverter(display, index)
+        super().__init__(display, value_binding, converter)
 
 
 class CalibratedWidthBinding(CalibratedBinding):
-    def __init__(self, data_item, display, value_binding):
-        factor = 1.0 / data_item.dimensional_shape[0]
-        converter = CalibratedSizeFloatToStringConverter(data_item, display, 0, factor)  # width is stored in pixels. argh.
-        super().__init__(data_item, display, value_binding, converter)
+    def __init__(self, display, value_binding):
+        factor = 1.0 / display.dimensional_shape[0]
+        converter = CalibratedSizeFloatToStringConverter(display, 0, factor)  # width is stored in pixels. argh.
+        super().__init__(display, value_binding, converter)
 
 
 class CalibratedLengthBinding(Binding.Binding):
-    def __init__(self, data_item, display, start_binding, end_binding):
+    def __init__(self, display, start_binding, end_binding):
         super().__init__(None)
-        self.__x_converter = CalibratedValueFloatToStringConverter(data_item, display, 1)
-        self.__y_converter = CalibratedValueFloatToStringConverter(data_item, display, 0)
-        self.__size_converter = CalibratedSizeFloatToStringConverter(data_item, display, 0)
+        self.__x_converter = CalibratedValueFloatToStringConverter(display, 1)
+        self.__y_converter = CalibratedValueFloatToStringConverter(display, 0)
+        self.__size_converter = CalibratedSizeFloatToStringConverter(display, 0)
         self.__start_binding = start_binding
         self.__end_binding = end_binding
         def update_target(value):
             self.update_target_direct(self.get_target_value())
         self.__start_binding.target_setter = update_target
         self.__end_binding.target_setter = update_target
-        self.__metadata_changed_event_listener = data_item.metadata_changed_event.listen(lambda: update_target(None))
         def calibrations_changed(k):
             if k == "displayed_dimensional_calibrations":
                 update_target(display.displayed_dimensional_calibrations)
         self.__calibrations_changed_event_listener = display.property_changed_event.listen(calibrations_changed)
     def close(self):
-        self.__metadata_changed_event_listener.close()
-        self.__metadata_changed_event_listener = None
         self.__start_binding.close()
         self.__start_binding = None
         self.__end_binding.close()
@@ -1591,8 +1583,8 @@ def make_point_type_inspector(document_controller, graphic_widget, display_item:
     if (len(image_size) > 1):
         # calculate values from rectangle type graphic
         # signal_index
-        position_x_binding = CalibratedValueBinding(data_item, 1, display, Binding.TuplePropertyBinding(position_model, "value", 1))
-        position_y_binding = CalibratedValueBinding(data_item, 0, display, Binding.TuplePropertyBinding(position_model, "value", 0))
+        position_x_binding = CalibratedValueBinding(1, display, Binding.TuplePropertyBinding(position_model, "value", 1))
+        position_y_binding = CalibratedValueBinding(0, display, Binding.TuplePropertyBinding(position_model, "value", 0))
         graphic_position_x_line_edit.bind_text(position_x_binding)
         graphic_position_y_line_edit.bind_text(position_y_binding)
     else:
@@ -1672,11 +1664,11 @@ def make_line_type_inspector(document_controller, graphic_widget, display_item: 
     if len(image_size) > 1:
         # configure the bindings
         # signal_index
-        start_x_binding = CalibratedValueBinding(data_item, 1, display, Binding.TuplePropertyBinding(start_model, "value", 1))
-        start_y_binding = CalibratedValueBinding(data_item, 0, display, Binding.TuplePropertyBinding(start_model, "value", 0))
-        end_x_binding = CalibratedValueBinding(data_item, 1, display, Binding.TuplePropertyBinding(end_model, "value", 1))
-        end_y_binding = CalibratedValueBinding(data_item, 0, display, Binding.TuplePropertyBinding(end_model, "value", 0))
-        length_binding = CalibratedLengthBinding(data_item, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "start"), ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "end"))
+        start_x_binding = CalibratedValueBinding(1, display, Binding.TuplePropertyBinding(start_model, "value", 1))
+        start_y_binding = CalibratedValueBinding(0, display, Binding.TuplePropertyBinding(start_model, "value", 0))
+        end_x_binding = CalibratedValueBinding(1, display, Binding.TuplePropertyBinding(end_model, "value", 1))
+        end_y_binding = CalibratedValueBinding(0, display, Binding.TuplePropertyBinding(end_model, "value", 0))
+        length_binding = CalibratedLengthBinding(display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "start"), ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "end"))
         angle_binding = ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "angle", RadianToDegreeStringConverter())
         graphic_start_x_line_edit.bind_text(start_x_binding)
         graphic_start_y_line_edit.bind_text(start_y_binding)
@@ -1701,7 +1693,7 @@ def make_line_profile_inspector(document_controller, graphic_widget, display_ite
     # configure the bindings
     data_item = display_item.data_item if display_item else None
     display = display_item.display if display_item else None
-    width_binding = CalibratedWidthBinding(data_item, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "width"))
+    width_binding = CalibratedWidthBinding(display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "width"))
     # create the ui
     graphic_width_row = ui.create_row_widget()
     graphic_width_row.add_spacing(20)
@@ -1770,10 +1762,10 @@ def make_rectangle_type_inspector(document_controller, graphic_widget, display_i
     image_size = data_item.dimensional_shape
     if len(image_size) > 1:
         # signal_index
-        center_x_binding = CalibratedValueBinding(data_item, 1, display, Binding.TuplePropertyBinding(center_model, "value", 1))
-        center_y_binding = CalibratedValueBinding(data_item, 0, display, Binding.TuplePropertyBinding(center_model, "value", 0))
-        size_width_binding = CalibratedSizeBinding(data_item, 1, display, Binding.TuplePropertyBinding(size_model, "value", 1))
-        size_height_binding = CalibratedSizeBinding(data_item, 0, display, Binding.TuplePropertyBinding(size_model, "value", 0))
+        center_x_binding = CalibratedValueBinding(1, display, Binding.TuplePropertyBinding(center_model, "value", 1))
+        center_y_binding = CalibratedValueBinding(0, display, Binding.TuplePropertyBinding(center_model, "value", 0))
+        size_width_binding = CalibratedSizeBinding(1, display, Binding.TuplePropertyBinding(size_model, "value", 1))
+        size_height_binding = CalibratedSizeBinding(0, display, Binding.TuplePropertyBinding(size_model, "value", 0))
         graphic_center_x_line_edit.bind_text(center_x_binding)
         graphic_center_y_line_edit.bind_text(center_y_binding)
         graphic_size_width_line_edit.bind_text(size_width_binding)
@@ -1892,8 +1884,8 @@ def make_ring_type_inspector(document_controller, graphic_widget, display_item: 
     graphic_widget.add(graphic_radius_2_row)
     graphic_widget.add(ring_mode_row)
 
-    graphic_radius_1_line_edit.bind_text(CalibratedSizeBinding(data_item, 0, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "radius_1")))
-    graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(data_item, 0, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "radius_2")))
+    graphic_radius_1_line_edit.bind_text(CalibratedSizeBinding(0, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "radius_1")))
+    graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(0, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "radius_2")))
 
 
 def make_interval_type_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
@@ -1901,8 +1893,8 @@ def make_interval_type_inspector(document_controller, graphic_widget, display_it
     # configure the bindings
     data_item = display_item.data_item if display_item else None
     display = display_item.display if display_item else None
-    start_binding = CalibratedValueBinding(data_item, -1, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "start"))
-    end_binding = CalibratedValueBinding(data_item, -1, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "end"))
+    start_binding = CalibratedValueBinding(-1, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "start"))
+    end_binding = CalibratedValueBinding(-1, display, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "end"))
     # create the ui
     graphic_start_row = ui.create_row_widget()
     graphic_start_row.add_spacing(20)
