@@ -585,12 +585,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.delegate.update_display_data_channel_properties({"display_limits": (mn, mx)})
         return True
 
-    def __update_image_canvas_zoom(self, new_image_zoom):
-        if self.__data_shape is not None:
-            self.__image_canvas_mode = "custom"
-            self.__image_zoom = new_image_zoom
-            self.__update_image_canvas_size()
-
     # update the image canvas position by the widget delta amount
     def __update_image_canvas_position(self, widget_delta):
         if self.__data_shape is not None:
@@ -1230,6 +1224,18 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     @property
     def image_canvas_mode(self):
         return self.__image_canvas_mode
+
+    @property
+    def _bitmap_canvas_item(self):
+        return self.__bitmap_canvas_item
+
+    @property
+    def _display_values(self):
+        return self.__display_values
+
+    @property
+    def _display_values_dirty(self):
+        return self.__display_values_dirty
 
     def __apply_display_properties_command(self, display_properties: typing.Mapping):
         command = self.delegate.create_change_display_command()

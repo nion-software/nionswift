@@ -709,6 +709,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.graphic_selection = GraphicSelection()
         self.graphic_selection_changed_event = Event.Event()
         self.graphics_changed_event = Event.Event()
+        self.display_values_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
         self.about_to_be_removed_event = Event.Event()
         self._about_to_be_removed = False
@@ -824,6 +825,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def __display_type_changed(self, name, value):
         self.__property_changed(name, value)
         self.display._display_type = value
+        # the order here is important; display values must come before display changed
+        # so that the display canvas item is updated properly.
+        self.display_values_changed_event.fire()
         self.display.display_changed_event.fire()
         self.graphics_changed_event.fire(self.graphic_selection)
 

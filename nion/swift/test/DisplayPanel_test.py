@@ -1351,6 +1351,25 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.periodic()
             display_panel._handle_key_pressed(TestUI.Key(None, "up", None))
 
+    def test_display_2d_updates_display_values_after_changing_display_type(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
+            document_controller.periodic()
+            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
+            display_item.display_type = "line_plot"
+            display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
+            display_item.display_type = "image"
+            self.assertIsNotNone(display_panel.display_canvas_item._display_values)
+
     def test_display_2d_update_with_no_data(self):
         app = Application.Application(TestUI.UserInterface(), set_global=False)
         document_model = DocumentModel.DocumentModel()

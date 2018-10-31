@@ -541,6 +541,7 @@ class DisplayTracker:
         for index, display_data_channel in enumerate(display_item.display_data_channels):
             display_data_channel_inserted("display_data_channels", display_data_channel, index)
 
+        self.__display_values_changed_event_listener = display_item.display_values_changed_event.listen(handle_next_calculated_display_values)
         self.__display_data_channel_property_changed_listener = display_item.property_changed_event.listen(display_property_changed)
         self.__display_graphics_changed_event_listener = display_item.graphics_changed_event.listen(display_graphics_changed)
         self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
@@ -557,6 +558,8 @@ class DisplayTracker:
             self.__display_changed_event_listener = None
             self.__display_property_changed_listener.close()
             self.__display_property_changed_listener = None
+            self.__display_values_changed_event_listener.close()
+            self.__display_values_changed_event_listener = None
             self.__display_data_channel_property_changed_listener.close()
             self.__display_data_channel_property_changed_listener = None
             self.__display_graphics_changed_event_listener.close()
