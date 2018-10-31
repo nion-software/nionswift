@@ -403,13 +403,21 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
             self.modified_state += 1
             self.property_changed_event.fire(property_name)
 
+        def data_changed():
+            data_metadata = self._get_data_metadata()
+            new_data_shape = data_metadata.data_shape if data_metadata else None
+            if new_data_shape != self.__old_data_shape:
+                self.__validate_slice_indexes()
+            self.__old_data_shape = new_data_shape
+            self.data_item_changed_event.fire()
+
         if self.__data_item:
             self.__data_item_property_changed_event_listener = self.__data_item.property_changed_event.listen(property_changed)
             self.__data_item_will_change_listener = self.__data_item.will_change_event.listen(self.data_item_will_change_event.fire)
             self.__data_item_did_change_listener = self.__data_item.did_change_event.listen(self.data_item_did_change_event.fire)
             self.__data_item_item_changed_listener = self.__data_item.item_changed_event.listen(self.data_item_changed_event.fire)
             self.__data_item_data_item_changed_listener = self.__data_item.data_item_changed_event.listen(self.data_item_changed_event.fire)
-            self.__data_item_data_changed_listener = self.__data_item.data_changed_event.listen(self.data_item_changed_event.fire)
+            self.__data_item_data_changed_listener = self.__data_item.data_changed_event.listen(data_changed)
             self.__data_item_description_changed_listener = self.__data_item.description_changed_event.listen(self.data_item_description_changed_event.fire)
 
     def __disconnect_data_item_events(self):
@@ -440,6 +448,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
             self.__disconnect_data_item_events()
         self.__data_item = data_item
         self.__connect_data_item_events()
+        self.__validate_slice_indexes()
 
     def connect_data_item(self, lookup_data_item):
         data_item = lookup_data_item(uuid.UUID(self.data_item_reference))
@@ -608,11 +617,6 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.slice_interval = properties[6]
 
     def update_display_data(self) -> None:
-        data_metadata = self._get_data_metadata()
-        new_data_shape = data_metadata.data_shape if data_metadata else None
-        if new_data_shape != self.__old_data_shape:
-            self.__validate_slice_indexes()
-        self.__old_data_shape = new_data_shape
         self.__send_next_calculated_display_values()
 
     def add_calculated_display_values_listener(self, callback, send=True):
