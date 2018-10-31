@@ -681,9 +681,9 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(len(display_item.graphics), 0)
 
     def test_updating_computation_graphic_property_notifies_data_item(self):
-        display_changed_ref = [False]
-        def display_changed():
-            display_changed_ref[0] = True
+        graphics_changed_ref = [False]
+        def graphics_changed(s):
+            graphics_changed_ref[0] = True
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -693,17 +693,17 @@ class TestDataItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(crop_region)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            with contextlib.closing(display_item.display.display_changed_event.listen(display_changed)):
+            with contextlib.closing(display_item.graphics_changed_event.listen(graphics_changed)):
                 document_model.get_crop_new(data_item, crop_region)
-                display_changed_ref[0] = False
+                graphics_changed_ref[0] = False
                 display_item.graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
-                self.assertTrue(display_changed_ref[0])
+                self.assertTrue(graphics_changed_ref[0])
 
     # necessary to make inspector display updated values properly
     def test_updating_computation_graphic_property_with_same_value_notifies_data_item(self):
-        display_changed_ref = [False]
-        def display_changed():
-            display_changed_ref[0] = True
+        graphics_changed_ref = [False]
+        def graphics_changed(s):
+            graphics_changed_ref[0] = True
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -712,12 +712,12 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(crop_region)
-            with contextlib.closing(display_item.display.display_changed_event.listen(display_changed)):
+            with contextlib.closing(display_item.graphics_changed_event.listen(graphics_changed)):
                 document_model.get_crop_new(data_item, crop_region)
                 display_item.graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
-                display_changed_ref[0] = False
+                graphics_changed_ref[0] = False
                 display_item.graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
-                self.assertTrue(display_changed_ref[0])
+                self.assertTrue(graphics_changed_ref[0])
 
     def test_snapshot_should_copy_raw_metadata(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -756,21 +756,21 @@ class TestDataItemClass(unittest.TestCase):
 
     # necessary to make inspector display updated values properly
     def test_adding_region_generates_display_changed(self):
-        display_changed_ref = [False]
-        def display_changed():
-            display_changed_ref[0] = True
+        graphics_changed_ref = [False]
+        def graphics_changed(s):
+            graphics_changed_ref[0] = True
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            with contextlib.closing(display_item.display.display_changed_event.listen(display_changed)):
+            with contextlib.closing(display_item.graphics_changed_event.listen(graphics_changed)):
                 crop_region = Graphics.RectangleGraphic()
                 display_item.add_graphic(crop_region)
-                self.assertTrue(display_changed_ref[0])
-                display_changed_ref[0] = False
+                self.assertTrue(graphics_changed_ref[0])
+                graphics_changed_ref[0] = False
                 display_item.remove_graphic(crop_region)
-                self.assertTrue(display_changed_ref[0])
+                self.assertTrue(graphics_changed_ref[0])
 
     def test_connecting_data_source_updates_dependent_data_items_property_on_source(self):
         document_model = DocumentModel.DocumentModel()

@@ -406,8 +406,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__image_canvas_mode = "fit"
 
         self.__last_display_properties = None
-        self.__last_display_values = None
-        self.__last_display_xdata = None
 
         # create the child canvas items
         # the background
@@ -436,6 +434,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.add_canvas_item(self.scroll_area_canvas_item)
         self.add_canvas_item(self.__info_overlay_canvas_item)
 
+        self.__display_values_dirty = False
         self.__display_values = None
         self.__data_shape = None
         self.__graphics = list()
@@ -478,6 +477,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
     def update_display_values(self, display_values_list) -> None:
         self.__display_values = display_values_list[0] if display_values_list else None
+        self.__display_values_dirty = True
 
     def update_display_properties(self, display_properties) -> None:
         # threadsafe
@@ -521,11 +521,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                         self.__image_canvas_mode = display_properties.image_canvas_mode
 
                 # if the data changes, update the display.
-                new_display_xdata = self.__display_values.display_data_and_metadata if self.__display_values else None
-                if display_properties != self.__last_display_properties or (self.__display_values is not self.__last_display_values and new_display_xdata is not self.__last_display_xdata):
+                if (display_properties != self.__last_display_properties) or (self.__display_values_dirty):
+                    self.__display_values_dirty = False
                     self.__last_display_properties = copy.deepcopy(display_properties)
-                    self.__last_display_values = self.__display_values
-                    self.__last_display_xdata = new_display_xdata
                     self.__data_shape = data_shape
                     if self.__display_frame_rate_id:
                         frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
@@ -575,8 +573,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
     def handle_auto_display(self) -> bool:
         # enter key has been pressed. calculate best display limits and set them.
-        if self.__last_display_xdata:
-            display_data_and_metadata = self.__last_display_xdata
+        if self.__display_values:
+            display_data_and_metadata = self.__display_values.display_data_and_metadata if self.__display_values else None
             data = display_data_and_metadata.data if display_data_and_metadata else None
             if data is not None:
                 # The old algorithm was a problem during EELS where the signal data

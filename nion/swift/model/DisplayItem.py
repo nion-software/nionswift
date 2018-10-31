@@ -401,7 +401,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
         def property_changed(property_name):
             self.modified_state += 1
-            self.property_changed_event.fire(property_name)
+            # self.property_changed_event.fire(property_name)
 
         def data_changed():
             data_metadata = self._get_data_metadata()
@@ -708,6 +708,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__display_ref_count = 0
         self.graphic_selection = GraphicSelection()
         self.graphic_selection_changed_event = Event.Event()
+        self.graphics_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
         self.about_to_be_removed_event = Event.Event()
         self._about_to_be_removed = False
@@ -718,6 +719,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         def graphic_selection_changed():
             # relay the message
             self.graphic_selection_changed_event.fire(self.graphic_selection)
+            self.graphics_changed_event.fire(self.graphic_selection)
 
         self.__graphic_selection_changed_event_listener = self.graphic_selection.changed_event.listen(graphic_selection_changed)
 
@@ -823,6 +825,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__property_changed(name, value)
         self.display._display_type = value
         self.display.display_changed_event.fire()
+        self.graphics_changed_event.fire(self.graphic_selection)
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -1084,8 +1087,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         graphic_changed_listener = graphic.graphic_changed_event.listen(functools.partial(self.__graphic_changed, graphic))
         self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
         self.graphic_selection.insert_index(before_index)
-        self.display.display_changed_event.fire()
         self.notify_insert_item("graphics", graphic, before_index)
+        self.__graphic_changed(graphic)
 
     def __remove_graphic(self, name, index, graphic):
         graphic.about_to_be_removed()
@@ -1097,7 +1100,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         graphic_changed_listener.close()
         self.__graphic_changed_listeners.remove(graphic_changed_listener)
         self.graphic_selection.remove_index(index)
-        self.display.display_changed_event.fire()
+        self.__graphic_changed(graphic)
         self.notify_remove_item("graphics", graphic, index)
 
     def insert_graphic(self, before_index, graphic):
@@ -1115,7 +1118,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     # this message comes from the graphic. the connection is established when a graphic
     # is added or removed from this object.
     def __graphic_changed(self, graphic):
-        self.display.display_changed_event.fire()
+        self.graphics_changed_event.fire(self.graphic_selection)
 
     @property
     def size_and_data_format_as_string(self) -> str:
@@ -1166,14 +1169,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), data_item.dimensional_shape[0]) if "valid_rows" in live_metadata else str()
             return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
         return str()
-
-    @property
-    def display_type(self) -> str:
-        return self.display.display_type
-
-    @display_type.setter
-    def display_type(self, value: str) -> None:
-        self.display.display_type = value
 
     @property
     def used_display_type(self) -> str:

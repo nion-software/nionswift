@@ -258,6 +258,7 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
     def __init__(self, ui, *, display_item=None):
         super().__init__()
         self.ui = ui
+        self.__display_item = None
         self.__thumbnail_source = None
         self.__thumbnail_updated_event_listener = None
         self.overlay_canvas_item = DataItemBitmapOverlayCanvasItem()

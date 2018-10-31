@@ -500,7 +500,7 @@ class DisplayTracker:
         self.__display_type_monitor = DisplayTypeMonitor(display_item)
         self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
 
-        def display_graphic_selection_changed(graphic_selection):
+        def display_graphics_changed(graphic_selection):
             # this message comes from the display when the graphic selection changes
             self.__display_canvas_item.update_graphics(display_item.graphics, graphic_selection, Display.DisplayProperties(display))
 
@@ -516,8 +516,6 @@ class DisplayTracker:
             # this notification does not cover the rgba data, which is handled in the function below.
             # thread safe
             self.__display_canvas_item.update_display_properties(Display.DisplayProperties(display))
-            # graphics content changes will also trigger display changed event; so update graphics here
-            display_graphic_selection_changed(display_item.graphic_selection)
 
         def display_property_changed(property: str) -> None:
             if property in ("y_min", "y_max", "y_style", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode"):
@@ -544,14 +542,14 @@ class DisplayTracker:
             display_data_channel_inserted("display_data_channels", display_data_channel, index)
 
         self.__display_data_channel_property_changed_listener = display_item.property_changed_event.listen(display_property_changed)
-        self.__display_graphic_selection_changed_event_listener = display_item.graphic_selection_changed_event.listen(display_graphic_selection_changed)
+        self.__display_graphics_changed_event_listener = display_item.graphics_changed_event.listen(display_graphics_changed)
         self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
         self.__display_property_changed_listener = display.property_changed_event.listen(display_property_changed)
 
         # this may throw exceptions (during testing). make sure to close if that happens, ensuring that the
         # layer items (image/line plot) get shut down.
         display_changed()
-        display_graphic_selection_changed(display_item.graphic_selection)
+        display_graphics_changed(display_item.graphic_selection)
 
     def close(self):
         with self.__closing_lock:  # ensures that display pipeline finishes
@@ -561,8 +559,8 @@ class DisplayTracker:
             self.__display_property_changed_listener = None
             self.__display_data_channel_property_changed_listener.close()
             self.__display_data_channel_property_changed_listener = None
-            self.__display_graphic_selection_changed_event_listener.close()
-            self.__display_graphic_selection_changed_event_listener = None
+            self.__display_graphics_changed_event_listener.close()
+            self.__display_graphics_changed_event_listener = None
             for next_calculated_display_values_listener in self.__next_calculated_display_values_listeners:
                 next_calculated_display_values_listener.close()
             self.__next_calculated_display_values_listeners = list()

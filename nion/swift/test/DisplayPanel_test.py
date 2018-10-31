@@ -1327,6 +1327,30 @@ class TestDisplayPanelClass(unittest.TestCase):
         display_canvas_item.mouse_pressed(10, 10, CanvasItem.KeyboardModifiers())
         display_canvas_item.mouse_released(10, 10, CanvasItem.KeyboardModifiers())
 
+    def test_display_graphics_update_after_changing_display_type(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
+            document_controller.periodic()
+            display_item.display_type = "line_plot"
+            display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
+            document_controller.periodic()
+            display_item.display_type = "image"
+            display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
+            document_controller.periodic()
+            display_item.display_type = None
+            display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
+            document_controller.periodic()
+            display_panel._handle_key_pressed(TestUI.Key(None, "up", None))
+
     def test_display_2d_update_with_no_data(self):
         app = Application.Application(TestUI.UserInterface(), set_global=False)
         document_model = DocumentModel.DocumentModel()
@@ -1412,6 +1436,24 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
             update_count = display_panel.display_canvas_item._update_count
             graphic.bounds = Geometry.FloatRect.from_tlbr(0.1, 0.1, 0.2, 0.2)
+            self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
+
+    def test_image_display_canvas_item_only_updates_once_if_color_map_changes(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((4, 4)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_data_channel = display_item.display_data_channels[0]
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 640))
+            document_controller.periodic()
+            self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+            update_count = display_panel.display_canvas_item._update_count
+            display_data_channel.color_map_id = "hsv"
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_line_plot_image_display_canvas_item_only_updates_if_display_data_changes(self):
