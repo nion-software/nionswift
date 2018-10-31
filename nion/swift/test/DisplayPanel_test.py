@@ -1794,6 +1794,23 @@ class TestDisplayPanelClass(unittest.TestCase):
             line_plot_canvas_item = display_panel.display_canvas_item
             line_plot_canvas_item._mouse_dragged(0.3, 0.5)
 
+    def test_removing_interval_from_line_plot_with_two_data_items_succeeds(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((32, )))
+            data_item2 = DataItem.DataItem(numpy.zeros((32, )))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2, False)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
+            interval_graphic = Graphics.IntervalGraphic()
+            display_item.add_graphic(interval_graphic)
+            display_item.graphic_selection.add(0)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.remove_selected_graphics()
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

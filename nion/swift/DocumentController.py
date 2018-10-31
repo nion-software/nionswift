@@ -780,11 +780,11 @@ class DocumentController(Window.Window):
         The selected display is the display ite that has keyboard focus in the data panel or a display panel.
         """
         # first check for the [focused] data browser
-        data_item = self.focused_data_item
-        if not data_item:
-            data_item = self.selected_display_panel.data_item if self.selected_display_panel else None
-        # if not found, check for focused or selected image panel
-        return self.document_model.get_display_item_for_data_item(data_item) if data_item else None
+        display_item = self.focused_display_item
+        if not display_item:
+            selected_display_panel = self.selected_display_panel
+            display_item = selected_display_panel.display_item if selected_display_panel else None
+        return display_item
 
     @property
     def selected_data_item(self) -> typing.Optional[DataItem.DataItem]:
