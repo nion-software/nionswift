@@ -50,25 +50,25 @@ class DataItemStorageAdapter:
     def _storage_handler(self):
         return self.__storage_handler
 
-    def set_write_delayed(self, data_item, write_delayed: bool) -> None:
+    def set_write_delayed(self, item, write_delayed: bool) -> None:
         self.__write_delayed = write_delayed
 
-    def is_write_delayed(self, data_item) -> bool:
+    def is_write_delayed(self, item) -> bool:
         return self.__write_delayed
 
-    def rewrite_item(self, data_item) -> None:
+    def rewrite_item(self, item) -> None:
         if not self.__write_delayed:
-            file_datetime = data_item.created_local
+            file_datetime = item.created_local
             self.__storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(self.__properties)), file_datetime)
 
-    def update_data(self, data_item, data):
+    def update_data(self, item, data):
         if not self.__write_delayed:
-            file_datetime = data_item.created_local
+            file_datetime = item.created_local
             if data is not None:
                 self.__storage_handler.write_data(data, file_datetime)
 
-    def load_data(self, data_item) -> None:
-        assert data_item.has_data
+    def load_data(self, item) -> None:
+        assert item.has_data
         return self.__storage_handler.read_data()
 
 
@@ -106,18 +106,19 @@ class FileStorageSystem:
         return properties
 
     def __write_properties(self, object):
-        persistent_object_parent = object.persistent_object_parent if object else None
-        if object and isinstance(object, DataItem.DataItem):
-            self.__get_storage_for_item(object).rewrite_item(object)
-        elif not persistent_object_parent:
-            if self.__filepath:
-                # atomically overwrite
-                temp_filepath = self.__filepath + ".temp"
-                with open(temp_filepath, "w") as fp:
-                    json.dump(Utility.clean_dict(self.__properties), fp)
-                os.replace(temp_filepath, self.__filepath)
-        else:
-            self.__write_properties(persistent_object_parent.parent)
+        if self.__write_delay_counts.get(object, 0) == 0:
+            persistent_object_parent = object.persistent_object_parent if object else None
+            if object and isinstance(object, DataItem.DataItem):
+                self.__get_storage_for_item(object).rewrite_item(object)
+            elif not persistent_object_parent:
+                if self.__filepath:
+                    # atomically overwrite
+                    temp_filepath = self.__filepath + ".temp"
+                    with open(temp_filepath, "w") as fp:
+                        json.dump(Utility.clean_dict(self.__properties), fp)
+                    os.replace(temp_filepath, self.__filepath)
+            else:
+                self.__write_properties(persistent_object_parent.parent)
 
     @property
     def library_storage_properties(self):
@@ -358,21 +359,21 @@ class FileStorageSystem:
         self.remove_storage_handler(storage._storage_handler, safe=safe)
 
     def enter_write_delay(self, object) -> None:
-        if isinstance(object, DataItem.DataItem):
-            count = self.__write_delay_counts.setdefault(object, 0)
-            if count == 0:
+        count = self.__write_delay_counts.setdefault(object, 0)
+        if count == 0:
+            if isinstance(object, DataItem.DataItem):
                 self.set_write_delayed(object, True)
-            self.__write_delay_counts[object] = count + 1
+        self.__write_delay_counts[object] = count + 1
 
     def exit_write_delay(self, object) -> None:
-        if isinstance(object, DataItem.DataItem):
-            count = self.__write_delay_counts.setdefault(object, 0)
-            count -= 1
-            if count == 0:
+        count = self.__write_delay_counts.get(object, 1)
+        count -= 1
+        if count == 0:
+            if isinstance(object, DataItem.DataItem):
                 self.set_write_delayed(object, False)
-                self.__write_delay_counts.pop(object)
-            else:
-                self.__write_delay_counts[object] = count
+            self.__write_delay_counts.pop(object)
+        else:
+            self.__write_delay_counts[object] = count
 
     def set_write_delayed(self, data_item, write_delayed: bool) -> None:
         storage = self.__data_item_storage.get(data_item.uuid)
@@ -387,8 +388,11 @@ class FileStorageSystem:
     def rewrite_item(self, item) -> None:
         if isinstance(item, DataItem.BufferedDataSource):
             item = item.persistent_object_parent.parent
-        storage = self.__get_storage_for_item(item)
-        storage.rewrite_item(item)
+        if isinstance(item, DataItem.DataItem):
+            storage = self.__get_storage_for_item(item)
+            storage.rewrite_item(item)
+        else:
+            self.__write_properties(item)
 
     def read_data_items_version_stats(self):
         return read_data_items_version_stats(self)

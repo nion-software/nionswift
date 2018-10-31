@@ -296,6 +296,35 @@ class TestDocumentModelClass(unittest.TestCase):
                 self.assertTrue(document_model.is_in_transaction_state(line_profile_data_item))
             self.assertEqual(0, document_model.transaction_count)
 
+    def test_display_item_associated_with_data_item_should_be_under_transaction(self):
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            with document_model.item_transaction(data_item):
+                self.assertTrue(data_item.in_transaction_state)
+                self.assertTrue(display_item.in_transaction_state)
+            self.assertFalse(data_item.in_transaction_state)
+            self.assertFalse(display_item.in_transaction_state)
+            self.assertEqual(0, document_model.transaction_count)
+
+    def test_display_item_associated_with_dependent_data_items_should_be_under_transaction(self):
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            line_profile_data_item = document_model.get_line_profile_new(data_item)
+            line_profile_display_item = document_model.get_display_item_for_data_item(line_profile_data_item)
+            with document_model.item_transaction(data_item):
+                self.assertTrue(line_profile_data_item.in_transaction_state)
+                self.assertTrue(line_profile_display_item.in_transaction_state)
+            self.assertFalse(line_profile_data_item.in_transaction_state)
+            self.assertFalse(line_profile_display_item.in_transaction_state)
+            self.assertEqual(0, document_model.transaction_count)
+
     def test_data_item_with_associated_data_structure_deletes_when_data_item_deleted(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):

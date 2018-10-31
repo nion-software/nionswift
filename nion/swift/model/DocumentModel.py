@@ -392,7 +392,10 @@ class TransactionManager:
         if item and not item in items:
             # first the dependent items, also keep track of which items are added
             old_items = copy.copy(items)
-            self.__get_deep_dependent_item_set(item, items)
+            if not item in items:
+                items.add(item)
+                for dependent in self.__document_model.get_dependent_items(item):
+                    self.__get_deep_transaction_item_set(dependent, items)
             if isinstance(item, DisplayItem.DisplayItem):
                 for display_data_channel in item.display_data_channels:
                     self.__get_deep_transaction_item_set(display_data_channel, items)
@@ -406,10 +409,10 @@ class TransactionManager:
                     self.__get_deep_transaction_item_set(display_item, items)
             if isinstance(item, DataStructure):
                 for referenced_object in item._referenced_objects:
-                    self.__get_deep_dependent_item_set(referenced_object, items)
+                    self.__get_deep_transaction_item_set(referenced_object, items)
             if isinstance(item, Connection.Connection):
-                self.__get_deep_dependent_item_set(item._source, items)
-                self.__get_deep_dependent_item_set(item._target, items)
+                self.__get_deep_transaction_item_set(item._source, items)
+                self.__get_deep_transaction_item_set(item._target, items)
             for connection in self.__document_model.connections:
                 if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
                     self.__get_deep_transaction_item_set(connection._target, items)
@@ -418,13 +421,6 @@ class TransactionManager:
             for item in items - old_items:
                 if isinstance(item, Graphics.Graphic):
                     self.__get_deep_transaction_item_set(item.container, items)
-
-    def __get_deep_dependent_item_set(self, item, item_set) -> None:
-        """Return the list of data items containing data that directly depends on data in this item."""
-        if not item in item_set:
-            item_set.add(item)
-            for dependent in self.__document_model.get_dependent_items(item):
-                self.__get_deep_dependent_item_set(dependent, item_set)
 
     def _add_item(self, item):
         self._rebuild_transactions()

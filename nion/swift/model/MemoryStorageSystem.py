@@ -42,15 +42,25 @@ class MemoryStorageHandler:
 
 
 class MemoryStorageSystem:
+    """Simulate the file system interface for storage.
+
+    data_item_storage is a dict used to hold data item files.
+
+    library_storage is a  dict used to hold the library, while in memory.
+
+    library_persistent_storage is a  dict used to hold the library, after written to disk.
+    """
 
     def __init__(self, *, auto_migrations=None):
         self.data = dict()
-        self.__properties = dict()
+        self.__data_item_storage = dict()
         self.trash = dict()
         self._test_data_read_event = Event.Event()
-        self.__properties2 = dict()
-        self.__properties2_lock = threading.RLock()
-        self.__data_item_storage = dict()
+        self.__library_storage = dict()
+        self.__library_storage_lock = threading.RLock()
+        self.library_persistent_storage_enabled = False
+        self.__library_persistent_storage = dict()
+        self.__data_item_storage_adapters = dict()
         self.__write_delay_counts = dict()
         self.__auto_migrations = auto_migrations or list()
         for auto_migration in self.__auto_migrations:
@@ -65,36 +75,44 @@ class MemoryStorageSystem:
         return deepcopy
 
     def reset(self):
-        self.__data_item_storage = dict()
+        self.__data_item_storage_adapters = dict()
 
     def get_auto_migrations(self):
         return self.__auto_migrations
 
     def __write_properties(self, object):
-        persistent_object_parent = object.persistent_object_parent if object else None
-        if object and isinstance(object, DataItem.DataItem):
-            self.__get_storage_for_item(object).rewrite_item(object)
-        elif persistent_object_parent:
-            self.__write_properties(persistent_object_parent.parent)
+        if self.__write_delay_counts.get(object, 0) == 0:
+            persistent_object_parent = object.persistent_object_parent if object else None
+            if object and isinstance(object, DataItem.DataItem):
+                self.__get_storage_for_item(object).rewrite_item(object)
+            elif not persistent_object_parent:
+                if self.library_persistent_storage_enabled:
+                    self.__library_persistent_storage = copy.deepcopy(self.__library_storage)
+            elif persistent_object_parent:
+                self.__write_properties(persistent_object_parent.parent)
+
+    @property
+    def library_persistent_storage(self):
+        return self.__library_persistent_storage
 
     @property
     def library_storage_properties(self):
-        with self.__properties2_lock:
-            return copy.deepcopy(self.__properties2)
+        with self.__library_storage_lock:
+            return copy.deepcopy(self.__library_storage)
 
     @property
     def persistent_storage_properties(self):
-        return self.__properties
+        return self.__data_item_storage
 
     def _set_properties(self, properties):
         """Set the properties; used for testing."""
-        with self.__properties2_lock:
-            self.__properties2 = properties
+        with self.__library_storage_lock:
+            self.__library_storage = properties
 
     def rewrite_properties(self, properties):
         """Set the properties and write to disk."""
-        with self.__properties2_lock:
-            self.__properties2 = properties
+        with self.__library_storage_lock:
+            self.__library_storage = properties
         self.__write_properties(None)
 
     def get_properties(self, object):
@@ -105,14 +123,14 @@ class MemoryStorageSystem:
         if isinstance(object, DataItem.DataItem):
             return self.__get_storage_for_item(object).properties
         if not persistent_object_parent:
-            return self.__properties2
+            return self.__library_storage
         else:
             parent_storage_dict = self.__get_storage_dict(persistent_object_parent.parent)
             return object.get_accessor_in_parent()(parent_storage_dict)
 
     def __update_modified_and_get_storage_dict(self, object):
         storage_dict = self.__get_storage_dict(object)
-        with self.__properties2_lock:
+        with self.__library_storage_lock:
             storage_dict["modified"] = object.modified.isoformat()
         persistent_object_parent = object.persistent_object_parent
         parent = persistent_object_parent.parent if persistent_object_parent else None
@@ -127,7 +145,7 @@ class MemoryStorageSystem:
             self.register_data_item(item, item.uuid, storage_handler, item.write_to_dict())
         else:
             storage_dict = self.__update_modified_and_get_storage_dict(parent)
-            with self.__properties2_lock:
+            with self.__library_storage_lock:
                 item_list = storage_dict.setdefault(name, list())
                 item_dict = item.write_to_dict()
                 item_list.insert(before_index, item_dict)
@@ -141,7 +159,7 @@ class MemoryStorageSystem:
             self.unregister_data_item(item)
         else:
             storage_dict = self.__update_modified_and_get_storage_dict(parent)
-            with self.__properties2_lock:
+            with self.__library_storage_lock:
                 item_list = storage_dict[name]
                 del item_list[index]
             self.__write_properties(parent)
@@ -149,7 +167,7 @@ class MemoryStorageSystem:
 
     def set_item(self, parent, name, item):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
-        with self.__properties2_lock:
+        with self.__library_storage_lock:
             if item:
                 item_dict = item.write_to_dict()
                 storage_dict[name] = item_dict
@@ -161,34 +179,34 @@ class MemoryStorageSystem:
 
     def set_property(self, object, name, value):
         storage_dict = self.__update_modified_and_get_storage_dict(object)
-        with self.__properties2_lock:
+        with self.__library_storage_lock:
             storage_dict[name] = value
         self.__write_properties(object)
 
     def clear_property(self, object, name):
         storage_dict = self.__update_modified_and_get_storage_dict(object)
-        with self.__properties2_lock:
+        with self.__library_storage_lock:
             storage_dict.pop(name, None)
         self.__write_properties(object)
 
     def _set_storage_properties(self, properties):
-        self.__properties = properties
+        self.__data_item_storage = properties
 
     def find_data_items(self):
         storage_handlers = list()
-        for key in sorted(self.__properties):
-            self.__properties[key].setdefault("uuid", str(uuid.uuid4()))
-            storage_handlers.append(MemoryStorageHandler(key, self.__properties, self.data, self._test_data_read_event))
+        for key in sorted(self.__data_item_storage):
+            self.__data_item_storage[key].setdefault("uuid", str(uuid.uuid4()))
+            storage_handlers.append(MemoryStorageHandler(key, self.__data_item_storage, self.data, self._test_data_read_event))
         return storage_handlers
 
     def make_storage_handler(self, data_item, file_handler=None):
         data_item_uuid_str = str(data_item.uuid)
-        return MemoryStorageHandler(data_item_uuid_str, self.__properties, self.data, self._test_data_read_event)
+        return MemoryStorageHandler(data_item_uuid_str, self.__data_item_storage, self.data, self._test_data_read_event)
 
     def remove_storage_handler(self, storage_handler, *, safe: bool=False) -> None:
         storage_handler_reference = storage_handler.reference
         data = self.data.pop(storage_handler_reference, None)
-        properties = self.__properties.pop(storage_handler_reference)
+        properties = self.__data_item_storage.pop(storage_handler_reference)
         if safe:
             assert storage_handler_reference not in self.trash
             self.trash[storage_handler_reference] = {"data": data, "properties": properties}
@@ -196,11 +214,11 @@ class MemoryStorageSystem:
     def restore_item(self, data_item_uuid: uuid.UUID) -> typing.Tuple[typing.Optional[dict], bool]:
         data_item_uuid_str = str(data_item_uuid)
         trash_entry = self.trash.pop(data_item_uuid_str)
-        assert data_item_uuid_str not in self.__properties
+        assert data_item_uuid_str not in self.__data_item_storage
         assert data_item_uuid_str not in self.data
-        self.__properties[data_item_uuid_str] = Migration.transform_to_latest(trash_entry["properties"])
+        self.__data_item_storage[data_item_uuid_str] = Migration.transform_to_latest(trash_entry["properties"])
         self.data[data_item_uuid_str] = trash_entry["data"]
-        properties = self.__properties.get(data_item_uuid_str, dict())
+        properties = self.__data_item_storage.get(data_item_uuid_str, dict())
         properties["__large_format"] = False
         return properties
 
@@ -211,21 +229,21 @@ class MemoryStorageSystem:
         pass
 
     def register_data_item(self, item, item_uuid, storage_handler, properties: dict) -> None:
-        assert item_uuid not in self.__data_item_storage
+        assert item_uuid not in self.__data_item_storage_adapters
         storage = FileStorageSystem.DataItemStorageAdapter(self, storage_handler, properties)
-        self.__data_item_storage[item_uuid] = storage
+        self.__data_item_storage_adapters[item_uuid] = storage
         if item and self.is_write_delayed(item):
             storage.set_write_delayed(item, True)
 
     def unregister_data_item(self, item: DataItem) -> None:
-        assert item.uuid in self.__data_item_storage
-        self.__data_item_storage.pop(item.uuid).close()
+        assert item.uuid in self.__data_item_storage_adapters
+        self.__data_item_storage_adapters.pop(item.uuid).close()
 
     def __get_storage_for_item(self, item: DataItem) -> FileStorageSystem.DataItemStorageAdapter:
-        if not item.uuid in self.__data_item_storage:
+        if not item.uuid in self.__data_item_storage_adapters:
             storage_handler = self.make_storage_handler(item)
             self.register_data_item(item, item.uuid, storage_handler, item.write_to_dict())
-        return self.__data_item_storage.get(item.uuid)
+        return self.__data_item_storage_adapters.get(item.uuid)
 
     def get_storage_property(self, data_item: DataItem.DataItem, name: str) -> typing.Optional[str]:
         if name == "file_path":
@@ -253,24 +271,24 @@ class MemoryStorageSystem:
         self.remove_storage_handler(storage._storage_handler, safe=safe)
 
     def enter_write_delay(self, object) -> None:
-        if isinstance(object, DataItem.DataItem):
-            count = self.__write_delay_counts.setdefault(object, 0)
-            if count == 0:
+        count = self.__write_delay_counts.setdefault(object, 0)
+        if count == 0:
+            if isinstance(object, DataItem.DataItem):
                 self.set_write_delayed(object, True)
-            self.__write_delay_counts[object] = count + 1
+        self.__write_delay_counts[object] = count + 1
 
     def exit_write_delay(self, object) -> None:
-        if isinstance(object, DataItem.DataItem):
-            count = self.__write_delay_counts.setdefault(object, 0)
-            count -= 1
-            if count == 0:
+        count = self.__write_delay_counts.get(object, 1)
+        count -= 1
+        if count == 0:
+            if isinstance(object, DataItem.DataItem):
                 self.set_write_delayed(object, False)
-                self.__write_delay_counts.pop(object)
-            else:
-                self.__write_delay_counts[object] = count
+            self.__write_delay_counts.pop(object)
+        else:
+            self.__write_delay_counts[object] = count
 
     def set_write_delayed(self, data_item, write_delayed: bool) -> None:
-        storage = self.__data_item_storage.get(data_item.uuid)
+        storage = self.__data_item_storage_adapters.get(data_item.uuid)
         if storage:
             storage.set_write_delayed(data_item, write_delayed)
 
@@ -282,8 +300,11 @@ class MemoryStorageSystem:
     def rewrite_item(self, item) -> None:
         if isinstance(item, DataItem.BufferedDataSource):
             item = item.persistent_object_parent.parent
-        storage = self.__get_storage_for_item(item)
-        storage.rewrite_item(item)
+        if isinstance(item, DataItem.DataItem):
+            storage = self.__get_storage_for_item(item)
+            storage.rewrite_item(item)
+        else:
+            self.__write_properties(item)
 
     def read_data_items_version_stats(self):
         return FileStorageSystem.read_data_items_version_stats(self)

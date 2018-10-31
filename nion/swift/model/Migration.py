@@ -118,7 +118,7 @@ def migrate_to_v13(reader_info_list, library_updates, migration_log: MigrationLo
 
                 display_items = list()
 
-                display_properties_list = properties.pop("displays")
+                display_properties_list = properties.pop("displays", list())
 
                 if len(display_properties_list) > 0:
                     display_properties = display_properties_list[0]

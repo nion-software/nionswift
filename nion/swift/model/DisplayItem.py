@@ -298,6 +298,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         super().__init__()
         self.__container_weak_ref = None
 
+        self.define_type("display_data_channel")
         # conversion to scalar
         self.define_property("complex_display_type", changed=self.__property_changed)
         # data scaling and color (raster)
@@ -686,6 +687,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
         # this is not my favorite solution since it limits library item creation to 1000/s but until I find a better solution, this is my compromise.
         time.sleep(0.001)
+        self.define_type("display_item")
         self.define_property("display_type", changed=self.__display_type_changed)
         self.define_property("title", hidden=True, changed=self.__property_changed)
         self.define_property("caption", hidden=True, changed=self.__property_changed)
@@ -700,6 +702,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__display_data_channel_data_item_did_change_event_listeners = list()
         self.__display_data_channel_data_item_changed_event_listeners = list()
         self.__display_data_channel_data_item_description_changed_event_listeners = list()
+
+        self.__in_transaction_state = False
+        self.__write_delay_modified_count = 0
 
         self.__graphic_changed_listeners = list()
         self.__suspendable_storage_cache = None
@@ -879,6 +884,48 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             return self.persistent_object_context.get_properties(self)
         return dict()
 
+    @property
+    def in_transaction_state(self) -> bool:
+        return self.__in_transaction_state
+
+    def __enter_write_delay_state(self):
+        self.__write_delay_modified_count = self.modified_count
+        if self.persistent_object_context:
+            self.persistent_object_context.enter_write_delay(self)
+
+    def __exit_write_delay_state(self):
+        if self.persistent_object_context:
+            self.persistent_object_context.exit_write_delay(self)
+            self._finish_pending_write()
+
+    def _finish_pending_write(self):
+        if self.modified_count > self.__write_delay_modified_count:
+            self.persistent_object_context.rewrite_item(self)
+
+    def _transaction_state_entered(self):
+        self.__in_transaction_state = True
+        # first enter the write delay state.
+        self.__enter_write_delay_state()
+        # suspend disk caching
+        if self.__suspendable_storage_cache:
+            self.__suspendable_storage_cache.suspend_cache()
+
+    def _transaction_state_exited(self):
+        self.__in_transaction_state = False
+        # being in the transaction state has the side effect of delaying the cache too.
+        # spill whatever was into the local cache into the persistent cache.
+        if self.__suspendable_storage_cache:
+            self.__suspendable_storage_cache.spill_cache()
+        # exit the write delay state.
+        self.__exit_write_delay_state()
+
+    def persistent_object_context_changed(self):
+        # handle case where persistent object context is set on an item that is already under transaction.
+        # this can occur during acquisition. any other cases?
+        super().persistent_object_context_changed()
+        if self.__in_transaction_state:
+            self.__enter_write_delay_state()
+
     def __display_changed(self, name, old_display, new_display):
         if new_display != old_display:
             if old_display:
@@ -913,6 +960,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             change_count = self.__display_item_change_count
         # if the change count is now zero, it means that we're ready to notify listeners.
         if change_count == 0:
+            self.__write_delay_data_changed = True
             self.__item_changed()
             self._update_displays()  # this ensures that the display will validate
 

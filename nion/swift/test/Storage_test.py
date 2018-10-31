@@ -966,6 +966,25 @@ class TestStorageClass(unittest.TestCase):
                 data_item.set_data(numpy.zeros((17, 17), numpy.uint32))
             self.assertEqual(memory_persistent_storage_system.data[str(data_item.uuid)].shape, (17, 17))
 
+    def test_begin_end_transaction_with_data_change_should_write_display_item(self):
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            graphic = Graphics.PointGraphic()
+            display_item.add_graphic(graphic)
+            # now clear the memory_persistent_storage_system and see if it gets written again
+            memory_persistent_storage_system.library_persistent_storage_enabled = True
+            memory_persistent_storage_system.library_persistent_storage.clear()
+            with document_model.item_transaction(data_item):
+                graphic.label = "Fred"
+                self.assertFalse(memory_persistent_storage_system.library_persistent_storage)
+            self.assertEqual("Fred", memory_persistent_storage_system.library_persistent_storage["display_items"][0]["graphics"][0]["label"])
+            graphic.label = "Grumble"
+            self.assertEqual("Grumble", memory_persistent_storage_system.library_persistent_storage["display_items"][0]["graphics"][0]["label"])
+
     def test_data_removes_file_after_original_date_and_session_change(self):
         created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         cache_name = ":memory:"
