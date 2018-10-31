@@ -122,7 +122,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__line_graph_xdata_list = list()
 
         self.__xdata_list = list()
-        self.__last_data_list = list()
+        self.__last_xdata_list = list()
 
         # frame rate
         self.__display_frame_rate_id = None
@@ -278,6 +278,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
             if self.__display_values_list and len(self.__display_values_list) > 0:
                 self.__xdata_list = [display_values.display_data_and_metadata if display_values else None for display_values in self.__display_values_list]
+                xdata0 = self.__xdata_list[0]
+                if xdata0:
+                    self.__update_frame(xdata0.metadata)
             else:
                 self.__xdata_list = list()
 
@@ -297,9 +300,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
     def update(self):
         if self.__display_frame_rate_id:
-            if len(self.__xdata_list) != len(self.__last_data_list) or not all([a is b for a, b in zip(self.__xdata_list, self.__last_data_list)]):
+            if len(self.__xdata_list) != len(self.__last_xdata_list) or not all([a is b for a, b in zip(self.__xdata_list, self.__last_xdata_list)]):
                 Utility.fps_tick("update_"+self.__display_frame_rate_id)
-                self.__last_data_list = copy.copy(self.__xdata_list)
+                self.__last_xdata_list = copy.copy(self.__xdata_list)
         super().update()
 
     def update_graphics(self, graphics, graphic_selection, display_properties):
