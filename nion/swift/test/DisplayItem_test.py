@@ -1,5 +1,6 @@
 # standard libraries
 import contextlib
+import copy
 import unittest
 
 # third party libraries
@@ -38,6 +39,18 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertIsNotNone(display_item.date_for_sorting)
             self.assertIsNotNone(display_item.date_for_sorting_local_as_string)
             self.assertIsNotNone(display_item.status_str)
+
+    def test_display_item_snapshot_and_copy_preserve_display_type(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
+            snapshot_display_item = display_item.snapshot()
+            self.assertEqual("line_plot", snapshot_display_item.display_type)
+            copy_display_item = copy.deepcopy(display_item)
+            self.assertEqual("line_plot", copy_display_item.display_type)
 
     # git show cc4bda5372baaaefa168c57db30074f3b26d64e4
     # test_transaction_does_not_cascade_to_data_item_refs

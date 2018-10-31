@@ -755,6 +755,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def __deepcopy__(self, memo):
         display_item_copy = self.__class__()
+        display_item_copy.display_type = self.display_type
         # metadata
         display_item_copy._set_persistent_property_value("title", self._get_persistent_property_value("title"))
         display_item_copy._set_persistent_property_value("caption", self._get_persistent_property_value("caption"))
@@ -852,6 +853,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def snapshot(self):
         """Return a new library item which is a copy of this one with any dynamic behavior made static."""
         display_item = self.__class__()
+        display_item.display_type = self.display_type
         # metadata
         display_item._set_persistent_property_value("title", self._get_persistent_property_value("title"))
         display_item._set_persistent_property_value("caption", self._get_persistent_property_value("caption"))
