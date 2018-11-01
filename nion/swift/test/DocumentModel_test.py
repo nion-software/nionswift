@@ -2121,9 +2121,18 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(Graphics.PointGraphic())
-            snapshot_data_item = document_model.get_display_item_snapshot_new(display_item).data_item
-            snapshot_display_item = document_model.get_display_item_for_data_item(snapshot_data_item)
+            snapshot_display_item = document_model.get_display_item_snapshot_new(display_item)
             self.assertEqual(1, len(snapshot_display_item.graphics))
+
+    def test_new_display_makes_another_display_item(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            snapshot_display_item = document_model.get_display_item_copy_new(display_item)
+            self.assertIsNot(snapshot_display_item, display_item)
+            self.assertEqual(2, len(document_model.get_display_items_for_data_item(data_item)))
 
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?

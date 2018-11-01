@@ -2271,6 +2271,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.append_display_item(display_item_copy)
         return display_item_copy
 
+    def get_display_item_copy_new(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
+        display_item_copy = display_item.snapshot()
+        self.append_display_item(display_item_copy)
+        return display_item_copy
+
     def append_connection(self, connection: Connection.Connection) -> None:
         self.insert_connection(len(self.connections), connection)
 

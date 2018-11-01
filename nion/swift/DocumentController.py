@@ -301,6 +301,7 @@ class DocumentController(Window.Window):
 
         self._processing_menu.add_menu_item(_("Snapshot"), self.processing_snapshot, key_sequence="Ctrl+S")
         self._processing_menu.add_menu_item(_("Duplicate"), self.processing_duplicate, key_sequence="Ctrl+D")
+        self._processing_menu.add_menu_item(_("Display Copy"), self.processing_display_copy)
         self._processing_menu.add_separator()
 
         self._processing_menu.add_menu_item(_("Edit Data Item Scripts"), self.new_edit_computation_dialog, key_sequence="Ctrl+E")
@@ -1799,13 +1800,14 @@ class DocumentController(Window.Window):
 
     class InsertDisplayItemCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: "DocumentController", display_item: DisplayItem.DisplayItem):
+        def __init__(self, document_controller: "DocumentController", display_item: DisplayItem.DisplayItem, display_item_fn: typing.Callable[[], DisplayItem.DisplayItem]):
             super().__init__(_("Insert Library Item"))
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
             self.__display_item_uuid = None
             self.__display_item = display_item
+            self.__display_item_fn = display_item_fn
             self.__display_item_index = None
             self.initialize()
 
@@ -1822,7 +1824,7 @@ class DocumentController(Window.Window):
             document_model = self.__document_controller.document_model
             display_item = self.__display_item
             request_focus = not display_item.is_live
-            snapshot_display_item = document_model.get_display_item_snapshot_new(display_item)
+            snapshot_display_item = self.__display_item_fn(display_item)
             if request_focus:
                 # see https://github.com/nion-software/nionswift/issues/145
                 document_controller.select_display_items_in_data_panel([snapshot_display_item])
@@ -1852,7 +1854,7 @@ class DocumentController(Window.Window):
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def _perform_display_item_snapshot(self, display_item: DisplayItem.DisplayItem) -> None:
-        command = DocumentController.InsertDisplayItemCommand(self, display_item)
+        command = DocumentController.InsertDisplayItemCommand(self, display_item, self.document_model.get_display_item_snapshot_new)
         command.perform()
         self.push_undo_command(command)
 
@@ -1860,6 +1862,13 @@ class DocumentController(Window.Window):
         display_item = self.selected_display_item
         if display_item:
             self._perform_display_item_snapshot(display_item)
+
+    def processing_display_copy(self):
+        display_item = self.selected_display_item
+        if display_item:
+            command = DocumentController.InsertDisplayItemCommand(self, display_item, self.document_model.get_display_item_copy_new)
+            command.perform()
+            self.push_undo_command(command)
 
     def processing_computation(self, expression, map=None):
         if map is None:
