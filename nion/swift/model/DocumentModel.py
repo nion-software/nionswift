@@ -1338,8 +1338,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def transaction_count(self):
         return self.__transaction_manager.transaction_count
 
-    def begin_display_transaction(self, display: Display.Display) -> Transaction:
-        display_item = self._get_display_item_for_display(display)
+    def begin_display_item_transaction(self, display_item: DisplayItem.DisplayItem) -> Transaction:
         if display_item:
             return self.item_transaction(display_item)
         else:
@@ -1527,9 +1526,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def are_display_items_equal(self, display_item1: DisplayItem.DisplayItem, display_item2: DisplayItem.DisplayItem) -> bool:
         return display_item1 == display_item2
-
-    def _get_display_item_for_display(self, display: Display.Display) -> typing.Optional[DisplayItem.DisplayItem]:
-        return display.container if display else None
 
     def get_display_data_channel_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DisplayItem.DisplayDataChannel]:
         for display_item in self.display_items:

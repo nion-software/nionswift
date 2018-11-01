@@ -1519,7 +1519,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.show_context_menu(menu, gx, gy)
 
     def begin_mouse_tracking(self):
-        self.__mouse_tracking_transaction = self.__document_controller.document_model.begin_display_transaction(self.__get_display())
+        self.__mouse_tracking_transaction = self.__document_controller.document_model.begin_display_item_transaction(self.__display_item)
 
     def end_mouse_tracking(self, undo_command):
         self.__mouse_tracking_transaction.close()

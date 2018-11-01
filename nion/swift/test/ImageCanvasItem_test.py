@@ -234,6 +234,23 @@ class TestImageCanvasItemClass(unittest.TestCase):
             header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
 
+    def test_hand_tool_on_one_image_of_multiple_displays(self):
+        # setup
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            copy_display_item = document_model.get_display_item_copy_new(display_item)
+            display_panel.set_display_panel_display_item(copy_display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            # run test
+            document_controller.tool_mode = "hand"
+            display_panel.display_canvas_item.simulate_press((100,125))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
