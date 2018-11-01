@@ -93,7 +93,7 @@ class Recorder:
     class RecorderInsertDataItemCommandCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller, recorder: "Recorder", data_item_fn: typing.Callable[[], DataItem.DataItem]):
-            super().__init__(_("Record Library Item"))
+            super().__init__(_("Record Data Item"))
             self.__document_controller = document_controller
             self.__recorder = recorder
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()

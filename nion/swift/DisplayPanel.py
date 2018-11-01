@@ -1059,35 +1059,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def identifier(self) -> str:
         return self.__identifier
 
-    def change_display_panel_content(self, d):
-        assert self.__document_controller is not None
-        self.__change_display_panel_content(self.__document_controller, d)
-
-    def __change_display_panel_content(self, document_controller, d):
-        is_selected = self._is_selected()
-        is_focused = self._is_focused()
-
-        display_panel_type = d.get("display-panel-type", "data-display-panel")
-        if display_panel_type == "thumbnail-browser-display-panel":
-            d["browser_type"] = "horizontal"
-        elif display_panel_type == "browser-display-panel":
-            d["browser_type"] = "grid"
-        elif display_panel_type == "empty-display-panel":
-            d["browser_type"] = "empty"
-
-        self.restore_contents(d)
-
-        self.set_selected(is_selected)
-
-        if is_focused:
-            self.request_focus()
-
-        if is_selected:
-            document_controller.notify_focused_display_changed(self.__display_item)
-
-        if callable(self.on_contents_changed):
-            self.on_contents_changed()
-
     @property
     def display_canvas_item(self):
         return self.__display_tracker.display_canvas_item if self.__display_tracker else None
@@ -1215,8 +1186,55 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     # sets the data item that this panel displays
     # not thread safe
     def set_displayed_data_item(self, data_item: DataItem.DataItem) -> None:
-        display_item = self.document_controller.document_model.get_display_item_for_data_item(data_item)
-        self.set_display_item(display_item)
+        display_items = self.document_controller.document_model.get_display_items_for_data_item(data_item)
+        if len(display_items) > 0:
+            self.set_display_item(display_items[0])
+
+    def set_display_panel_data_item(self, data_item: DataItem.DataItem, detect_controller: bool=False) -> None:
+        display_items = self.document_controller.document_model.get_display_items_for_data_item(data_item)
+        if len(display_items) > 0:
+            self.set_display_panel_display_item(display_items[0], detect_controller)
+
+    def set_display_panel_display_item(self, display_item: DisplayItem.DisplayItem, detect_controller: bool=False) -> None:
+        if display_item:
+            d = {"type": "image", "display_item_uuid": str(display_item.uuid)}
+            if detect_controller:
+                data_item = display_item.data_item
+                d2 = DisplayPanelManager().detect_controller(self.__document_controller.document_model, data_item)
+                if d2:
+                    d.update(d2)
+        else:
+            d = {"type": "image"}
+        self.change_display_panel_content(d)
+
+    def change_display_panel_content(self, d):
+        assert self.__document_controller is not None
+        self.__change_display_panel_content(self.__document_controller, d)
+
+    def __change_display_panel_content(self, document_controller, d):
+        is_selected = self._is_selected()
+        is_focused = self._is_focused()
+
+        display_panel_type = d.get("display-panel-type", "data-display-panel")
+        if display_panel_type == "thumbnail-browser-display-panel":
+            d["browser_type"] = "horizontal"
+        elif display_panel_type == "browser-display-panel":
+            d["browser_type"] = "grid"
+        elif display_panel_type == "empty-display-panel":
+            d["browser_type"] = "empty"
+
+        self.restore_contents(d)
+
+        self.set_selected(is_selected)
+
+        if is_focused:
+            self.request_focus()
+
+        if is_selected:
+            document_controller.notify_focused_display_changed(self.__display_item)
+
+        if callable(self.on_contents_changed):
+            self.on_contents_changed()
 
     # sets the data item that this panel displays
     # not thread safe
@@ -1300,22 +1318,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def request_focus(self):
         self.__content_canvas_item.request_focus()
-
-    def set_display_panel_data_item(self, data_item: DataItem.DataItem, detect_controller: bool=False) -> None:
-        display_item = self.document_controller.document_model.get_display_item_for_data_item(data_item)
-        self.set_display_panel_display_item(display_item, detect_controller)
-
-    def set_display_panel_display_item(self, display_item: DisplayItem.DisplayItem, detect_controller: bool=False) -> None:
-        if display_item:
-            d = {"type": "image", "display_item_uuid": str(display_item.uuid)}
-            if detect_controller:
-                data_item = display_item.data_item
-                d2 = DisplayPanelManager().detect_controller(self.__document_controller.document_model, data_item)
-                if d2:
-                    d.update(d2)
-        else:
-            d = {"type": "image"}
-        self.change_display_panel_content(d)
 
     @property
     def is_result_panel(self):

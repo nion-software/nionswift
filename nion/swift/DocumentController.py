@@ -301,7 +301,6 @@ class DocumentController(Window.Window):
 
         self._processing_menu.add_menu_item(_("Snapshot"), self.processing_snapshot, key_sequence="Ctrl+S")
         self._processing_menu.add_menu_item(_("Duplicate"), self.processing_duplicate, key_sequence="Ctrl+D")
-        self._processing_menu.add_menu_item(_("Display Copy"), self.processing_display_copy)
         self._processing_menu.add_separator()
 
         self._processing_menu.add_menu_item(_("Edit Data Item Scripts"), self.new_edit_computation_dialog, key_sequence="Ctrl+E")
@@ -393,6 +392,13 @@ class DocumentController(Window.Window):
         self._display_type_menu = self.create_sub_menu()
         self._display_type_menu.on_about_to_show = about_to_show_display_type_menu
 
+        self._view_menu.add_sub_menu(_("Display Panel Type"), self._display_type_menu)
+        self._view_menu.add_separator()
+
+        self._view_menu.add_menu_item(_("Display Copy"), self.processing_display_copy)
+        self._display_remove_action = self._view_menu.add_menu_item(_("Display Remove"), self.processing_display_remove)
+        self._view_menu.add_separator()
+
         # these are temporary menu items, so don't need to assign them to variables, for now
         def fit_to_view():
             if self.selected_display_panel is not None:
@@ -427,8 +433,6 @@ class DocumentController(Window.Window):
         self._view_menu.add_menu_item(_("Remove Workspace"), self.__remove_workspace)
         self._view_menu.add_menu_item(_("Clone Workspace"), self.__clone_workspace)
         self._view_menu.add_separator()
-        self._view_menu.add_sub_menu(_("Display Panel Type"), self._display_type_menu)
-        self._view_menu.add_separator()
         self._view_menu.add_menu_item(_("Data Item Recorder..."), self.new_recorder_dialog, key_sequence="Ctrl+Shift+R")
         self._view_menu.add_separator()
 
@@ -444,6 +448,10 @@ class DocumentController(Window.Window):
                 action = self._view_menu.add_menu_item(workspace.name, functools.partial(switch_to_workspace, workspace))
                 action.checked = self.document_model.workspace_uuid == workspace.uuid
                 self.__dynamic_view_actions.append(action)
+            selected_display_panel = self.selected_display_panel
+            data_item = selected_display_panel.data_item if selected_display_panel else None
+            display_items = self.document_model.get_display_items_for_data_item(data_item) if data_item else list()
+            self._display_remove_action.enabled = len(display_items) > 1
 
         self._view_menu.on_about_to_show = adjust_view_menu
 
@@ -1044,7 +1052,7 @@ class DocumentController(Window.Window):
 
     class InsertDataGroupDisplayItemCommand(Undo.UndoableCommand):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, before_index: int, display_item: DisplayItem.DisplayItem):
-            super().__init__("Insert Library Item")
+            super().__init__("Insert Data Item")
             self.__document_model = document_model
             self.__data_group_uuid = data_group.uuid
             self.__before_index = before_index
@@ -1087,7 +1095,7 @@ class DocumentController(Window.Window):
 
     class InsertDataGroupDataItemsCommand(Undo.UndoableCommand):
         def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):
-            super().__init__("Insert Library Items")
+            super().__init__("Insert Data Items")
             self.__document_controller = document_controller
             self.__data_group_uuid = data_group.uuid
             self.__data_group_indexes = list()
@@ -1160,7 +1168,7 @@ class DocumentController(Window.Window):
 
     class RemoveDataGroupDisplayItemsCommand(Undo.UndoableCommand):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, display_items: typing.Sequence[DisplayItem.DisplayItem]):
-            super().__init__("Remove Library Item")
+            super().__init__("Remove Data Item")
             self.__document_model = document_model
             self.__data_group_uuid = data_group.uuid
             combined = [(data_group.display_items.index(display_item), display_item.uuid) for display_item in display_items]
@@ -1515,7 +1523,7 @@ class DocumentController(Window.Window):
     class RemoveDataItemsCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: "DocumentController", data_items: typing.Sequence[DataItem.DataItem]):
-            super().__init__(_("Remove Library Items"))
+            super().__init__(_("Remove Data Items"))
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
@@ -1728,7 +1736,7 @@ class DocumentController(Window.Window):
     class InsertDataItemCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: "DocumentController", data_item_fn: typing.Callable[[], DataItem.DataItem]):
-            super().__init__(_("Insert Library Item"))
+            super().__init__(_("Insert Data Item"))
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
@@ -1801,7 +1809,7 @@ class DocumentController(Window.Window):
     class InsertDisplayItemCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: "DocumentController", display_item: DisplayItem.DisplayItem, display_item_fn: typing.Callable[[], DisplayItem.DisplayItem]):
-            super().__init__(_("Insert Library Item"))
+            super().__init__(_("Insert Display Item"))
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
@@ -1821,7 +1829,6 @@ class DocumentController(Window.Window):
 
         def perform(self):
             document_controller = self.__document_controller
-            document_model = self.__document_controller.document_model
             display_item = self.__display_item
             request_focus = not display_item.is_live
             snapshot_display_item = self.__display_item_fn(display_item)
@@ -1867,6 +1874,52 @@ class DocumentController(Window.Window):
         display_item = self.selected_display_item
         if display_item:
             command = DocumentController.InsertDisplayItemCommand(self, display_item, self.document_model.get_display_item_copy_new)
+            command.perform()
+            self.push_undo_command(command)
+
+    class RemoveDisplayItemCommand(Undo.UndoableCommand):
+
+        def __init__(self, document_controller: "DocumentController", display_item: DisplayItem.DisplayItem):
+            super().__init__(_("Remove Display Item"))
+            self.__document_controller = document_controller
+            self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+            self.__new_workspace_layout = None
+            self.__display_item_index = document_controller.document_model.display_items.index(display_item)
+            self.initialize()
+
+        def close(self):
+            self.__document_controller = None
+            self.__old_workspace_layout = None
+            self.__new_workspace_layout = None
+            self.__display_item_index = None
+            super().close()
+
+        def perform(self):
+            self.__undelete_logs = list()
+            document_model = self.__document_controller.document_model
+            display_item = document_model.display_items[self.__display_item_index]
+            self.__undelete_logs.append(document_model.remove_display_item(display_item))
+
+        def _get_modified_state(self):
+            return self.__document_controller.document_model.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__document_controller.document_model.modified_state = modified_state
+
+        def _undo(self):
+            self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+            for undelete_log in reversed(self.__undelete_logs):
+                self.__document_controller.document_model.undelete_all(undelete_log)
+            self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+
+        def _redo(self):
+            self.perform()
+            self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+
+    def processing_display_remove(self):
+        display_item = self.selected_display_item
+        if display_item:
+            command = DocumentController.RemoveDisplayItemCommand(self, display_item)
             command.perform()
             self.push_undo_command(command)
 
@@ -2070,7 +2123,7 @@ class DocumentController(Window.Window):
     class InsertDataItemsCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: "DocumentController", data_items: typing.Sequence[DataItem.DataItem], index: int, display_panel: DisplayPanel.DisplayPanel=None):
-            super().__init__(_("Insert Library Items"))
+            super().__init__(_("Insert Data Items"))
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
@@ -2216,7 +2269,7 @@ class DocumentController(Window.Window):
                 else:
                     self.delete_display_items(selected_display_items, container)
 
-            menu.add_menu_item(_("Delete Library Item"), delete)
+            menu.add_menu_item(_("Delete Data Item"), delete)
 
         # when exporting, queue the task so that the pop-up is allowed to close before the dialog appears.
         # without queueing, it originally led to a crash (tested in Qt 5.4.1 on Windows 7).

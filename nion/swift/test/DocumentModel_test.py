@@ -2130,8 +2130,8 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            snapshot_display_item = document_model.get_display_item_copy_new(display_item)
-            self.assertIsNot(snapshot_display_item, display_item)
+            copy_display_item = document_model.get_display_item_copy_new(display_item)
+            self.assertIsNot(copy_display_item, display_item)
             self.assertEqual(2, len(document_model.get_display_items_for_data_item(data_item)))
 
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?

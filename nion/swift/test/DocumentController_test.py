@@ -598,7 +598,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
             context_menu = document_controller.create_context_menu_for_display(source_display_item)
             context_menu_items = context_menu.items
-            delete_item = next(x for x in context_menu_items if x.title == "Delete Library Item")
+            delete_item = next(x for x in context_menu_items if x.title == "Delete Data Item")
             delete_item.callback()
             self.assertEqual(len(document_model.data_items), 0)
 
@@ -737,6 +737,28 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_controller.handle_redo()
             self.assertEqual(4, len(document_model.data_items))
             self.assertListEqual(data_item_uuids, [data_item.uuid for data_item in document_model.data_items])
+
+    def test_remove_display_item_undo_redo_cycle(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            copy_display_item = document_model.get_display_item_copy_new(display_item)
+            self.assertEqual(2, len(document_model.get_display_items_for_data_item(data_item)))
+            # remove display
+            command = DocumentController.DocumentController.RemoveDisplayItemCommand(document_controller, copy_display_item)
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual(1, len(document_model.get_display_items_for_data_item(data_item)))
+            # undo and check
+            document_controller.handle_undo()
+            self.assertEqual(2, len(document_model.get_display_items_for_data_item(data_item)))
+            # redo and check
+            document_controller.handle_redo()
+            self.assertEqual(1, len(document_model.get_display_items_for_data_item(data_item)))
 
 
 if __name__ == '__main__':
