@@ -1178,10 +1178,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.dependency_removed_event.fire(source_item, target_item)
         # fire the display messages
         if isinstance(source_item, DataItem.DataItem):
-            display_item = self.get_display_item_for_data_item(source_item)
-            source_display_items = self.get_source_display_items(display_item) if display_item else list()
-            dependent_display_items = self.get_dependent_display_items(display_item) if display_item else list()
-            self.related_items_changed.fire(display_item, source_display_items, dependent_display_items)
+            for display_item in self.get_display_items_for_data_item(source_item):
+                source_display_items = self.get_source_display_items(display_item) if display_item else list()
+                dependent_display_items = self.get_dependent_display_items(display_item) if display_item else list()
+                self.related_items_changed.fire(display_item, source_display_items, dependent_display_items)
 
     def __add_dependency(self, source_item, target_item):
         # print(f"add dependency {source_item} {target_item}")
@@ -1195,10 +1195,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.dependency_added_event.fire(source_item, target_item)
         # fire the display messages
         if isinstance(source_item, DataItem.DataItem):
-            display_item = self.get_display_item_for_data_item(source_item)
-            source_display_items = self.get_source_display_items(display_item) if display_item else list()
-            dependent_display_items = self.get_dependent_display_items(display_item) if display_item else list()
-            self.related_items_changed.fire(display_item, source_display_items, dependent_display_items)
+            for display_item in self.get_display_items_for_data_item(source_item):
+                source_display_items = self.get_source_display_items(display_item) if display_item else list()
+                dependent_display_items = self.get_dependent_display_items(display_item) if display_item else list()
+                self.related_items_changed.fire(display_item, source_display_items, dependent_display_items)
 
     def __computation_needs_update(self, data_item, computation):
         # When the computation for a data item is set or mutated, this function will be called.
@@ -1317,15 +1317,23 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def get_source_display_items(self, display_item: DisplayItem.DisplayItem) -> typing.List[DisplayItem.DisplayItem]:
         data_item = display_item.data_item
         if data_item:
-            data_items = self.get_source_data_items(data_item)
-            return [self.get_display_item_for_data_item(data_item) for data_item in data_items]
+            display_items = list()
+            for data_item in self.get_source_data_items(data_item):
+                for display_item in self.get_display_items_for_data_item(data_item):
+                    if display_item not in display_items:
+                        display_items.append(display_item)
+            return display_items
         return list()
 
     def get_dependent_display_items(self, display_item: DisplayItem.DisplayItem) -> typing.List[DisplayItem.DisplayItem]:
         data_item = display_item.data_item
         if data_item:
-            data_items = self.get_dependent_data_items(data_item)
-            return [self.get_display_item_for_data_item(data_item) for data_item in data_items]
+            display_items = list()
+            for data_item in self.get_dependent_data_items(data_item):
+                for display_item in self.get_display_items_for_data_item(data_item):
+                    if display_item not in display_items:
+                        display_items.append(display_item)
+            return display_items
         return list()
 
     def item_transaction(self, item) -> Transaction:
@@ -1520,6 +1528,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 display_items.append(display_item)
         return display_items
 
+    def get_any_display_item_for_data_item(self, data_item: DataItem.DataItem) -> typing.Optional[DisplayItem.DisplayItem]:
+        display_items = self.get_display_items_for_data_item(data_item)
+        return display_items[0] if len(display_items) > 0 else None
+
     def get_display_item_for_data_item(self, data_item: DataItem.DataItem) -> typing.Optional[DisplayItem.DisplayItem]:
         display_items = self.get_display_items_for_data_item(data_item)
         return display_items[0] if len(display_items) == 1 else None
@@ -1678,7 +1690,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
                 data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
-                display_item = self.get_display_item_for_data_item(data_item) if data_item else None
+                display_item = self.get_any_display_item_for_data_item(data_item) if data_item else None
                 graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
                 class BoundDataSource:
                     def __init__(self, document_model, display_item, data_item, graphic):
@@ -1754,7 +1766,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     class BoundDataItem(BoundDataBase):
                         @property
                         def value(self):
-                            display_item = self.document_model.get_display_item_for_data_item(self._object)
+                            display_item = self.document_model.get_any_display_item_for_data_item(self._object)
                             display_data_channel = display_item.display_data_channel if display_item else None
                             return display_data_channel.get_calculated_display_values(True).display_data_and_metadata if display_data_channel else None
                     return BoundDataItem(self, data_item)
@@ -1789,7 +1801,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     class BoundDataItem(BoundDataBase):
                         @property
                         def value(self):
-                            display_item = self.document_model.get_display_item_for_data_item(self._object)
+                            display_item = self.document_model.get_any_display_item_for_data_item(self._object)
                             display_data_channel = display_item.display_data_channel if display_item else None
                             xdata = display_data_channel.get_calculated_display_values(True).display_data_and_metadata
                             graphic = self._graphic
@@ -1808,7 +1820,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     class BoundDataItem(BoundDataBase):
                         @property
                         def value(self):
-                            display_item = self.document_model.get_display_item_for_data_item(self._object)
+                            display_item = self.document_model.get_any_display_item_for_data_item(self._object)
                             display_data_channel = display_item.display_data_channel if display_item else None
                             shape = display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
                             mask = numpy.zeros(shape)
@@ -1819,7 +1831,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         @property
                         def base_objects(self):
                             objects = {self._object}
-                            display_item = self.document_model.get_display_item_for_data_item(self._object)
+                            display_item = self.document_model.get_any_display_item_for_data_item(self._object)
                             for graphic in display_item.graphics:
                                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                                     objects.add(graphic)
@@ -1833,7 +1845,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     class BoundDataItem(BoundDataBase):
                         @property
                         def value(self):
-                            display_item = self.document_model.get_display_item_for_data_item(self._object)
+                            display_item = self.document_model.get_any_display_item_for_data_item(self._object)
                             xdata = self._object.xdata
                             if xdata.is_data_2d and xdata.is_data_complex_type:
                                 shape = xdata.data_shape
@@ -1846,7 +1858,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         @property
                         def base_objects(self):
                             objects = {self._object}
-                            display_item = self.document_model.get_display_item_for_data_item(self._object)
+                            display_item = self.document_model.get_any_display_item_for_data_item(self._object)
                             for graphic in display_item.graphics:
                                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                                     objects.add(graphic)
@@ -2471,12 +2483,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         region_map = dict()
         for i, (src_dict, input) in enumerate(zip(src_dicts, inputs)):
 
-            display_item = self.get_display_item_for_data_item(input[0])
-            data_item = display_item.data_item if display_item else None
-            display = display_item.display if display_item else None
+            data_item = input[0]
 
             if not data_item:
                 return None
+
+            display_items = self.get_display_items_for_data_item(data_item)
+            display_item = display_items[0] if len(display_items) > 0 else None
 
             # each source can have a list of requirements, check through them
             requirements = src_dict.get("requirements", list())
@@ -2624,8 +2637,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         computation.processing_id = processing_id
         # process the data item inputs
         for src_dict, src_name, src_label, input in zip(src_dicts, src_names, src_labels, inputs):
-            display_item = self.get_display_item_for_data_item(input[0])
-            data_item = display_item.data_item if display_item else None
+            data_item = input[0]
             secondary_specifier = None
             if src_dict.get("croppable", False):
                 secondary_specifier = self.get_object_specifier(input[1])
@@ -2649,7 +2661,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.append_data_item(new_data_item)
 
         display_item = self.get_display_item_for_data_item(new_data_item)
-        display = display_item.display if display_item else None
 
         # next come the output regions that get created on the target itself
         new_regions = dict()

@@ -476,6 +476,23 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(data_item1_uuid, new_data_item1.uuid)
             self.assertEqual(2, new_data_item1_data_items_len)
 
+    def test_dependencies_load_correctly_for_data_item_with_multiple_displays(self):
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            document_model.get_invert_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_model.get_display_item_copy_new(display_item)
+            self.assertEqual(1, len(document_model.get_dependent_data_items(data_item)))
+            self.assertEqual(document_model.data_items[1], document_model.get_dependent_data_items(data_item)[0])
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item = document_model.data_items[0]
+            self.assertEqual(1, len(document_model.get_dependent_data_items(data_item)))
+            self.assertEqual(document_model.data_items[1], document_model.get_dependent_data_items(data_item)[0])
+
     # test whether we can update master_data and have it written to the db
     def test_db_storage_write_data(self):
         cache_name = ":memory:"

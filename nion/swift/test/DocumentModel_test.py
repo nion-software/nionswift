@@ -2134,6 +2134,19 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertIsNot(copy_display_item, display_item)
             self.assertEqual(2, len(document_model.get_display_items_for_data_item(data_item)))
 
+    def test_able_to_make_new_data_item_by_processing_existing_data_item_with_multiple_displays(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_model.get_display_item_copy_new(display_item)
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            document_model.get_invert_new(data_item)
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(3, len(document_model.display_items))
+
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)
