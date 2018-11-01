@@ -1252,19 +1252,21 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def used_display_type(self) -> str:
         display_type = self.display_type
         if not display_type in ("line_plot", "image", "display_script"):
-            data_item = self.data_item
-            display_data_shape = data_item.display_data_shape
-            valid_data = (data_item is not None) and (functools.reduce(operator.mul, display_data_shape) > 0 if display_data_shape else False)
-            if valid_data:
-                if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
-                    display_type = "image"
-                elif data_item.datum_dimension_count == 1:
-                    display_type = "line_plot"
-                elif data_item.datum_dimension_count == 2:
-                    display_type = "image"
-                # override
-                if self.display.display_script:
-                    display_type = "display_script"
+            for data_item in self.data_items:
+                display_data_shape = data_item.display_data_shape if data_item else None
+                valid_data = (data_item is not None) and (functools.reduce(operator.mul, display_data_shape) > 0 if display_data_shape else False)
+                if valid_data:
+                    if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
+                        display_type = "image"
+                    elif data_item.datum_dimension_count == 1:
+                        display_type = "line_plot"
+                    elif data_item.datum_dimension_count == 2:
+                        display_type = "image"
+                    # override
+                    if self.display.display_script:
+                        display_type = "display_script"
+                    if display_type:
+                        break
         return display_type
 
     @property
