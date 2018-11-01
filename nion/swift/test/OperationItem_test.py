@@ -501,7 +501,7 @@ class TestProcessingClass(unittest.TestCase):
             document_model.append_data_item(data_item_rgba)
             data_item_rgba2 = document_model.get_invert_new(data_item_rgba)
             document_model.recompute_all()
-            data_item_rgba2_ss = document_model.get_snapshot_new(data_item_rgba2)
+            data_item_rgba2_ss = document_model.get_display_item_snapshot_new(document_model.get_display_item_for_data_item(data_item_rgba2)).data_item
             self.assertTrue(data_item_rgba2_ss.has_data)
 
     def test_snapshot_empty_data_item_should_produce_empty_data_item(self):
@@ -536,7 +536,7 @@ class TestProcessingClass(unittest.TestCase):
             self.assertEqual(len(data_item.dimensional_calibrations), 2)
             self.assertEqual(len(data_item2.dimensional_calibrations), 2)
             # take snapshot
-            snapshot_data_item = document_model.get_snapshot_new(data_item2)
+            snapshot_data_item = document_model.get_display_item_snapshot_new(document_model.get_display_item_for_data_item(data_item2)).data_item
             # check calibrations
             self.assertEqual(len(snapshot_data_item.dimensional_calibrations), 2)
             self.assertEqual(snapshot_data_item.dimensional_calibrations[0].scale, 2.0)

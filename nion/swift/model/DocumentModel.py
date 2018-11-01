@@ -2252,12 +2252,24 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_channel_start_listeners.pop(hardware_source.hardware_source_id, None)
         self.__data_channel_stop_listeners.pop(hardware_source.hardware_source_id, None)
 
-    def get_snapshot_new(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
-        assert isinstance(data_item, DataItem.DataItem)
-        data_item_copy = data_item.snapshot()
-        data_item_copy.title = _("Snapshot of ") + data_item.title
-        self.append_data_item(data_item_copy)
-        return data_item_copy
+    def get_display_item_snapshot_new(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
+        display_item_copy = display_item.snapshot()
+        data_item_copies = list()
+        for data_item in display_item.data_items:
+            if data_item:
+                data_item_copy = data_item.snapshot()
+                self.append_data_item(data_item_copy, False)
+                data_item_copies.append(data_item_copy)
+            else:
+                data_item_copies.append(None)
+        for display_data_channel in copy.copy(display_item_copy.display_data_channels):
+            display_item_copy.remove_display_data_channel(display_data_channel)
+        for data_item_copy, display_data_channel in zip(data_item_copies, display_item.display_data_channels):
+            display_data_channel_copy = DisplayItem.DisplayDataChannel(data_item=data_item_copy)
+            display_data_channel_copy.copy_display_data_properties_from(display_data_channel)
+            display_item_copy.append_display_data_channel(display_data_channel_copy)
+        self.append_display_item(display_item_copy)
+        return display_item_copy
 
     def append_connection(self, connection: Connection.Connection) -> None:
         self.insert_connection(len(self.connections), connection)

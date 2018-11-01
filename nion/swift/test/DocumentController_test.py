@@ -677,31 +677,37 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             # verify initial conditions
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(None, display_panel.data_item)
             # do the snapshot and verify
-            document_controller._perform_snapshot(data_item)
+            document_controller._perform_display_item_snapshot(display_item)
             self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
             self.assertEqual(document_model.data_items[1], display_panel.data_item)
             snapshot_uuid = document_model.data_items[1].uuid
             # undo and verify
             document_controller.handle_undo()
             self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.display_items))
             self.assertEqual(None, display_panel.data_item)
             # redo and verify
             document_controller.handle_redo()
             self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
             self.assertEqual(snapshot_uuid, document_model.data_items[1].uuid)
             self.assertEqual(document_model.data_items[1], display_panel.data_item)
             # undo again and verify
             document_controller.handle_undo()
             self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.display_items))
             self.assertEqual(None, display_panel.data_item)
             # redo again and verify
             document_controller.handle_redo()
             self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
             self.assertEqual(snapshot_uuid, document_model.data_items[1].uuid)
             self.assertEqual(document_model.data_items[1], display_panel.data_item)
 

@@ -728,19 +728,22 @@ class DocumentController(Window.Window):
                     selected_display_items.append(data_item)
         return selected_display_items
 
-    def select_data_items_in_data_panel(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
-        document_model = self.document_model
-        display_items = self.filtered_display_items_model.display_items
-        associated_display_items = [document_model.get_display_item_for_data_item(data_item) for data_item in data_items]
+    def select_display_items_in_data_panel(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
+        filtered_display_items = self.filtered_display_items_model.display_items
         indexes = set()
-        for index, display_item in enumerate(display_items):
-            if display_item in associated_display_items:
+        for index, display_item in enumerate(filtered_display_items):
+            if display_item in display_items:
                 indexes.add(index)
         self.selection.set_multiple(indexes)
-        if len(associated_display_items) > 0:
-            display_item = associated_display_items[0]
-            if display_item in display_items:
-                self.selection.anchor_index = display_items.index(display_item)
+        if len(display_items) > 0:
+            display_item = display_items[0]
+            if display_item in filtered_display_items:
+                self.selection.anchor_index = filtered_display_items.index(display_item)
+
+    def select_data_items_in_data_panel(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
+        document_model = self.document_model
+        associated_display_items = [document_model.get_display_item_for_data_item(data_item) for data_item in data_items]
+        self.select_display_items_in_data_panel(associated_display_items)
 
     # track the selected data item. this can be called by ui elements when
     # they get focus. the selected data item will stay the same until another ui
@@ -1562,7 +1565,7 @@ class DocumentController(Window.Window):
         data_element = { "data": data, "title": title }
         return self.add_data_element(data_element)
 
-    def show_display_item(self, display_item: DisplayItem.DisplayItem, source_data_item=None, request_focus=True) -> None:
+    def show_display_item(self, display_item: DisplayItem.DisplayItem, *, source_display_item=None, source_data_item=None, request_focus=True) -> None:
         data_item = display_item.data_item if display_item else None
         assert data_item is not None
         result_display_panel = self.next_result_display_panel()
@@ -1794,29 +1797,69 @@ class DocumentController(Window.Window):
         if data_item:
             self._perform_duplicate(data_item)
 
-    def _perform_snapshot(self, data_item: DataItem.DataItem) -> None:
-        request_focus = not data_item.is_live
-        def process() -> DataItem.DataItem:
-            data_item_copy = self.document_model.get_snapshot_new(data_item)
+    class InsertDisplayItemCommand(Undo.UndoableCommand):
+
+        def __init__(self, document_controller: "DocumentController", display_item: DisplayItem.DisplayItem):
+            super().__init__(_("Insert Library Item"))
+            self.__document_controller = document_controller
+            self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+            self.__new_workspace_layout = None
+            self.__display_item_uuid = None
+            self.__display_item = display_item
+            self.__display_item_index = None
+            self.initialize()
+
+        def close(self):
+            self.__document_controller = None
+            self.__display_item_uuid = None
+            self.__display_item_index = None
+            self.__old_workspace_layout = None
+            self.__new_workspace_layout = None
+            super().close()
+
+        def perform(self):
+            document_controller = self.__document_controller
+            document_model = self.__document_controller.document_model
+            display_item = self.__display_item
+            request_focus = not display_item.is_live
+            snapshot_display_item = document_model.get_display_item_snapshot_new(display_item)
             if request_focus:
                 # see https://github.com/nion-software/nionswift/issues/145
-                self.select_data_item_in_data_panel(data_item_copy)
-                new_display_item = self.document_model.get_display_item_for_data_item(data_item_copy)
-                self.notify_focused_display_changed(new_display_item)
-                inspector_panel = self.find_dock_widget("inspector-panel").panel
+                document_controller.select_display_items_in_data_panel([snapshot_display_item])
+                document_controller.notify_focused_display_changed(snapshot_display_item)
+                inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
                 if inspector_panel is not None:
                     inspector_panel.request_focus = True
-            display_item = self.document_model.get_display_item_for_data_item(data_item_copy)
-            self.show_display_item(display_item, source_data_item=data_item, request_focus=request_focus)
-            return data_item_copy
-        command = self.create_insert_data_item_command(process)
+            document_controller.show_display_item(snapshot_display_item, source_display_item=snapshot_display_item, request_focus=request_focus)
+            self.__display_item_uuid = display_item.uuid if display_item else None
+
+        def _get_modified_state(self):
+            return self.__document_controller.document_model.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__document_controller.document_model.modified_state = modified_state
+
+        def _redo(self):
+            self.__document_controller.document_model.undelete_all(self.__undelete_log)
+            self.__display_item_uuid = self.__document_controller.document_model.display_items[self.__display_item_index].uuid
+            self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+
+        def _undo(self):
+            display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+            self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+            self.__display_item_index = self.__document_controller.document_model.display_items.index(display_item)
+            self.__undelete_log = self.__document_controller.document_model.remove_display_item(display_item)
+            self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+
+    def _perform_display_item_snapshot(self, display_item: DisplayItem.DisplayItem) -> None:
+        command = DocumentController.InsertDisplayItemCommand(self, display_item)
         command.perform()
         self.push_undo_command(command)
 
     def processing_snapshot(self):
-        data_item = self.selected_data_item
-        if data_item:
-            self._perform_snapshot(data_item)
+        display_item = self.selected_display_item
+        if display_item:
+            self._perform_display_item_snapshot(display_item)
 
     def processing_computation(self, expression, map=None):
         if map is None:

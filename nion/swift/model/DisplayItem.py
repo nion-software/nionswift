@@ -455,6 +455,12 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         data_item = lookup_data_item(uuid.UUID(self.data_item_reference))
         self.__connect_data_item(data_item)
 
+    def attempt_connect_data_item(self, data_item):
+        if not self.__data_item and self.data_item_reference == str(data_item.uuid):
+            self.__data_item = data_item
+            self.__connect_data_item_events()
+            self.__validate_slice_indexes()
+
     @property
     def data_item(self) -> DataItem.DataItem:
         return self.__data_item
@@ -703,6 +709,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__display_data_channel_data_item_changed_event_listeners = list()
         self.__display_data_channel_data_item_description_changed_event_listeners = list()
 
+        self.__registration_listener = None
+
         self.__in_transaction_state = False
         self.__write_delay_modified_count = 0
 
@@ -733,6 +741,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             self.append_display_data_channel(DisplayDataChannel(data_item))
 
     def close(self):
+        if self.__registration_listener:
+            self.__registration_listener.close()
+            self.__registration_listener = None
         self.__display_about_to_be_removed_listener.close()
         self.__display_about_to_be_removed_listener = None
         self.__graphic_selection_changed_event_listener.close()
@@ -862,7 +873,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item.created = self.created
         display_item.display = copy.deepcopy(self.display)
         for graphic in self.graphics:
-            display_item.add_graphic(graphic.snapshot())
+            display_item.add_graphic(copy.deepcopy(graphic))
+        for display_data_channel in self.display_data_channels:
+            display_item.append_display_data_channel(copy.deepcopy(display_data_channel))
         return display_item
 
     def set_storage_cache(self, storage_cache):
@@ -925,8 +938,17 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         # handle case where persistent object context is set on an item that is already under transaction.
         # this can occur during acquisition. any other cases?
         super().persistent_object_context_changed()
+
         if self.__in_transaction_state:
             self.__enter_write_delay_state()
+
+        def register_object(registered_object, unregistered_object):
+            if isinstance(registered_object, DataItem.DataItem):
+                for display_data_channel in self.display_data_channels:
+                    display_data_channel.attempt_connect_data_item(registered_object)
+
+        if self.persistent_object_context:
+            self.__registration_listener = self.persistent_object_context.registration_event.listen(register_object)
 
     def __display_changed(self, name, old_display, new_display):
         if new_display != old_display:
@@ -974,8 +996,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             for display_data_channel in self.display_data_channels:
                 display_data_channel._become_master()
         for data_item in self.data_items:
-            for _ in range(amount):
-                data_item.increment_data_ref_count()
+            if data_item:
+                for _ in range(amount):
+                    data_item.increment_data_ref_count()
 
     def decrement_display_ref_count(self, amount: int=1):
         """Decrement display reference count to indicate this library item is no longer displayed."""
@@ -985,8 +1008,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             for display_data_channel in self.display_data_channels:
                 display_data_channel._relinquish_master()
         for data_item in self.data_items:
-            for _ in range(amount):
-                data_item.decrement_data_ref_count()
+            if data_item:
+                for _ in range(amount):
+                    data_item.decrement_data_ref_count()
 
     @property
     def _display_ref_count(self):
@@ -1181,7 +1205,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def date_for_sorting(self):
-        data_item_dates = [data_item.date_for_sorting for data_item in self.data_items]
+        data_item_dates = [data_item.date_for_sorting if data_item else self.created for data_item in self.data_items]
         if len(data_item_dates):
             return max(data_item_dates)
         return self.created
@@ -1208,11 +1232,11 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def is_live(self) -> bool:
-        return any(data_item.is_live for data_item in self.data_items)
+        return any(data_item.is_live if data_item else False for data_item in self.data_items)
 
     @property
     def category(self) -> str:
-        return "temporary" if any(data_item.category == "temporary" for data_item in self.data_items) else "persistent"
+        return "temporary" if any(data_item.category == "temporary" if data_item else None for data_item in self.data_items) else "persistent"
 
     @property
     def status_str(self) -> str:

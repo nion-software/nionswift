@@ -2114,6 +2114,17 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(0, len(document_model.display_items[0].graphics))
 
+    def test_snapshot_snapshots_display(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.add_graphic(Graphics.PointGraphic())
+            snapshot_data_item = document_model.get_display_item_snapshot_new(display_item).data_item
+            snapshot_display_item = document_model.get_display_item_for_data_item(snapshot_data_item)
+            self.assertEqual(1, len(snapshot_display_item.graphics))
+
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)

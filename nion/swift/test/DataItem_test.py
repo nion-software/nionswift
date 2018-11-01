@@ -457,7 +457,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             data_item_copy = document_model.get_crop_new(data_item)
             document_model.recompute_all()
-            data_item_snap = document_model.get_snapshot_new(data_item_copy)
+            data_item_snap = document_model.get_display_item_snapshot_new(document_model.get_display_item_for_data_item(data_item_copy)).data_item
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(data_item.data, data1))
             self.assertTrue(numpy.array_equal(data_item_copy.data, data1[2:6, 2:6]))

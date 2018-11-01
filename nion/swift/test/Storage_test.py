@@ -3882,8 +3882,8 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 data_item1 = document_model.data_items[0]
                 data_item2 = document_model.data_items[1]
-                data_item1a = document_model.get_snapshot_new(data_item1)
-                data_item2a = document_model.get_snapshot_new(data_item2)
+                data_item1a = document_model.get_display_item_snapshot_new(document_model.get_display_item_for_data_item(data_item1)).data_item
+                data_item2a = document_model.get_display_item_snapshot_new(document_model.get_display_item_for_data_item(data_item2)).data_item
                 data_item1b = copy.deepcopy(data_item1)
                 data_item2b = copy.deepcopy(data_item2)
                 document_model.append_data_item(data_item1b)
