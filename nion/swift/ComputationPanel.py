@@ -834,12 +834,9 @@ class EditComputationDialog(Dialog.ActionDialog):
         self.__text_edit = text_edit  # for testing
         self.__error_label = error_label  # for testing
 
-        new_button = ui.create_push_button_widget(_("New"))
         update_button = ui.create_push_button_widget(_("Update"))
         button_row = ui.create_row_widget()
         button_row.add_stretch()
-        button_row.add(new_button)
-        button_row.add_spacing(8)
         button_row.add(update_button)
         button_row.add_spacing(8)
 
@@ -859,16 +856,12 @@ class EditComputationDialog(Dialog.ActionDialog):
 
         add_variable_button.on_clicked = add_variable_pressed
 
-        def new_pressed():
-            document_controller.processing_computation(text_edit.text)
-
         def update_pressed():
             if text_edit.text:
                 self.__computation_model.computation_text = text_edit.text
             else:
                 self.__computation_model.clear()
 
-        new_button.on_clicked = new_pressed
         update_button.on_clicked = update_pressed
         def editing_finished(text):
             if self.__computation_model:
@@ -948,7 +941,6 @@ class EditComputationDialog(Dialog.ActionDialog):
         self.__variable_property_changed_event_listener = self.__computation_model.variable_property_changed_event.listen(variable_property_changed)
 
         # for testing
-        self._new_button = new_button
         self._update_button = update_button
 
         self.__computation_model.set_data_item(data_item)
