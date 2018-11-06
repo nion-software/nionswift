@@ -1185,23 +1185,24 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     # sets the data item that this panel displays
     # not thread safe
     def set_displayed_data_item(self, data_item: DataItem.DataItem) -> None:
-        display_items = self.document_controller.document_model.get_display_items_for_data_item(data_item)
-        if len(display_items) > 0:
-            self.set_display_item(display_items[0])
+        display_item = self.document_controller.document_model.get_any_display_item_for_data_item(data_item)
+        if display_item:
+            self.set_display_item(display_item)
 
     def set_display_panel_data_item(self, data_item: DataItem.DataItem, detect_controller: bool=False) -> None:
-        display_items = self.document_controller.document_model.get_display_items_for_data_item(data_item)
-        if len(display_items) > 0:
-            self.set_display_panel_display_item(display_items[0], detect_controller)
+        display_item = self.document_controller.document_model.get_any_display_item_for_data_item(data_item)
+        if display_item:
+            self.set_display_panel_display_item(display_item, detect_controller)
 
     def set_display_panel_display_item(self, display_item: DisplayItem.DisplayItem, detect_controller: bool=False) -> None:
         if display_item:
             d = {"type": "image", "display_item_uuid": str(display_item.uuid)}
             if detect_controller:
                 data_item = display_item.data_item
-                d2 = DisplayPanelManager().detect_controller(self.__document_controller.document_model, data_item)
-                if d2:
-                    d.update(d2)
+                if display_item == self.document_controller.document_model.get_any_display_item_for_data_item(data_item):
+                    d2 = DisplayPanelManager().detect_controller(self.__document_controller.document_model, data_item)
+                    if d2:
+                        d.update(d2)
         else:
             d = {"type": "image"}
         self.change_display_panel_content(d)

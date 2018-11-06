@@ -1318,6 +1318,24 @@ class TestWorkspaceClass(unittest.TestCase):
         finally:
             DisplayPanel._test_log_exceptions = True
 
+    def test_data_display_panel_with_controller_only_enabled_for_primary_display_item(self):
+        data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+        DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory(data_item))
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item_copy = document_model.get_display_item_copy_new(display_item)
+            workspace = document_controller.workspace_controller.new_workspace("1", {"type": "image"})
+            document_controller.workspace_controller.change_workspace(workspace)
+            display_panel = document_controller.workspace_controller.display_panels[0]
+            display_panel.set_display_panel_display_item(display_item, detect_controller=True)
+            self.assertIsNotNone(display_panel._display_panel_controller_for_test)
+            display_panel.set_display_panel_display_item(display_item_copy, detect_controller=True)
+            self.assertIsNone(display_panel._display_panel_controller_for_test)
+            DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
