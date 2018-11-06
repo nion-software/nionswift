@@ -716,7 +716,7 @@ def make_image_chooser(document_controller, computation, variable, drag_fn):
             display_item = document_model.get_display_item_by_uuid(display_item_uuid)
             data_item = display_item.data_item if display_item else None
             if data_item:
-                variable_specifier = document_model.get_object_specifier(data_item)
+                variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
                 secondary_specifier = None
                 if "graphic_uuid" in data_source_mime_data:
                     graphic_uuid = uuid.UUID(data_source_mime_data["graphic_uuid"])
@@ -733,7 +733,7 @@ def make_image_chooser(document_controller, computation, variable, drag_fn):
             display_item = document_model.get_data_item_by_key(display_item_uuid)
             data_item = display_item.data_item if display_item else None
             if data_item:
-                variable_specifier = document_model.get_object_specifier(data_item)
+                variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
                 properties = {"variable_type": "data_item", "secondary_specifier": dict(), "specifier": variable_specifier}
                 command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
                 command.perform()
@@ -846,7 +846,7 @@ class EditComputationDialog(Dialog.ActionDialog):
 
         def add_object_pressed():
             document_model = document_controller.document_model
-            object_specifier = document_model.get_object_specifier(document_model.data_items[0])
+            object_specifier = document_model.get_object_specifier(document_model.data_items[0], "data_item")
             self.__computation_model.add_variable("".join([random.choice(string.ascii_lowercase) for _ in range(4)]), specifier=object_specifier)
 
         add_object_button.on_clicked = add_object_pressed

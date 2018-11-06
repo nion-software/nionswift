@@ -2087,7 +2087,10 @@ class Computation(metaclass=SharedInstance):
                     object = value.get("object")
                     object_type = value.get("type")
                     if object_type == "data_source":
-                        specifier_dict = {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
+                        document_model = self.__computation.container
+                        display_item = document_model.get_display_item_for_data_item(object._data_item)
+                        display_data_channel = display_item.display_data_channel
+                        specifier_dict = {"version": 1, "type": "data_item", "uuid": str(display_data_channel.uuid)}
                     else:
                         specifier_dict = object.specifier.rpc_dict
                     variable.specifier = specifier_dict
@@ -2501,7 +2504,9 @@ class Library(metaclass=SharedInstance):
                 object = item.get("object")
                 object_type = item.get("type")
                 if object_type == "data_source":
-                    specifier_dict = {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
+                    display_item = self.__document_model.get_display_item_for_data_item(object._data_item)
+                    display_data_channel = display_item.display_data_channel
+                    specifier_dict = {"version": 1, "type": "data_item", "uuid": str(display_data_channel.uuid)}
                 else:
                     specifier_dict = object.specifier.rpc_dict
                 computation.create_object(name, specifier_dict)

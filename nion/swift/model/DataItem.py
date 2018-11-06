@@ -1570,30 +1570,29 @@ def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> Da
 class DataSource:
     DATA_SOURCE_MIME_TYPE = "text/vnd.nion.display_source_type"
 
-    def __init__(self, display_item, graphic, changed_event):
-        self.__display_item = display_item
+    def __init__(self, display_data_channel, graphic, changed_event):
+        self.__display_item = display_data_channel.container
         self.__graphic = graphic
         self.__changed_event = changed_event  # not public since it is passed in
-        data_item = display_item.data_item if display_item else None
-        display_data_channel = display_item.display_data_channel if display_item else None
-        display = display_item.display if display_item else None
-        self.__data_item = data_item
+        self.__data_item = display_data_channel.data_item
+        display_data_channel = self.__display_item.get_display_data_channel_for_data_item(self.__data_item) if self.__display_item else None
+        display = self.__display_item.display if self.__display_item else None
         self.__display = display
         self.__data_item_changed_event_listener = None
-        self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(self.__changed_event.fire) if data_item else None
+        self.__data_item_changed_event_listener = self.__data_item.data_item_changed_event.listen(self.__changed_event.fire) if self.__data_item else None
         self.__display_values_event_listener = display_data_channel.display_data_will_change_event.listen(self.__changed_event.fire) if display_data_channel else None
         self.__property_changed_listener = None
         def property_changed(key):
             self.__changed_event.fire()
-        if graphic:
-            self.__property_changed_listener = graphic.property_changed_event.listen(property_changed)
+        if self.__graphic:
+            self.__property_changed_listener = self.__graphic.property_changed_event.listen(property_changed)
         def filter_property_changed(key):
             self.__changed_event.fire()
         self.__graphic_property_changed_listeners = list()
         def graphic_inserted(key, value, before_index):
             if key == "graphics":
                 property_changed_listener = None
-                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                if isinstance(self.__graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                     property_changed_listener = value.property_changed_event.listen(filter_property_changed)
                     self.__changed_event.fire()
                 self.__graphic_property_changed_listeners.insert(before_index, property_changed_listener)
@@ -1605,7 +1604,7 @@ class DataSource:
                     self.__changed_event.fire()
         self.__graphic_inserted_event_listener = display.item_inserted_event.listen(graphic_inserted) if display else None
         self.__graphic_removed_event_listener = display.item_removed_event.listen(graphic_removed) if display else None
-        for graphic in display_item.graphics if display_item else list():
+        for graphic in self.__display_item.graphics if self.__display_item else list():
             property_changed_listener = None
             if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                 property_changed_listener = graphic.property_changed_event.listen(filter_property_changed)
@@ -1631,6 +1630,11 @@ class DataSource:
         if self.__display_values_event_listener:
             self.__display_values_event_listener.close()
             self.__display_values_event_listener = None
+        self.__display_item = None
+        self.__graphic = None
+        self.__changed_event = None
+        self.__data_item = None
+        self.__display = None
 
     @property
     def data_item(self) -> typing.Optional[DataItem]:

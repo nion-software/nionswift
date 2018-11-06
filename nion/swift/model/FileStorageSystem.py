@@ -494,7 +494,8 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
                     data_item_references = [d.get("data_item_reference", None) for d in display_item_properties.get("display_data_channels", list())]
                     if data_item_uuid_str in data_item_references:
                         display_item_references.append(display_item_properties["uuid"])
-        data_item_to_display_item_map = dict()
+        data_item_uuid_to_display_item_uuid_map = dict()
+        data_item_uuid_to_display_item_dict_map = dict()
         display_to_display_item_map = dict()
         display_to_display_data_channel_map = dict()
         for display_item_properties in library_storage_properties.get("display_items", list()):
@@ -502,7 +503,8 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
             display_to_display_data_channel_map[display_item_properties["display"]["uuid"]] = display_item_properties["display_data_channels"][0]["uuid"]
             data_item_references = [d.get("data_item_reference", None) for d in display_item_properties.get("display_data_channels", list())]
             for data_item_uuid_str in data_item_references:
-                data_item_to_display_item_map.setdefault(data_item_uuid_str, display_item_properties["uuid"])
+                data_item_uuid_to_display_item_uuid_map.setdefault(data_item_uuid_str, display_item_properties["uuid"])
+                data_item_uuid_to_display_item_dict_map.setdefault(data_item_uuid_str, display_item_properties)
         for workspace_properties in library_storage_properties.get("workspaces", list()):
             def replace1(d):
                 if "children" in d:
@@ -510,7 +512,7 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
                         replace1(dd)
                 if "data_item_uuid" in d:
                     data_item_uuid_str = d.pop("data_item_uuid")
-                    display_item_uuid_str = data_item_to_display_item_map.get(data_item_uuid_str)
+                    display_item_uuid_str = data_item_uuid_to_display_item_uuid_map.get(data_item_uuid_str)
                     if display_item_uuid_str:
                         d["display_item_uuid"] = display_item_uuid_str
             replace1(workspace_properties["layout"])
@@ -520,6 +522,21 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
                 connection_dict["source_uuid"] = display_to_display_item_map.get(source_uuid_str, None)
             if connection_dict["type"] == "property-connection" and connection_dict["source_property"] == "slice_interval":
                 connection_dict["source_uuid"] = display_to_display_data_channel_map.get(source_uuid_str, None)
+
+        def fix_specifier(specifier_dict):
+            if specifier_dict["type"] in ("data_item", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
+                if specifier_dict["uuid"] in data_item_uuid_to_display_item_dict_map:
+                    specifier_dict["uuid"] = data_item_uuid_to_display_item_dict_map[specifier_dict["uuid"]]["display_data_channels"][0]["uuid"]
+                else:
+                    del specifier_dict["uuid"]
+
+        for computation_dict in library_storage_properties.get("computations", list()):
+            for variable_dict in computation_dict.get("variables", list()):
+                if "specifier" in variable_dict:
+                    specifier_dict = variable_dict["specifier"]
+                    fix_specifier(specifier_dict)
+            for result_dict in computation_dict.get("results", list()):
+                fix_specifier(result_dict["specifier"])
 
         library_storage_properties["version"] = DocumentModel.DocumentModel.library_version
 

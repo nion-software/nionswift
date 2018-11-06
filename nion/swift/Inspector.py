@@ -2197,8 +2197,9 @@ def make_image_chooser(document_controller, computation, variable):
         if mime_data.has_format("text/display_item_uuid"):
             display_item_uuid = uuid.UUID(mime_data.data_as_string("text/display_item_uuid"))
             display_item = document_model.get_display_item_by_uuid(display_item_uuid)
-            if display_item.data_item:
-                variable_specifier = document_model.get_object_specifier(display_item.data_item)
+            data_item = display_item.data_item if display_item else None
+            if data_item:
+                variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
                 command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
                 command.perform()
                 document_controller.push_undo_command(command)

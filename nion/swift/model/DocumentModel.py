@@ -221,7 +221,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
             self.persistent_object_context.subscribe(self.source_uuid, source_registered, source_unregistered)
 
             for property_name, value in self.__properties.items():
-                if isinstance(value, dict) and value.get("type") in {"data_item", "region", "structure"} and "uuid" in value:
+                if isinstance(value, dict) and value.get("type") in {"data_item_object", "data_item", "region", "structure"} and "uuid" in value:
                     self.persistent_object_context.subscribe(uuid.UUID(value["uuid"]), functools.partial(reference_registered, property_name), functools.partial(reference_unregistered, property_name))
         else:
             source_unregistered()
@@ -251,7 +251,8 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
     def set_referenced_object(self, property: str, item) -> None:
         assert item is not None
         if item != self.__referenced_objects.get(property):
-            self.__properties[property] = get_object_specifier(item)
+            object_type = "data_item" if isinstance(item, DataItem.DataItem) else None
+            self.__properties[property] = get_object_specifier(item, object_type)
             self.data_structure_changed_event.fire(property)
             self.property_changed_event.fire(property)
             self._update_persistent_property("properties", self.__properties)
@@ -289,11 +290,19 @@ def data_structure_factory(lookup_id):
 
 
 def get_object_specifier(object, object_type: str=None) -> typing.Optional[typing.Mapping]:
-    if isinstance(object, DataItem.DataItem) and object_type == "data_item":
+    if object_type == "data_item":
+        assert isinstance(object, DataItem.DataItem)
         return {"version": 1, "type": "data_item_object", "uuid": str(object.uuid)}
-    if isinstance(object, DataItem.DataItem) and object_type in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
+    if object_type == "xdata":
+        assert isinstance(object, (DisplayItem.DisplayDataChannel, DataItem.DataItem))
         return {"version": 1, "type": object_type, "uuid": str(object.uuid)}
-    if isinstance(object, DataItem.DataItem):
+    if object_type in ("display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
+        assert isinstance(object, DisplayItem.DisplayDataChannel)
+        return {"version": 1, "type": object_type, "uuid": str(object.uuid)}
+    assert not isinstance(object, DataItem.DataItem)
+    assert not isinstance(object, DisplayItem.DisplayItem)
+    assert not isinstance(object, Display.Display)
+    if isinstance(object, DisplayItem.DisplayDataChannel):
         # should be "data_source" but requires file format change
         return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
     elif isinstance(object, Graphics.Graphic):
@@ -570,6 +579,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for display_item in self.display_items:
             display_item.connect_data_items(self.get_data_item_by_uuid)
             display_item.set_storage_cache(self.storage_cache)
+        # update the computations now that data items and display items are loaded
+        for computation in self.computations:
+            self.__computation_changed(computation)  # ensure the initial mutation is reported
         # this loop reestablishes dependencies now that everything is loaded.
         # the change listener for the computation will already have been established via the regular
         # loading mechanism; but because some data items may not have been loaded at the first time computation
@@ -1681,6 +1693,31 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     objects.add(self._graphic)
                 return objects
 
+        class BoundDisplayDataChannelBase:
+            def __init__(self, document_model, display_data_channel, graphic=None):
+                self.document_model = document_model
+                self._display_data_channel = display_data_channel
+                self._graphic = graphic
+                self.changed_event = Event.Event()
+                self.needs_rebind_event = Event.Event()
+                self.property_changed_event = Event.Event()
+                self.__display_values_changed_event_listener = self._display_data_channel.add_calculated_display_values_listener(self.changed_event.fire, send=False)
+                def data_item_removed(container, data_item, index, moving):
+                    if container == self.document_model and data_item == self._display_data_channel.data_item:
+                        self.needs_rebind_event.fire()
+                self.__data_item_removed_event_listener = self.document_model.data_item_removed_event.listen(data_item_removed)
+            def close(self):
+                self.__display_values_changed_event_listener.close()
+                self.__display_values_changed_event_listener = None
+                self.__data_item_removed_event_listener.close()
+                self.__data_item_removed_event_listener = None
+            @property
+            def base_objects(self):
+                objects = {self._display_data_channel.container, self._display_data_channel.data_item}
+                if self._graphic:
+                    objects.add(self._graphic)
+                return objects
+
         document_model = self
         if specifier and specifier.get("version") == 1:
             specifier_type = specifier["type"]
@@ -1689,16 +1726,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
-                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
-                display_item = self.get_any_display_item_for_data_item(data_item) if data_item else None
+                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
                 class BoundDataSource:
-                    def __init__(self, document_model, display_item, data_item, graphic):
+                    def __init__(self, document_model, display_data_channel, graphic):
                         self.__document_model = document_model
                         self.changed_event = Event.Event()
                         self.needs_rebind_event = Event.Event()
                         self.property_changed_event = Event.Event()
-                        self.__data_source = DataItem.DataSource(display_item, graphic, self.changed_event)
+                        self.__data_source = DataItem.DataSource(display_data_channel, graphic, self.changed_event)
                         def data_item_removed(container, data_item, index, moving):
                             if container == self.__document_model and data_item == self.__data_source.data_item:
                                 self.needs_rebind_event.fire()
@@ -1717,8 +1753,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         self.__data_source = None
                         self.__data_item_removed_event_listener.close()
                         self.__data_item_removed_event_listener = None
-                if display_item and data_item:
-                    return BoundDataSource(self, display_item, data_item, graphic)
+                if display_data_channel and display_data_channel.data_item:
+                    return BoundDataSource(self, display_data_channel, graphic)
             elif specifier_type == "data_item_object":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
@@ -1747,41 +1783,45 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         @property
                         def base_objects(self):
                             return {self.__object}
-                    return BoundDataItem(self, data_item)
+                    if data_item:
+                        return BoundDataItem(self, data_item)
             elif specifier_type == "xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
+                if not data_item:
+                    display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
+                    data_item = display_data_channel.data_item if display_data_channel else None
                 if data_item:
                     class BoundDataItem(BoundDataBase):
                         @property
                         def value(self):
                             return self._object.xdata
-                    return BoundDataItem(self, data_item)
+                    if data_item:
+                        return BoundDataItem(self, data_item)
             elif specifier_type == "display_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
-                if data_item:
-                    class BoundDataItem(BoundDataBase):
+                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
+                if display_data_channel:
+                    class BoundDataItem(BoundDisplayDataChannelBase):
                         @property
                         def value(self):
-                            display_item = self.document_model.get_any_display_item_for_data_item(self._object)
-                            display_data_channel = display_item.display_data_channel if display_item else None
-                            return display_data_channel.get_calculated_display_values(True).display_data_and_metadata if display_data_channel else None
-                    return BoundDataItem(self, data_item)
+                            return self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata if self._display_data_channel else None
+                    if display_data_channel:
+                        return BoundDataItem(self, display_data_channel)
             elif specifier_type == "cropped_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
-                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
+                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
-                if data_item:
-                    class BoundDataItem(BoundDataBase):
+                if display_data_channel:
+                    class BoundDataItem(BoundDisplayDataChannelBase):
                         @property
                         def value(self):
-                            xdata = self._object.xdata
+                            xdata = self._display_data_channel.data_item.xdata
                             graphic = self._graphic
                             if graphic:
                                 if hasattr(graphic, "bounds"):
@@ -1789,21 +1829,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                 if hasattr(graphic, "interval"):
                                     return Core.function_crop_interval(xdata, graphic.interval)
                             return xdata
-                    return BoundDataItem(self, data_item, graphic)
+                    if display_data_channel:
+                        return BoundDataItem(self, display_data_channel, graphic)
             elif specifier_type == "cropped_display_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
-                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
+                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
-                if data_item:
-                    class BoundDataItem(BoundDataBase):
+                if display_data_channel:
+                    class BoundDataItem(BoundDisplayDataChannelBase):
                         @property
                         def value(self):
-                            display_item = self.document_model.get_any_display_item_for_data_item(self._object)
-                            display_data_channel = display_item.display_data_channel if display_item else None
-                            xdata = display_data_channel.get_calculated_display_values(True).display_data_and_metadata
+                            xdata = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata
                             graphic = self._graphic
                             if graphic:
                                 if hasattr(graphic, "bounds"):
@@ -1811,18 +1850,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                 if hasattr(graphic, "interval"):
                                     return Core.function_crop_interval(xdata, graphic.interval)
                             return xdata
-                    return BoundDataItem(self, data_item, graphic)
+                    if display_data_channel:
+                        return BoundDataItem(self, display_data_channel, graphic)
             elif specifier_type == "filter_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
-                if data_item:
-                    class BoundDataItem(BoundDataBase):
+                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
+                if display_data_channel:
+                    class BoundDataItem(BoundDisplayDataChannelBase):
                         @property
                         def value(self):
-                            display_item = self.document_model.get_any_display_item_for_data_item(self._object)
-                            display_data_channel = display_item.display_data_channel if display_item else None
-                            shape = display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
+                            display_item = self._display_data_channel.container
+                            shape = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
                             mask = numpy.zeros(shape)
                             for graphic in display_item.graphics:
                                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
@@ -1830,23 +1869,25 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                             return DataAndMetadata.DataAndMetadata.from_data(mask)
                         @property
                         def base_objects(self):
-                            objects = {self._object}
-                            display_item = self.document_model.get_any_display_item_for_data_item(self._object)
+                            data_item = self._display_data_channel.data_item
+                            display_item = self._display_data_channel.container
+                            objects = {data_item, display_item}
                             for graphic in display_item.graphics:
                                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                                     objects.add(graphic)
                             return objects
-                    return BoundDataItem(self, data_item)
+                    if display_data_channel:
+                        return BoundDataItem(self, display_data_channel)
             elif specifier_type == "filtered_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
-                if data_item:
-                    class BoundDataItem(BoundDataBase):
+                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
+                if display_data_channel:
+                    class BoundDataItem(BoundDisplayDataChannelBase):
                         @property
                         def value(self):
-                            display_item = self.document_model.get_any_display_item_for_data_item(self._object)
-                            xdata = self._object.xdata
+                            display_item = self._display_data_channel.container
+                            xdata = self._display_data_channel.data_item.xdata
                             if xdata.is_data_2d and xdata.is_data_complex_type:
                                 shape = xdata.data_shape
                                 mask = numpy.zeros(shape)
@@ -1857,13 +1898,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                             return xdata
                         @property
                         def base_objects(self):
-                            objects = {self._object}
-                            display_item = self.document_model.get_any_display_item_for_data_item(self._object)
+                            data_item = self._display_data_channel.data_item
+                            display_item = self._display_data_channel.container
+                            objects = {data_item, display_item}
                             for graphic in display_item.graphics:
                                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                                     objects.add(graphic)
                             return objects
-                    return BoundDataItem(self, data_item)
+                    if display_data_channel:
+                        return BoundDataItem(self, display_data_channel)
             elif specifier_type == "structure":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
@@ -2412,7 +2455,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         computation.about_to_be_inserted(self)
         self.__computation_changed_listeners[computation] = computation.computation_mutated_event.listen(functools.partial(self.__computation_changed, computation))
         self.__computation_output_changed_listeners[computation] = computation.computation_output_changed_event.listen(functools.partial(self.__computation_update_dependencies, computation))
-        self.__computation_changed(computation)  # ensure the initial mutation is reported
+        if not self._is_reading:
+            self.__computation_changed(computation)  # ensure the initial mutation is reported
 
     def __removed_computation(self, name: str, index: int, computation: Symbolic.Computation) -> None:
         with self.__computation_queue_lock:
@@ -2641,7 +2685,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             secondary_specifier = None
             if src_dict.get("croppable", False):
                 secondary_specifier = self.get_object_specifier(input[1])
-            computation.create_object(src_name, self.get_object_specifier(data_item), label=src_label, secondary_specifier=secondary_specifier)
+            display_item = self.get_any_display_item_for_data_item(data_item)
+            display_data_channel = display_item.display_data_channel
+            computation.create_object(src_name, self.get_object_specifier(display_data_channel), label=src_label, secondary_specifier=secondary_specifier)
         # process the regions
         for region_name, region, region_label in regions:
             computation.create_object(region_name, self.get_object_specifier(region), label=region_label)

@@ -1035,6 +1035,12 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_data_channels = self.display_data_channels
         return display_data_channels[0] if len(display_data_channels) > 0 else None
 
+    def get_display_data_channel_for_data_item(self, data_item: DataItem.DataItem) -> typing.Optional[DisplayDataChannel]:
+        for display_data_channel in self.display_data_channels:
+            if display_data_channel.data_item == data_item:
+                return display_data_channel
+        return None
+
     def _update_displays(self):
         for display_data_channel in self.display_data_channels:
             display_data_channel.update_display_data()

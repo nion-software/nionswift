@@ -460,10 +460,10 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
             computation1 = document_model.create_computation(Symbolic.xdata_expression("xd.ifft(a.xdata)"))
-            computation1.create_object("a", document_model.get_object_specifier(data_item2))
+            computation1.create_object("a", document_model.get_object_specifier(data_item2, "data_item"))
             document_model.set_data_item_computation(data_item1, computation1)
             computation2 = document_model.create_computation(Symbolic.xdata_expression("xd.fft(a.xdata)"))
-            computation2.create_object("a", document_model.get_object_specifier(data_item2))
+            computation2.create_object("a", document_model.get_object_specifier(data_item2, "data_item"))
             document_model.set_data_item_computation(data_item3, computation2)
         memory_persistent_storage_system.persistent_storage_properties["86d982d1-6d81-46fa-b19e-574e904902de"]["created"] = "2015-01-22T17:16:12.421290"
         memory_persistent_storage_system.persistent_storage_properties["71ab9215-c6ae-4c36-aaf5-92ce78db02b6"]["created"] = "2015-01-22T17:16:12.219730"
@@ -3541,7 +3541,7 @@ class TestStorageClass(unittest.TestCase):
             data_struct.set_referenced_object("master", data_item)
             document_model.append_data_structure(data_struct)
             computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
-            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data_item"))
             computed_data_item = DataItem.DataItem()
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
@@ -3577,7 +3577,7 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
-            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data_item"))
             computed_data_item = DataItem.DataItem(data.copy())
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
@@ -3600,7 +3600,7 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
-            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data_item"))
             computed_data_item = DataItem.DataItem(data.copy())
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
@@ -3625,7 +3625,7 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.column(a.xdata)"))
-            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data_item"))
             computed_data_item = DataItem.DataItem(data.copy())
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
@@ -3645,7 +3645,7 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata[2:4, :, :] + a.xdata[5]"))
-            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data_item"))
             computed_data_item = DataItem.DataItem(data.copy())
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
@@ -3680,7 +3680,7 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata"))
-            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data_item"))
             x = computation.create_variable("x")  # value is intentionally None
             computed_data_item = DataItem.DataItem(data.copy())
             document_model.append_data_item(computed_data_item)
@@ -3701,7 +3701,7 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + x + y"))
-            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data_item"))
             computation.create_variable("x", value_type="integral", value=3)
             computation.create_variable("y", value_type="integral", value=4)
             computed_data_item = DataItem.DataItem(data.copy())
@@ -3739,7 +3739,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(dst_data_item)
             computation = document_model.create_computation()
             computation.processing_id = "computation1"
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
             computation.create_result("dst", document_model.get_object_specifier(dst_data_item, "data_item"))
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -3765,7 +3765,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(dst_data_item)
             computation = document_model.create_computation()
             computation.processing_id = "computation1"
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
             computation.create_result("dst", document_model.get_object_specifier(dst_data_item, "data_item"))
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -3777,7 +3777,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.get_dependent_data_items(data_item)[0], dst_data_item)
             new_data_item = DataItem.DataItem(numpy.ones((2, 2)))
             document_model.append_data_item(new_data_item)
-            document_model.computations[0].variables[0].specifier = document_model.get_object_specifier(new_data_item)
+            document_model.computations[0].variables[0].specifier = document_model.get_object_specifier(new_data_item, "data_item")
             self.assertEqual(document_model.get_dependent_data_items(new_data_item)[0], dst_data_item)
 
     def test_library_computation_does_not_evaluate_with_missing_inputs(self):
@@ -3792,7 +3792,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(dst_data_item)
             computation = document_model.create_computation()
             computation.processing_id = "computation1"
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
             computation.create_result("dst", document_model.get_object_specifier(dst_data_item, "data_item"))
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -3830,10 +3830,12 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
             document_model.append_data_item(data_item2)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
             computation = document_model.create_computation()
-            items = [document_model.get_object_specifier(data_item1, "display_xdata"), document_model.get_object_specifier(data_item2, "display_xdata")]
+            items = [document_model.get_object_specifier(display_item1.display_data_channel, "display_xdata"), document_model.get_object_specifier(display_item2.display_data_channel, "display_xdata")]
             computation.create_objects("src_list", items)
             computation.processing_id = "add_n"
             document_model.append_computation(computation)

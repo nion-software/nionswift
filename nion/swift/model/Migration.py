@@ -33,9 +33,7 @@ def migrate_to_latest(reader_info_list, library_updates, migration_log: Migratio
     migrate_to_v12(reader_info_list, library_updates, migration_log)
     migrate_to_v13(reader_info_list, library_updates, migration_log)
 
-    # TODO: library item should have a 'type' so that the correct class can be reconstructed
     # TODO: file format. rename specifier types (data_item -> data_source, region -> graphic)
-    # TODO: file format. switch from 'displays' to a single 'display' in data item
     # TODO: file format. Rename workspaces to workspace_layouts.
     # TODO: store session metadata as regular metadata
     # TODO: consolidate specifier fields in computation variable into a single dict (specifier, secondary_specifier, property_name)

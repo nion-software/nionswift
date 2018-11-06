@@ -227,7 +227,7 @@ class TestDisplayClass(unittest.TestCase):
             d = numpy.random.randn(4, 4, 12)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            map = {"a": document_model.get_object_specifier(data_item)}
+            map = {"a": document_model.get_object_specifier(data_item, "data_item")}
             data_item2 = document_controller.processing_computation("target.xdata = a.xdata[:,:,0:8]", map)
             document_model.recompute_all()
             assert numpy.array_equal(data_item2.data, d[:, :, 0:8])
