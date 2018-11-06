@@ -642,7 +642,8 @@ class ImageDataInspectorSection(InspectorSection):
 
         def handle_next_calculated_display_values():
             calculated_display_values = display_data_channel.get_calculated_display_values(True)
-            self.__data_range_model.value = calculated_display_values.data_range
+            if calculated_display_values:
+                self.__data_range_model.value = calculated_display_values.data_range
 
         self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(handle_next_calculated_display_values)
 
@@ -708,16 +709,18 @@ class SessionInspectorSection(InspectorSection):
         def fields_changed(key):
             if key == 'session_metadata':
                 widget.add_task("update_fields", functools.partial(update_fields, data_item.session_metadata))
-        self.__property_changed_listener = data_item.property_changed_event.listen(fields_changed)
+        self.__property_changed_listener = data_item.property_changed_event.listen(fields_changed) if data_item else None
 
-        update_fields(data_item.session_metadata)
+        if data_item:
+            update_fields(data_item.session_metadata)
 
         self.add_widget_to_content(widget)
         self.finish_widget_content()
 
     def close(self):
-        self.__property_changed_listener.close()
-        self.__property_changed_listener = None
+        if self.__property_changed_listener:
+            self.__property_changed_listener.close()
+            self.__property_changed_listener = None
         super().close()
 
 
@@ -943,7 +946,7 @@ class CalibrationsInspectorSection(InspectorSection):
         data_item = self.__display_data_channel.data_item
 
         # create the intensity row
-        intensity_calibration = data_item.intensity_calibration or Calibration.Calibration()
+        intensity_calibration = (data_item.intensity_calibration if data_item else None) or Calibration.Calibration()
 
         def change_intensity_calibration(intensity_calibration):
             command = ChangeIntensityCalibrationCommand(document_controller.document_model, data_item, intensity_calibration)
@@ -960,7 +963,7 @@ class CalibrationsInspectorSection(InspectorSection):
             else:
                 self.__build_calibration_list()
 
-        self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(handle_data_item_changed)
+        self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(handle_data_item_changed) if data_item else None
         self.__build_calibration_list()
 
         self.add_widget_to_content(intensity_row)
@@ -973,8 +976,9 @@ class CalibrationsInspectorSection(InspectorSection):
         self.finish_widget_content()
 
     def close(self):
-        self.__data_item_changed_event_listener.close()
-        self.__data_item_changed_event_listener = None
+        if self.__data_item_changed_event_listener:
+            self.__data_item_changed_event_listener.close()
+            self.__data_item_changed_event_listener = None
         # close the bound calibrations
         self.__intensity_calibration_observable.close()
         self.__intensity_calibration_observable = None
@@ -986,7 +990,7 @@ class CalibrationsInspectorSection(InspectorSection):
     # not thread safe
     def __build_calibration_list(self):
         data_item = self.__display_data_channel.data_item
-        dimensional_calibrations = data_item.dimensional_calibrations or list()
+        dimensional_calibrations = (data_item.dimensional_calibrations if data_item else None) or list()
         while len(dimensional_calibrations) < self.__list_widget.list_item_count:
             self.__list_widget.remove_item(len(self.__calibration_observables) - 1)
             self.__calibration_observables[-1].close()
@@ -1014,7 +1018,7 @@ class CalibrationsInspectorSection(InspectorSection):
             else:
                 row_label_text = str(index)
             self.__list_widget.list_items[index].find_widget_by_id("label").text = row_label_text
-        self.__intensity_calibration_observable.copy_from(data_item.intensity_calibration or Calibration.Calibration())
+        self.__intensity_calibration_observable.copy_from((data_item.intensity_calibration if data_item else None) or Calibration.Calibration())
 
     # not thread safe
     def __create_header_widget(self):
@@ -2416,9 +2420,9 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
                 inspector_sections.append(DataInfoInspectorSection(document_controller, display_data_channel))
                 inspector_sections.append(CalibrationsInspectorSection(document_controller, display_data_channel, display_item))
                 inspector_sections.append(SessionInspectorSection(document_controller, data_item))
-                if data_item.is_sequence:
+                if data_item and data_item.is_sequence:
                     inspector_sections.append(SequenceInspectorSection(document_controller, display_data_channel))
-                if data_item.is_collection:
+                if data_item and data_item.is_collection:
                     if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
                         inspector_sections.append(SliceInspectorSection(document_controller, display_data_channel))
                     else:  # default, pick
@@ -2438,9 +2442,9 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
                 inspector_sections.append(ImageDataInspectorSection(document_controller, display_data_channel, display_item))
                 inspector_sections.append(CalibrationsInspectorSection(document_controller, display_data_channel, display_item))
                 inspector_sections.append(SessionInspectorSection(document_controller, data_item))
-                if data_item.is_sequence:
+                if data_item and data_item.is_sequence:
                     inspector_sections.append(SequenceInspectorSection(document_controller, display_data_channel))
-                if data_item.is_collection:
+                if data_item and data_item.is_collection:
                     if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
                         inspector_sections.append(SliceInspectorSection(document_controller, display_data_channel))
                     else:  # default, pick

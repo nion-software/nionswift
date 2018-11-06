@@ -2,6 +2,7 @@
 import contextlib
 import logging
 import unittest
+import uuid
 import weakref
 
 # third party libraries
@@ -20,6 +21,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import MemoryStorageSystem
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import TestUI
@@ -1907,6 +1909,64 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.get_display_item_copy_new(document_model.get_display_item_for_data_item(data_item2))
             self.assertIsNotNone(Facade.DataItem(data_item1).data_item_to_svg())
             self.assertIsNotNone(Facade.DataItem(data_item2).data_item_to_svg())
+
+    def test_line_plot_display_item_with_missing_data_item_fails_gracefully(self):
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.ones((2,)))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.ones((2,)))
+            document_model.append_data_item(data_item2)
+            display_item = DisplayItem.DisplayItem()
+            document_model.append_display_item(display_item)
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item1))
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(200, 200))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
+        library_storage_properties = memory_persistent_storage_system.library_storage_properties
+        library_storage_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
+        memory_persistent_storage_system._set_properties(library_storage_properties)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            display_panel.root_container.layout_immediate(Geometry.IntSize(200, 200))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
+
+    def test_image_display_item_with_missing_data_item_fails_gracefully(self):
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.ones((2, 2)))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.ones((2, 2)))
+            document_model.append_data_item(data_item2)
+            display_item = DisplayItem.DisplayItem()
+            document_model.append_display_item(display_item)
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item1))
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(200, 200))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
+        library_storage_properties = memory_persistent_storage_system.library_storage_properties
+        library_storage_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
+        memory_persistent_storage_system._set_properties(library_storage_properties)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            display_panel.root_container.layout_immediate(Geometry.IntSize(200, 200))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
 
 
 if __name__ == '__main__':

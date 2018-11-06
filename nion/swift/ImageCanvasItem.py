@@ -521,7 +521,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                         self.__image_canvas_mode = display_properties.image_canvas_mode
 
                 # if the data changes, update the display.
-                if (display_properties != self.__last_display_properties) or (self.__display_values_dirty):
+                if data_shape and ((display_properties != self.__last_display_properties) or (self.__display_values_dirty)):
                     self.__display_values_dirty = False
                     self.__last_display_properties = copy.deepcopy(display_properties)
                     self.__data_shape = data_shape

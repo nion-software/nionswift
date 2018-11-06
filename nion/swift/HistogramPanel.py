@@ -855,7 +855,7 @@ class DisplayDataChannelTransientsStream(Stream.AbstractStream):
     def __display_data_channel_changed(self, display_data_channel):
         def display_values_changed():
             display_values = display_data_channel.get_calculated_display_values(True)
-            new_value = getattr(display_values, self.__property_name)
+            new_value = getattr(display_values, self.__property_name) if display_values else None
             if not self.__cmp(new_value, self.__value):
                 self.__value = new_value
                 self.value_stream.fire(self.__value)

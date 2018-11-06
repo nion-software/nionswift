@@ -467,11 +467,11 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def created_local_as_string(self) -> str:
-        return self.__data_item.created_local_as_string
+        return self.__data_item.created_local_as_string if self.__data_item else None
 
     @property
     def size_and_data_format_as_string(self) -> str:
-        return self.__data_item.size_and_data_format_as_string
+        return self.__data_item.size_and_data_format_as_string if self.__data_item else None
 
     @property
     def display_data_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
@@ -646,7 +646,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         avoids calculation except in cases where the display values haven't already been calculated.
         """
         if not immediate or not self.__is_master or not self.__last_display_values:
-            if not self.__current_display_values:
+            if not self.__current_display_values and self.__data_item:
                 self.__current_display_values = DisplayValues(self.__data_item.xdata, self.sequence_index, self.collection_index, self.slice_center, self.slice_width, self.display_limits, self.complex_display_type, self.__color_map_data)
 
                 def finalize(display_values):

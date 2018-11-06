@@ -952,7 +952,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     self.__build_cascade(graphic, items, dependencies)
                 # delete data items whose only display item is being deleted
                 for data_item in item.data_items:
-                    if len(self.get_display_items_for_data_item(data_item)) == 1:
+                    if data_item and len(self.get_display_items_for_data_item(data_item)) == 1:
                         self.__build_cascade(data_item, items, dependencies)
             # outputs of a computation are deleted.
             elif isinstance(item, Symbolic.Computation):

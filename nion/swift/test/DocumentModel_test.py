@@ -15,6 +15,7 @@ from nion.swift import Facade
 from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
+from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import MemoryStorageSystem
@@ -2160,6 +2161,25 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.get_invert_new(data_item)
             self.assertEqual(2, len(document_model.data_items))
             self.assertEqual(3, len(document_model.display_items))
+
+    def test_delete_display_item_with_missing_data_item_reference(self):
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.ones((2, 2)))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.ones((2, 2)))
+            document_model.append_data_item(data_item2)
+            display_item = DisplayItem.DisplayItem()
+            document_model.append_display_item(display_item)
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item1))
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
+        library_storage_properties = memory_persistent_storage_system.library_storage_properties
+        library_storage_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
+        memory_persistent_storage_system._set_properties(library_storage_properties)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            document_model.remove_display_item(document_model.display_items[-1])
 
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
