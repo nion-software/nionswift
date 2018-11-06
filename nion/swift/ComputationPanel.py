@@ -497,7 +497,7 @@ class ComputationPanelSection:
             name_text_edit = ui.create_line_edit_widget()
             name_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "name"))
 
-            type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("data_item", _("Data Item")), ("region", _("Region"))]
+            type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("data_source", _("Data Source")), ("graphic", _("Graphic"))]
             type_combo_box = ui.create_combo_box_widget(items=type_items, item_getter=operator.itemgetter(1))
 
             remove_button = ui.create_push_button_widget(_("X"))
@@ -668,9 +668,9 @@ class ComputationPanelSection:
                 stack.add(make_number_row(ui, variable, Converter.IntegerToStringConverter(), change_type, on_remove))
             elif variable_type == "real":
                 stack.add(make_number_row(ui, variable, Converter.FloatToStringConverter(), change_type, on_remove))
-            elif variable_type == "data_item":
+            elif variable_type == "data_source":
                 stack.add(make_specifier_row(ui, variable, change_type, on_remove, include_secondary=True))
-            elif variable_type == "region":
+            elif variable_type == "graphic":
                 stack.add(make_specifier_row(ui, variable, change_type, on_remove))
             else:
                 stack.add(make_empty_row(ui, variable, change_type, on_remove))
@@ -723,7 +723,7 @@ def make_image_chooser(document_controller, computation, variable, drag_fn):
                     graphic = document_model.get_graphic_by_uuid(graphic_uuid)
                     if graphic:
                         secondary_specifier = document_model.get_object_specifier(graphic)
-                properties = {"variable_type": "data_item", "secondary_specifier": secondary_specifier, "specifier": variable_specifier}
+                properties = {"variable_type": "data_source", "secondary_specifier": secondary_specifier, "specifier": variable_specifier}
                 command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
                 command.perform()
                 document_controller.push_undo_command(command)
@@ -734,7 +734,7 @@ def make_image_chooser(document_controller, computation, variable, drag_fn):
             data_item = display_item.data_item if display_item else None
             if data_item:
                 variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
-                properties = {"variable_type": "data_item", "secondary_specifier": dict(), "specifier": variable_specifier}
+                properties = {"variable_type": "data_source", "secondary_specifier": dict(), "specifier": variable_specifier}
                 command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
                 command.perform()
                 document_controller.push_undo_command(command)
@@ -895,7 +895,7 @@ class EditComputationDialog(Dialog.ActionDialog):
             self.__data_item_row.add_spacing(8)
             for section in self.__sections:
                 variable = section.variable
-                if variable.variable_type in ("data_item", ):
+                if variable.variable_type in ("data_source", ):
                     widget, listeners = make_image_chooser(document_controller, self.__computation_model.computation, variable, self.content.drag)
                     self.__listeners.extend(listeners)
                     self.__data_item_row.add(widget)

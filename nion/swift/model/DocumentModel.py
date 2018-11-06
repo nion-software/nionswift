@@ -221,13 +221,13 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
             self.persistent_object_context.subscribe(self.source_uuid, source_registered, source_unregistered)
 
             for property_name, value in self.__properties.items():
-                if isinstance(value, dict) and value.get("type") in {"data_item_object", "data_item", "region", "structure"} and "uuid" in value:
+                if isinstance(value, dict) and value.get("type") in {"data_item", "data_source", "graphic", "structure"} and "uuid" in value:
                     self.persistent_object_context.subscribe(uuid.UUID(value["uuid"]), functools.partial(reference_registered, property_name), functools.partial(reference_unregistered, property_name))
         else:
             source_unregistered()
 
             for property_name, value in self.__properties.items():
-                if isinstance(value, dict) and value.get("type") in {"data_item", "region", "structure"} and "uuid" in value:
+                if isinstance(value, dict) and value.get("type") in {"data_source", "graphic", "structure"} and "uuid" in value:
                     reference_unregistered(property_name)
 
     def set_property_value(self, property: str, value) -> None:
@@ -292,7 +292,7 @@ def data_structure_factory(lookup_id):
 def get_object_specifier(object, object_type: str=None) -> typing.Optional[typing.Mapping]:
     if object_type == "data_item":
         assert isinstance(object, DataItem.DataItem)
-        return {"version": 1, "type": "data_item_object", "uuid": str(object.uuid)}
+        return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
     if object_type == "xdata":
         assert isinstance(object, (DisplayItem.DisplayDataChannel, DataItem.DataItem))
         return {"version": 1, "type": object_type, "uuid": str(object.uuid)}
@@ -304,9 +304,9 @@ def get_object_specifier(object, object_type: str=None) -> typing.Optional[typin
     assert not isinstance(object, Display.Display)
     if isinstance(object, DisplayItem.DisplayDataChannel):
         # should be "data_source" but requires file format change
-        return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
+        return {"version": 1, "type": "data_source", "uuid": str(object.uuid)}
     elif isinstance(object, Graphics.Graphic):
-        return {"version": 1, "type": "region", "uuid": str(object.uuid)}
+        return {"version": 1, "type": "graphic", "uuid": str(object.uuid)}
     elif isinstance(object, DataStructure):
         return {"version": 1, "type": "structure", "uuid": str(object.uuid)}
     return None
@@ -1721,7 +1721,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         document_model = self
         if specifier and specifier.get("version") == 1:
             specifier_type = specifier["type"]
-            if specifier_type == "data_item":  # should be "data_source" but requires file format change
+            if specifier_type == "data_source":
                 specifier_uuid_str = specifier.get("uuid")
                 secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
@@ -1755,7 +1755,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         self.__data_item_removed_event_listener = None
                 if display_data_channel and display_data_channel.data_item:
                     return BoundDataSource(self, display_data_channel, graphic)
-            elif specifier_type == "data_item_object":
+            elif specifier_type == "data_item":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
@@ -1942,7 +1942,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         def base_objects(self):
                             return {self.__object}
                     return BoundDataStructure(self, data_structure)
-            elif specifier_type == "region":
+            elif specifier_type == "graphic":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 graphic = self.get_graphic_by_uuid(object_uuid)

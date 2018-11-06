@@ -178,7 +178,7 @@ class TestComputationPanelClass(unittest.TestCase):
             document_controller.periodic()
             # change variable
             variable_specifier = document_model.get_object_specifier(data_item3, "data_item")
-            properties = {"variable_type": "data_item_object", "specifier": variable_specifier}
+            properties = {"variable_type": "data_item", "specifier": variable_specifier}
             command = ComputationPanel.ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, **properties)
             command.perform()
             document_controller.push_undo_command(command)
@@ -222,7 +222,7 @@ class TestComputationPanelClass(unittest.TestCase):
             self.assertIsNotNone(computation.error_text)
             # change variable
             variable_specifier = document_model.get_object_specifier(data_item2, "data_item")
-            properties = {"variable_type": "data_item_object", "specifier": variable_specifier}
+            properties = {"variable_type": "data_item", "specifier": variable_specifier}
             command = ComputationPanel.ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, **properties)
             command.perform()
             document_controller.push_undo_command(command)

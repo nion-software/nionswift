@@ -947,7 +947,7 @@ class TestSymbolicClass(unittest.TestCase):
         variable = Symbolic.ComputationVariable("x", value_type="integral", value=5)
         variable.variable_type = "data_item"
         variable = Symbolic.ComputationVariable("x", value_type="integral", value=5)
-        variable.variable_type = "region"
+        variable.variable_type = "graphic"
 
     def test_computation_reparsing_keeps_variables(self):
         document_model = DocumentModel.DocumentModel()

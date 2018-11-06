@@ -353,14 +353,14 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                 specifier = self.specifier or {"version": 1}
                 if not specifier.get("type") in ComputationVariable.data_item_types:
                     specifier.pop("uuid", None)
-                specifier["type"] = "data_item"
+                specifier["type"] = "data_source"
                 if value_type in ("data", "display_data"):
                     specifier["property"] = value_type
                 else:
                     specifier.pop("property", None)
                 self.specifier = specifier
                 self.secondary_specifier = self.secondary_specifier or {"version": 1}
-            elif value_type in ("region"):
+            elif value_type in ("graphic"):
                 self.value_type = None
                 self.control_type = None
                 self.value_default = None

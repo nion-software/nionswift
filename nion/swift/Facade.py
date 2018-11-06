@@ -167,7 +167,7 @@ class ObjectSpecifier:
                 if display_panel:
                     return DisplayPanel(display_panel)
             return None
-        elif object_type == "data_item_object":
+        elif object_type == "data_item":
             return DataItem(document_model.get_data_item_by_uuid(uuid_module.UUID(object_uuid_str)))
         elif object_type == "data_group":
             return DataGroup(document_model.get_data_group_by_uuid(uuid_module.UUID(object_uuid_str)))
@@ -633,7 +633,7 @@ class Graphic(metaclass=SharedInstance):
 
     @property
     def specifier(self):
-        return ObjectSpecifier("region", self.__graphic.uuid)
+        return ObjectSpecifier("graphic", self.__graphic.uuid)
 
     @property
     def uuid(self) -> uuid_module.UUID:
@@ -883,7 +883,7 @@ class DataItem(metaclass=SharedInstance):
 
     @property
     def specifier(self):
-        return ObjectSpecifier("data_item_object", self.__data_item.uuid)
+        return ObjectSpecifier("data_item", self.__data_item.uuid)
 
     @property
     def __display_item(self) -> DisplayItemModule.DisplayItem:
@@ -2090,7 +2090,7 @@ class Computation(metaclass=SharedInstance):
                         document_model = self.__computation.container
                         display_item = document_model.get_display_item_for_data_item(object._data_item)
                         display_data_channel = display_item.display_data_channel
-                        specifier_dict = {"version": 1, "type": "data_item", "uuid": str(display_data_channel.uuid)}
+                        specifier_dict = {"version": 1, "type": "data_source", "uuid": str(display_data_channel.uuid)}
                     else:
                         specifier_dict = object.specifier.rpc_dict
                     variable.specifier = specifier_dict
@@ -2506,7 +2506,7 @@ class Library(metaclass=SharedInstance):
                 if object_type == "data_source":
                     display_item = self.__document_model.get_display_item_for_data_item(object._data_item)
                     display_data_channel = display_item.display_data_channel
-                    specifier_dict = {"version": 1, "type": "data_item", "uuid": str(display_data_channel.uuid)}
+                    specifier_dict = {"version": 1, "type": "data_source", "uuid": str(display_data_channel.uuid)}
                 else:
                     specifier_dict = object.specifier.rpc_dict
                 computation.create_object(name, specifier_dict)

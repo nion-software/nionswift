@@ -2207,7 +2207,7 @@ def make_image_chooser(document_controller, computation, variable):
         return None
 
     def data_item_delete():
-        variable_specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
+        variable_specifier = {"type": "data_source", "version": 1, "uuid": str(uuid.uuid4())}
         command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
         command.perform()
         document_controller.push_undo_command(command)
@@ -2290,7 +2290,7 @@ class VariableWidget(Widgets.CompositeWidgetBase):
             widget, closeables = make_field(document_controller, computation, variable, Converter.FloatToStringConverter())
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
-        elif variable.variable_type == "data_item":
+        elif variable.variable_type == "data_source":
             widget, closeables = make_image_chooser(document_controller, computation, variable)
             self.content_widget.add(widget)
             self.closeables.extend(closeables)

@@ -524,17 +524,28 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
                 connection_dict["source_uuid"] = display_to_display_data_channel_map.get(source_uuid_str, None)
 
         def fix_specifier(specifier_dict):
-            if specifier_dict["type"] in ("data_item", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
-                if specifier_dict["uuid"] in data_item_uuid_to_display_item_dict_map:
+            if specifier_dict.get("type") in ("data_item", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
+                if specifier_dict.get("uuid") in data_item_uuid_to_display_item_dict_map:
                     specifier_dict["uuid"] = data_item_uuid_to_display_item_dict_map[specifier_dict["uuid"]]["display_data_channels"][0]["uuid"]
                 else:
-                    del specifier_dict["uuid"]
+                    specifier_dict.pop("uuid", None)
+            if specifier_dict.get("type") == "data_item":
+                specifier_dict["type"] = "data_source"
+            if specifier_dict.get("type") == "data_item_object":
+                specifier_dict["type"] = "data_item"
+            if specifier_dict.get("type") == "region":
+                specifier_dict["type"] = "graphic"
 
         for computation_dict in library_storage_properties.get("computations", list()):
             for variable_dict in computation_dict.get("variables", list()):
                 if "specifier" in variable_dict:
                     specifier_dict = variable_dict["specifier"]
-                    fix_specifier(specifier_dict)
+                    if specifier_dict is not None:
+                        fix_specifier(specifier_dict)
+                if "secondary_specifier" in variable_dict:
+                    specifier_dict = variable_dict["secondary_specifier"]
+                    if specifier_dict is not None:
+                        fix_specifier(specifier_dict)
             for result_dict in computation_dict.get("results", list()):
                 fix_specifier(result_dict["specifier"])
 
