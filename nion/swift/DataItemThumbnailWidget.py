@@ -6,6 +6,7 @@
 
 # local libraries
 from nion.data import Image
+from nion.swift import MimeTypes
 from nion.swift import Thumbnails
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
@@ -293,7 +294,7 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
 
     def populate_mime_data_for_drag(self, mime_data, size: Geometry.IntSize):
         if self.__display_item:
-            mime_data.set_data_as_string("text/display_item_uuid", str(self.__display_item.uuid))
+            mime_data.set_data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE, str(self.__display_item.uuid))
             rgba_image_data = self.__thumbnail_source.thumbnail_data
             thumbnail = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(rgba_image_data), (size.width, size.height))) if rgba_image_data is not None else None
             return True, thumbnail

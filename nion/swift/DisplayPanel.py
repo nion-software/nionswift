@@ -16,6 +16,7 @@ from nion.swift import DataPanel
 from nion.swift import DisplayScriptCanvasItem
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
+from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Thumbnails
 from nion.swift import Undo
@@ -34,8 +35,6 @@ from nion.utils import ListModel
 
 _ = gettext.gettext
 
-
-DISPLAY_PANEL_MIME_TYPE = "text/vnd.nion.display_panel_type"
 
 _test_log_exceptions = True
 
@@ -1327,8 +1326,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def __handle_begin_drag(self):
         mime_data = self.ui.create_mime_data()
         if self.__display_item:
-            mime_data.set_data_as_string("text/display_item_uuid", str(self.__display_item.uuid))
-        mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
+            mime_data.set_data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE, str(self.__display_item.uuid))
+        mime_data.set_data_as_string(MimeTypes.DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
         thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(self.__display_item)
         self.__begin_drag(mime_data, thumbnail_data)
 
@@ -1565,7 +1564,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             mime_data_content["display_item_uuid"] = str(display_item.uuid)
             if graphics and len(graphics) == 1:
                 mime_data_content["graphic_uuid"] = str(graphics[0].uuid)
-            mime_data.set_data_as_string(DataItem.DataSource.DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
+            mime_data.set_data_as_string(MimeTypes.DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
             thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(display_item)
             self.__begin_drag(mime_data, thumbnail_data)
 

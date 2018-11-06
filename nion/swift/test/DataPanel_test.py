@@ -11,6 +11,7 @@ from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
 from nion.swift import Facade
+from nion.swift import MimeTypes
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
@@ -856,7 +857,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.selected_display_panel.set_display_panel_display_item(display_item)
             display_item = data_panel.data_list_controller._test_get_display_item_adapter(0)
             mime_data, thumbnail = display_item.drag_started(self.app.ui, 0, 0, 0)
-            self.assertTrue(mime_data.has_format("text/display_item_uuid"))
+            self.assertTrue(mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
 
 
 if __name__ == '__main__':

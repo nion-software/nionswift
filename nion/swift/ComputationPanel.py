@@ -14,6 +14,7 @@ import weakref
 
 # local libraries
 from nion.swift import DataItemThumbnailWidget
+from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import DataItem
 from nion.swift.model import Symbolic
@@ -709,7 +710,7 @@ def make_image_chooser(document_controller, computation, variable, drag_fn):
     data_item = bound_data_source.value.data_item if bound_data_source else None
 
     def drop_mime_data(mime_data, x, y):
-        data_source_mime_str = mime_data.data_as_string(DataItem.DataSource.DATA_SOURCE_MIME_TYPE)
+        data_source_mime_str = mime_data.data_as_string(MimeTypes.DATA_SOURCE_MIME_TYPE)
         if data_source_mime_str:
             data_source_mime_data = json.loads(data_source_mime_str)
             display_item_uuid = uuid.UUID(data_source_mime_data["display_item_uuid"])
@@ -728,8 +729,8 @@ def make_image_chooser(document_controller, computation, variable, drag_fn):
                 command.perform()
                 document_controller.push_undo_command(command)
                 return "copy"
-        if mime_data.has_format("text/display_item_uuid"):
-            display_item_uuid = uuid.UUID(mime_data.data_as_string("text/display_item_uuid"))
+        if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
+            display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
             display_item = document_model.get_data_item_by_key(display_item_uuid)
             data_item = display_item.data_item if display_item else None
             if data_item:

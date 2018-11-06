@@ -15,6 +15,7 @@ import uuid
 from nion.data import Calibration
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import DisplayPanel
+from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Undo
 from nion.swift.model import ColorMaps
@@ -2194,8 +2195,8 @@ def make_image_chooser(document_controller, computation, variable):
     data_item = bound_data_source.value.data_item if bound_data_source else None
 
     def drop_mime_data(mime_data, x, y):
-        if mime_data.has_format("text/display_item_uuid"):
-            display_item_uuid = uuid.UUID(mime_data.data_as_string("text/display_item_uuid"))
+        if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
+            display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
             display_item = document_model.get_display_item_by_uuid(display_item_uuid)
             data_item = display_item.data_item if display_item else None
             if data_item:

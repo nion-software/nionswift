@@ -1568,8 +1568,6 @@ def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> Da
 
 
 class DataSource:
-    DATA_SOURCE_MIME_TYPE = "text/vnd.nion.display_source_type"
-
     def __init__(self, display_data_channel, graphic, changed_event):
         self.__display_item = display_data_channel.container
         self.__graphic = graphic

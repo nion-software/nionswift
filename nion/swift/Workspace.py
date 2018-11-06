@@ -14,6 +14,7 @@ import weakref
 
 # local libraries
 from nion.swift import DisplayPanel
+from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
@@ -691,11 +692,11 @@ class Workspace:
         return message_box_widget
 
     def handle_drag_enter(self, display_panel, mime_data):
-        if mime_data.has_format("text/display_item_uuid"):
+        if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
             return "copy"
         if mime_data.has_format("text/uri-list"):
             return "copy"
-        if mime_data.has_format(DisplayPanel.DISPLAY_PANEL_MIME_TYPE):
+        if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
             return "copy"
         return "ignore"
 
@@ -703,18 +704,18 @@ class Workspace:
         return False
 
     def handle_drag_move(self, display_panel, mime_data, x, y):
-        if mime_data.has_format("text/display_item_uuid"):
+        if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
             return "copy"
         if mime_data.has_format("text/uri-list"):
             return "copy"
-        if mime_data.has_format(DisplayPanel.DISPLAY_PANEL_MIME_TYPE):
+        if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
             return "copy"
         return "ignore"
 
     def handle_drop(self, display_panel, mime_data, region, x, y):
         document_model = self.document_model
-        if mime_data.has_format(DisplayPanel.DISPLAY_PANEL_MIME_TYPE):
-            d = json.loads(mime_data.data_as_string(DisplayPanel.DISPLAY_PANEL_MIME_TYPE))
+        if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
+            d = json.loads(mime_data.data_as_string(MimeTypes.DISPLAY_PANEL_MIME_TYPE))
             if region == "right" or region == "left" or region == "top" or region == "bottom":
                 command = self.insert_display_panel(display_panel, region, None, d)
                 self.document_controller.push_undo_command(command)
@@ -722,8 +723,8 @@ class Workspace:
                 command = self.__replace_displayed_display_item(display_panel, None, d)
                 self.document_controller.push_undo_command(command)
             return "move"
-        if mime_data.has_format("text/display_item_uuid"):
-            display_item_uuid = uuid.UUID(mime_data.data_as_string("text/display_item_uuid"))
+        if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
+            display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
             display_item = document_model.get_display_item_by_uuid(display_item_uuid)
             if display_item:
                 if region == "right" or region == "left" or region == "top" or region == "bottom":

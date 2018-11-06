@@ -25,6 +25,7 @@ from nion.swift import DisplayEditorPanel
 from nion.swift import DisplayPanel
 from nion.swift import ExportDialog
 from nion.swift import FilterPanel
+from nion.swift import MimeTypes
 from nion.swift import RecorderPanel
 from nion.swift import ScriptsDialog
 from nion.swift import Task
@@ -32,7 +33,6 @@ from nion.swift import Undo
 from nion.swift import Workspace
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
-from nion.swift.model import Display
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
@@ -48,8 +48,6 @@ from nion.utils import Selection
 
 _ = gettext.gettext
 
-
-GRAPHICS_MIME_TYPE = "text/vnd.nion.graphics"
 
 class DocumentController(Window.Window):
     """Manage a document window."""
@@ -1027,8 +1025,8 @@ class DocumentController(Window.Window):
         display_item = self.selected_display_item
         if display_item:
             mime_data = self.ui.clipboard_mime_data()
-            if mime_data.has_format(GRAPHICS_MIME_TYPE):
-                json_str = mime_data.data_as_string(GRAPHICS_MIME_TYPE)
+            if mime_data.has_format(MimeTypes.GRAPHICS_MIME_TYPE):
+                json_str = mime_data.data_as_string(MimeTypes.GRAPHICS_MIME_TYPE)
                 graphics_dict = json.loads(json_str)
                 is_same_source = graphics_dict.get("src_uuid") == str(display_item.data_item.uuid)
                 graphics = list()
@@ -1458,7 +1456,7 @@ class DocumentController(Window.Window):
                 graphics_dict = {"src_uuid": str(display_item.data_item.uuid), "graphics": graphic_dict_list}
                 json_str = json.dumps(graphics_dict)
                 graphic_mime_data = self.ui.create_mime_data()
-                graphic_mime_data.set_data_as_string(GRAPHICS_MIME_TYPE, json_str)
+                graphic_mime_data.set_data_as_string(MimeTypes.GRAPHICS_MIME_TYPE, json_str)
                 self.ui.clipboard_set_mime_data(graphic_mime_data)
                 return True
         return False

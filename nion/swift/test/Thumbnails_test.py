@@ -9,6 +9,7 @@ import unittest
 from nion.swift import Application
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import DocumentController
+from nion.swift import MimeTypes
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.ui import TestUI
@@ -45,7 +46,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             valid, thumbnail = thumbnail_source.populate_mime_data_for_drag(mime_data, Geometry.IntSize(64, 64))
             self.assertTrue(valid)
             self.assertIsNotNone(thumbnail)
-            self.assertTrue(mime_data.has_format("text/display_item_uuid"))
+            self.assertTrue(mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
 
 
 if __name__ == '__main__':
