@@ -887,7 +887,7 @@ class DataItem(metaclass=SharedInstance):
 
     @property
     def __display_item(self) -> DisplayItemModule.DisplayItem:
-        display_item = self.__data_item.container.get_display_item_for_data_item(self.__data_item) if self.__data_item.container else None
+        display_item = self.__data_item.container.get_any_display_item_for_data_item(self.__data_item) if self.__data_item.container else None
         return display_item
 
     @property
@@ -1282,7 +1282,7 @@ class DataItem(metaclass=SharedInstance):
         def get_font_metrics(font, text):
             return FontMetrics(width=6.5 * len(text), height=15, ascent=12, descent=3, leading=0)
 
-        display_canvas_item = DisplayPanelModule.create_display_canvas_item(display_item, None, None, None, draw_background=False)
+        display_canvas_item = DisplayPanelModule.create_display_canvas_item(display_item, get_font_metrics, None, None, draw_background=False)
         aspect_ratio = display_canvas_item.default_aspect_ratio
 
         view_box = Geometry.IntRect(Geometry.IntPoint(), Geometry.IntSize(width=320 * 1.25, height=240 * 1.25))

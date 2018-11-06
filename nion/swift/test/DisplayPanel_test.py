@@ -1891,6 +1891,23 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertIsNotNone(display_panel.display_canvas_item._display_values)
             self.assertFalse(display_panel.display_canvas_item._display_values_dirty)
 
+    def test_image_and_line_plot_produce_svg(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.ones((8, 8)))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.ones((10, )))
+            document_model.append_data_item(data_item2)
+            # check svg
+            self.assertIsNotNone(Facade.DataItem(data_item1).data_item_to_svg())
+            self.assertIsNotNone(Facade.DataItem(data_item2).data_item_to_svg())
+            # also check with more than one display
+            document_model.get_display_item_copy_new(document_model.get_display_item_for_data_item(data_item1))
+            document_model.get_display_item_copy_new(document_model.get_display_item_for_data_item(data_item2))
+            self.assertIsNotNone(Facade.DataItem(data_item1).data_item_to_svg())
+            self.assertIsNotNone(Facade.DataItem(data_item2).data_item_to_svg())
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
