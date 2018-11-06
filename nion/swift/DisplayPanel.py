@@ -509,17 +509,18 @@ class DisplayTracker:
             with self.__closing_lock:
                 display_values_list = [display_data_channel.get_calculated_display_values() for display_data_channel in display_item.display_data_channels]
                 self.__display_canvas_item.update_display_values(display_values_list)
+                display_changed()
 
         def display_changed():
             # called when anything in the data item changes, including things like graphics or the data itself.
             # this notification does not cover the rgba data, which is handled in the function below.
             # thread safe
-            self.__display_canvas_item.update_display_properties(Display.DisplayProperties(display))
+            with self.__closing_lock:
+                self.__display_canvas_item.update_display_properties(Display.DisplayProperties(display))
 
         def display_property_changed(property: str) -> None:
             if property in ("y_min", "y_max", "y_style", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode"):
-                with self.__closing_lock:
-                    self.__display_canvas_item.update_display_properties(Display.DisplayProperties(display))
+                display_changed()
 
         self.__next_calculated_display_values_listeners = list()
 

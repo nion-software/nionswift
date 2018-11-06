@@ -1873,6 +1873,25 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             document_controller.remove_selected_graphics()
 
+    def test_processing_displays_initially(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.ones((8, 8)))
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            fft_data_item = document_model.get_fft_new(data_item)
+            document_model.recompute_all()
+            display_panel.set_display_panel_display_item(document_model.get_display_item_for_data_item(fft_data_item))
+            display_panel.root_container.layout_immediate(Geometry.IntSize(200, 200))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
+            document_controller.periodic()
+            # everything should be updated; the display values should not be dirty
+            self.assertIsNotNone(display_panel.display_canvas_item._display_values)
+            self.assertFalse(display_panel.display_canvas_item._display_values_dirty)
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
