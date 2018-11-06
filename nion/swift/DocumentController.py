@@ -1927,7 +1927,7 @@ class DocumentController(Window.Window):
         if map is None:
             map = dict()
             for variable_name, data_item in self.document_model.variable_to_data_item_map().items():
-                map[variable_name] = self.document_model.get_object_specifier(data_item, "data_item")
+                map[variable_name] = self.document_model.get_object_specifier(data_item)
         data_item = DataItem.DataItem()
         data_item.ensure_data_source()
         data_item.title = _("Computation on ") + data_item.title

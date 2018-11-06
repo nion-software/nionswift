@@ -846,7 +846,7 @@ class EditComputationDialog(Dialog.ActionDialog):
 
         def add_object_pressed():
             document_model = document_controller.document_model
-            object_specifier = document_model.get_object_specifier(document_model.data_items[0], "data_item")
+            object_specifier = document_model.get_object_specifier(document_model.data_items[0])
             self.__computation_model.add_variable("".join([random.choice(string.ascii_lowercase) for _ in range(4)]), specifier=object_specifier)
 
         add_object_button.on_clicked = add_object_pressed

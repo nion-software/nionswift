@@ -35,7 +35,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
-            computation.create_object("a", document_model.get_object_specifier(data_item1, "data_item"))
+            computation.create_object("a", document_model.get_object_specifier(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
             panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # execute queue
@@ -54,7 +54,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
-            computation.create_object("a", document_model.get_object_specifier(data_item1, "data_item"))
+            computation.create_object("a", document_model.get_object_specifier(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
             panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # execute queue
@@ -74,7 +74,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
-            computation.create_object("a", document_model.get_object_specifier(data_item1, "data_item"))
+            computation.create_object("a", document_model.get_object_specifier(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
             panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # let the inspector see the computation
@@ -110,7 +110,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
-            computation.create_object("a", document_model.get_object_specifier(data_item1, "data_item"))
+            computation.create_object("a", document_model.get_object_specifier(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
             panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # let the inspector see the computation
@@ -145,7 +145,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = a.xdata + x")
-            computation.create_object("a", document_model.get_object_specifier(data_item1, "data_item"))
+            computation.create_object("a", document_model.get_object_specifier(data_item1))
             computation.create_variable("x", value_type="integral", value=5)
             document_model.set_data_item_computation(data_item2, computation)
             panel1 = ComputationPanel.EditComputationDialog(document_controller, data_item1)
@@ -169,7 +169,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item3 = DataItem.DataItem(numpy.zeros((10, )))
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation("target.xdata = a.xdata[1] + x")
-            variable = computation.create_object("a", document_model.get_object_specifier(data_item2, "data_item"))
+            variable = computation.create_object("a", document_model.get_object_specifier(data_item2))
             computation.create_variable("x", value_type="integral", value=5)
             document_model.set_data_item_computation(data_item1, computation)
             # verify setup
@@ -177,7 +177,7 @@ class TestComputationPanelClass(unittest.TestCase):
             document_model.recompute_all()
             document_controller.periodic()
             # change variable
-            variable_specifier = document_model.get_object_specifier(data_item3, "data_item")
+            variable_specifier = document_model.get_object_specifier(data_item3)
             properties = {"variable_type": "data_item", "specifier": variable_specifier}
             command = ComputationPanel.ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, **properties)
             command.perform()
@@ -212,7 +212,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item3 = DataItem.DataItem(numpy.zeros((10, )))
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation("target.xdata = a.xdata[1] + x")
-            variable = computation.create_object("a", document_model.get_object_specifier(data_item3, "data_item"))
+            variable = computation.create_object("a", document_model.get_object_specifier(data_item3))
             computation.create_variable("x", value_type="integral", value=5)
             document_model.set_data_item_computation(data_item1, computation)
             # verify setup
@@ -221,7 +221,7 @@ class TestComputationPanelClass(unittest.TestCase):
             document_controller.periodic()
             self.assertIsNotNone(computation.error_text)
             # change variable
-            variable_specifier = document_model.get_object_specifier(data_item2, "data_item")
+            variable_specifier = document_model.get_object_specifier(data_item2)
             properties = {"variable_type": "data_item", "specifier": variable_specifier}
             command = ComputationPanel.ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, **properties)
             command.perform()

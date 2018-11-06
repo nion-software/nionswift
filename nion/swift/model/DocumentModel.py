@@ -290,13 +290,9 @@ def data_structure_factory(lookup_id):
 
 
 def get_object_specifier(object, object_type: str=None) -> typing.Optional[typing.Mapping]:
-    if object_type == "data_item":
-        assert isinstance(object, DataItem.DataItem)
-        return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
-    if object_type == "xdata":
-        assert isinstance(object, (DisplayItem.DisplayDataChannel, DataItem.DataItem))
-        return {"version": 1, "type": object_type, "uuid": str(object.uuid)}
-    if object_type in ("display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
+    if isinstance(object, DataItem.DataItem):
+        return {"version": 1, "type": object_type or "data_item", "uuid": str(object.uuid)}
+    if object_type in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
         assert isinstance(object, DisplayItem.DisplayDataChannel)
         return {"version": 1, "type": object_type, "uuid": str(object.uuid)}
     assert not isinstance(object, DataItem.DataItem)
@@ -2392,7 +2388,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 pass
             elif computation:
                 computation.source = data_item
-                computation.create_result("target", self.get_object_specifier(data_item, "data_item"))
+                computation.create_result("target", self.get_object_specifier(data_item))
                 self.append_computation(computation)
             elif old_computation:
                 # remove old computation without cascade (it would delete this data item itself)
