@@ -802,15 +802,10 @@ class DocumentController(Window.Window):
         return selected_display_item.data_item if selected_display_item else None
 
     def delete_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], container=None) -> None:
-        data_items = list()
         container = container if container else self.__display_items_model.container
         if container is self.document_model:
-            for display_item in display_items:
-                data_item = display_item.data_item if display_item else None
-                if data_item and data_item in self.document_model.data_items and data_item not in data_items:
-                    data_items.append(data_item)
-            if data_items:
-                command = self.create_remove_data_items_command(data_items)
+            if display_items:
+                command = self.create_remove_display_items_command(display_items)
                 command.perform()
                 self.push_undo_command(command)
         elif isinstance(container, DataGroup.DataGroup):
@@ -1517,6 +1512,50 @@ class DocumentController(Window.Window):
 
     def create_remove_graphics_command(self, display_item, graphics):
         return DocumentController.RemoveGraphicsCommand(self, display_item, graphics)
+
+    class RemoveDisplayItemsCommand(Undo.UndoableCommand):
+
+        def __init__(self, document_controller: "DocumentController", display_items: typing.Sequence[DisplayItem.DisplayItem]):
+            super().__init__(_("Remove Display Items"))
+            self.__document_controller = document_controller
+            self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+            self.__new_workspace_layout = None
+            self.__display_item_indexes = [document_controller.document_model.display_items.index(display_item) for display_item in display_items]
+            self.initialize()
+
+        def close(self):
+            self.__document_controller = None
+            self.__old_workspace_layout = None
+            self.__new_workspace_layout = None
+            self.__display_item_indexes = None
+            super().close()
+
+        def perform(self):
+            self.__undelete_logs = list()
+            document_model = self.__document_controller.document_model
+            display_items = [document_model.display_items[index] for index in self.__display_item_indexes]
+            for display_item in display_items:
+                if display_item in document_model.display_items:
+                    self.__undelete_logs.append(document_model.remove_display_item(display_item))
+
+        def _get_modified_state(self):
+            return self.__document_controller.document_model.modified_state
+
+        def _set_modified_state(self, modified_state):
+            self.__document_controller.document_model.modified_state = modified_state
+
+        def _undo(self):
+            self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+            for undelete_log in reversed(self.__undelete_logs):
+                self.__document_controller.document_model.undelete_all(undelete_log)
+            self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+
+        def _redo(self):
+            self.perform()
+            self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+
+    def create_remove_display_items_command(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> Undo.UndoableCommand:
+        return DocumentController.RemoveDisplayItemsCommand(self, display_items)
 
     class RemoveDataItemsCommand(Undo.UndoableCommand):
 
@@ -2248,30 +2287,15 @@ class DocumentController(Window.Window):
 
         data_item = display_item.data_item if display_item else None
 
-        if data_item:
+        if display_item:
 
             def show():
-                self.select_data_item_in_data_panel(data_item)
+                self.select_display_items_in_data_panel([display_item])
 
             menu.add_menu_item(_("Reveal"), show)
 
-        if data_item:
-
-            def delete():
-                selected_display_items = self.selected_display_items
-                # if the display item is not in the selected display items,
-                # only delete that specific display item. otherwise, it is
-                # part of the group, so delete all selected display items.
-                if not display_item in selected_display_items:
-                    self.delete_display_items([display_item], container)
-                else:
-                    self.delete_display_items(selected_display_items, container)
-
-            menu.add_menu_item(_("Delete Data Item"), delete)
-
-        # when exporting, queue the task so that the pop-up is allowed to close before the dialog appears.
-        # without queueing, it originally led to a crash (tested in Qt 5.4.1 on Windows 7).
-        if display_item:
+            # when exporting, queue the task so that the pop-up is allowed to close before the dialog appears.
+            # without queueing, it originally led to a crash (tested in Qt 5.4.1 on Windows 7).
 
             def export_files():
                 selected_display_items = self.selected_display_items
@@ -2281,6 +2305,36 @@ class DocumentController(Window.Window):
                     self.export_file(display_item)
 
             menu.add_menu_item(_("Export..."), functools.partial(self.queue_task, export_files))  # queued to avoid pop-up menu issue
+
+        if data_item and len(self.document_model.get_display_items_for_data_item(data_item)) == 1:
+
+            def delete_data_item():
+                selected_display_items = self.selected_display_items
+                # if the display item is not in the selected display items,
+                # only delete that specific display item. otherwise, it is
+                # part of the group, so delete all selected display items.
+                if not display_item in selected_display_items:
+                    self.delete_display_items([display_item], container)
+                else:
+                    self.delete_display_items(selected_display_items, container)
+
+            menu.add_separator()
+            menu.add_menu_item(_("Delete Data Item"), delete_data_item)
+
+        elif display_item:
+
+            def delete_display_item():
+                selected_display_items = self.selected_display_items
+                # if the display item is not in the selected display items,
+                # only delete that specific display item. otherwise, it is
+                # part of the group, so delete all selected display items.
+                if not display_item in selected_display_items:
+                    self.delete_display_items([display_item], container)
+                else:
+                    self.delete_display_items(selected_display_items, container)
+
+            menu.add_separator()
+            menu.add_menu_item(_("Delete Display Item"), delete_display_item)
 
         if data_item:
 

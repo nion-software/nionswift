@@ -16,6 +16,7 @@ from nion.swift import DisplayPanel
 from nion.swift import Facade
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
+from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.ui import TestUI
@@ -738,7 +739,47 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(4, len(document_model.data_items))
             self.assertListEqual(data_item_uuids, [data_item.uuid for data_item in document_model.data_items])
 
-    def test_remove_display_item_undo_redo_cycle(self):
+    def test_remove_display_items_undo_redo_cycle(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item2)
+            display_item = DisplayItem.DisplayItem()
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item))
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item2))
+            document_model.append_display_item(display_item)
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(3, len(document_model.display_items))
+            self.assertEqual(1, len(document_model.display_items[0].display_data_channels))
+            self.assertEqual(1, len(document_model.display_items[1].display_data_channels))
+            self.assertEqual(2, len(document_model.display_items[-1].display_data_channels))
+            # remove display
+            command = document_controller.create_remove_display_items_command([display_item])
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(1, len(document_model.display_items[0].display_data_channels))
+            self.assertEqual(1, len(document_model.display_items[1].display_data_channels))
+            # undo and check
+            document_controller.handle_undo()
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(3, len(document_model.display_items))
+            self.assertEqual(1, len(document_model.display_items[0].display_data_channels))
+            self.assertEqual(1, len(document_model.display_items[1].display_data_channels))
+            self.assertEqual(2, len(document_model.display_items[-1].display_data_channels))
+            # redo and check
+            document_controller.handle_redo()
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(1, len(document_model.display_items[0].display_data_channels))
+            self.assertEqual(1, len(document_model.display_items[1].display_data_channels))
+
+    def test_remove_one_of_two_display_items_undo_redo_cycle(self):
         app = Application.Application(TestUI.UserInterface(), set_global=False)
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
