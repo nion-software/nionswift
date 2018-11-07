@@ -2181,6 +2181,20 @@ class TestDocumentModelClass(unittest.TestCase):
         with contextlib.closing(document_model):
             document_model.remove_display_item(document_model.display_items[-1])
 
+    def test_delete_one_data_item_from_multi_data_item_display(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.ones((2,)))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.ones((2,)))
+            document_model.append_data_item(data_item2)
+            display_item = DisplayItem.DisplayItem()
+            document_model.append_display_item(display_item)
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item1))
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
+            document_model.remove_data_item(data_item2)
+            self.assertEqual(1, len(display_item.display_data_channels))
+
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)

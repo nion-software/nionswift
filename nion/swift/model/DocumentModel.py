@@ -945,12 +945,21 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                             self.__build_cascade(source, items, dependencies)
                 # delete display items whose only data item is being deleted
                 for display_item in self.get_display_items_for_data_item(item):
-                    if display_item.data_item:
+                    display_item_alive = False
+                    for display_data_channel in display_item.display_data_channels:
+                        if display_data_channel.data_item == item:
+                            self.__build_cascade(display_data_channel, items, dependencies)
+                        elif not display_data_channel.data_item in items:
+                            display_item_alive = True
+                    if not display_item_alive:
                         self.__build_cascade(display_item, items, dependencies)
             elif isinstance(item, DisplayItem.DisplayItem):
                 # graphics on a display item are deleted.
                 for graphic in item.graphics:
                     self.__build_cascade(graphic, items, dependencies)
+                # display data channels are deleted.
+                for display_data_channel in item.display_data_channels:
+                    self.__build_cascade(display_data_channel, items, dependencies)
                 # delete data items whose only display item is being deleted
                 for data_item in item.data_items:
                     if data_item and len(self.get_display_items_for_data_item(data_item)) == 1:
@@ -1083,6 +1092,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 name = "computations"
             elif isinstance(item, Connection.Connection):
                 name = "connections"
+            elif isinstance(item, DisplayItem.DisplayDataChannel):
+                name = "display_data_channels"
             else:
                 name = None
                 assert False, "Unable to cascade delete type " + str(type(item))
@@ -1164,6 +1175,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 data_group = self.get_data_group_by_uuid(entry["data_group_uuid"])
                 display_item = self.get_display_item_by_uuid(entry["display_item_uuid"])
                 data_group.insert_display_item(index, display_item)
+            elif name == "display_data_channels":
+                item = DisplayItem.display_data_channel_factory(properties.get)
+                item.begin_reading()
+                item.read_from_dict(properties)
+                item.finish_reading()
+                display_item = self.get_display_item_by_uuid(uuid.UUID(entry["container"]))
+                display_item.undelete_display_data_channel(index, item, self.get_data_item_by_uuid)
             else:
                 assert False
 

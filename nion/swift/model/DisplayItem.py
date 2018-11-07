@@ -359,7 +359,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def container(self):
-        return self.__container_weak_ref()
+        return self.__container_weak_ref() if self.__container_weak_ref else None
 
     def about_to_be_inserted(self, container):
         assert self.__container_weak_ref is None
@@ -1152,11 +1152,18 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def append_display_data_channel(self, display_data_channel: DisplayDataChannel) -> None:
         self.insert_display_data_channel(len(self.display_data_channels), display_data_channel)
 
-    def insert_display_data_channel(self, before_index, display_data_channel: DisplayDataChannel) -> None:
+    def insert_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel) -> None:
         self.insert_model_item(self, "display_data_channels", before_index, display_data_channel)
 
     def remove_display_data_channel(self, display_data_channel: DisplayDataChannel, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         return self.remove_model_item(self, "display_data_channels", display_data_channel, safe=safe)
+
+    def undelete_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel, lookup_data_item) -> None:
+        self.insert_display_data_channel(before_index, display_data_channel)
+        data_item = lookup_data_item(uuid.UUID(display_data_channel.data_item_reference)) if display_data_channel.data_item_reference else None
+        if data_item:
+            if display_data_channel.attempt_connect_data_item(data_item):
+                self._update_displays()
 
     @property
     def data_items(self) -> typing.Sequence[DataItem.DataItem]:
