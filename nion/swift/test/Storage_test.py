@@ -4008,6 +4008,32 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             self.assertEqual("DEF", document_model.computations[0].label)
 
+    def test_undo_display_item_is_written_to_storage(self):
+        # this bug was caused because restoring data items didn't remove the data item from data item deletions.
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((2, )))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # check assumptions
+            self.assertEqual(1, len(document_model.display_items[0].data_items))
+            self.assertEqual(document_model.data_items[0], document_model.display_items[0].data_items[0])
+            # remove display
+            command = DocumentController.DocumentController.RemoveDisplayItemCommand(document_controller, display_item)
+            command.perform()
+            document_controller.push_undo_command(command)
+            document_controller.handle_undo()
+            # check assumptions
+            self.assertEqual(1, len(document_model.display_items[0].data_items))
+            self.assertEqual(document_model.data_items[0], document_model.display_items[0].data_items[0])
+        # make sure it reloads with the OLD bounds
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            self.assertEqual(1, len(document_model.display_items[0].data_items))
+            self.assertEqual(document_model.data_items[0], document_model.display_items[0].data_items[0])
+
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
         document_model = DocumentModel.DocumentModel()

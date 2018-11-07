@@ -834,6 +834,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # insert in internal list
         self.__insert_data_item(before_index, data_item, do_write=False)
         data_item.finish_reading()
+        self._set_persistent_property_value("data_item_deletions", list(set(self._get_persistent_property_value("data_item_deletions")) - {str(data_item.uuid)}))
         return data_item
 
     def deepcopy_display_item(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
