@@ -455,11 +455,13 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         data_item = lookup_data_item(uuid.UUID(self.data_item_reference))
         self.__connect_data_item(data_item)
 
-    def attempt_connect_data_item(self, data_item):
+    def attempt_connect_data_item(self, data_item: DataItem.DataItem) -> bool:
         if not self.__data_item and self.data_item_reference == str(data_item.uuid):
             self.__data_item = data_item
             self.__connect_data_item_events()
             self.__validate_slice_indexes()
+            return True
+        return False
 
     @property
     def data_item(self) -> DataItem.DataItem:
@@ -944,8 +946,11 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
         def register_object(registered_object, unregistered_object):
             if isinstance(registered_object, DataItem.DataItem):
+                connected = False
                 for display_data_channel in self.display_data_channels:
-                    display_data_channel.attempt_connect_data_item(registered_object)
+                    connected = connected or display_data_channel.attempt_connect_data_item(registered_object)
+                if connected:
+                    self._update_displays()
 
         if self.persistent_object_context:
             self.__registration_listener = self.persistent_object_context.registration_event.listen(register_object)

@@ -488,28 +488,17 @@ class DisplayTracker:
 
         self.__display_canvas_item = create_display_canvas_item(display_item, get_font_metrics, delegate, event_loop, draw_background=self.__draw_background)
 
-        def display_type_changed(display_type):
-            # called when the display type of the data item changes.
-            old_display_canvas_item = self.__display_canvas_item
-            new_display_canvas_item = create_display_canvas_item(display_item, self.__get_font_metrics, self.__delegate, self.__event_loop, draw_background=self.__draw_background)
-            if callable(self.on_replace_display_canvas_item):
-                self.on_replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item)
-            self.__display_canvas_item = new_display_canvas_item
-
-        self.__display_type_monitor = DisplayTypeMonitor(display_item)
-        self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
-
         def display_graphics_changed(graphic_selection):
             # this message comes from the display when the graphic selection changes
             self.__display_canvas_item.update_graphics(display_item.graphics, graphic_selection, Display.DisplayProperties(display))
 
-        def handle_next_calculated_display_values():
+        def display_values_changed():
             # this notification is for the rgba values only
             # thread safe
             with self.__closing_lock:
                 display_values_list = [display_data_channel.get_calculated_display_values() for display_data_channel in display_item.display_data_channels]
                 self.__display_canvas_item.update_display_values(display_values_list)
-                display_changed()
+            display_changed()
 
         def display_changed():
             # called when anything in the data item changes, including things like graphics or the data itself.
@@ -526,14 +515,14 @@ class DisplayTracker:
 
         def display_data_channel_inserted(key, value, before_index):
             if key == "display_data_channels":
-                self.__next_calculated_display_values_listeners.insert(before_index, value.add_calculated_display_values_listener(handle_next_calculated_display_values))
-                handle_next_calculated_display_values()
+                self.__next_calculated_display_values_listeners.insert(before_index, value.add_calculated_display_values_listener(display_values_changed))
+                display_values_changed()
 
         def display_data_channel_removed(key, value, index):
             if key == "display_data_channels":
                 self.__next_calculated_display_values_listeners[index].close()
                 del self.__next_calculated_display_values_listeners[index]
-                handle_next_calculated_display_values()
+                display_values_changed()
 
         self.__item_inserted_listener = display_item.item_inserted_event.listen(display_data_channel_inserted)
         self.__item_removed_listener = display_item.item_removed_event.listen(display_data_channel_removed)
@@ -541,7 +530,7 @@ class DisplayTracker:
         for index, display_data_channel in enumerate(display_item.display_data_channels):
             display_data_channel_inserted("display_data_channels", display_data_channel, index)
 
-        self.__display_values_changed_event_listener = display_item.display_values_changed_event.listen(handle_next_calculated_display_values)
+        self.__display_values_changed_event_listener = display_item.display_values_changed_event.listen(display_values_changed)
         self.__display_data_channel_property_changed_listener = display_item.property_changed_event.listen(display_property_changed)
         self.__display_graphics_changed_event_listener = display_item.graphics_changed_event.listen(display_graphics_changed)
         self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
@@ -549,8 +538,23 @@ class DisplayTracker:
 
         # this may throw exceptions (during testing). make sure to close if that happens, ensuring that the
         # layer items (image/line plot) get shut down.
+        display_values_changed()
         display_changed()
         display_graphics_changed(display_item.graphic_selection)
+
+        def display_type_changed(display_type):
+            # called when the display type of the data item changes.
+            old_display_canvas_item = self.__display_canvas_item
+            new_display_canvas_item = create_display_canvas_item(display_item, self.__get_font_metrics, self.__delegate, self.__event_loop, draw_background=self.__draw_background)
+            if callable(self.on_replace_display_canvas_item):
+                self.on_replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item)
+            self.__display_canvas_item = new_display_canvas_item
+            display_values_changed()
+            display_changed()
+            display_graphics_changed(display_item.graphic_selection)
+
+        self.__display_type_monitor = DisplayTypeMonitor(display_item)
+        self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
 
     def close(self):
         with self.__closing_lock:  # ensures that display pipeline finishes

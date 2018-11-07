@@ -227,6 +227,10 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         return self.__line_graph_stack
 
     @property
+    def default_aspect_ratio(self):
+        return (1 + 5 ** 0.5) / 2  # golden ratio
+
+    @property
     def line_graph_canvas_item(self):
         return self.__line_graph_stack.canvas_items[0] if (self.__line_graph_stack and len(self.__line_graph_xdata_list) > 0) else None
 
@@ -236,8 +240,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         return self.__axes
 
     @property
-    def default_aspect_ratio(self):
-        return (1 + 5 ** 0.5) / 2  # golden ratio
+    def _has_valid_drawn_graph_data(self):
+        return len(self.__line_graph_xdata_list) > 0
 
     def update_display_values(self, display_values_list) -> None:
         self.__display_values_list = display_values_list
