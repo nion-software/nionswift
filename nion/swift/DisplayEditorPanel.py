@@ -21,8 +21,6 @@ class DisplayEditorDialog(Dialog.ActionDialog):
         self.ui = ui
         self.document_controller = document_controller
 
-        self.__display = display_item.display
-
         self._create_menus()
 
         # sizing in widget space (Qt) is difficult to get right and there seems to be bugs.
@@ -54,7 +52,7 @@ class DisplayEditorDialog(Dialog.ActionDialog):
 
         def update_pressed():
             display_script = text_edit.text if text_edit.text else None
-            command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, self.__display, title=_("Change Display Script"), display_script=display_script)
+            command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display_item, title=_("Change Display Script"), display_script=display_script)
             command.perform()
             document_controller.push_undo_command(command)
 
@@ -72,7 +70,7 @@ class DisplayEditorDialog(Dialog.ActionDialog):
         self.__error_label = error_label
         self.__text_edit = text_edit
 
-        text_edit.text = self.__display.display_script
+        text_edit.text = display_item.get_display_property("display_script")
 
     def size_changed(self, width, height):
         self.__error_label.size = Geometry.IntSize(height=self.__error_label.size.height, width=self.__text_edit.size.width)

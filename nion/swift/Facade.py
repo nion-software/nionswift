@@ -59,7 +59,6 @@ from nion.swift import Workspace
 from nion.swift.model import ApplicationData
 from nion.swift.model import DataItem as DataItemModule
 from nion.swift.model import DisplayItem as DisplayItemModule
-from nion.swift.model import Display as DisplayModule
 from nion.swift.model import DocumentModel as DocumentModelModule
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource as HardwareSourceModule
@@ -70,7 +69,6 @@ from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.ui import CanvasItem as CanvasItemModule
 from nion.ui import Declarative
-from nion.ui import DrawingContext
 from nion.utils import Geometry
 
 __all__ = ["get_api"]
@@ -176,11 +174,10 @@ class ObjectSpecifier:
                 for graphic in display_item.graphics:
                     if graphic.uuid == object_uuid:
                         return Graphic(graphic)
-        elif object_type == "display":
+        elif object_type == "display_item":
             for display_item in document_model.display_items:
-                display = display_item.display
-                if display and display.uuid == object_uuid:
-                    return Display(display)
+                if display_item.uuid == object_uuid:
+                    return Display(display_item)
         elif object_type == "hardware_source":
             return HardwareSource(HardwareSourceModule.HardwareSourceManager().get_hardware_source_for_hardware_source_id(object_id))
         elif object_type == "instrument":
@@ -891,11 +888,6 @@ class DataItem(metaclass=SharedInstance):
         return display_item
 
     @property
-    def __display(self):
-        display_item = self.__display_item
-        return display_item.display if display_item else None
-
-    @property
     def uuid(self) -> uuid_module.UUID:
         """Return the uuid of this object.
 
@@ -1201,7 +1193,7 @@ class DataItem(metaclass=SharedInstance):
 
     @property
     def display(self) -> "Display":
-        return Display(self.__display)
+        return Display(self.__display_item)
 
     def add_point_region(self, y: float, x: float) -> Graphic:
         """Add a point graphic to the data item.
@@ -1381,24 +1373,20 @@ class Display(metaclass=SharedInstance):
 
     release = ["uuid", "display_type", "selected_graphics", "graphics", "data_item", "get_graphic_by_id"]
 
-    def __init__(self, display):
-        self.__display = display
-
-    @property
-    def __display_item(self) -> DisplayItemModule.DisplayItem:
-        return self.__display.container if self.__display else None
+    def __init__(self, display_item):
+        self.__display_item = display_item
 
     @property
     def _display_item(self) -> DisplayItemModule.DisplayItem:
         return self.__display_item
 
     @property
-    def _display(self) -> DisplayModule.Display:
-        return self.__display
+    def _display(self) -> DisplayItemModule.DisplayItem:
+        return self.__display_item
 
     @property
     def specifier(self):
-        return ObjectSpecifier("display", self.__display.uuid)
+        return ObjectSpecifier("display_item", self.__display_item.uuid)
 
     @property
     def uuid(self) -> uuid_module.UUID:
@@ -1408,7 +1396,7 @@ class Display(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return self.__display.uuid
+        return self.__display_item.uuid
 
     @property
     def display_type(self) -> str:
@@ -1440,7 +1428,7 @@ class Display(metaclass=SharedInstance):
         self.__display_item.add_graphic(graphic)
         return Graphic(graphic)
 
-    def get_graphic_by_id(self, graphic_id: str) -> Graphic:
+    def get_graphic_by_id(self, graphic_id: str) -> typing.Optional[Graphic]:
         for graphic in self.__display_item.graphics:
             if graphic.graphic_id == graphic_id:
                 return Graphic(graphic)

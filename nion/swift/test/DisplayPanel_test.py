@@ -526,8 +526,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=360, y=465), modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         offset = -1024.0 * 40.0 / plot_width
-        self.assertEqual(self.display_item.display.left_channel, int(offset))
-        self.assertEqual(self.display_item.display.right_channel, int(1024 + offset))
+        self.assertEqual(self.display_item.get_display_property("left_channel"), int(offset))
+        self.assertEqual(self.display_item.get_display_property("right_channel"), int(1024 + offset))
 
     def test_mouse_tracking_moves_vertical_scale(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -538,8 +538,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=30, y=240), modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         offset = -1.0 * 30.0 / plot_height
-        self.assertAlmostEqual(self.display_item.display.y_min, 0.0 + offset)
-        self.assertAlmostEqual(self.display_item.display.y_max, 1.0 + offset)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), 0.0 + offset)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), 1.0 + offset)
 
     def test_mouse_tracking_moves_vertical_scale_with_calibrated_data_with_offset(self):
         # notice: dragging increasing y drags down.
@@ -560,13 +560,13 @@ class TestDisplayPanelClass(unittest.TestCase):
         uncalibrated_data_max = line_plot_canvas_item.line_graph_canvas_item._axes.uncalibrated_data_max
         uncalibrated_data_range = uncalibrated_data_max - uncalibrated_data_min
         offset = -uncalibrated_data_range * 30.0 / plot_height
-        self.assertAlmostEqual(self.display_item.display.y_min, calibrated_data_min + offset - intensity_calibration.offset)
-        self.assertAlmostEqual(self.display_item.display.y_max, calibrated_data_max + offset - intensity_calibration.offset)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), calibrated_data_min + offset - intensity_calibration.offset)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), calibrated_data_max + offset - intensity_calibration.offset)
 
     def test_mouse_tracking_moves_log_vertical_scale_with_uncalibrated_data(self):
         # notice: dragging increasing y drags down.
         line_plot_canvas_item = self.setup_line_plot(data_min=0.1, data_max=980)
-        self.display_item.display.y_style = "log"
+        self.display_item.set_display_property("y_style", "log")
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         calibrated_data_min = line_plot_canvas_item.line_graph_canvas_item._axes.calibrated_data_min
         calibrated_data_max = line_plot_canvas_item.line_graph_canvas_item._axes.calibrated_data_max
@@ -578,13 +578,13 @@ class TestDisplayPanelClass(unittest.TestCase):
         axes = line_plot_canvas_item.line_graph_canvas_item._axes
         calibrated_data_range = calibrated_data_max - calibrated_data_min
         calibrated_offset = -calibrated_data_range * 30.0 / plot_height
-        self.assertAlmostEqual(self.display_item.display.y_min, axes.uncalibrate_y(calibrated_data_min + calibrated_offset))
-        self.assertAlmostEqual(self.display_item.display.y_max, axes.uncalibrate_y(calibrated_data_max + calibrated_offset))
+        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), axes.uncalibrate_y(calibrated_data_min + calibrated_offset))
+        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), axes.uncalibrate_y(calibrated_data_max + calibrated_offset))
 
     def test_mouse_tracking_moves_log_vertical_scale_with_calibrated_data_with_offset(self):
         # notice: dragging increasing y drags down.
         line_plot_canvas_item = self.setup_line_plot(data_min=0.1, data_max=980)
-        self.display_item.display.y_style = "log"
+        self.display_item.set_display_property("y_style", "log")
         data_item = self.display_item.data_item
         intensity_calibration = data_item.intensity_calibration
         intensity_calibration.offset = 0.2
@@ -600,13 +600,13 @@ class TestDisplayPanelClass(unittest.TestCase):
         axes = line_plot_canvas_item.line_graph_canvas_item._axes
         calibrated_data_range = calibrated_data_max - calibrated_data_min
         calibrated_offset = -calibrated_data_range * 30.0 / plot_height
-        self.assertAlmostEqual(self.display_item.display.y_min, axes.uncalibrate_y(calibrated_data_min + calibrated_offset))
-        self.assertAlmostEqual(self.display_item.display.y_max, axes.uncalibrate_y(calibrated_data_max + calibrated_offset))
+        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), axes.uncalibrate_y(calibrated_data_min + calibrated_offset))
+        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), axes.uncalibrate_y(calibrated_data_max + calibrated_offset))
 
     def test_mouse_tracking_moves_log_vertical_scale_with_calibrated_data_with_offset_and_scale(self):
         # notice: dragging increasing y drags down.
         line_plot_canvas_item = self.setup_line_plot(data_min=0.1, data_max=980)
-        self.display_item.display.y_style = "log"
+        self.display_item.set_display_property("y_style", "log")
         data_item = self.display_item.data_item
         intensity_calibration = data_item.intensity_calibration
         intensity_calibration.offset = 0.2
@@ -623,8 +623,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         axes = line_plot_canvas_item.line_graph_canvas_item._axes
         calibrated_data_range = calibrated_data_max - calibrated_data_min
         calibrated_offset = -calibrated_data_range * 30.0 / plot_height
-        self.assertAlmostEqual(self.display_item.display.y_min, axes.uncalibrate_y(calibrated_data_min + calibrated_offset))
-        self.assertAlmostEqual(self.display_item.display.y_max, axes.uncalibrate_y(calibrated_data_max + calibrated_offset))
+        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), axes.uncalibrate_y(calibrated_data_min + calibrated_offset))
+        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), axes.uncalibrate_y(calibrated_data_max + calibrated_offset))
 
     def test_mouse_tracking_shrink_scale_by_10_around_center(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -638,8 +638,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         channel_per_pixel = 1024.0 / plot_width
-        self.assertEqual(self.display_item.display.left_channel, int(round(512 - int(plot_width * 0.5) * 10 * channel_per_pixel)))
-        self.assertEqual(self.display_item.display.right_channel, int(round(512 + int(plot_width * 0.5) * 10 * channel_per_pixel)))
+        self.assertEqual(self.display_item.get_display_property("left_channel"), int(round(512 - int(plot_width * 0.5) * 10 * channel_per_pixel)))
+        self.assertEqual(self.display_item.get_display_property("right_channel"), int(round(512 + int(plot_width * 0.5) * 10 * channel_per_pixel)))
 
     def test_mouse_tracking_expand_scale_by_10_around_center(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -654,8 +654,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.end_tracking(modifiers)
         channel_per_pixel = 1024.0 / plot_width
         # self.__display.left_channel = int(round(self.__tracking_start_channel - new_drawn_channel_per_pixel * self.__tracking_start_origin_pixel))
-        self.assertEqual(self.display_item.display.left_channel, int(round(512 - int(plot_width * 0.5) * 0.1 * channel_per_pixel)))
-        self.assertEqual(self.display_item.display.right_channel, int(round(512 + int(plot_width * 0.5) * 0.1 * channel_per_pixel)))
+        self.assertEqual(self.display_item.get_display_property("left_channel"), int(round(512 - int(plot_width * 0.5) * 0.1 * channel_per_pixel)))
+        self.assertEqual(self.display_item.get_display_property("right_channel"), int(round(512 + int(plot_width * 0.5) * 0.1 * channel_per_pixel)))
 
     def test_mouse_tracking_expand_scale_by_high_amount(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -729,8 +729,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         channel_per_pixel = 1024.0 / plot_width
-        self.assertEqual(self.display_item.display.left_channel, int(round(200 * channel_per_pixel - 200 * 10 * channel_per_pixel)))
-        self.assertEqual(self.display_item.display.right_channel, int(round(200 * channel_per_pixel + (plot_width - 200) * 10 * channel_per_pixel)))
+        self.assertEqual(self.display_item.get_display_property("left_channel"), int(round(200 * channel_per_pixel - 200 * 10 * channel_per_pixel)))
+        self.assertEqual(self.display_item.get_display_property("right_channel"), int(round(200 * channel_per_pixel + (plot_width - 200) * 10 * channel_per_pixel)))
 
     def test_mouse_tracking_expand_scale_by_10_around_non_center(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -744,8 +744,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         channel_per_pixel = 1024.0 / plot_width
-        self.assertEqual(self.display_item.display.left_channel, int(round(400 * channel_per_pixel - 400 * 0.1 * channel_per_pixel)))
-        self.assertEqual(self.display_item.display.right_channel, int(round(400 * channel_per_pixel + (plot_width - 400) * 0.1 * channel_per_pixel)))
+        self.assertEqual(self.display_item.get_display_property("left_channel"), int(round(400 * channel_per_pixel - 400 * 0.1 * channel_per_pixel)))
+        self.assertEqual(self.display_item.get_display_property("right_channel"), int(round(400 * channel_per_pixel + (plot_width - 400) * 0.1 * channel_per_pixel)))
 
     def test_mouse_tracking_vertical_shrink_with_origin_at_bottom(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -758,8 +758,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         scaling = float(plot_bottom - pos.y) / float(plot_bottom - (pos.y + offset.height))
-        self.assertAlmostEqual(self.display_item.display.y_min, 0.0)
-        self.assertAlmostEqual(self.display_item.display.y_max, scaling)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), 0.0)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), scaling)
 
     def test_mouse_tracking_vertical_shrink_with_origin_in_middle(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -767,8 +767,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
         plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
         # adjust image panel display and trigger layout
-        self.display_item.display.y_min = -0.5
-        self.display_item.display.y_max = 0.5
+        self.display_item.set_display_property("y_min", -0.5)
+        self.display_item.set_display_property("y_max", 0.5)
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
@@ -779,8 +779,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.end_tracking(modifiers)
         relative_y = (plot_bottom - plot_height/2.0) - pos.y
         scaling = float(relative_y) / float(relative_y - offset.height)
-        self.assertAlmostEqual(self.display_item.display.y_min, -0.5 * scaling)
-        self.assertAlmostEqual(self.display_item.display.y_max, 0.5 * scaling)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), -0.5 * scaling)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), 0.5 * scaling)
 
     def test_mouse_tracking_vertical_shrink_with_origin_at_200(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -788,8 +788,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
         plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
         # adjust image panel display and trigger layout
-        self.display_item.display.y_min = -0.2
-        self.display_item.display.y_max = 0.8
+        self.display_item.set_display_property("y_min", -0.2)
+        self.display_item.set_display_property("y_max", 0.8)
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
@@ -800,8 +800,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.end_tracking(modifiers)
         relative_y = (plot_bottom - plot_height*0.2) - pos.y
         scaling = float(relative_y) / float(relative_y - offset.height)
-        self.assertAlmostEqual(self.display_item.display.y_min, -0.2 * scaling)
-        self.assertAlmostEqual(self.display_item.display.y_max, 0.8 * scaling)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), -0.2 * scaling)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), 0.8 * scaling)
 
     def test_mouse_tracking_vertical_shrink_with_calibrated_origin_at_200(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -823,8 +823,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.end_tracking(modifiers)
         relative_y = (plot_bottom - plot_height*0.2) - pos.y
         scaling = float(relative_y) / float(relative_y - offset.height)
-        self.assertAlmostEqual(self.display_item.display.y_min, -0.2 * scaling + 0.2)
-        self.assertAlmostEqual(self.display_item.display.y_max, 0.8 * scaling + 0.2)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), -0.2 * scaling + 0.2)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), 0.8 * scaling + 0.2)
 
     def test_mouse_tracking_vertical_drag_down_does_not_go_negative(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -832,8 +832,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
         plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
         # adjust image panel display and trigger layout
-        self.display_item.display.y_min = -0.5
-        self.display_item.display.y_max = 0.5
+        self.display_item.set_display_property("y_min", -0.5)
+        self.display_item.set_display_property("y_max", 0.5)
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch way past top
         pos = Geometry.IntPoint(x=30, y=20)
@@ -843,8 +843,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         new_drawn_data_per_pixel = 1.0/plot_height * (plot_bottom - plot_height*0.5 - pos.y)
-        self.assertAlmostEqual(self.display_item.display.y_min, -new_drawn_data_per_pixel * plot_height*0.5)
-        self.assertAlmostEqual(self.display_item.display.y_max, new_drawn_data_per_pixel * plot_height*0.5)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), -new_drawn_data_per_pixel * plot_height*0.5)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), new_drawn_data_per_pixel * plot_height*0.5)
 
     def test_mouse_tracking_vertical_drag_up_does_not_go_negative(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -852,8 +852,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
         plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
         # adjust image panel display and trigger layout
-        self.display_item.display.y_min = -0.5
-        self.display_item.display.y_max = 0.5
+        self.display_item.set_display_property("y_min", -0.5)
+        self.display_item.set_display_property("y_max", 0.5)
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch way past top
         pos = Geometry.IntPoint(x=30, y=plot_height-20)
@@ -863,8 +863,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         new_drawn_data_per_pixel = -1.0/plot_height * (plot_bottom - plot_height*0.5 - pos.y)
-        self.assertAlmostEqual(self.display_item.display.y_min, -new_drawn_data_per_pixel * plot_height*0.5)
-        self.assertAlmostEqual(self.display_item.display.y_max, new_drawn_data_per_pixel * plot_height*0.5)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), -new_drawn_data_per_pixel * plot_height*0.5)
+        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), new_drawn_data_per_pixel * plot_height*0.5)
 
     def test_combined_horizontal_drag_and_expand_works_nominally(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -879,8 +879,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.mouse_position_changed(plot_left+196, v, CanvasItem.KeyboardModifiers())
         line_plot_canvas_item.mouse_released(plot_left+116, 190, CanvasItem.KeyboardModifiers())
         channel_per_pixel = 1024.0/10 / plot_width
-        self.assertEqual(self.display_item.display.left_channel, int(0 - channel_per_pixel * 100))
-        self.assertEqual(self.display_item.display.right_channel, int(int(1024/10.0) - channel_per_pixel * 100))
+        self.assertEqual(self.display_item.get_display_property("left_channel"), int(0 - channel_per_pixel * 100))
+        self.assertEqual(self.display_item.get_display_property("right_channel"), int(int(1024/10.0) - channel_per_pixel * 100))
 
     def test_click_on_selection_makes_it_selected(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -1714,21 +1714,20 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display = display_item.display
-            display.y_min = 0
-            display.y_max = 5
-            y_min = display.y_min
-            y_max = display.y_max
+            display_item.set_display_property("y_min", 0.0)
+            display_item.set_display_property("y_max", 5.0)
+            y_min = display_item.get_display_property("y_min")
+            y_max = display_item.get_display_property("y_max")
             for i in range(3):
-                command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display, command_id="y", is_mergeable=True)
-                display.y_min += 1
-                display.y_max += 1
+                command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display_item, command_id="y", is_mergeable=True)
+                display_item.set_display_property("y_min", display_item.get_display_property("y_min") + 1)
+                display_item.set_display_property("y_max", display_item.get_display_property("y_max") + 1)
                 document_controller.push_undo_command(command)
                 self.assertEqual(1, document_controller._undo_stack._undo_count)
             document_controller.handle_undo()
             self.assertEqual(0, document_controller._undo_stack._undo_count)
-            self.assertEqual(y_min, display.y_min)
-            self.assertEqual(y_max, display.y_max)
+            self.assertEqual(y_min, display_item.get_display_property("y_min"))
+            self.assertEqual(y_max, display_item.get_display_property("y_max"))
 
     def test_remove_graphics_undo_redo_cycle(self):
         app = Application.Application(TestUI.UserInterface(), set_global=False)

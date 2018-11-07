@@ -532,7 +532,6 @@ class HistogramPanel(Panel.Panel):
 
         display_item_stream = TargetDisplayItemStream(document_controller)
         display_data_channel_stream = StreamPropertyStream(display_item_stream, "display_data_channel")
-        display_stream = TargetDisplayStream(document_controller)
         region_stream = TargetRegionStream(display_item_stream)
         def compare_data(a, b):
             return numpy.array_equal(a.data if a else None, b.data if b else None)
@@ -549,9 +548,9 @@ class HistogramPanel(Panel.Panel):
         def cursor_changed_fn(canvas_x: float, display_range) -> None:
             if not canvas_x:
                 document_controller.cursor_changed(None)
-            if display_stream and display_stream.value and canvas_x:
+            if display_item_stream and display_item_stream.value and canvas_x:
                 if display_range is not None:  # can be None with empty data
-                    displayed_intensity_calibration = display_stream.value.displayed_intensity_calibration
+                    displayed_intensity_calibration = display_item_stream.value.displayed_intensity_calibration
                     adjusted_x = display_range[0] + canvas_x * (display_range[1] - display_range[0])
                     adjusted_x = displayed_intensity_calibration.convert_to_calibrated_value_str(adjusted_x)
                     document_controller.cursor_changed([_('Intensity: ') + str(adjusted_x)])
@@ -590,7 +589,7 @@ class HistogramPanel(Panel.Panel):
             return functools.partial(calculate_statistics, display_data_and_metadata_model_func, display_data_range, region, displayed_intensity_calibration)
 
         display_data_range_stream = DisplayDataChannelTransientsStream(display_data_channel_stream, "data_range")
-        displayed_intensity_calibration_stream = StreamPropertyStream(display_stream, 'displayed_intensity_calibration')
+        displayed_intensity_calibration_stream = StreamPropertyStream(display_item_stream, 'displayed_intensity_calibration')
         statistics_func_stream = Stream.CombineLatestStream((region_data_and_metadata_func_stream, display_data_range_stream, region_stream, displayed_intensity_calibration_stream), calculate_statistics_func)
         if debounce:
             statistics_func_stream = Stream.DebounceStream(statistics_func_stream, 0.05, document_controller.event_loop)
@@ -683,37 +682,6 @@ class TargetDisplayItemStream(Stream.AbstractStream):
             self.__value = display_item
 
 
-class TargetDisplayStream(Stream.AbstractStream):
-
-    def __init__(self, document_controller):
-        super().__init__()
-        # outgoing messages
-        self.value_stream = Event.Event()
-        # cached values
-        self.__value = None
-        # listen for selected data item changes
-        self.__focused_display_item_changed_event_listener = document_controller.focused_display_item_changed_event.listen(self.__focused_display_item_changed)
-        # manually send the first data item changed message to set things up.
-        self.__focused_display_item_changed(document_controller.selected_display_item)
-
-    def close(self):
-        # disconnect data item binding
-        self.__focused_display_item_changed(None)
-        self.__focused_display_item_changed_event_listener.close()
-        self.__focused_display_item_changed_event_listener = None
-        super().close()
-
-    @property
-    def value(self):
-        return self.__value
-
-    def __focused_display_item_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
-        display = display_item.display if display_item else None
-        if display != self.__value:
-            self.value_stream.fire(display)
-            self.__value = display
-
-
 class TargetRegionStream(Stream.AbstractStream):
 
     def __init__(self, display_item_stream):
@@ -766,7 +734,7 @@ class TargetRegionStream(Stream.AbstractStream):
         if self.__display_graphic_selection_changed_event_listener:
             self.__display_graphic_selection_changed_event_listener.close()
             self.__display_graphic_selection_changed_event_listener = None
-        if display_item and display_item.display:
+        if display_item:
             self.__display_graphic_selection_changed_event_listener = display_item.graphic_selection_changed_event.listen(display_graphic_selection_changed)
             display_graphic_selection_changed(display_item.graphic_selection)
         elif self.__value is not None:

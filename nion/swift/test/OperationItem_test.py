@@ -699,7 +699,7 @@ class TestProcessingClass(unittest.TestCase):
             with contextlib.closing(blurred_data_item.data_item_changed_event.listen(data_item_content_changed)):
                 def display_changed():
                     display_changed_ref[0] = True
-                with contextlib.closing(blurred_display_item.display.display_changed_event.listen(display_changed)):
+                with contextlib.closing(blurred_display_item.display_changed_event.listen(display_changed)):
                     # modify processing. make sure data and dependent data gets updated.
                     data_changed_ref[0] = False
                     display_changed_ref[0] = False
@@ -728,7 +728,7 @@ class TestProcessingClass(unittest.TestCase):
             with contextlib.closing(cropped_data_item.data_item_changed_event.listen(data_item_content_changed)):
                 def display_changed():
                     display_changed_ref[0] = True
-                with contextlib.closing(cropped_display_item.display.display_changed_event.listen(display_changed)):
+                with contextlib.closing(cropped_display_item.display_changed_event.listen(display_changed)):
                     # modify processing. make sure data and dependent data gets updated.
                     data_changed_ref[0] = False
                     display_changed_ref[0] = False

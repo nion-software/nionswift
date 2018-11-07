@@ -1330,7 +1330,7 @@ class DocumentController(Window.Window):
 
     def add_line_graphic(self):
         display_item = self.selected_display_item
-        if display_item and display_item.display:
+        if display_item:
             graphic = Graphics.LineGraphic()
             graphic.start = (0.2, 0.2)
             graphic.end = (0.8, 0.8)
@@ -1343,7 +1343,7 @@ class DocumentController(Window.Window):
 
     def add_rectangle_graphic(self):
         display_item = self.selected_display_item
-        if display_item and display_item.display:
+        if display_item:
             graphic = Graphics.RectangleGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
             command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
@@ -1355,7 +1355,7 @@ class DocumentController(Window.Window):
 
     def add_ellipse_graphic(self):
         display_item = self.selected_display_item
-        if display_item and display_item.display:
+        if display_item:
             graphic = Graphics.EllipseGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
             command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
@@ -1367,7 +1367,7 @@ class DocumentController(Window.Window):
 
     def add_point_graphic(self):
         display_item = self.selected_display_item
-        if display_item and display_item.display:
+        if display_item:
             graphic = Graphics.PointGraphic()
             graphic.position = (0.5,0.5)
             command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
@@ -1379,7 +1379,7 @@ class DocumentController(Window.Window):
 
     def add_interval_graphic(self):
         display_item = self.selected_display_item
-        if display_item and display_item.display:
+        if display_item:
             graphic = Graphics.IntervalGraphic()
             graphic.start = 0.25
             graphic.end = 0.75
@@ -1392,7 +1392,7 @@ class DocumentController(Window.Window):
 
     def add_channel_graphic(self):
         display_item = self.selected_display_item
-        if display_item and display_item.display:
+        if display_item:
             graphic = Graphics.ChannelGraphic()
             graphic.position = 0.5
             command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
@@ -1404,7 +1404,7 @@ class DocumentController(Window.Window):
 
     def add_spot_graphic(self):
         display_item = self.selected_display_item
-        if display_item and display_item.display:
+        if display_item:
             graphic = Graphics.SpotGraphic()
             graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
             command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
@@ -1416,7 +1416,7 @@ class DocumentController(Window.Window):
 
     def add_angle_graphic(self):
         display_item = self.selected_display_item
-        if display_item and display_item.display:
+        if display_item:
             graphic = Graphics.WedgeGraphic()
             graphic.start_angle = 0
             graphic.end_angle = (3/4) * math.pi
@@ -1429,7 +1429,7 @@ class DocumentController(Window.Window):
 
     def add_band_pass_graphic(self):
         display_item = self.selected_display_item
-        if display_item and display_item.display:
+        if display_item:
             graphic = Graphics.RingGraphic()
             graphic.radius_1 = 0.15
             graphic.radius_2 = 0.25
@@ -1442,7 +1442,7 @@ class DocumentController(Window.Window):
 
     def copy_selected_graphics(self):
         display_item = self.selected_display_item
-        if display_item and display_item.display:
+        if display_item:
             if display_item.graphic_selection.has_selection:
                 graphic_dict_list = list()
                 graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
@@ -1458,7 +1458,7 @@ class DocumentController(Window.Window):
 
     def remove_selected_graphics(self) -> None:
         display_item = self.selected_display_item
-        if display_item and display_item.display:
+        if display_item:
             if display_item.graphic_selection.has_selection:
                 graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
                 if graphics:

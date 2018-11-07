@@ -27,7 +27,6 @@ from nion.swift.model import Cache
 from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
-from nion.swift.model import Display
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
@@ -297,7 +296,6 @@ def get_object_specifier(object, object_type: str=None) -> typing.Optional[typin
         return {"version": 1, "type": object_type, "uuid": str(object.uuid)}
     assert not isinstance(object, DataItem.DataItem)
     assert not isinstance(object, DisplayItem.DisplayItem)
-    assert not isinstance(object, Display.Display)
     if isinstance(object, DisplayItem.DisplayDataChannel):
         # should be "data_source" but requires file format change
         return {"version": 1, "type": "data_source", "uuid": str(object.uuid)}
@@ -1656,12 +1654,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def get_object_specifier(self, object, object_type: str=None) -> typing.Optional[typing.Dict]:
         return get_object_specifier(object, object_type)
 
-    def get_display_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Display.Display]:
-        for display_item in self.display_items:
-            if display_item.display and display_item.display.uuid == object_uuid:
-                return display_item.display
-        return None
-
     def get_graphic_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Graphics.Graphic]:
         for display_item in self.display_items:
             for graphic in display_item.graphics:
@@ -2744,12 +2736,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             connection_dst = connection_dict["dst"]
             connection_dst_prop = connection_dict.get("dst_prop")
             if connection_type == "property":
-                if connection_src == "display":
-                    # TODO: how to refer to the data_items? hardcode to data_item0 for now.
-                    display_item = self.get_display_item_for_data_item(data_item0)
-                    display0 = display_item.display if display_item else None
-                    connection = Connection.PropertyConnection(display0, connection_src_prop, new_regions[connection_dst], connection_dst_prop, parent=new_data_item)
-                    self.append_connection(connection)
                 if connection_src == "display_data_channel":
                     # TODO: how to refer to the data_items? hardcode to data_item0 for now.
                     display_item = self.get_display_item_for_data_item(data_item0)

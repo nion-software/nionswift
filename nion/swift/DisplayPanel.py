@@ -21,7 +21,6 @@ from nion.swift import Panel
 from nion.swift import Thumbnails
 from nion.swift import Undo
 from nion.swift.model import DataItem
-from nion.swift.model import Display
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
@@ -317,8 +316,8 @@ class DisplayTypeMonitor:
         self.__display_changed_event_listener = None
         self.__display_type = None
         self.__first = True  # handle case where there is no data, so display_type is always None and doesn't change
-        if display_item.display:
-            self.__display_changed_event_listener = display_item.display.display_changed_event.listen(functools.partial(self.__update_display_type, display_item))
+        if display_item:
+            self.__display_changed_event_listener = display_item.display_changed_event.listen(functools.partial(self.__update_display_type, display_item))
         self.__update_display_type(display_item)
 
     def close(self):
@@ -453,7 +452,6 @@ class DisplayTracker:
     """Tracks messages from a display and passes them to associated display canvas item."""
 
     def __init__(self, display_item, get_font_metrics, delegate, event_loop, draw_background):
-        display = display_item.display
         self.__display_item = display_item
         self.__get_font_metrics = get_font_metrics
         self.__delegate = delegate
@@ -490,7 +488,7 @@ class DisplayTracker:
 
         def display_graphics_changed(graphic_selection):
             # this message comes from the display when the graphic selection changes
-            self.__display_canvas_item.update_graphics(display_item.graphics, graphic_selection, Display.DisplayProperties(display))
+            self.__display_canvas_item.update_graphics(display_item.graphics, graphic_selection, DisplayItem.DisplayProperties(display_item))
 
         def display_values_changed():
             # this notification is for the rgba values only
@@ -505,7 +503,7 @@ class DisplayTracker:
             # this notification does not cover the rgba data, which is handled in the function below.
             # thread safe
             with self.__closing_lock:
-                self.__display_canvas_item.update_display_properties(Display.DisplayProperties(display))
+                self.__display_canvas_item.update_display_properties(DisplayItem.DisplayProperties(display_item))
 
         def display_property_changed(property: str) -> None:
             if property in ("y_min", "y_max", "y_style", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode"):
@@ -533,8 +531,8 @@ class DisplayTracker:
         self.__display_values_changed_event_listener = display_item.display_values_changed_event.listen(display_values_changed)
         self.__display_data_channel_property_changed_listener = display_item.property_changed_event.listen(display_property_changed)
         self.__display_graphics_changed_event_listener = display_item.graphics_changed_event.listen(display_graphics_changed)
-        self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
-        self.__display_property_changed_listener = display.property_changed_event.listen(display_property_changed)
+        self.__display_changed_event_listener = display_item.display_changed_event.listen(display_changed)
+        self.__display_property_changed_listener = display_item.display_property_changed_event.listen(display_property_changed)
 
         # this may throw exceptions (during testing). make sure to close if that happens, ensuring that the
         # layer items (image/line plot) get shut down.
@@ -698,11 +696,11 @@ class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
 
 class ChangeDisplayCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, display: Display.Display, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+    def __init__(self, document_model, display_item: DisplayItem.DisplayItem, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Change Display"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
-        self.__display_uuid = display.uuid
-        self.__properties = display.save_properties()
+        self.__display_item_uuid = display_item.uuid
+        self.__properties = display_item.save_properties()
         self.__value_dict = kwargs
         self.initialize()
 
@@ -713,30 +711,30 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self):
-        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
         for key, value in self.__value_dict.items():
-            setattr(display, key, value)
+            display_item.set_display_property(key, value)
 
     def _get_modified_state(self):
-        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
-        return display.modified_state, self.__document_model.modified_state
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        return display_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
-        display.modified_state, self.__document_model.modified_state = modified_state
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
     def _undo(self):
-        display = self.__document_model.get_display_by_uuid(self.__display_uuid)
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
         properties = self.__properties
-        self.__properties = display.save_properties()
-        display.restore_properties(properties)
+        self.__properties = display_item.save_properties()
+        display_item.restore_properties(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDisplayCommand) and self.command_id and self.command_id == command.command_id and self.__display_uuid == command.__display_uuid
+        return isinstance(command, ChangeDisplayCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
 
 
 class ChangeGraphicsCommand(Undo.UndoableCommand):
@@ -1083,13 +1081,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def display_item(self) -> DisplayItem.DisplayItem:
         return self.__display_item
 
-    @property
-    def display(self):
-        return self.__get_display()
-
-    def __get_display(self) -> Display.Display:
-        return self.__display_item.display if self.__display_item else None
-
     def save_contents(self):
         d = dict()
         if self.display_panel_id:
@@ -1097,7 +1088,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         if self.__display_panel_controller:
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
-        if self.__get_display():
+        if self.__display_item:
             d["display_item_uuid"] = str(self.display_item.uuid)
         if self.__display_panel_controller is None and self.__horizontal_browser_canvas_item.visible:
             d["browser_type"] = "horizontal"
@@ -1538,8 +1529,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__document_controller.remove_selected_graphics()
 
     def enter_key_pressed(self):
-        display = self.__get_display()
-        command = ChangeDisplayCommand(self.__document_controller.document_model, display)
+        command = ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item)
         result = self.display_canvas_item.handle_auto_display()
         if result:
             self.__document_controller.push_undo_command(command)
@@ -1551,7 +1541,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         position_text, value_text = str(), str()
         try:
             if pos is not None:
-                position_text, value_text = self.__get_display().get_value_and_position_text(self.__display_item.display_data_channel, pos)
+                position_text, value_text = self.__display_item.get_value_and_position_text(self.__display_item.display_data_channel, pos)
         except Exception as e:
             global _test_log_exceptions
             if _test_log_exceptions:
@@ -1576,7 +1566,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def update_display_properties(self, display_properties):
         for key, value in iter(display_properties.items()):
-            setattr(self.__get_display(), key, value)
+            self.__display_item.set_display_property(key, value)
 
     def update_display_data_channel_properties(self, display_data_channel_properties: typing.Mapping) -> None:
         display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
@@ -1588,7 +1578,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return InsertGraphicsCommand(self.__document_controller, self.__display_item, graphics)
 
     def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> ChangeDisplayCommand:
-        return ChangeDisplayCommand(self.__document_controller.document_model, self.__get_display(), command_id=command_id, is_mergeable=is_mergeable)
+        return ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item, command_id=command_id, is_mergeable=is_mergeable)
 
     def create_change_graphics_command(self) -> ChangeGraphicsCommand:
         all_graphics = self.__display_item.graphics
@@ -1792,12 +1782,11 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
 def preview(get_font_metrics_fn, display_item: DisplayItem.DisplayItem, width: int, height: int) -> typing.Tuple[DrawingContext.DrawingContext, Geometry.IntSize]:
     drawing_context = DrawingContext.DrawingContext()
     shape = Geometry.IntSize()
-    display = display_item.display
     display_values_list = [display_data_channel.get_calculated_display_values(True) for display_data_channel in display_item.display_data_channels]
     display_canvas_item = create_display_canvas_item(display_item, get_font_metrics_fn, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
-            display_properties = Display.DisplayProperties(display)
+            display_properties = DisplayItem.DisplayProperties(display_item)
             display_canvas_item.update_display_values(display_values_list)
             display_canvas_item.update_display_properties(display_properties)
             display_canvas_item.update_graphics(display_item.graphics, DisplayItem.GraphicSelection(), display_properties)

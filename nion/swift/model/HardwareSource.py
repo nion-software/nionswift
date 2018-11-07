@@ -1045,7 +1045,7 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
                 if v == crop_graphic:
                     close_all()
             self.__crop_listener = crop_graphic.property_changed_event.listen(property_changed)
-            self.__remove_listener = display_item.display.item_removed_event.listen(graphic_removed)
+            self.__remove_listener = display_item.item_removed_event.listen(graphic_removed)
             self.__crop_graphic = crop_graphic
 
 

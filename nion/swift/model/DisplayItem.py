@@ -14,6 +14,7 @@ import uuid
 import weakref
 
 # local libraries
+from nion.data import Calibration
 from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
@@ -701,7 +702,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("caption", hidden=True, changed=self.__property_changed)
         self.define_property("description", hidden=True, changed=self.__property_changed)
         self.define_property("session_id", hidden=True, changed=self.__property_changed)
-        self.define_item("display", Display.display_factory, self.__display_changed)
+        self.define_item("display", Display.display_factory, item_changed=self.__display_changed, hidden=True)
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.define_relationship("display_data_channels", display_data_channel_factory, insert=self.__insert_display_data_channel, remove=self.__remove_display_data_channel)
 
@@ -711,13 +712,20 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__display_data_channel_data_item_changed_event_listeners = list()
         self.__display_data_channel_data_item_description_changed_event_listeners = list()
 
+        self.__display_changed_listener = None
+        self.__display_property_changed_listener = None
+        self.display_property_changed_event = Event.Event()
+        self.display_changed_event = Event.Event()
+
         self.__registration_listener = None
+
+        self.__cache = Cache.ShadowCache()
+        self.__suspendable_storage_cache = None
 
         self.__in_transaction_state = False
         self.__write_delay_modified_count = 0
 
         self.__graphic_changed_listeners = list()
-        self.__suspendable_storage_cache = None
         self.__display_item_change_count = 0
         self.__display_item_change_count_lock = threading.RLock()
         self.__display_ref_count = 0
@@ -730,7 +738,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self._about_to_be_removed = False
         self._closed = False
         self.set_item("display", Display.Display())
-        self.__display_about_to_be_removed_listener = self.display.about_to_be_removed_event.listen(self.about_to_be_removed_event.fire)
+        self.__display_about_to_be_removed_listener = self.__display.about_to_be_removed_event.listen(self.about_to_be_removed_event.fire)
 
         def graphic_selection_changed():
             # relay the message
@@ -779,7 +787,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         for display_data_channel in self.display_data_channels:
             display_item_copy.append_display_data_channel(copy.deepcopy(display_data_channel))
         # display
-        display_item_copy.display = copy.deepcopy(self.display)
+        display_item_copy.set_item("display", copy.deepcopy(self.__display))
         for graphic in self.graphics:
             display_item_copy.add_graphic(copy.deepcopy(graphic))
         memo[id(self)] = display_item_copy
@@ -843,11 +851,11 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def __display_type_changed(self, name, value):
         self.__property_changed(name, value)
-        self.display._display_type = value
+        self.__display._display_type = value
         # the order here is important; display values must come before display changed
         # so that the display canvas item is updated properly.
         self.display_values_changed_event.fire()
-        self.display.display_changed_event.fire()
+        self.__display.display_changed_event.fire()
         self.graphics_changed_event.fire(self.graphic_selection)
 
     def __property_changed(self, name, value):
@@ -858,7 +866,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def clone(self) -> "DisplayItem":
         display_item = self.__class__()
         display_item.uuid = self.uuid
-        display_item.display = self.display.clone()
+        display_item.set_item("display", self.__display.clone())
         for graphic in self.graphics:
             display_item.add_graphic(graphic.clone())
         return display_item
@@ -873,7 +881,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item._set_persistent_property_value("description", self._get_persistent_property_value("description"))
         display_item._set_persistent_property_value("session_id", self._get_persistent_property_value("session_id"))
         display_item.created = self.created
-        display_item.display = copy.deepcopy(self.display)
+        display_item.set_item("display", copy.deepcopy(self.__display))
         for graphic in self.graphics:
             display_item.add_graphic(copy.deepcopy(graphic))
         for display_data_channel in self.display_data_channels:
@@ -882,11 +890,15 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def set_storage_cache(self, storage_cache):
         self.__suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
-        self.display.set_storage_cache(self._suspendable_storage_cache)
+        self.__cache.set_storage_cache(self._suspendable_storage_cache, self)
 
     @property
     def _suspendable_storage_cache(self):
         return self.__suspendable_storage_cache
+
+    @property
+    def _display_cache(self):
+        return self.__cache
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
@@ -958,6 +970,12 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def __display_changed(self, name, old_display, new_display):
         if new_display != old_display:
             if old_display:
+                if self.__display_changed_listener:
+                    self.__display_changed_listener.close()
+                    self.__display_changed_listener = None
+                if self.__display_property_changed_listener:
+                    self.__display_property_changed_listener.close()
+                    self.__display_property_changed_listener = None
                 if self.__display_ref_count > 0:
                     old_display._relinquish_master()
                 old_display.about_to_be_removed()
@@ -966,6 +984,28 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
                 new_display.about_to_be_inserted(self)
                 if self.__display_ref_count > 0:
                     new_display._become_master()
+                self.__display_property_changed_listener = new_display.property_changed_event.listen(self.display_property_changed_event.fire)
+                self.__display_changed_listener = new_display.display_changed_event.listen(self.display_changed_event.fire)
+
+    @property
+    def __display(self) -> Display.Display:
+        return self.get_item("display")
+
+    @property
+    def display(self) -> Display.Display:
+        return self.__display
+
+    def get_display_property(self, property_name: str):
+        return getattr(self.__display, property_name)
+
+    def set_display_property(self, property_name: str, value) -> None:
+        return setattr(self.__display, property_name, value)
+
+    def save_properties(self) -> typing.Tuple:
+        return self.__display.save_properties()
+
+    def restore_properties(self, properties: typing.Tuple) -> None:
+        self.__display.restore_properties(properties)
 
     def display_item_changes(self):
         # return a context manager to batch up a set of changes so that listeners
@@ -1033,7 +1073,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.item_changed_event.fire()
 
     def __display_channel_property_changed(self, name):
-        self.display.display_changed_event.fire()
+        self.__display.display_changed_event.fire()
 
     @property
     def display_data_channel(self) -> DisplayDataChannel:
@@ -1050,7 +1090,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         for display_data_channel in self.display_data_channels:
             display_data_channel.update_display_data()
         xdata_list = [data_item.xdata if data_item else None for data_item in self.data_items]
-        self.display.update_xdata_list(xdata_list)
+        self.__display.update_xdata_list(xdata_list)
 
     def _description_changed(self):
         self.notify_property_changed("title")
@@ -1217,6 +1257,38 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.graphics_changed_event.fire(self.graphic_selection)
 
     @property
+    def calibration_style_id(self) -> str:
+        return self.__display.calibration_style_id
+
+    @calibration_style_id.setter
+    def calibration_style_id(self, value: str) -> None:
+        self.__display.calibration_style_id = value
+
+    @property
+    def calibration_style(self) -> Display.CalibrationStyle:
+        return next(filter(lambda x: x.calibration_style_id == self.calibration_style_id, get_calibration_styles()), get_default_calibrated_calibration_style())
+
+    @property
+    def display_data_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
+        return self.__display.display_data_shape
+
+    @property
+    def dimensional_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
+        return self.__display.dimensional_shape
+
+    @property
+    def displayed_dimensional_scales(self) -> typing.Sequence[float]:
+        return self.__display.displayed_dimensional_scales
+
+    @property
+    def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
+        return self.__display.displayed_dimensional_calibrations
+
+    @property
+    def displayed_intensity_calibration(self) -> Calibration.Calibration:
+        return self.__display.displayed_intensity_calibration
+
+    @property
     def size_and_data_format_as_string(self) -> str:
         data_item = self.data_item
         return data_item.size_and_data_format_as_string if data_item else str()
@@ -1281,7 +1353,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
                     elif data_item.datum_dimension_count == 2:
                         display_type = "image"
                     # override
-                    if self.display.display_script:
+                    if self.__display.display_script:
                         display_type = "display_script"
                     if display_type:
                         break
@@ -1289,11 +1361,85 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def legend_labels(self) -> typing.Sequence[str]:
-        return self.display.legend_labels
+        return self.__display.legend_labels
 
     @legend_labels.setter
     def legend_labels(self, value: typing.Sequence[str]) -> None:
-        self.display.legend_labels = value
+        self.__display.legend_labels = value
 
     def view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
-        self.display.view_to_intervals(data_and_metadata, intervals)
+        self.__display.view_to_intervals(data_and_metadata, intervals)
+
+    def get_value_and_position_text(self, display_data_channel, pos) -> (str, str):
+        return self.__display.get_value_and_position_text(display_data_channel, pos)
+
+
+class DisplayProperties:
+
+    def __init__(self, display_item):
+
+        self.display_data_shape = display_item.display_data_shape
+
+        self.displayed_dimensional_scales = display_item.displayed_dimensional_scales
+        self.displayed_dimensional_calibrations = copy.deepcopy(display_item.displayed_dimensional_calibrations)
+        self.displayed_intensity_calibration = copy.deepcopy(display_item.displayed_intensity_calibration)
+        self.calibration_style = display_item.calibration_style
+
+        self.image_zoom = display_item.get_display_property("image_zoom")
+        self.image_position = display_item.get_display_property("image_position")
+        self.image_canvas_mode = display_item.get_display_property("image_canvas_mode")
+
+        self.y_min = display_item.get_display_property("y_min")
+        self.y_max = display_item.get_display_property("y_max")
+        self.y_style = display_item.get_display_property("y_style")
+        self.left_channel = display_item.get_display_property("left_channel")
+        self.right_channel = display_item.get_display_property("right_channel")
+        self.legend_labels = display_item.get_display_property("legend_labels")
+
+        self.display_script = display_item.get_display_property("display_script")
+
+    def __ne__(self, display_properties):
+        if not display_properties:
+            return True
+        if  self.display_data_shape != display_properties.display_data_shape:
+            return True
+        if  self.displayed_dimensional_scales != display_properties.displayed_dimensional_scales:
+            return True
+        if  self.displayed_dimensional_calibrations != display_properties.displayed_dimensional_calibrations:
+            return True
+        if  self.displayed_intensity_calibration != display_properties.displayed_intensity_calibration:
+            return True
+        if  type(self.calibration_style) != type(display_properties.calibration_style):
+            return True
+        if  self.image_zoom != display_properties.image_zoom:
+            return True
+        if  self.image_position != display_properties.image_position:
+            return True
+        if  self.image_canvas_mode != display_properties.image_canvas_mode:
+            return True
+        if  self.y_min != display_properties.y_min:
+            return True
+        if  self.y_max != display_properties.y_max:
+            return True
+        if  self.y_style != display_properties.y_style:
+            return True
+        if  self.left_channel != display_properties.left_channel:
+            return True
+        if  self.right_channel != display_properties.right_channel:
+            return True
+        if  self.legend_labels != display_properties.legend_labels:
+            return True
+        if  self.display_script != display_properties.display_script:
+            return True
+        return False
+
+
+def get_calibration_styles():
+    return [Display.CalibrationStyleNative(), Display.CalibrationStylePixelsTopLeft(), Display.CalibrationStylePixelsCenter(),
+            Display.CalibrationStyleFractionalTopLeft(), Display.CalibrationStyleFractionalCenter()]
+
+def get_default_calibrated_calibration_style():
+    return Display.CalibrationStyleNative()
+
+def get_default_uncalibrated_calibration_style():
+    return Display.CalibrationStylePixelsCenter()

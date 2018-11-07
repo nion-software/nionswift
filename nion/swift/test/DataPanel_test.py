@@ -602,7 +602,7 @@ class TestDataPanelClass(unittest.TestCase):
             display_changed_ref = [False]
             def display_changed():
                 display_changed_ref[0] = True
-            with contextlib.closing(display_item.display.display_changed_event.listen(display_changed)):
+            with contextlib.closing(display_item.display_changed_event.listen(display_changed)):
                 display_item.display_data_channels[0].display_limits = (0.25, 0.75)
                 self.assertTrue(display_changed_ref[0])
 

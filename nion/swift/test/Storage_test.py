@@ -215,8 +215,8 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                storage_cache.set_cached_value(display_item.display, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
-                self.assertFalse(storage_cache.is_cached_value_dirty(display_item.display, "thumbnail_data"))
+                storage_cache.set_cached_value(display_item, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
+                self.assertFalse(storage_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
             # read it back
             storage_cache = Cache.DbStorageCache(cache_name)
             document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, storage_cache=storage_cache)
@@ -224,7 +224,7 @@ class TestStorageClass(unittest.TestCase):
                 read_data_item = document_model.data_items[0]
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
                 # thumbnail data should still be valid
-                self.assertFalse(storage_cache.is_cached_value_dirty(read_display_item.display, "thumbnail_data"))
+                self.assertFalse(storage_cache.is_cached_value_dirty(read_display_item, "thumbnail_data"))
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -238,8 +238,8 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            storage_cache.set_cached_value(display_item.display, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
-            self.assertFalse(storage_cache.is_cached_value_dirty(display_item.display, "thumbnail_data"))
+            storage_cache.set_cached_value(display_item, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
+            self.assertFalse(storage_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
             with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)) as thumbnail_source:
                 thumbnail_source.recompute_data()
         # read it back
@@ -249,7 +249,7 @@ class TestStorageClass(unittest.TestCase):
             read_data_item = document_model.data_items[0]
             read_display_item = document_model.get_display_item_for_data_item(read_data_item)
             # thumbnail data should still be valid
-            self.assertFalse(storage_cache.is_cached_value_dirty(read_display_item.display, "thumbnail_data"))
+            self.assertFalse(storage_cache.is_cached_value_dirty(read_display_item, "thumbnail_data"))
             with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, read_display_item)) as thumbnail_source:
                 self.assertFalse(thumbnail_source._is_thumbnail_dirty)
 
@@ -275,10 +275,10 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
-            display_uuid = document_model.get_display_item_for_data_item(document_model.data_items[0]).display.uuid
+            display_item_uuid = document_model.get_display_item_for_data_item(document_model.data_items[0]).uuid
         # read it back
         data_range = 1, 4
-        storage_cache.cache[display_uuid]["data_range"] = data_range
+        storage_cache.cache[display_item_uuid]["data_range"] = data_range
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, storage_cache=storage_cache)
         with contextlib.closing(document_model):
             display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
@@ -1131,15 +1131,15 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertEqual("calibrated", display_item.display.calibration_style_id)
-            self.assertEqual("calibrated", display_item.display.calibration_style.calibration_style_id)
+            self.assertEqual("calibrated", display_item.calibration_style_id)
+            self.assertEqual("calibrated", display_item.calibration_style.calibration_style_id)
         # read it back
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = document_model.data_items[0]
             display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertEqual("calibrated", display_item.display.calibration_style_id)
-            self.assertEqual("calibrated", display_item.display.calibration_style.calibration_style_id)
+            self.assertEqual("calibrated", display_item.calibration_style_id)
+            self.assertEqual("calibrated", display_item.calibration_style.calibration_style_id)
 
     def test_reloaded_graphics_load_properly(self):
         cache_name = ":memory:"
@@ -1352,7 +1352,7 @@ class TestStorageClass(unittest.TestCase):
             read_data_item = document_model.data_items[0]
             read_display_item = document_model.get_display_item_for_data_item(read_data_item)
             # check storage caches
-            self.assertEqual(read_display_item.display._display_cache.storage_cache, read_display_item._suspendable_storage_cache)
+            self.assertEqual(read_display_item._display_cache.storage_cache, read_display_item._suspendable_storage_cache)
 
     def test_data_items_written_with_newer_version_get_ignored(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()

@@ -122,7 +122,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def __init__(self):
         super().__init__()
         self.__container_weak_ref = None
-        self.__cache = Cache.ShadowCache()
         # calibration display
         self.define_property("calibration_style_id", "calibrated", key="dimensional_calibration_style", changed=self.__property_changed)
         # image zoom and position
@@ -217,10 +216,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.calibration_style_id = properties[8]
         self.display_script = properties[9]
 
-    @property
-    def _display_cache(self):
-        return self.__cache
-
     def view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
         """Change the view to encompass the channels and data represented by the given intervals."""
         left = None
@@ -292,9 +287,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.notify_property_changed("displayed_dimensional_calibrations")
         self.notify_property_changed("displayed_intensity_calibration")
         self.display_changed_event.fire()
-
-    def set_storage_cache(self, storage_cache):
-        self.__cache.set_storage_cache(storage_cache, self)
 
     @property
     def display_data_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
@@ -460,63 +452,3 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
 def display_factory(lookup_id):
     return Display()
-
-
-class DisplayProperties:
-
-    def __init__(self, display: Display):
-
-        self.display_data_shape = display.display_data_shape
-
-        self.displayed_dimensional_scales = display.displayed_dimensional_scales
-        self.displayed_dimensional_calibrations = copy.deepcopy(display.displayed_dimensional_calibrations)
-        self.displayed_intensity_calibration = copy.deepcopy(display.displayed_intensity_calibration)
-        self.calibration_style = display.calibration_style
-
-        self.image_zoom = display.image_zoom
-        self.image_position = display.image_position
-        self.image_canvas_mode = display.image_canvas_mode
-
-        self.y_min = display.y_min
-        self.y_max = display.y_max
-        self.y_style = display.y_style
-        self.left_channel = display.left_channel
-        self.right_channel = display.right_channel
-        self.legend_labels = display.legend_labels
-
-        self.display_script = display.display_script
-
-    def __ne__(self, display_properties):
-        if not display_properties:
-            return True
-        if  self.display_data_shape != display_properties.display_data_shape:
-            return True
-        if  self.displayed_dimensional_scales != display_properties.displayed_dimensional_scales:
-            return True
-        if  self.displayed_dimensional_calibrations != display_properties.displayed_dimensional_calibrations:
-            return True
-        if  self.displayed_intensity_calibration != display_properties.displayed_intensity_calibration:
-            return True
-        if  type(self.calibration_style) != type(display_properties.calibration_style):
-            return True
-        if  self.image_zoom != display_properties.image_zoom:
-            return True
-        if  self.image_position != display_properties.image_position:
-            return True
-        if  self.image_canvas_mode != display_properties.image_canvas_mode:
-            return True
-        if  self.y_min != display_properties.y_min:
-            return True
-        if  self.y_max != display_properties.y_max:
-            return True
-        if  self.y_style != display_properties.y_style:
-            return True
-        if  self.left_channel != display_properties.left_channel:
-            return True
-        if  self.right_channel != display_properties.right_channel:
-            return True
-        if  self.legend_labels != display_properties.legend_labels:
-            return True
-        if  self.display_script != display_properties.display_script:
-            return True
-        return False

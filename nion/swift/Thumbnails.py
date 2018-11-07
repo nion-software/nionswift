@@ -23,7 +23,7 @@ class ThumbnailProcessor:
 
     def __init__(self, display_item: DisplayItem.DisplayItem):
         self.__display_item = display_item
-        self.__cache = self.__display_item.display._display_cache
+        self.__cache = self.__display_item._display_cache
         self.__cache_property_name = "thumbnail_data"
         # the next two fields represent a memory cache -- a cache of the cache values.
         # if self.__cached_value_dirty is None then this first level cache has not yet
@@ -55,15 +55,15 @@ class ThumbnailProcessor:
     # thread safe
     def mark_data_dirty(self):
         """ Called from item to indicate its data or metadata has changed."""
-        self.__cache.set_cached_value_dirty(self.__display_item.display, self.__cache_property_name)
+        self.__cache.set_cached_value_dirty(self.__display_item, self.__cache_property_name)
         self.__initialize_cache()
         self.__cached_value_dirty = True
 
     def __initialize_cache(self):
         """Initialize the cache values (cache values are used for optimization)."""
         if self.__cached_value_dirty is None:
-            self.__cached_value_dirty = self.__cache.is_cached_value_dirty(self.__display_item.display, self.__cache_property_name)
-            self.__cached_value = self.__cache.get_cached_value(self.__display_item.display, self.__cache_property_name)
+            self.__cached_value_dirty = self.__cache.is_cached_value_dirty(self.__display_item, self.__cache_property_name)
+            self.__cached_value = self.__cache.get_cached_value(self.__display_item, self.__cache_property_name)
 
     def recompute_if_necessary(self, ui):
         """Recompute the data on a thread, if necessary.
@@ -116,7 +116,7 @@ class ThumbnailProcessor:
                     traceback.print_exc()
                     traceback.print_stack()
                     raise
-                self.__cache.set_cached_value(self.__display_item.display, self.__cache_property_name, calculated_data)
+                self.__cache.set_cached_value(self.__display_item, self.__cache_property_name, calculated_data)
                 self.__cached_value = calculated_data
                 self.__cached_value_dirty = False
                 self.__cached_value_time = time.time()
@@ -126,13 +126,13 @@ class ThumbnailProcessor:
                 calculated_data = self.get_default_data()
                 if calculated_data is not None:
                     # if the default is not None, treat is as valid cached data
-                    self.__cache.set_cached_value(self.__display_item.display, self.__cache_property_name, calculated_data)
+                    self.__cache.set_cached_value(self.__display_item, self.__cache_property_name, calculated_data)
                     self.__cached_value = calculated_data
                     self.__cached_value_dirty = False
                     self.__cached_value_time = time.time()
                 else:
                     # otherwise remove everything from the cache
-                    self.__cache.remove_cached_value(self.__display_item.display, self.__cache_property_name)
+                    self.__cache.remove_cached_value(self.__display_item, self.__cache_property_name)
                     self.__cached_value = None
                     self.__cached_value_dirty = None
                     self.__cached_value_time = 0
@@ -188,7 +188,7 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
                 thumbnail_processor.mark_data_dirty()
                 thumbnail_processor.recompute_if_necessary(ui)
 
-        self.__display_changed_event_listener = display_item.display.display_changed_event.listen(thumbnail_changed)
+        self.__display_changed_event_listener = display_item.display_changed_event.listen(thumbnail_changed)
 
         def thumbnail_updated():
             self.thumbnail_updated_event.fire()
@@ -197,12 +197,12 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
 
         self.__thumbnail_processor.recompute_if_necessary(ui)
 
-        def display_will_close():
+        def display_item_will_close():
             if self.__thumbnail_processor:
                 self.__thumbnail_processor.close()
                 self.__thumbnail_processor = None
 
-        self.__display_will_close_listener = display_item.display.about_to_be_removed_event.listen(display_will_close)
+        self.__display_will_close_listener = display_item.about_to_be_removed_event.listen(display_item_will_close)
 
     def close(self):
         self.remove_ref()
@@ -241,7 +241,6 @@ class ThumbnailManager(metaclass=Utility.Singleton):
 
     def thumbnail_source_for_display_item(self, ui, display_item: DisplayItem.DisplayItem) -> ThumbnailSource:
         """Returned ThumbnailSource must be closed."""
-        display = display_item.display
         with self.__lock:
             thumbnail_source = self.__thumbnail_sources.get(display_item)
             if not thumbnail_source:

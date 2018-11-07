@@ -434,7 +434,6 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(source_data_item)
             intermediate_data_item = document_model.get_pick_region_new(source_data_item)
             intermediate_display_item = document_model.get_display_item_for_data_item(intermediate_data_item)
-            intermediate_display = intermediate_display_item.display
             interval_region = Graphics.IntervalGraphic()
             intermediate_display_item.add_graphic(interval_region)
             target_data_item = document_model.get_invert_new(source_data_item)

@@ -20,7 +20,6 @@ from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import Cache
-from nion.swift.model import Display
 from nion.swift.model import Graphics
 from nion.swift.model import Metadata
 from nion.swift.model import Utility
@@ -1574,8 +1573,6 @@ class DataSource:
         self.__changed_event = changed_event  # not public since it is passed in
         self.__data_item = display_data_channel.data_item
         display_data_channel = self.__display_item.get_display_data_channel_for_data_item(self.__data_item) if self.__display_item else None
-        display = self.__display_item.display if self.__display_item else None
-        self.__display = display
         self.__data_item_changed_event_listener = None
         self.__data_item_changed_event_listener = self.__data_item.data_item_changed_event.listen(self.__changed_event.fire) if self.__data_item else None
         self.__display_values_event_listener = display_data_channel.display_data_will_change_event.listen(self.__changed_event.fire) if display_data_channel else None
@@ -1600,8 +1597,8 @@ class DataSource:
                 if property_changed_listener:
                     property_changed_listener.close()
                     self.__changed_event.fire()
-        self.__graphic_inserted_event_listener = display.item_inserted_event.listen(graphic_inserted) if display else None
-        self.__graphic_removed_event_listener = display.item_removed_event.listen(graphic_removed) if display else None
+        self.__graphic_inserted_event_listener = self.__display_item.item_inserted_event.listen(graphic_inserted) if self.__display_item else None
+        self.__graphic_removed_event_listener = self.__display_item.item_removed_event.listen(graphic_removed) if self.__display_item else None
         for graphic in self.__display_item.graphics if self.__display_item else list():
             property_changed_listener = None
             if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
@@ -1637,10 +1634,6 @@ class DataSource:
     @property
     def data_item(self) -> typing.Optional[DataItem]:
         return self.__data_item
-
-    @property
-    def display(self) -> typing.Optional[Display.Display]:
-        return self.__display
 
     @property
     def graphic(self) -> typing.Optional[Graphics.Graphic]:
