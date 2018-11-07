@@ -801,6 +801,32 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_controller.handle_redo()
             self.assertEqual(1, len(document_model.get_display_items_for_data_item(data_item)))
 
+    def test_add_line_profile_undo_redo_cycle(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # ensure first data item is displayed
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            # make a line profile
+            document_controller.processing_line_profile()
+            document_model.recompute_all()
+            # check assumptions
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            # undo and check
+            document_controller.handle_undo()
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.display_items))
+            # redo and check
+            document_controller.handle_redo()
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

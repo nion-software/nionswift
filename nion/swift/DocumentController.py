@@ -1805,6 +1805,11 @@ class DocumentController(Window.Window):
         def _set_modified_state(self, modified_state) -> None:
             self.__document_controller.document_model.modified_state = modified_state
 
+        def _compare_modified_states(self, state1, state2) -> bool:
+            # after inserting, a computation may be performed and change the document. this ensures that this
+            # undo is still enabled after that happens.
+            return True
+
         def _redo(self):
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
             self.__data_item_uuid = self.__document_controller.document_model.data_items[self.__data_item_index].uuid
