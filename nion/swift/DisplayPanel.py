@@ -1789,22 +1789,20 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         return dynamic_live_actions
 
 
-def preview(ui, display_item: DisplayItem.DisplayItem, width: int, height: int) -> DrawingContext.DrawingContext:
-    display_data_channel = display_item.display_data_channel
-    display = display_item.display
-    display_values = display_data_channel.get_calculated_display_values(True)
+def preview(get_font_metrics_fn, display_item: DisplayItem.DisplayItem, width: int, height: int) -> typing.Tuple[DrawingContext.DrawingContext, Geometry.IntSize]:
     drawing_context = DrawingContext.DrawingContext()
-    display_canvas_item = create_display_canvas_item(display_item, ui.get_font_metrics, None, None, draw_background=False)
+    shape = Geometry.IntSize()
+    display = display_item.display
+    display_values_list = [display_data_channel.get_calculated_display_values(True) for display_data_channel in display_item.display_data_channels]
+    display_canvas_item = create_display_canvas_item(display_item, get_font_metrics_fn, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
             display_properties = Display.DisplayProperties(display)
-            display_canvas_item.update_display_values([display_values])
+            display_canvas_item.update_display_values(display_values_list)
             display_canvas_item.update_display_properties(display_properties)
             display_canvas_item.update_graphics(display_item.graphics, DisplayItem.GraphicSelection(), display_properties)
-
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)
-                drawing_context.translate(0, (frame_width - frame_height) * 0.5)
                 display_canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(height=frame_height, width=frame_width))
-
-    return drawing_context
+                shape = Geometry.IntSize(height=frame_height, width=frame_width)
+    return drawing_context, shape

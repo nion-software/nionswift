@@ -1272,36 +1272,16 @@ class DataItem(metaclass=SharedInstance):
         return DataAndMetadata.DataAndMetadata.from_data(mask)
 
     def data_item_to_svg(self):
-
-        display_item = self.__display_item
-        display_data_channel = display_item.display_data_channel
-        display = self.__display
-
         FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
 
         def get_font_metrics(font, text):
             return FontMetrics(width=6.5 * len(text), height=15, ascent=12, descent=3, leading=0)
 
-        display_canvas_item = DisplayPanelModule.create_display_canvas_item(display_item, get_font_metrics, None, None, draw_background=False)
-        aspect_ratio = display_canvas_item.default_aspect_ratio
+        drawing_context, shape = DisplayPanelModule.preview(get_font_metrics, self.__display_item, 320, 240)
 
-        view_box = Geometry.IntRect(Geometry.IntPoint(), Geometry.IntSize(width=320 * 1.25, height=240 * 1.25))
-        view_box = Geometry.IntRect(Geometry.IntPoint(), Geometry.fit_to_aspect_ratio(view_box, aspect_ratio).size)
-        box = Geometry.IntRect(Geometry.IntPoint(), Geometry.IntSize(width=320, height=240))
-        size = Geometry.fit_to_aspect_ratio(box, aspect_ratio).size
+        view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
 
-        try:
-            display_canvas_item.update_layout(view_box.origin, view_box.size, immediate=True)
-            display_values = display_data_channel.get_calculated_display_values(immediate=True)
-            display_canvas_item.update_display_values([display_values])
-            display_canvas_item.update_display_properties(DisplayModule.DisplayProperties(display))
-            dc = DrawingContext.DrawingContext()
-            display_canvas_item.repaint_immediate(dc, size)
-            return dc.to_svg(size, view_box)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            traceback.print_stack()
+        return drawing_context.to_svg(shape, view_box)
 
 
 class DataSource(metaclass=SharedInstance):
