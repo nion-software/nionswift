@@ -14,6 +14,7 @@ from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import LineGraphCanvasItem
 from nion.swift.model import DataItem
+from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.ui import TestUI
@@ -237,6 +238,18 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item.display.calibration_style_id = "pixels-top-left"
             display_panel.display_canvas_item.layout_immediate((640, 480))
             self.assertFalse(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units)
+
+    def test_line_plot_with_no_data_handles_clicks(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_item = DisplayItem.DisplayItem()
+            document_model.append_display_item(display_item)
+            display_item.display_type = "line_plot"
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.display_canvas_item.simulate_click((240, 16))
 
 
 if __name__ == '__main__':

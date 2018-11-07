@@ -774,7 +774,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
         plot_rect = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
         if 0.0 >= self.__tracking_start_calibrated_data_min and 0.0 <= self.__tracking_start_calibrated_data_max:
-            calibrated_unit_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / (plot_rect.height - 1)
+            calibrated_unit_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / (plot_rect.height - 1) if plot_rect.height > 1 else 1.0
+            calibrated_unit_per_pixel = calibrated_unit_per_pixel if calibrated_unit_per_pixel else 1.0  # handle case where calibrated_unit_per_pixel is zero
             origin_offset_pixels = (0.0 - self.__tracking_start_calibrated_data_min) / calibrated_unit_per_pixel
             calibrated_origin = self.__tracking_start_calibrated_data_min + origin_offset_pixels * self.__tracking_start_calibrated_data_per_pixel
             self.__tracking_start_origin_y = origin_offset_pixels
