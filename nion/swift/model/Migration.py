@@ -127,16 +127,17 @@ def migrate_to_v13(reader_info_list, library_updates, migration_log: MigrationLo
                     if "modified" in properties:
                         display_item_properties["modified"] = properties.get("modified")
                     # display_calibrated_values is superseded by calibration_style_id
-                    if "display_calibrated_values" in display_item_properties:
-                        if not "calibration_style_id" in display_item_properties:
-                            display_item_properties["calibration_style_id"] = "pixels-center"
-                        display_item_properties.pop("display_item_properties", None)
-                    if not display_item_properties.get("calibration_style_id", None):
-                        display_item_properties["calibration_style_id"] = "calibrated"
+                    if "dimensional_calibration_style" in display_properties:
+                        display_item_properties["calibration_style_id"] = display_properties["dimensional_calibration_style"]
+                    else:
+                        display_item_properties["calibration_style_id"] = "calibrated" if display_properties.get("display_calibrated_values", True) else "pixels-center"
+                    display_properties.pop("dimensional_calibration_style", None)
+                    display_properties.pop("display_calibrated_values", None)
                     display_item_properties["display"] = display_properties
                     display_item_properties["display_type"] = display_properties.pop("display_type", None)
                     display_item_properties["graphics"] = display_properties.pop("graphics", list())
                     display_data_properties = dict()
+                    new_display_properties = dict()
                     if "complex_data_type" in display_properties:
                         display_data_properties["complex_data_type"] = display_properties.pop("complex_data_type")
                     if "display_limits" in display_properties:
@@ -151,6 +152,28 @@ def migrate_to_v13(reader_info_list, library_updates, migration_log: MigrationLo
                         display_data_properties["slice_center"] = display_properties.pop("slice_center")
                     if "slice_width" in display_properties:
                         display_data_properties["slice_width"] = display_properties.pop("slice_width")
+                    if "y_min" in display_properties:
+                        new_display_properties["y_min"] = display_properties.pop("y_min")
+                    if "y_max" in display_properties:
+                        new_display_properties["y_max"] = display_properties.pop("y_max")
+                    if "y_style" in display_properties:
+                        new_display_properties["y_style"] = display_properties.pop("y_style")
+                    if "image_zoom" in display_properties:
+                        new_display_properties["image_zoom"] = display_properties.pop("image_zoom")
+                    if "image_position" in display_properties:
+                        new_display_properties["image_position"] = display_properties.pop("image_position")
+                    if "image_canvas_mode" in display_properties:
+                        new_display_properties["image_canvas_mode"] = display_properties.pop("image_canvas_mode")
+                    if "left_channel" in display_properties:
+                        new_display_properties["left_channel"] = display_properties.pop("left_channel")
+                    if "right_channel" in display_properties:
+                        new_display_properties["right_channel"] = display_properties.pop("right_channel")
+                    if "legend_labels" in display_properties:
+                        new_display_properties["legend_labels"] = display_properties.pop("legend_labels")
+                    if "display_script" in display_properties:
+                        new_display_properties["display_script"] = display_properties.pop("display_script")
+                    if new_display_properties:
+                        display_item_properties["display_properties"] = new_display_properties
                     display_data_properties["data_item_reference"] = data_item_uuid_str
                     display_data_properties["type"] = "display_data_channel"
                     display_data_properties["uuid"] = str(uuid.uuid4())

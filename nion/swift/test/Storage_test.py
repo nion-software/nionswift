@@ -1558,7 +1558,7 @@ class TestStorageClass(unittest.TestCase):
             data_item = document_model.data_items[0]
             display_item = document_model.display_items[0]
             self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
-            self.assertTrue("uuid" in display_item.properties["display"])
+            self.assertTrue("uuid" in display_item.properties)
             self.assertTrue("uuid" in display_item.properties["graphics"][0])
 
     def test_data_items_v3_migration(self):
@@ -2942,7 +2942,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
         src_data_source_dict["data_shape"] = (8, 8)
         graphic_uuid_str = str(uuid.uuid4())
-        src_data_item_dict["displays"] = [{"uuid": str(uuid.uuid4()), "graphics": [{"type": "line-graphic", "uuid": graphic_uuid_str, "start": (0, 0), "end": (1, 1)}]}]
+        src_data_item_dict["displays"] = [{"uuid": str(uuid.uuid4()), "dimensional_calibration_style": "pixels-center", "display_calibrated_values": True, "y_style": "log", "graphics": [{"type": "line-graphic", "uuid": graphic_uuid_str, "start": (0, 0), "end": (1, 1)}]}]
         src_data_item_dict["data_source"] = src_data_source_dict
         src_data_item_dict.setdefault("description", dict())["title"] = "title"
         src_data_item_dict.setdefault("description", dict())["caption"] = "caption"
@@ -2974,6 +2974,8 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.get_display_items_for_data_item(data_item), [display_item])
             self.assertEqual(display_item.data_item, data_item)
             self.assertEqual(display_item.session_id, data_item.session_id)
+            self.assertEqual(display_item.calibration_style_id, "pixels-center")
+            self.assertEqual(display_item.get_display_property("y_style"), "log")
 
     def test_migrate_overwrites_old_data(self):
         current_working_directory = os.getcwd()

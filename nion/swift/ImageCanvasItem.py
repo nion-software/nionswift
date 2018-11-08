@@ -405,6 +405,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__image_position = (0.5, 0.5)
         self.__image_canvas_mode = "fit"
 
+        self.__last_display_calibration_info = None
         self.__last_display_properties = None
 
         # create the child canvas items
@@ -479,11 +480,11 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__display_values = display_values_list[0] if display_values_list else None
         self.__display_values_dirty = True
 
-    def update_display_properties(self, display_properties) -> None:
+    def update_display_properties(self, display_calibration_info, display_properties: typing.Mapping) -> None:
         # threadsafe
         data_and_metadata = self.__display_values.data_and_metadata if self.__display_values else None
         if data_and_metadata:
-            displayed_dimensional_calibrations = display_properties.displayed_dimensional_calibrations
+            displayed_dimensional_calibrations = display_calibration_info.displayed_dimensional_calibrations
             if len(displayed_dimensional_calibrations) == 0:
                 dimensional_calibration = Calibration.Calibration()
             elif len(displayed_dimensional_calibrations) == 1:
@@ -501,7 +502,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 else:
                     dimensional_calibration = Calibration.Calibration()
 
-            data_shape = display_properties.display_data_shape
+            data_shape = display_calibration_info.display_data_shape
             metadata = data_and_metadata.metadata
 
             # this method may trigger a layout of its parent scroll area. however, the parent scroll
@@ -512,18 +513,23 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 if self.__closed:
                     return
 
-                if self.__image_zoom != display_properties.image_zoom or self.__image_position != display_properties.image_position or self.__image_canvas_mode != display_properties.image_canvas_mode:
-                    if display_properties.image_zoom is not None:
-                        self.__image_zoom = display_properties.image_zoom
-                    if display_properties.image_position is not None:
-                        self.__image_position = display_properties.image_position
-                    if display_properties.image_canvas_mode is not None:
-                        self.__image_canvas_mode = display_properties.image_canvas_mode
+                image_zoom = display_properties.get("image_zoom", 1.0)
+                image_position = display_properties.get("image_position", (0.5, 0.5))
+                image_canvas_mode = display_properties.get("image_canvas_mode", "fit")
+
+                if self.__image_zoom != image_zoom or self.__image_position != image_position or self.__image_canvas_mode != image_canvas_mode:
+                    if image_zoom is not None:
+                        self.__image_zoom = image_zoom
+                    if image_position is not None:
+                        self.__image_position = image_position
+                    if image_canvas_mode is not None:
+                        self.__image_canvas_mode = image_canvas_mode
 
                 # if the data changes, update the display.
-                if data_shape and ((display_properties != self.__last_display_properties) or (self.__display_values_dirty)):
+                if data_shape and ((display_properties != self.__last_display_properties) or (display_calibration_info != self.__last_display_calibration_info) or (self.__display_values_dirty)):
                     self.__display_values_dirty = False
                     self.__last_display_properties = copy.deepcopy(display_properties)
+                    self.__last_display_calibration_info = copy.deepcopy(display_calibration_info)
                     self.__data_shape = data_shape
                     if self.__display_frame_rate_id:
                         frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
@@ -566,10 +572,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
                 self.__info_overlay_canvas_item.set_data_info(data_shape, dimensional_calibration, metadata)
 
-    def update_graphics(self, graphics, graphic_selection, display_properties) -> None:
+    def update_graphics(self, graphics, graphic_selection, display_calibration_info) -> None:
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
-        self.__graphics_canvas_item.update_graphics(display_properties.display_data_shape, self.__graphics, self.__graphic_selection)
+        self.__graphics_canvas_item.update_graphics(display_calibration_info.display_data_shape, self.__graphics, self.__graphic_selection)
 
     def handle_auto_display(self) -> bool:
         # enter key has been pressed. calculate best display limits and set them.

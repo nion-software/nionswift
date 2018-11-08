@@ -246,7 +246,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def update_display_values(self, display_values_list) -> None:
         self.__display_values_list = display_values_list
 
-    def update_display_properties(self, display_properties) -> None:
+    def update_display_properties(self, display_calibration_info, display_properties: typing.Mapping) -> None:
         """Update the display values. Called from display panel.
 
         This method saves the display values and data and triggers an update. It should be as fast as possible.
@@ -267,18 +267,18 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             if self.__closed:
                 return
 
-            displayed_dimensional_scales = display_properties.displayed_dimensional_scales
-            displayed_dimensional_calibrations = display_properties.displayed_dimensional_calibrations
+            displayed_dimensional_scales = display_calibration_info.displayed_dimensional_scales
+            displayed_dimensional_calibrations = display_calibration_info.displayed_dimensional_calibrations
             self.__data_scale = displayed_dimensional_scales[-1] if len(displayed_dimensional_scales) > 0 else 1
             self.__displayed_dimensional_calibration = displayed_dimensional_calibrations[-1] if len(displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=displayed_dimensional_scales[-1])
-            self.__intensity_calibration = display_properties.displayed_intensity_calibration
-            self.__calibration_style = display_properties.calibration_style
-            self.__y_min = display_properties.y_min
-            self.__y_max = display_properties.y_max
-            self.__y_style = display_properties.y_style
-            self.__left_channel = display_properties.left_channel
-            self.__right_channel = display_properties.right_channel
-            self.__legend_labels = display_properties.legend_labels
+            self.__intensity_calibration = display_calibration_info.displayed_intensity_calibration
+            self.__calibration_style = display_calibration_info.calibration_style
+            self.__y_min = display_properties.get("y_min")
+            self.__y_max = display_properties.get("y_max")
+            self.__y_style = display_properties.get("y_style", "linear")
+            self.__left_channel = display_properties.get("left_channel")
+            self.__right_channel = display_properties.get("right_channel")
+            self.__legend_labels = display_properties.get("legend_labels")
 
             if self.__display_values_list and len(self.__display_values_list) > 0:
                 self.__xdata_list = [display_values.display_data_and_metadata if display_values else None for display_values in self.__display_values_list]
@@ -309,8 +309,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__last_xdata_list = copy.copy(self.__xdata_list)
         super().update()
 
-    def update_graphics(self, graphics, graphic_selection, display_properties):
-        dimensional_scales = display_properties.displayed_dimensional_scales
+    def update_graphics(self, graphics, graphic_selection, display_calibration_info):
+        dimensional_scales = display_calibration_info.displayed_dimensional_scales
 
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
@@ -319,7 +319,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             return
 
         data_scale = dimensional_scales[-1]
-        dimensional_calibration = display_properties.displayed_dimensional_calibrations[-1] if len(display_properties.displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=display_properties.displayed_dimensional_scales[-1])
+        dimensional_calibration = display_calibration_info.displayed_dimensional_calibrations[-1] if len(display_calibration_info.displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=display_calibration_info.displayed_dimensional_scales[-1])
 
         def convert_to_calibrated_value_str(f):
             return u"{0}".format(dimensional_calibration.convert_to_calibrated_value_str(f, value_range=(0, data_scale), samples=data_scale, include_units=False))

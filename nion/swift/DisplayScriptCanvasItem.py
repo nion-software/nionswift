@@ -76,11 +76,11 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
     def update_display_values(self, display_values_list) -> None:
         self.__display_data = display_values_list[0].data_and_metadata if display_values_list else None
 
-    def update_display_properties(self, display_properties) -> None:
-        self.__display_script = display_properties.display_script
+    def update_display_properties(self, display_calibration_info, display_properties) -> None:
+        self.__display_script = display_properties.get("display_script")
         self.update()
 
-    def update_graphics(self, graphics, graphic_selection, display_properties):
+    def update_graphics(self, graphics, graphic_selection, display_calibration_info):
         pass
 
     def handle_auto_display(self) -> bool:

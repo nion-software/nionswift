@@ -505,6 +505,7 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
             for data_item_uuid_str in data_item_references:
                 data_item_uuid_to_display_item_uuid_map.setdefault(data_item_uuid_str, display_item_properties["uuid"])
                 data_item_uuid_to_display_item_dict_map.setdefault(data_item_uuid_str, display_item_properties)
+            display_item_properties.pop("display", None)
         for workspace_properties in library_storage_properties.get("workspaces", list()):
             def replace1(d):
                 if "children" in d:

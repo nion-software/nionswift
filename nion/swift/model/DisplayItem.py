@@ -21,7 +21,6 @@ from nion.data import Image
 from nion.swift.model import Cache
 from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
-from nion.swift.model import Display
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
 from nion.utils import Event
@@ -168,6 +167,59 @@ def calculate_display_range(display_limits, data_range, data_sample, xdata, comp
             display_limit_high = data_range[1]
             return display_limit_low, display_limit_high
     return data_range
+
+
+class CalibrationStyle:
+    label = None
+    calibration_style_id = None
+    is_calibrated = False
+
+    def get_dimensional_calibrations(self, dimensional_shape, dimensional_calibrations) -> typing.Sequence[Calibration.Calibration]:
+        return list()
+
+    def get_intensity_calibration(self, xdata: DataAndMetadata.DataAndMetadata) -> Calibration.Calibration:
+        return xdata.intensity_calibration if self.is_calibrated else Calibration.Calibration()
+
+
+class CalibrationStyleNative(CalibrationStyle):
+    label = _("Calibrated")
+    calibration_style_id = "calibrated"
+    is_calibrated = True
+
+    def get_dimensional_calibrations(self, dimensional_shape, dimensional_calibrations) -> typing.Sequence[Calibration.Calibration]:
+        return dimensional_calibrations
+
+
+class CalibrationStylePixelsTopLeft(CalibrationStyle):
+    label = _("Pixels (Top-Left)")
+    calibration_style_id = "pixels-top-left"
+
+    def get_dimensional_calibrations(self, dimensional_shape, dimensional_calibrations) -> typing.Sequence[Calibration.Calibration]:
+        return [Calibration.Calibration() for display_dimension in dimensional_shape]
+
+
+class CalibrationStylePixelsCenter(CalibrationStyle):
+    label = _("Pixels (Center)")
+    calibration_style_id = "pixels-center"
+
+    def get_dimensional_calibrations(self, dimensional_shape, dimensional_calibrations) -> typing.Sequence[Calibration.Calibration]:
+        return [Calibration.Calibration(offset=-display_dimension/2) for display_dimension in dimensional_shape]
+
+
+class CalibrationStyleFractionalTopLeft(CalibrationStyle):
+    label = _("Fractional (Top Left)")
+    calibration_style_id = "relative-top-left"
+
+    def get_dimensional_calibrations(self, dimensional_shape, dimensional_calibrations) -> typing.Sequence[Calibration.Calibration]:
+        return [Calibration.Calibration(scale=1.0/display_dimension) for display_dimension in dimensional_shape]
+
+
+class CalibrationStyleFractionalCenter(CalibrationStyle):
+    label = _("Fractional (Center)")
+    calibration_style_id = "relative-center"
+
+    def get_dimensional_calibrations(self, dimensional_shape, dimensional_calibrations) -> typing.Sequence[Calibration.Calibration]:
+        return [Calibration.Calibration(scale=2.0/display_dimension, offset=-1.0) for display_dimension in dimensional_shape]
 
 
 class DisplayValues:
@@ -403,7 +455,6 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
         def property_changed(property_name):
             self.modified_state += 1
-            # self.property_changed_event.fire(property_name)
 
         def data_changed():
             data_metadata = self._get_data_metadata()
@@ -702,7 +753,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("caption", hidden=True, changed=self.__property_changed)
         self.define_property("description", hidden=True, changed=self.__property_changed)
         self.define_property("session_id", hidden=True, changed=self.__property_changed)
-        self.define_item("display", Display.display_factory, item_changed=self.__display_changed, hidden=True)
+        self.define_property("calibration_style_id", "calibrated", changed=self.__property_changed)
+        self.define_property("display_properties", dict(), copy_on_read=True, changed=self.__display_properties_changed)
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.define_relationship("display_data_channels", display_data_channel_factory, insert=self.__insert_display_data_channel, remove=self.__remove_display_data_channel)
 
@@ -712,8 +764,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__display_data_channel_data_item_changed_event_listeners = list()
         self.__display_data_channel_data_item_description_changed_event_listeners = list()
 
-        self.__display_changed_listener = None
-        self.__display_property_changed_listener = None
         self.display_property_changed_event = Event.Event()
         self.display_changed_event = Event.Event()
 
@@ -724,6 +774,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
         self.__in_transaction_state = False
         self.__write_delay_modified_count = 0
+
+        # the most recent data to be displayed. should have immediate data available.
+        self.__data_and_metadata = None
+        self.__dimensional_calibrations = None
+        self.__intensity_calibration = None
+        self.__dimensional_shape = None
+        self.__scales = None
 
         self.__graphic_changed_listeners = list()
         self.__display_item_change_count = 0
@@ -737,8 +794,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.about_to_be_removed_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
-        self.set_item("display", Display.Display())
-        self.__display_about_to_be_removed_listener = self.__display.about_to_be_removed_event.listen(self.about_to_be_removed_event.fire)
 
         def graphic_selection_changed():
             # relay the message
@@ -754,11 +809,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         if self.__registration_listener:
             self.__registration_listener.close()
             self.__registration_listener = None
-        self.__display_about_to_be_removed_listener.close()
-        self.__display_about_to_be_removed_listener = None
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = None
-        self.set_item("display", None)
         for display_data_channel in copy.copy(self.display_data_channels):
             self.__disconnect_display_data_channel(display_data_channel, 0)
             display_data_channel.close()
@@ -782,12 +834,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item_copy._set_persistent_property_value("caption", self._get_persistent_property_value("caption"))
         display_item_copy._set_persistent_property_value("description", self._get_persistent_property_value("description"))
         display_item_copy._set_persistent_property_value("session_id", self._get_persistent_property_value("session_id"))
+        display_item_copy._set_persistent_property_value("calibration_style_id", self._get_persistent_property_value("calibration_style_id"))
+        display_item_copy._set_persistent_property_value("display_properties", self._get_persistent_property_value("display_properties"))
         display_item_copy.created = self.created
         # data items
         for display_data_channel in self.display_data_channels:
             display_item_copy.append_display_data_channel(copy.deepcopy(display_data_channel))
         # display
-        display_item_copy.set_item("display", copy.deepcopy(self.__display))
         for graphic in self.graphics:
             display_item_copy.add_graphic(copy.deepcopy(graphic))
         memo[id(self)] = display_item_copy
@@ -851,22 +904,25 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def __display_type_changed(self, name, value):
         self.__property_changed(name, value)
-        self.__display._display_type = value
         # the order here is important; display values must come before display changed
         # so that the display canvas item is updated properly.
         self.display_values_changed_event.fire()
-        self.__display.display_changed_event.fire()
+        self.display_changed_event.fire()
         self.graphics_changed_event.fire(self.graphic_selection)
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
         if name == "title":
             self.notify_property_changed("displayed_title")
+        if name == "calibration_style_id":
+            self.display_property_changed_event.fire("calibration_style_id")
+
+    def __display_properties_changed(self, name, value):
+        self.notify_property_changed(name)
 
     def clone(self) -> "DisplayItem":
         display_item = self.__class__()
         display_item.uuid = self.uuid
-        display_item.set_item("display", self.__display.clone())
         for graphic in self.graphics:
             display_item.add_graphic(graphic.clone())
         return display_item
@@ -880,8 +936,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item._set_persistent_property_value("caption", self._get_persistent_property_value("caption"))
         display_item._set_persistent_property_value("description", self._get_persistent_property_value("description"))
         display_item._set_persistent_property_value("session_id", self._get_persistent_property_value("session_id"))
+        display_item._set_persistent_property_value("calibration_style_id", self._get_persistent_property_value("calibration_style_id"))
+        display_item._set_persistent_property_value("display_properties", self._get_persistent_property_value("display_properties"))
         display_item.created = self.created
-        display_item.set_item("display", copy.deepcopy(self.__display))
         for graphic in self.graphics:
             display_item.add_graphic(copy.deepcopy(graphic))
         for display_data_channel in self.display_data_channels:
@@ -967,45 +1024,28 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         if self.persistent_object_context:
             self.__registration_listener = self.persistent_object_context.registration_event.listen(register_object)
 
-    def __display_changed(self, name, old_display, new_display):
-        if new_display != old_display:
-            if old_display:
-                if self.__display_changed_listener:
-                    self.__display_changed_listener.close()
-                    self.__display_changed_listener = None
-                if self.__display_property_changed_listener:
-                    self.__display_property_changed_listener.close()
-                    self.__display_property_changed_listener = None
-                if self.__display_ref_count > 0:
-                    old_display._relinquish_master()
-                old_display.about_to_be_removed()
-                old_display.close()
-            if new_display:
-                new_display.about_to_be_inserted(self)
-                if self.__display_ref_count > 0:
-                    new_display._become_master()
-                self.__display_property_changed_listener = new_display.property_changed_event.listen(self.display_property_changed_event.fire)
-                self.__display_changed_listener = new_display.display_changed_event.listen(self.display_changed_event.fire)
-
-    @property
-    def __display(self) -> Display.Display:
-        return self.get_item("display")
-
-    @property
-    def display(self) -> Display.Display:
-        return self.__display
-
-    def get_display_property(self, property_name: str):
-        return getattr(self.__display, property_name)
+    def get_display_property(self, property_name: str, default_value=None):
+        return self.display_properties.get(property_name, default_value)
 
     def set_display_property(self, property_name: str, value) -> None:
-        return setattr(self.__display, property_name, value)
+        display_properties = self.display_properties
+        if value is not None:
+            display_properties[property_name] = value
+        else:
+            display_properties.pop(property_name, None)
+        self.display_properties = display_properties
+        self.display_property_changed_event.fire(property_name)
+        if property_name in ("calibration_style_id", ):
+            self.display_property_changed_event.fire("displayed_dimensional_scales")
+            self.display_property_changed_event.fire("displayed_dimensional_calibrations")
+            self.display_property_changed_event.fire("displayed_intensity_calibration")
+        self.display_changed_event.fire()
 
     def save_properties(self) -> typing.Tuple:
-        return self.__display.save_properties()
+        return self.display_properties, self.calibration_style_id
 
     def restore_properties(self, properties: typing.Tuple) -> None:
-        self.__display.restore_properties(properties)
+        self.display_properties, self.calibration_style_id = properties
 
     def display_item_changes(self):
         # return a context manager to batch up a set of changes so that listeners
@@ -1073,7 +1113,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.item_changed_event.fire()
 
     def __display_channel_property_changed(self, name):
-        self.__display.display_changed_event.fire()
+        self.display_changed_event.fire()
 
     @property
     def display_data_channel(self) -> DisplayDataChannel:
@@ -1090,7 +1130,39 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         for display_data_channel in self.display_data_channels:
             display_data_channel.update_display_data()
         xdata_list = [data_item.xdata if data_item else None for data_item in self.data_items]
-        self.__display.update_xdata_list(xdata_list)
+        if len(xdata_list) > 0 and xdata_list[0]:
+            dimensional_calibrations = xdata_list[0].dimensional_calibrations
+            if len(dimensional_calibrations) > 1:
+                self.__dimensional_calibrations = dimensional_calibrations
+                self.__intensity_calibration = xdata_list[0].intensity_calibration
+                self.__scales = 0, xdata_list[0].dimensional_shape[-1]
+                self.__dimensional_shape = xdata_list[0].dimensional_shape
+            else:
+                units = dimensional_calibrations[-1].units
+                mn = math.inf
+                mx = -math.inf
+                for xdata in xdata_list:
+                    if xdata and xdata.dimensional_calibrations[-1].units == units:
+                        v = dimensional_calibrations[0].convert_from_calibrated_value(xdata.dimensional_calibrations[-1].convert_to_calibrated_value(0))
+                        mn = min(mn, v)
+                        mx = max(mx, v)
+                        v = dimensional_calibrations[0].convert_from_calibrated_value(xdata.dimensional_calibrations[-1].convert_to_calibrated_value(xdata.dimensional_shape[-1]))
+                        mn = min(mn, v)
+                        mx = max(mx, v)
+                self.__dimensional_calibrations = dimensional_calibrations
+                self.__intensity_calibration = xdata_list[0].intensity_calibration
+                self.__scales = mn, mx
+                self.__dimensional_shape = (mx - mn, )
+        else:
+            self.__dimensional_calibrations = None
+            self.__intensity_calibration = None
+            self.__scales = 0, 1
+            self.__dimensional_shape = None
+        self.__data_and_metadata = xdata_list[0] if len(xdata_list) == 1 else None
+        self.display_property_changed_event.fire("displayed_dimensional_scales")
+        self.display_property_changed_event.fire("displayed_dimensional_calibrations")
+        self.display_property_changed_event.fire("displayed_intensity_calibration")
+        self.display_changed_event.fire()
 
     def _description_changed(self):
         self.notify_property_changed("title")
@@ -1257,36 +1329,64 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.graphics_changed_event.fire(self.graphic_selection)
 
     @property
-    def calibration_style_id(self) -> str:
-        return self.__display.calibration_style_id
-
-    @calibration_style_id.setter
-    def calibration_style_id(self, value: str) -> None:
-        self.__display.calibration_style_id = value
-
-    @property
-    def calibration_style(self) -> Display.CalibrationStyle:
+    def calibration_style(self) -> CalibrationStyle:
         return next(filter(lambda x: x.calibration_style_id == self.calibration_style_id, get_calibration_styles()), get_default_calibrated_calibration_style())
 
     @property
     def display_data_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
-        return self.__display.display_data_shape
+        if not self.__data_and_metadata:
+            return None
+        data_and_metadata = self.__data_and_metadata
+        dimensional_shape = data_and_metadata.dimensional_shape
+        next_dimension = 0
+        if data_and_metadata.is_sequence:
+            next_dimension += 1
+        if data_and_metadata.is_collection:
+            collection_dimension_count = data_and_metadata.collection_dimension_count
+            datum_dimension_count = data_and_metadata.datum_dimension_count
+            # next dimensions are treated as collection indexes.
+            if collection_dimension_count == 1 and datum_dimension_count == 1:
+                return dimensional_shape[next_dimension:next_dimension + collection_dimension_count + datum_dimension_count]
+            elif collection_dimension_count == 2 and datum_dimension_count == 1:
+                return dimensional_shape[next_dimension:next_dimension + collection_dimension_count]
+            else:  # default, "pick"
+                return dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
+        else:
+            return dimensional_shape[next_dimension:]
 
     @property
     def dimensional_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
-        return self.__display.dimensional_shape
+        if not self.__data_and_metadata:
+            return None
+        return self.__data_and_metadata.dimensional_shape
 
     @property
     def displayed_dimensional_scales(self) -> typing.Sequence[float]:
-        return self.__display.displayed_dimensional_scales
+        """The scale of the fractional coordinate system.
+
+        For displays associated with a single data item, this matches the size of the data.
+
+        For displays associated with a composite data item, this must be stored in this class.
+        """
+        return self.__scales
 
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
-        return self.__display.displayed_dimensional_calibrations
+        calibration_style = self.__get_calibration_style_for_id(self.calibration_style_id)
+        calibration_style = CalibrationStyleNative() if not calibration_style else calibration_style
+        if self.__dimensional_calibrations:
+            return calibration_style.get_dimensional_calibrations(self.__dimensional_shape, self.__dimensional_calibrations)
+        return [Calibration.Calibration() for c in self.__dimensional_calibrations] if self.__dimensional_calibrations else [Calibration.Calibration()]
 
     @property
     def displayed_intensity_calibration(self) -> Calibration.Calibration:
-        return self.__display.displayed_intensity_calibration
+        calibration_style = self.__get_calibration_style_for_id(self.calibration_style_id)
+        if self.__intensity_calibration and (not calibration_style or calibration_style.is_calibrated):
+            return self.__intensity_calibration
+        return Calibration.Calibration()
+
+    def __get_calibration_style_for_id(self, calibration_style_id: str) -> typing.Optional[CalibrationStyle]:
+        return next(filter(lambda x: x.calibration_style_id == calibration_style_id, get_calibration_styles()), None)
 
     @property
     def size_and_data_format_as_string(self) -> str:
@@ -1353,50 +1453,135 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
                     elif data_item.datum_dimension_count == 2:
                         display_type = "image"
                     # override
-                    if self.__display.display_script:
+                    if self.get_display_property("display_script"):
                         display_type = "display_script"
                     if display_type:
                         break
         return display_type
 
-    @property
-    def legend_labels(self) -> typing.Sequence[str]:
-        return self.__display.legend_labels
-
-    @legend_labels.setter
-    def legend_labels(self, value: typing.Sequence[str]) -> None:
-        self.__display.legend_labels = value
-
     def view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
-        self.__display.view_to_intervals(data_and_metadata, intervals)
+        """Change the view to encompass the channels and data represented by the given intervals."""
+        left = None
+        right = None
+        for interval in intervals:
+            left = min(left, interval[0]) if left is not None else interval[0]
+            right = max(right, interval[1]) if right is not None else interval[1]
+        left = left if left is not None else 0.0
+        right = right if right is not None else 1.0
+        extra = (right - left) * 0.5
+        left_channel = int(max(0.0, left - extra) * data_and_metadata.data_shape[-1])
+        right_channel = int(min(1.0, right + extra) * data_and_metadata.data_shape[-1])
+        self.set_display_property("left_channel", left_channel)
+        self.set_display_property("right_channel", right_channel)
+        data_min = numpy.amin(data_and_metadata.data[..., left_channel:right_channel])
+        data_max = numpy.amax(data_and_metadata.data[..., left_channel:right_channel])
+        if data_min > 0 and data_max > 0:
+            self.set_display_property("y_min", 0.0)
+            self.set_display_property("y_max", data_max * 1.2)
+        elif data_min < 0 and data_max < 0:
+            self.set_display_property("y_min", data_min * 1.2)
+            self.set_display_property("y_max", 0.0)
+        else:
+            self.set_display_property("y_min", data_min * 1.2)
+            self.set_display_property("y_max", data_max * 1.2)
+
+    def __get_calibrated_value_text(self, value: float, intensity_calibration) -> str:
+        if value is not None:
+            return intensity_calibration.convert_to_calibrated_value_str(value)
+        elif value is None:
+            return _("N/A")
+        else:
+            return str(value)
 
     def get_value_and_position_text(self, display_data_channel, pos) -> (str, str):
-        return self.__display.get_value_and_position_text(display_data_channel, pos)
+        data_and_metadata = self.__data_and_metadata
+        dimensional_calibrations = self.displayed_dimensional_calibrations
+        intensity_calibration = self.displayed_intensity_calibration
+
+        if data_and_metadata is None or pos is None:
+            return str(), str()
+
+        is_sequence = data_and_metadata.is_sequence
+        collection_dimension_count = data_and_metadata.collection_dimension_count
+        datum_dimension_count = data_and_metadata.datum_dimension_count
+        if is_sequence:
+            pos = (display_data_channel.sequence_index, ) + pos
+        if collection_dimension_count == 2 and datum_dimension_count == 1:
+            pos = pos + (display_data_channel.slice_center, )
+        else:
+            pos = tuple(display_data_channel.collection_index[0:collection_dimension_count]) + pos
+
+        while len(pos) < data_and_metadata.datum_dimension_count:
+            pos = (0,) + tuple(pos)
+
+        assert len(pos) == len(data_and_metadata.dimensional_shape)
+
+        position_text = ""
+        value_text = ""
+        data_shape = data_and_metadata.data_shape
+        if len(pos) == 4:
+            # 4d image
+            # make sure the position is within the bounds of the image
+            if 0 <= pos[0] < data_shape[0] and 0 <= pos[1] < data_shape[1] and 0 <= pos[2] < data_shape[2] and 0 <= pos[3] < data_shape[3]:
+                position_text = u"{0}, {1}, {2}, {3}".format(
+                    dimensional_calibrations[3].convert_to_calibrated_value_str(pos[3], value_range=(0, data_shape[3]), samples=data_shape[3]),
+                    dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, data_shape[2]), samples=data_shape[2]),
+                    dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1]),
+                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0]))
+                value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(pos), intensity_calibration)
+        if len(pos) == 3:
+            # 3d image
+            # make sure the position is within the bounds of the image
+            if 0 <= pos[0] < data_shape[0] and 0 <= pos[1] < data_shape[1] and 0 <= pos[2] < data_shape[2]:
+                position_text = u"{0}, {1}, {2}".format(dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, data_shape[2]), samples=data_shape[2]),
+                    dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1]),
+                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0]))
+                value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(pos), intensity_calibration)
+        if len(pos) == 2:
+            # 2d image
+            # make sure the position is within the bounds of the image
+            if len(data_shape) == 1:
+                if pos[-1] >= 0 and pos[-1] < data_shape[-1]:
+                    position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[-1], value_range=(0, data_shape[-1]), samples=data_shape[-1]))
+                    full_pos = [0, ] * len(data_shape)
+                    full_pos[-1] = pos[-1]
+                    value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(full_pos), intensity_calibration)
+            else:
+                if pos[0] >= 0 and pos[0] < data_shape[0] and pos[1] >= 0 and pos[1] < data_shape[1]:
+                    is_polar = dimensional_calibrations[0].units.startswith("1/") and dimensional_calibrations[0].units == dimensional_calibrations[1].units
+                    is_polar = is_polar and abs(dimensional_calibrations[0].scale * data_shape[0] - dimensional_calibrations[1].scale * data_shape[1]) < 1e-12
+                    is_polar = is_polar and abs(dimensional_calibrations[0].offset / (dimensional_calibrations[0].scale * data_shape[0]) + 0.5) < 1e-12
+                    is_polar = is_polar and abs(dimensional_calibrations[1].offset / (dimensional_calibrations[1].scale * data_shape[1]) + 0.5) < 1e-12
+                    if is_polar:
+                        x = dimensional_calibrations[1].convert_to_calibrated_value(pos[1])
+                        y = dimensional_calibrations[0].convert_to_calibrated_value(pos[0])
+                        r = math.sqrt(x * x + y * y)
+                        angle = -math.atan2(y, x)
+                        r_str = dimensional_calibrations[0].convert_to_calibrated_value_str(dimensional_calibrations[0].convert_from_calibrated_value(r), value_range=(0, data_shape[0]), samples=data_shape[0], display_inverted=True)
+                        position_text = u"{0}, {1:.4f}° ({2})".format(r_str, math.degrees(angle), _("polar"))
+                    else:
+                        position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1], display_inverted=True),
+                            dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0], display_inverted=True))
+                    value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(pos), intensity_calibration)
+        if len(pos) == 1:
+            # 1d plot
+            # make sure the position is within the bounds of the line plot
+            if pos[0] >= 0 and pos[0] < data_shape[-1]:
+                position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[-1]), samples=data_shape[-1]))
+                full_pos = [0, ] * len(data_shape)
+                full_pos[-1] = pos[0]
+                value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(full_pos), intensity_calibration)
+        return position_text, value_text
 
 
-class DisplayProperties:
+class DisplayCalibrationInfo:
 
     def __init__(self, display_item):
-
         self.display_data_shape = display_item.display_data_shape
-
         self.displayed_dimensional_scales = display_item.displayed_dimensional_scales
         self.displayed_dimensional_calibrations = copy.deepcopy(display_item.displayed_dimensional_calibrations)
         self.displayed_intensity_calibration = copy.deepcopy(display_item.displayed_intensity_calibration)
         self.calibration_style = display_item.calibration_style
-
-        self.image_zoom = display_item.get_display_property("image_zoom")
-        self.image_position = display_item.get_display_property("image_position")
-        self.image_canvas_mode = display_item.get_display_property("image_canvas_mode")
-
-        self.y_min = display_item.get_display_property("y_min")
-        self.y_max = display_item.get_display_property("y_max")
-        self.y_style = display_item.get_display_property("y_style")
-        self.left_channel = display_item.get_display_property("left_channel")
-        self.right_channel = display_item.get_display_property("right_channel")
-        self.legend_labels = display_item.get_display_property("legend_labels")
-
-        self.display_script = display_item.get_display_property("display_script")
 
     def __ne__(self, display_properties):
         if not display_properties:
@@ -1411,35 +1596,15 @@ class DisplayProperties:
             return True
         if  type(self.calibration_style) != type(display_properties.calibration_style):
             return True
-        if  self.image_zoom != display_properties.image_zoom:
-            return True
-        if  self.image_position != display_properties.image_position:
-            return True
-        if  self.image_canvas_mode != display_properties.image_canvas_mode:
-            return True
-        if  self.y_min != display_properties.y_min:
-            return True
-        if  self.y_max != display_properties.y_max:
-            return True
-        if  self.y_style != display_properties.y_style:
-            return True
-        if  self.left_channel != display_properties.left_channel:
-            return True
-        if  self.right_channel != display_properties.right_channel:
-            return True
-        if  self.legend_labels != display_properties.legend_labels:
-            return True
-        if  self.display_script != display_properties.display_script:
-            return True
         return False
 
 
 def get_calibration_styles():
-    return [Display.CalibrationStyleNative(), Display.CalibrationStylePixelsTopLeft(), Display.CalibrationStylePixelsCenter(),
-            Display.CalibrationStyleFractionalTopLeft(), Display.CalibrationStyleFractionalCenter()]
+    return [CalibrationStyleNative(), CalibrationStylePixelsTopLeft(), CalibrationStylePixelsCenter(),
+            CalibrationStyleFractionalTopLeft(), CalibrationStyleFractionalCenter()]
 
 def get_default_calibrated_calibration_style():
-    return Display.CalibrationStyleNative()
+    return CalibrationStyleNative()
 
 def get_default_uncalibrated_calibration_style():
-    return Display.CalibrationStylePixelsCenter()
+    return CalibrationStylePixelsCenter()
