@@ -1212,8 +1212,8 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
-        self.assertTrue("data_shape" in data_item.properties.get("data_sources")[0])
-        self.assertTrue("data_dtype" in data_item.properties.get("data_sources")[0])
+        self.assertTrue("data_shape" in data_item.properties)
+        self.assertTrue("data_dtype" in data_item.properties)
         self.assertTrue("uuid" in data_item.properties)
         self.assertTrue("version" in data_item.properties)
         document_controller.close()
@@ -2951,26 +2951,29 @@ class TestStorageClass(unittest.TestCase):
         src_data_item_dict["timezone"] = "Europe/Athens"
         src_data_item_dict["timezone_offset"] = "+0300"
         src_data_item_dict["session_metadata"] = {"instrument": "a big screwdriver"}
+        src_data_item_dict["data_item_uuids"] = []
+        src_data_item_dict["connections"] = []
 
         # make sure it reloads twice
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
         with contextlib.closing(document_model):
             data_item = document_model.data_items[0]
             display_item = document_model.display_items[0]
-            data_item_properties = data_item.write_to_dict()
-            data_source = data_item.data_source
-            self.assertEqual("title", data_source.title)
-            self.assertEqual("caption", data_source.caption)
-            self.assertEqual("20170101-120000", data_source.session_id)
-            self.assertEqual("temporary", data_source.category)
-            self.assertEqual("a big screwdriver", data_source.session_data["instrument"])
+            data_item_properties = data_item.properties
+            self.assertEqual("title", data_item.title)
+            self.assertEqual("caption", data_item.caption)
+            self.assertEqual("20170101-120000", data_item.session_id)
+            self.assertEqual("temporary", data_item.category)
+            self.assertEqual("a big screwdriver", data_item.session_data["instrument"])
             self.assertEqual("a big screwdriver", data_item.session_metadata["instrument"])
             self.assertNotIn("description", data_item_properties)
             self.assertNotIn("session_metadata", data_item_properties)
-            self.assertNotIn("timezone", data_item_properties)
-            self.assertNotIn("timezone_offset", data_item_properties)
+            self.assertEqual("Europe/Athens", data_item_properties["timezone"])
+            self.assertEqual("+0300", data_item_properties["timezone_offset"])
             self.assertEqual("20170101-120000", data_item_properties["session_id"])
             self.assertEqual("temporary", data_item_properties["category"])
+            self.assertNotIn("data_item_uuids", data_item_properties)
+            self.assertNotIn("connections", data_item_properties)
             self.assertEqual(document_model.get_display_items_for_data_item(data_item), [display_item])
             self.assertEqual(display_item.data_item, data_item)
             self.assertEqual(display_item.session_id, data_item.session_id)
@@ -3855,7 +3858,6 @@ class TestStorageClass(unittest.TestCase):
             src_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(src_data_item)
         memory_persistent_storage_system.persistent_storage_properties[str(src_data_item.uuid)]["created"] = "todaytodaytodaytodaytoday0"
-        memory_persistent_storage_system.persistent_storage_properties[str(src_data_item.uuid)]["data_sources"][0]["created"] = "todaytodaytodaytodaytoday0"
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # for corrupt/missing created dates, a new one matching todays date should be assigned

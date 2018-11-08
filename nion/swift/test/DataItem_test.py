@@ -92,7 +92,6 @@ class TestDataItemClass(unittest.TestCase):
             self.assertNotEqual(display_item.display_data_channels[0].display_limits, display_item2.display_data_channels[0].display_limits)
             # make sure dates are independent
             self.assertIsNot(data_item.created, data_item_copy.created)
-            self.assertIsNot(data_item.created, data_item_copy.created)
             # make sure calibrations, computations, nor graphics are not shared.
             # there is a subtlety here: the dimensional_calibrations property accessor will return a copy of
             # the list each time it is called. store these in variables do make sure they don't get deallocated
@@ -109,10 +108,9 @@ class TestDataItemClass(unittest.TestCase):
             data_item.title = "123"
             data_item.caption = "234"
             data_item.description = "345"
-            self.assertEqual("123", data_item.data_source.title)
-            self.assertEqual("234", data_item.data_source.caption)
-            self.assertEqual("345", data_item.data_source.description)
             self.assertEqual("123", data_item.title)
+            self.assertEqual("234", data_item.caption)
+            self.assertEqual("345", data_item.description)
 
     def test_setting_title_on_data_item_with_no_data_source_works_after_adding_data_source(self):
         document_model = DocumentModel.DocumentModel()
@@ -122,7 +120,6 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual("123", data_item.title)
             data_item.set_data(numpy.zeros((8, 8)))
             data_item.title = "456"
-            self.assertEqual("456", data_item.data_source.title)
             self.assertEqual("456", data_item.title)
 
     def test_data_item_with_existing_computation_initializes_dependencies(self):
@@ -420,19 +417,19 @@ class TestDataItemClass(unittest.TestCase):
             data_item.description = "345"
             data_item_copy = copy.deepcopy(data_item)
             data_item_snapshot = data_item.snapshot()
-            self.assertEqual("123", data_item_copy.data_source.title)
-            self.assertEqual("234", data_item_copy.data_source.caption)
-            self.assertEqual("345", data_item_copy.data_source.description)
-            self.assertEqual("123", data_item_snapshot.data_source.title)
-            self.assertEqual("234", data_item_snapshot.data_source.caption)
-            self.assertEqual("345", data_item_snapshot.data_source.description)
+            self.assertEqual("123", data_item_copy.title)
+            self.assertEqual("234", data_item_copy.caption)
+            self.assertEqual("345", data_item_copy.description)
+            self.assertEqual("123", data_item_snapshot.title)
+            self.assertEqual("234", data_item_snapshot.caption)
+            self.assertEqual("345", data_item_snapshot.description)
             # ensure there isn't an override stored in new data items
-            data_item_copy.data_source.title = "aaa"
-            data_item_copy.data_source.caption = "bbb"
-            data_item_copy.data_source.description = "ccc"
-            data_item_snapshot.data_source.title = "aaa"
-            data_item_snapshot.data_source.caption = "bbb"
-            data_item_snapshot.data_source.description = "ccc"
+            data_item_copy.title = "aaa"
+            data_item_copy.caption = "bbb"
+            data_item_copy.description = "ccc"
+            data_item_snapshot.title = "aaa"
+            data_item_snapshot.caption = "bbb"
+            data_item_snapshot.description = "ccc"
             self.assertEqual("aaa", data_item_copy.title)
             self.assertEqual("bbb", data_item_copy.caption)
             self.assertEqual("ccc", data_item_copy.description)
@@ -1075,7 +1072,6 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((2, 2)))
             document_model.append_data_item(data_item)
             self.assertEqual(data_item.session_id, document_model.session_id)
-            self.assertEqual(data_item.data_source.session_id, document_model.session_id)
 
     def test_data_item_gets_current_session_when_data_is_modified(self):
         document_model = DocumentModel.DocumentModel()
@@ -1088,7 +1084,6 @@ class TestDataItemClass(unittest.TestCase):
             self.assertNotEqual(data_item.session_id, document_model.session_id)
             data_item.set_data(numpy.ones((4, 4)))
             self.assertEqual(data_item.session_id, document_model.session_id)
-            self.assertEqual(data_item.data_source.session_id, document_model.session_id)
 
     def test_data_item_keeps_session_unmodified_when_metadata_is_changed(self):
         document_model = DocumentModel.DocumentModel()
@@ -1101,7 +1096,6 @@ class TestDataItemClass(unittest.TestCase):
             self.assertNotEqual(data_item.session_id, document_model.session_id)
             data_item.title = 'new title'
             self.assertEqual(data_item.session_id, '20000630-150200')
-            self.assertEqual(data_item.data_source.session_id, '20000630-150200')
 
     def test_data_item_copy_copies_session_info(self):
         document_model = DocumentModel.DocumentModel()
@@ -1114,7 +1108,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item_copy = copy.deepcopy(data_item)
             document_model.append_data_item(data_item_copy)
             self.assertEqual(data_item_copy.session_metadata, data_item.session_metadata)
-            self.assertEqual(data_item_copy.data_source.session_id, document_model.session_id)
+            self.assertEqual(data_item_copy.session_id, document_model.session_id)
 
     def test_data_item_session_id_independent_from_data_source_session_id(self):
         document_model = DocumentModel.DocumentModel()
@@ -1122,10 +1116,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((2, 2)))
             data_item.session_id = "20000630-150200"
             self.assertEqual("20000630-150200", data_item.session_id)
-            self.assertEqual("20000630-150200", data_item.data_source.session_id)
-            data_item.data_source.session_id = "20000630-150201"
-            self.assertEqual("20000630-150200", data_item.session_id)
-            self.assertEqual("20000630-150201", data_item.data_source.session_id)
+            data_item.session_id = "20000630-150201"
+            self.assertEqual("20000630-150201", data_item.session_id)
 
     def test_processed_data_item_has_source_data_modified_equal_to_sources_data_modifed(self):
         document_model = DocumentModel.DocumentModel()

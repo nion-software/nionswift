@@ -252,16 +252,12 @@ class MemoryStorageSystem:
         return None
 
     def read_external_data(self, item, name):
-        if isinstance(item, DataItem.BufferedDataSource):
-            item = item.persistent_object_parent.parent
         if isinstance(item, DataItem.DataItem) and name == "data":
             storage = self.__get_storage_for_item(item)
             return storage.load_data(item)
         return None
 
     def write_external_data(self, item, name, value) -> None:
-        if isinstance(item, DataItem.BufferedDataSource):
-            item = item.persistent_object_parent.parent
         if isinstance(item, DataItem.DataItem) and name == "data":
             storage = self.__get_storage_for_item(item)
             storage.update_data(item, value)
@@ -298,8 +294,6 @@ class MemoryStorageSystem:
         return False
 
     def rewrite_item(self, item) -> None:
-        if isinstance(item, DataItem.BufferedDataSource):
-            item = item.persistent_object_parent.parent
         if isinstance(item, DataItem.DataItem):
             storage = self.__get_storage_for_item(item)
             storage.rewrite_item(item)

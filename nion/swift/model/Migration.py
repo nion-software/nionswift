@@ -105,11 +105,14 @@ def migrate_to_v13(reader_info_list, library_updates, migration_log: MigrationLo
                     if session_data is not None:
                         data_source_properties["session"] = session_data
 
-                data_sources = list()
-                if data_source_properties:
-                    data_sources.append(data_source_properties)
+                    data_source_properties.pop("uuid", None)
 
-                properties["data_sources"] = data_sources
+                    properties.update(data_source_properties)
+
+                properties.pop("connections", None)
+                properties.pop("data_item_uuids", None)
+
+                properties["type"] = "data-item"
 
                 # move the display properties into a display item
 
