@@ -449,6 +449,34 @@ class TestFacadeClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(dst_data_item.data, data2))
 
+    def test_target_display_and_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            # configure data items
+            data_item1 = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            # configure workspace
+            workspace_1x1 = document_controller.document_model.workspaces[0]
+            document_controller.workspace_controller.change_workspace(workspace_1x1)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item1)
+
+            api = Facade.get_api("~1.0", "~1.0")
+            library = api.library
+            data_item1_ref = library.data_items[0]
+            data_item2_ref = library.data_items[1]
+            display_item1_ref = library.display_items[0]
+            display_item2_ref = library.display_items[1]
+            # first data item gets displayed because there is an empty display panel.
+            self.assertEqual(data_item1_ref, api.application.document_windows[0].target_data_item)
+            self.assertEqual(display_item1, api.application.document_windows[0].target_display._display_item)
+            self.assertEqual(display_item1_ref, api.application.document_windows[0].target_display)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -2115,8 +2115,8 @@ class Computation(metaclass=SharedInstance):
 
 
 class Library(metaclass=SharedInstance):
-    release = ["uuid", "data_item_count", "data_items", "create_data_item", "create_data_item_from_data",
-               "create_data_item_from_data_and_metadata",
+    release = ["uuid", "data_item_count", "data_items", "display_items", "create_data_item",
+               "create_data_item_from_data", "create_data_item_from_data_and_metadata",
                "get_or_create_data_group", "data_ref_for_data_item", "get_data_item_for_hardware_source",
                "get_data_item_for_reference_key", "get_data_item_by_uuid", "get_graphic_by_uuid",
                "get_source_data_items", "get_dependent_data_items", "has_library_value", "get_library_value",
@@ -2168,6 +2168,18 @@ class Library(metaclass=SharedInstance):
         Scriptable: Yes
         """
         return [DataItem(data_item) for data_item in self.__document_model.data_items]
+
+    @property
+    def display_items(self) -> typing.List[Display]:
+        """Return the list of display items.
+
+        :return: The list of :py:class:`nion.swift.Facade.Display` objects.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return [Display(display_item) for display_item in self.__document_model.display_items]
 
     def get_source_data_items(self, data_item: DataItem) -> typing.List[DataItem]:
         """Return the list of data items that are data sources for the data item.
@@ -2575,8 +2587,7 @@ class DocumentWindow(metaclass=SharedInstance):
     @property
     def target_display(self) -> Display:
         display_item = self.__document_controller.selected_display_item
-        display = display_item.display if display_item else None
-        return Display(display)
+        return Display(display_item)
 
     @property
     def target_data_item(self) -> DataItem:
