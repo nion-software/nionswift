@@ -370,6 +370,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.__last_display_values = None
         self.__current_display_values = None
         self.__is_master = True
+        self.__display_ref_count = 0
 
         self.__data_item = None
         if data_item:
@@ -499,9 +500,14 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
     def __connect_data_item(self, data_item):
         if self.__data_item:
             self.__disconnect_data_item_events()
+            for _ in range(self.__display_ref_count):
+                self.__data_item.decrement_data_ref_count()
         self.__data_item = data_item
         self.__connect_data_item_events()
         self.__validate_slice_indexes()
+        if self.__data_item:
+            for _ in range(self.__display_ref_count):
+                self.__data_item.increment_data_ref_count()
 
     def connect_data_item(self, lookup_data_item):
         data_item = lookup_data_item(uuid.UUID(self.data_item_reference))
@@ -509,9 +515,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
     def attempt_connect_data_item(self, data_item: DataItem.DataItem) -> bool:
         if not self.__data_item and self.data_item_reference == str(data_item.uuid):
-            self.__data_item = data_item
-            self.__connect_data_item_events()
-            self.__validate_slice_indexes()
+            self.__connect_data_item(data_item)
             return True
         return False
 
@@ -711,11 +715,29 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
             return self.__current_display_values
         return self.__last_display_values
 
-    def _become_master(self):
-        self.__is_master = True
+    def increment_display_ref_count(self, amount: int=1):
+        """Increment display reference count to indicate this library item is currently displayed."""
+        display_ref_count = self.__display_ref_count
+        self.__display_ref_count += amount
+        if display_ref_count == 0:
+            self.__is_master = True
+        if self.__data_item:
+            for _ in range(amount):
+                self.__data_item.increment_data_ref_count()
 
-    def _relinquish_master(self):
-        self.__is_master = False
+    def decrement_display_ref_count(self, amount: int=1):
+        """Decrement display reference count to indicate this library item is no longer displayed."""
+        assert not self._closed
+        self.__display_ref_count -= amount
+        if self.__display_ref_count == 0:
+            self.__is_master = False
+        if self.__data_item:
+            for _ in range(amount):
+                self.__data_item.decrement_data_ref_count()
+
+    @property
+    def _display_ref_count(self):
+        return self.__display_ref_count
 
     def reset_display_limits(self):
         """Reset display limits so that they are auto calculated whenever the data changes."""
@@ -1135,25 +1157,15 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         """Increment display reference count to indicate this library item is currently displayed."""
         display_ref_count = self.__display_ref_count
         self.__display_ref_count += amount
-        if display_ref_count == 0:
-            for display_data_channel in self.display_data_channels:
-                display_data_channel._become_master()
-        for data_item in self.data_items:
-            if data_item:
-                for _ in range(amount):
-                    data_item.increment_data_ref_count()
+        for display_data_channel in self.display_data_channels:
+            display_data_channel.increment_display_ref_count(amount)
 
     def decrement_display_ref_count(self, amount: int=1):
         """Decrement display reference count to indicate this library item is no longer displayed."""
         assert not self._closed
         self.__display_ref_count -= amount
-        if self.__display_ref_count == 0:
-            for display_data_channel in self.display_data_channels:
-                display_data_channel._relinquish_master()
-        for data_item in self.data_items:
-            if data_item:
-                for _ in range(amount):
-                    data_item.decrement_data_ref_count()
+        for display_data_channel in self.display_data_channels:
+            display_data_channel.decrement_display_ref_count(amount)
 
     @property
     def _display_ref_count(self):
@@ -1294,6 +1306,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def __insert_display_data_channel(self, name, before_index, display_data_channel: DisplayDataChannel) -> None:
         display_data_channel.about_to_be_inserted(self)
+        display_data_channel.increment_display_ref_count(self._display_ref_count)
         self.__display_data_channel_property_changed_event_listeners.insert(before_index, display_data_channel.property_changed_event.listen(self.__display_channel_property_changed))
         self.__display_data_channel_data_item_will_change_event_listeners.insert(before_index, display_data_channel.data_item_will_change_event.listen(self.__data_item_will_change))
         self.__display_data_channel_data_item_did_change_event_listeners.insert(before_index, display_data_channel.data_item_did_change_event.listen(self.__data_item_did_change))
@@ -1302,6 +1315,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.notify_insert_item("display_data_channels", display_data_channel, before_index)
 
     def __remove_display_data_channel(self, name, index, display_data_channel: DisplayDataChannel) -> None:
+        display_data_channel.decrement_display_ref_count(self._display_ref_count)
         display_data_channel.about_to_be_removed()
         self.__disconnect_display_data_channel(display_data_channel, index)
         display_data_channel.close()

@@ -826,6 +826,22 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(2, len(document_model.data_items))
             self.assertEqual(2, len(document_model.display_items))
 
+    def test_adding_display_data_channel_to_displayed_line_plot_handles_display_ref_counts(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.zeros((2,)))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((2,)))
+            document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            # ensure first line profile is displayed
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item1)
+            # add display layer
+            display_item1.append_display_data_channel_for_data_item(data_item2)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
