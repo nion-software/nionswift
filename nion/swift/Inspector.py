@@ -560,14 +560,8 @@ class InfoInspectorSection(InspectorSection):
 
 
 class DataInfoInspectorSection(InspectorSection):
-
-    """
-        Subclass InspectorSection to implement info inspector.
-    """
-
     def __init__(self, document_controller, display_data_channel):
         super().__init__(document_controller.ui, "data_info", _("Data Info"))
-        ui = document_controller.ui
         # date
         self.info_section_datetime_row = self.ui.create_row_widget()
         self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
@@ -588,12 +582,129 @@ class DataInfoInspectorSection(InspectorSection):
         self.finish_widget_content()
 
 
+class LinePlotDisplayLayersInspectorSection(InspectorSection):
+    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
+        super().__init__(document_controller.ui, "line_plot_display_layer", _("Line Plot Display Layer"))
+        ui = self.ui
+
+        column = ui.create_column_widget(properties={"spacing": 12})
+
+        def change_label(label_edit_widget, index, label):
+            display_item.set_display_layer_property(index, "label", label)
+            label_edit_widget.select_all()
+
+        def move_layer_forward(index):
+            display_item.move_display_layer_forward(index)
+            column.remove_all()
+            build_column()
+
+        def move_layer_backward(index):
+            display_item.move_display_layer_backward(index)
+            column.remove_all()
+            build_column()
+
+        def add_layer(index):
+            display_item.insert_display_layer(index)
+            column.remove_all()
+            build_column()
+
+        def remove_layer(index):
+            display_item.remove_display_layer(index)
+            column.remove_all()
+            build_column()
+
+        def change_data_index(data_index_widget, index, data_index):
+            data_index = int(data_index) if data_index.isdigit() else 0
+            display_item.set_display_layer_property(index, "data_index", data_index)
+            data_index_widget.select_all()
+
+        def change_data_row(data_row_widget, index, data_row):
+            data_row = int(data_row) if data_row.isdigit() else 0
+            display_item.set_display_layer_property(index, "data_row", data_row)
+            data_row_widget.select_all()
+
+        def change_color(color_widget, index, color):
+            display_item.set_display_layer_property(index, "fill_color", color)
+            color_widget.select_all()
+
+        def change_is_filled(index, is_filled):
+            display_item.set_display_layer_property(index, "is_filled", is_filled)
+
+        def build_column():
+            display_layers = display_item.display_layers
+            for index, display_layer in enumerate(display_layers):
+                inner_column = ui.create_column_widget()
+                # label
+                label_edit_widget = ui.create_line_edit_widget()
+                label_row = ui.create_row_widget(properties={"spacing": 12})
+                label_row.add(ui.create_label_widget(_("Layer") + " " + str(index) + ":"))
+                label_row.add(label_edit_widget)
+                label_row.add_spacing(12)
+                label_edit_widget.text = display_layer.get("label", str())
+                label_edit_widget.on_editing_finished = functools.partial(change_label, label_edit_widget, index)
+                # move up, move down, add layer, remove layer
+                move_forward_button_widget = ui.create_push_button_widget("\N{UPWARDS WHITE ARROW}")
+                move_backward_button_widget = ui.create_push_button_widget("\N{DOWNWARDS WHITE ARROW}")
+                add_layer_button_widget = ui.create_push_button_widget("\N{PLUS SIGN}")
+                remove_layer_button_widget = ui.create_push_button_widget("\N{MINUS SIGN}")
+                button_row = ui.create_row_widget()
+                button_row.add(move_forward_button_widget)
+                button_row.add(move_backward_button_widget)
+                button_row.add_stretch()
+                button_row.add(add_layer_button_widget)
+                button_row.add(remove_layer_button_widget)
+                button_row.add_spacing(12)
+                move_forward_button_widget.on_clicked = functools.partial(move_layer_forward, index)
+                move_backward_button_widget.on_clicked = functools.partial(move_layer_backward, index)
+                add_layer_button_widget.on_clicked = functools.partial(add_layer, index + 1)
+                remove_layer_button_widget.on_clicked = functools.partial(remove_layer, index)
+                # content: display data channel, row
+                display_data_channel_index_widget = ui.create_line_edit_widget(properties={"width": 36})
+                display_data_channel_row_widget = ui.create_line_edit_widget(properties={"width": 36})
+                content_row = ui.create_row_widget(properties={"spacing": 12})
+                content_row.add(ui.create_label_widget(_("Data Index")))
+                content_row.add(display_data_channel_index_widget)
+                content_row.add(ui.create_label_widget(_("Row")))
+                content_row.add(display_data_channel_row_widget)
+                content_row.add_stretch()
+                display_data_channel_index_widget.text = str(display_layer.get("data_index", 0))
+                display_data_channel_row_widget.text = str(display_layer.get("data_row", 0))
+                display_data_channel_index_widget.on_editing_finished = functools.partial(change_data_index, display_data_channel_index_widget, index)
+                display_data_channel_row_widget.on_editing_finished = functools.partial(change_data_row, display_data_channel_row_widget, index)
+                # display: fill color, is_filled, label
+                color_widget = ui.create_line_edit_widget(properties={"width": 160})
+                filled_widget = ui.create_check_box_widget(_("Filled"))
+                color_row = ui.create_row_widget(properties={"spacing": 12})
+                color_row.add(ui.create_label_widget(_("Color")))
+                color_row.add(color_widget)
+                color_row.add(filled_widget)
+                color_row.add_stretch()
+                color_widget.text = str(display_layer.get("fill_color", "#00F"))
+                filled_widget.checked = display_layer.get("is_filled", False)
+                filled_widget.on_checked_changed = functools.partial(change_is_filled, index)
+                color_widget.on_editing_finished = functools.partial(change_color, color_widget, index)
+                # build the inner column
+                inner_column.add(label_row)
+                inner_column.add(button_row)
+                inner_column.add(content_row)
+                inner_column.add(color_row)
+                # add inner column to overall column
+                column.add(inner_column)
+            if len(display_layers) == 0:
+                add_layer_button_widget = ui.create_push_button_widget("\N{PLUS SIGN}")
+                button_row = ui.create_row_widget()
+                button_row.add(add_layer_button_widget)
+                button_row.add_stretch()
+                add_layer_button_widget.on_clicked = functools.partial(add_layer, 0)
+                column.add(button_row)
+
+        build_column()
+
+        self.add_widget_to_content(column)
+        self.finish_widget_content()
+
+
 class ImageDataInspectorSection(InspectorSection):
-
-    """
-        Subclass InspectorSection to implement display limits inspector.
-    """
-
     def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem):
         super().__init__(document_controller.ui, "display-limits", _("Image Data"))
         ui = document_controller.ui
@@ -2407,7 +2518,6 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
             inspector_sections.append(InfoInspectorSection(document_controller, display_item))
             inspector_sections.append(LinePlotDisplayInspectorSection(document_controller, display_item))
             for index, display_data_channel in enumerate(display_item.display_data_channels):
-
                 if len(display_item.display_data_channels) > 1:
                     section_title_row = self.ui.create_row_widget()
                     section_title_label_widget = self.ui.create_label_widget(properties={"stylesheet": "font-weight: bold"})
@@ -2419,7 +2529,6 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
                     section_title_column.add(section_title_row)
                     section_title_column.add_spacing(4)
                     inspector_sections.append(section_title_column)
-
                 data_item = display_data_channel.data_item
                 inspector_sections.append(DataInfoInspectorSection(document_controller, display_data_channel))
                 inspector_sections.append(CalibrationsInspectorSection(document_controller, display_data_channel, display_item))
@@ -2432,6 +2541,7 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
                     else:  # default, pick
                         inspector_sections.append(CollectionIndexInspectorSection(document_controller, display_data_channel))
                 inspector_sections.append(ComputationInspectorSection(document_controller, data_item))
+            inspector_sections.append(LinePlotDisplayLayersInspectorSection(document_controller, display_item))
             if len(display_item.graphics) > 0:
                 inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
             def focus_default():

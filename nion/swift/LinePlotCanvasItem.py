@@ -119,7 +119,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__closing_lock = threading.RLock()
         self.__closed = False
 
-        self.__line_graph_xdata_list = list()
+        self.___has_valid_drawn_graph_data = False
 
         self.__xdata_list = list()
         self.__last_xdata_list = list()
@@ -232,7 +232,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
     @property
     def line_graph_canvas_item(self):
-        return self.__line_graph_stack.canvas_items[0] if (self.__line_graph_stack and len(self.__line_graph_xdata_list) > 0) else None
+        return self.__line_graph_stack.canvas_items[0] if self.__line_graph_stack else None
 
     # for testing
     @property
@@ -241,12 +241,12 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
     @property
     def _has_valid_drawn_graph_data(self):
-        return len(self.__line_graph_xdata_list) > 0
+        return self.___has_valid_drawn_graph_data
 
     def update_display_values(self, display_values_list) -> None:
         self.__display_values_list = display_values_list
 
-    def update_display_properties(self, display_calibration_info, display_properties: typing.Mapping) -> None:
+    def update_display_properties(self, display_calibration_info, display_properties: typing.Mapping, display_layers: typing.Sequence[typing.Mapping]) -> None:
         """Update the display values. Called from display panel.
 
         This method saves the display values and data and triggers an update. It should be as fast as possible.
@@ -279,6 +279,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__left_channel = display_properties.get("left_channel")
             self.__right_channel = display_properties.get("right_channel")
             self.__legend_labels = display_properties.get("legend_labels")
+            self.__display_layers = display_layers
 
             if self.__display_values_list and len(self.__display_values_list) > 0:
                 self.__xdata_list = [display_values.display_data_and_metadata if display_values else None for display_values in self.__display_values_list]
@@ -458,40 +459,57 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 else:
                     scalar_xdata_list = list()
 
-            line_graph_xdata_list = list()
-
             if self.__display_frame_rate_id:
                 Utility.fps_tick("prepare_"+self.__display_frame_rate_id)
 
-            for scalar_xdata in scalar_xdata_list:
-                if scalar_xdata and scalar_xdata.is_data_1d:
-                    line_graph_xdata_list.append(scalar_xdata)
-                elif scalar_xdata and scalar_xdata.is_data_2d:
-                    rows = min(16, scalar_xdata.dimensional_shape[0])
-                    intensity_calibration = scalar_xdata.intensity_calibration
-                    displayed_dimensional_calibration = scalar_xdata.dimensional_calibrations[-1]
-                    for row in range(rows):
-                        scalar_data_row = scalar_xdata.data[row:row + 1, :].reshape((scalar_xdata.dimensional_shape[-1],))
-                        scalar_xdata_row = DataAndMetadata.new_data_and_metadata(scalar_data_row, intensity_calibration, [displayed_dimensional_calibration])
-                        line_graph_xdata_list.append(scalar_xdata_row)
-                else:
-                    line_graph_xdata_list.append(None)
-
-            line_graph_xdata_list = line_graph_xdata_list[0:16]
-
             colors = ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00")
 
-            for index, line_graph_canvas_item in enumerate(self.__line_graph_stack.canvas_items):
-                if index < len(line_graph_xdata_list):
-                    line_graph_canvas_item.set_is_filled(index == 0)
-                    line_graph_canvas_item.set_color(colors[index])
-                    line_graph_canvas_item.set_axes(axes)
-                    line_graph_canvas_item.set_uncalibrated_xdata(line_graph_xdata_list[index])
-                else:
-                    line_graph_canvas_item.set_axes(None)
-                    line_graph_canvas_item.set_uncalibrated_xdata(None)
+            display_layers = self.__display_layers
 
-            self.__line_graph_xdata_list = line_graph_xdata_list
+            if len(display_layers) == 0:
+                index = 0
+                for scalar_index, scalar_xdata in enumerate(scalar_xdata_list):
+                    if scalar_xdata and scalar_xdata.is_data_1d:
+                        if index < 16:
+                            display_layers.append({"fill_color": colors[index], "is_filled": index == 0, "data_index": scalar_index})
+                            index += 1
+                    if scalar_xdata and scalar_xdata.is_data_2d:
+                        for row in range(min(scalar_xdata.dimensional_calibrations[-1], 16)):
+                            if index < 16:
+                                display_layers.append({"fill_color": colors[index], "is_filled": index == 0, "data_index": scalar_index, "data_row": row})
+                                index += 1
+
+            display_layer_count = len(display_layers)
+
+            self.___has_valid_drawn_graph_data = False
+
+            for index, display_layer in enumerate(display_layers):
+                if index < 16:
+                    is_filled = display_layer.get("is_filled", index == 0)
+                    fill_color = display_layer.get("fill_color", None)
+                    fill_color = fill_color or colors[index]
+                    data_index = display_layer.get("data_index", 0)
+                    data_row = display_layer.get("data_row", 0)
+                    if 0 <= data_index < len(scalar_xdata_list):
+                        scalar_xdata = scalar_xdata_list[data_index]
+                        if scalar_xdata:
+                            data_row = max(0, min(scalar_xdata.dimensional_shape[0] - 1, data_row))
+                            intensity_calibration = scalar_xdata.intensity_calibration
+                            displayed_dimensional_calibration = scalar_xdata.dimensional_calibrations[-1]
+                            if scalar_xdata.is_data_2d:
+                                scalar_data = scalar_xdata.data[data_row:data_row + 1, :].reshape((scalar_xdata.dimensional_shape[-1],))
+                                scalar_xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
+                        line_graph_canvas_item = self.__line_graph_stack.canvas_items[display_layer_count - (index + 1)]
+                        line_graph_canvas_item.set_is_filled(is_filled)
+                        line_graph_canvas_item.set_color(fill_color)
+                        line_graph_canvas_item.set_axes(axes)
+                        line_graph_canvas_item.set_uncalibrated_xdata(scalar_xdata)
+                        self.___has_valid_drawn_graph_data = scalar_xdata is not None
+
+            for index in range(len(display_layers), 16):
+                line_graph_canvas_item = self.__line_graph_stack.canvas_items[index]
+                line_graph_canvas_item.set_axes(None)
+                line_graph_canvas_item.set_uncalibrated_xdata(None)
 
             self.__update_canvas_items(axes, legend_labels)
         else:

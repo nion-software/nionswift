@@ -755,6 +755,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("session_id", hidden=True, changed=self.__property_changed)
         self.define_property("calibration_style_id", "calibrated", changed=self.__property_changed)
         self.define_property("display_properties", dict(), copy_on_read=True, changed=self.__display_properties_changed)
+        self.define_property("display_layers", list(), copy_on_read=True, changed=self.__display_properties_changed)
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.define_relationship("display_data_channels", display_data_channel_factory, insert=self.__insert_display_data_channel, remove=self.__remove_display_data_channel)
 
@@ -836,6 +837,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item_copy._set_persistent_property_value("session_id", self._get_persistent_property_value("session_id"))
         display_item_copy._set_persistent_property_value("calibration_style_id", self._get_persistent_property_value("calibration_style_id"))
         display_item_copy._set_persistent_property_value("display_properties", self._get_persistent_property_value("display_properties"))
+        display_item_copy._set_persistent_property_value("display_layers", self._get_persistent_property_value("display_layers"))
         display_item_copy.created = self.created
         # data items
         for display_data_channel in self.display_data_channels:
@@ -938,6 +940,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item._set_persistent_property_value("session_id", self._get_persistent_property_value("session_id"))
         display_item._set_persistent_property_value("calibration_style_id", self._get_persistent_property_value("calibration_style_id"))
         display_item._set_persistent_property_value("display_properties", self._get_persistent_property_value("display_properties"))
+        display_item._set_persistent_property_value("display_layers", self._get_persistent_property_value("display_layers"))
         display_item.created = self.created
         for graphic in self.graphics:
             display_item.add_graphic(copy.deepcopy(graphic))
@@ -1041,11 +1044,66 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             self.display_property_changed_event.fire("displayed_intensity_calibration")
         self.display_changed_event.fire()
 
+    def get_display_layer_property(self, index: int, property_name: str, default_value=None):
+        display_layers = self.display_layers
+        if 0 <= index < len(display_layers):
+            return display_layers[index].get(property_name, default_value)
+        return None
+
+    def set_display_layer_property(self, index: int, property_name: str, value) -> None:
+        display_layers = self.display_layers
+        assert 0 <= index < len(display_layers)
+        if value is not None:
+            display_layers[index][property_name] = value
+        else:
+            display_layers[index].pop(property_name, None)
+        self.display_layers = display_layers
+
+    def add_display_layer(self, **kwargs) -> None:
+        self.insert_display_layer(len(self.display_layers), **kwargs)
+
+    def insert_display_layer(self, before_index: int, **kwargs) -> None:
+        display_layers = self.display_layers
+        display_layers.insert(before_index, kwargs)
+        self.display_layers = display_layers
+
+    def remove_display_layer(self, index: int) -> None:
+        display_layers = self.display_layers
+        display_layers.pop(index)
+        self.display_layers = display_layers
+
+    def move_display_layer_forward(self, index: int) -> None:
+        display_layers = self.display_layers
+        assert 0 <= index < len(display_layers)
+        if index > 0:
+            display_layer = display_layers.pop(index)
+            display_layers.insert(index - 1, display_layer)
+        self.display_layers = display_layers
+
+    def move_display_layer_backward(self, index: int) -> None:
+        display_layers = self.display_layers
+        assert 0 <= index < len(display_layers)
+        if index < len(display_layers) - 1:
+            display_layer = display_layers.pop(index)
+            display_layers.insert(index + 1, display_layer)
+        self.display_layers = display_layers
+
+    def populate_display_layers(self) -> None:
+        while len(self.display_layers) < len(self.display_data_channels):
+            self.add_display_layer(data_index=len(self.display_layers))
+
+    def append_display_data_channel_for_data_item(self, data_item: DataItem.DataItem) -> None:
+        self.populate_display_layers()
+        display_data_channel = DisplayDataChannel(data_item)
+        self.append_display_data_channel(display_data_channel)
+        data_index = self.display_data_channels.index(display_data_channel)
+        self.add_display_layer(data_index=data_index)
+
     def save_properties(self) -> typing.Tuple:
-        return self.display_properties, self.calibration_style_id
+        return self.display_properties, self.display_layers, self.calibration_style_id
 
     def restore_properties(self, properties: typing.Tuple) -> None:
-        self.display_properties, self.calibration_style_id = properties
+        self.display_properties, self.display_layers, self.calibration_style_id = properties
 
     def display_item_changes(self):
         # return a context manager to batch up a set of changes so that listeners
@@ -1583,18 +1641,18 @@ class DisplayCalibrationInfo:
         self.displayed_intensity_calibration = copy.deepcopy(display_item.displayed_intensity_calibration)
         self.calibration_style = display_item.calibration_style
 
-    def __ne__(self, display_properties):
-        if not display_properties:
+    def __ne__(self, display_calibration_info):
+        if not display_calibration_info:
             return True
-        if  self.display_data_shape != display_properties.display_data_shape:
+        if  self.display_data_shape != display_calibration_info.display_data_shape:
             return True
-        if  self.displayed_dimensional_scales != display_properties.displayed_dimensional_scales:
+        if  self.displayed_dimensional_scales != display_calibration_info.displayed_dimensional_scales:
             return True
-        if  self.displayed_dimensional_calibrations != display_properties.displayed_dimensional_calibrations:
+        if  self.displayed_dimensional_calibrations != display_calibration_info.displayed_dimensional_calibrations:
             return True
-        if  self.displayed_intensity_calibration != display_properties.displayed_intensity_calibration:
+        if  self.displayed_intensity_calibration != display_calibration_info.displayed_intensity_calibration:
             return True
-        if  type(self.calibration_style) != type(display_properties.calibration_style):
+        if  type(self.calibration_style) != type(display_calibration_info.calibration_style):
             return True
         return False
 

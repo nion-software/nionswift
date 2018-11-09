@@ -344,27 +344,32 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
                     py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
                     py = max(plot_origin_y, py)
                     py = min(plot_origin_y + plot_height, py)
-                    if fill:
-                        drawing_context.move_to(px, baseline)
-                        drawing_context.line_to(px, py)
-                    else:
-                        if i == 0:
-                            drawing_context.move_to(px, py)
+                    if i == 0:
+                        if fill:
+                            drawing_context.move_to(px, baseline)
+                            drawing_context.line_to(px, py)
                         else:
-                            # only draw horizontal lines when necessary
-                            if py != last_py:
-                                # draw forward from last_px to px at last_py level
-                                drawing_context.line_to(px, last_py)
-                                drawing_context.line_to(px, py)
-                        last_py = py
-                if not fill:
-                    drawing_context.line_to(plot_origin_x + plot_width, last_py)
+                            drawing_context.move_to(px, py)
+                    else:
+                        # only draw horizontal lines when necessary
+                        if py != last_py:
+                            # draw forward from last_px to px at last_py level
+                            drawing_context.line_to(px, last_py)
+                            drawing_context.line_to(px, py)
+                    last_py = py
+                drawing_context.line_to(plot_origin_x + plot_width, last_py)
+                if fill:
+                    drawing_context.line_to(plot_origin_x + plot_width, baseline)
         else:
             drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
             drawing_context.line_to(plot_origin_x + plot_width, plot_origin_y + plot_height * 0.5)
-        drawing_context.line_width = 1.0 if fill else 0.5
-        drawing_context.stroke_style = color
-        drawing_context.stroke()
+        if fill:
+            drawing_context.fill_style = color
+            drawing_context.fill()
+        else:
+            drawing_context.line_width = 0.5
+            drawing_context.stroke_style = color
+            drawing_context.stroke()
 
 
 def draw_frame(drawing_context, plot_height, plot_origin_x, plot_origin_y, plot_width):
@@ -1003,6 +1008,17 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             font = "{0:d}px".format(self.font_size)
             border = 4
 
+            for index, legend_label in enumerate(legend_labels):
+                with drawing_context.saver():
+                    legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_label).width)
+
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.rect(plot_origin_x + plot_width - 10 - line_height - legend_width - border, plot_origin_y + line_height * 0.5 - border, legend_width + border * 2 + line_height, len(
+                    legend_labels) * line_height + border * 2)
+                drawing_context.fill_style = "rgba(192, 192, 192, 1.0)"
+                drawing_context.fill()
+
             colors = ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00")
             for index, legend_label in enumerate(legend_labels):
                 with drawing_context.saver():
@@ -1010,7 +1026,6 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.text_align = "right"
                     drawing_context.text_baseline = "bottom"
                     drawing_context.fill_style = "#000"
-                    legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_label).width)
                     drawing_context.fill_text(legend_label, plot_origin_x + plot_width - 10 - line_height, base_y)
 
                     drawing_context.begin_path()
@@ -1019,10 +1034,3 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.fill()
 
                     base_y += line_height
-
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.rect(plot_origin_x + plot_width - 10 - line_height - legend_width - border, plot_origin_y + line_height * 0.5 - border, legend_width + border * 2 + line_height, len(
-                    legend_labels) * line_height + border * 2)
-                drawing_context.fill_style = "rgba(192, 192, 192, 0.50)"
-                drawing_context.fill()
