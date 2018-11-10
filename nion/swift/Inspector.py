@@ -23,6 +23,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
+from nion.ui import CanvasItem
 from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Converter
@@ -112,7 +113,11 @@ class InspectorPanel(Panel.Panel):
         data_item = self.__display_item.data_item if self.__display_item else None
         display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
 
+        def rebuild_display_inspector():
+            self.document_controller.add_task("update_display_inspector" + str(id(self)), self.__update_display_inspector)
+
         self.__display_inspector = DisplayInspector(self.ui, self.document_controller, self.__display_item)
+        self.__display_inspector.on_rebuild = rebuild_display_inspector
 
         new_data_shape = data_item.data_shape if data_item else ()
         new_display_data_shape = display_data_channel.display_data_shape if display_data_channel else ()
@@ -592,7 +597,7 @@ class DataInfoInspectorSection(InspectorSection):
 
 class LinePlotDisplayLayersInspectorSection(InspectorSection):
     def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
-        super().__init__(document_controller.ui, "line_plot_display_layer", _("Line Plot Display Layer"))
+        super().__init__(document_controller.ui, "line_plot_display_layer", _("Line Plot Display Layers"))
         ui = self.ui
 
         column = ui.create_column_widget(properties={"spacing": 12})
@@ -680,7 +685,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 display_data_channel_index_widget.on_editing_finished = functools.partial(change_data_index, display_data_channel_index_widget, index)
                 display_data_channel_row_widget.on_editing_finished = functools.partial(change_data_row, display_data_channel_row_widget, index)
                 # display: fill color, is_filled, label
-                color_widget = ui.create_line_edit_widget(properties={"width": 160})
+                color_widget = ui.create_line_edit_widget()
                 filled_widget = ui.create_check_box_widget(_("Filled"))
                 color_row = ui.create_row_widget(properties={"spacing": 12})
                 color_row.add(ui.create_label_widget(_("Color")))
@@ -2425,11 +2430,6 @@ class VariableWidget(Widgets.CompositeWidgetBase):
 
 
 class ComputationInspectorSection(InspectorSection):
-
-    """
-        Subclass InspectorSection to implement operations inspector.
-    """
-
     def __init__(self, document_controller, data_item: DataItem.DataItem):
         super().__init__(document_controller.ui, "computation", _("Computation"))
         document_model = document_controller.document_model
@@ -2491,6 +2491,207 @@ class ComputationInspectorSection(InspectorSection):
         super().close()
 
 
+from nion.utils import Event
+
+class TextButtonCell:
+
+    def __init__(self, text: str):
+        super().__init__()
+        self.update_event = Event.Event()
+        self.__text = text
+
+    def paint_cell(self, drawing_context, rect, style):
+
+        # disabled (default is enabled)
+        # checked, partial (default is unchecked)
+        # hover, active (default is none)
+
+        drawing_context.text_baseline = "middle"
+        drawing_context.text_align = "center"
+        drawing_context.fill_style = "#000"
+        drawing_context.fill_text(self.__text, rect.center.x, rect.center.y)
+
+        overlay_color = None
+        if "disabled" in style:
+            overlay_color = "rgba(255, 255, 255, 0.5)"
+        else:
+            if "active" in style:
+                overlay_color = "rgba(128, 128, 128, 0.5)"
+            elif "hover" in style:
+                overlay_color = "rgba(128, 128, 128, 0.1)"
+
+        drawing_context.fill_style = "#444"
+        drawing_context.fill()
+        drawing_context.stroke_style = "#444"
+        drawing_context.stroke()
+
+        if overlay_color:
+            rect_args = rect[0][1], rect[0][0], rect[1][1], rect[1][0]
+            drawing_context.begin_path()
+            drawing_context.rect(*rect_args)
+            drawing_context.fill_style = overlay_color
+            drawing_context.fill()
+
+
+class TextButtonCanvasItem(CanvasItem.CellCanvasItem):
+
+    def __init__(self, text: str):
+        super().__init__()
+        self.cell = TextButtonCell(text)
+        self.wants_mouse_events = True
+        self.on_button_clicked = None
+
+    def close(self):
+        self.on_button_clicked = None
+        super().close()
+
+    def mouse_entered(self):
+        self._mouse_inside = True
+
+    def mouse_exited(self):
+        self._mouse_inside = False
+
+    def mouse_pressed(self, x, y, modifiers):
+        self._mouse_pressed = True
+
+    def mouse_released(self, x, y, modifiers):
+        self._mouse_pressed = False
+
+    def mouse_clicked(self, x, y, modifiers):
+        if self.enabled:
+            if self.on_button_clicked:
+                self.on_button_clicked()
+        return True
+
+
+class TextPushButtonWidget(Widgets.CompositeWidgetBase):
+    def __init__(self, ui, text: str):
+        super().__init__(ui.create_column_widget())
+        self.on_button_clicked = None
+        font = "normal 11px serif"
+        font_metrics = ui.get_font_metrics(font, text)
+        text_button_canvas_item = TextButtonCanvasItem(text)
+        text_button_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=font_metrics.height + 6, width=font_metrics.width + 6))
+
+        def button_clicked():
+            if callable(self.on_button_clicked):
+                self.on_button_clicked()
+
+        text_button_canvas_item.on_button_clicked = button_clicked
+
+        text_button_canvas_widget = ui.create_canvas_widget(properties={"height": 20, "width": 20})
+        text_button_canvas_widget.canvas_item.add_canvas_item(text_button_canvas_item)
+        # ugh. this is a partially working stop-gap when a canvas item is in a widget it will not get mouse exited reliably
+        text_button_canvas_widget.on_mouse_exited = text_button_canvas_item.root_container.canvas_widget.on_mouse_exited
+
+        self.content_widget.add(text_button_canvas_widget)
+
+
+class DataItemLabelWidget(Widgets.CompositeWidgetBase):
+    def __init__(self, ui, display_item: DisplayItem.DisplayItem, index: int, rebuild_fn):
+        super().__init__(ui.create_column_widget())
+
+        self.__rebuild_fn = rebuild_fn
+
+        remove_display_data_channel_button = TextPushButtonWidget(ui, "\N{MULTIPLICATION X}")
+
+        section_title_row = ui.create_row_widget()
+        section_title_label_widget = ui.create_label_widget(properties={"stylesheet": "font-weight: bold"})
+        section_title_label_widget.text = "{} #{}".format(_("Data"), index + 1)
+        section_title_row.add_spacing(20)
+        section_title_row.add(section_title_label_widget)
+        section_title_row.add_stretch()
+        section_title_row.add(remove_display_data_channel_button)
+        section_title_row.add_spacing(12)
+
+        self.content_widget.add(section_title_row)
+        self.content_widget.add_spacing(4)
+
+        display_data_channel = display_item.display_data_channels[index]
+
+        def remove_display_data_channel():
+            display_item.remove_display_data_channel(display_data_channel)
+            self.__rebuild_fn()
+
+        remove_display_data_channel_button.on_button_clicked = remove_display_data_channel
+
+
+class DataItemGroupWidget(Widgets.CompositeWidgetBase):
+    def __init__(self, ui, document_controller, display_item: DisplayItem.DisplayItem, index: int):
+        super().__init__(ui.create_column_widget())
+
+        self.on_rebuild = None
+
+        self.__ui = ui
+        self.__document_controller = document_controller
+        self.__display_item = display_item
+        self.__index = index
+
+        self.__build()
+
+        self.__display_item_property_changed = None
+        self.__display_item_item_inserted = None
+        self.__display_item_item_removed = None
+
+        def display_item_property_changed(name):
+            if name == "display_layers":
+                if callable(self.on_rebuild):
+                    self.on_rebuild()
+
+        def display_item_item_inserted(key, value, before_index):
+            if key == "display_data_channels":
+                if callable(self.on_rebuild):
+                    self.on_rebuild()
+
+        def display_item_item_removed(key, value, index):
+            if key == "display_data_channels":
+                if callable(self.on_rebuild):
+                    self.on_rebuild()
+
+        self.__display_item_property_changed = self.__display_item.property_changed_event.listen(display_item_property_changed)
+        self.__display_item_item_inserted = self.__display_item.item_inserted_event.listen(display_item_item_inserted)
+        self.__display_item_item_removed = self.__display_item.item_removed_event.listen(display_item_item_removed)
+
+    def close(self):
+        self.__detach_listeners()
+        self.__ui = None
+        self.__document_controller = None
+        self.__display_item = None
+        super().close()
+
+    def __detach_listeners(self):
+        if self.__display_item_property_changed:
+            self.__display_item_property_changed.close()
+            self.__display_item_property_changed = None
+        if self.__display_item_item_inserted:
+            self.__display_item_item_inserted.close()
+            self.__display_item_item_inserted = None
+        if self.__display_item_item_removed:
+            self.__display_item_item_removed.close()
+            self.__display_item_item_removed = None
+
+    def __build(self):
+        if len(self.__display_item.display_data_channels) > 1:
+            self.content_widget.add(DataItemLabelWidget(self.__ui, self.__display_item, self.__index, self.__rebuild))
+        display_data_channel = self.__display_item.display_data_channels[self.__index]
+        data_item = display_data_channel.data_item
+        self.content_widget.add(DataInfoInspectorSection(self.__document_controller, display_data_channel))
+        self.content_widget.add(CalibrationsInspectorSection(self.__document_controller, display_data_channel, self.__display_item))
+        self.content_widget.add(SessionInspectorSection(self.__document_controller, data_item))
+        if data_item and data_item.is_sequence:
+            self.content_widget.add(SequenceInspectorSection(self.__document_controller, display_data_channel))
+        if data_item and data_item.is_collection:
+            if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
+                self.content_widget.add(SliceInspectorSection(self.__document_controller, display_data_channel))
+            else:  # default, pick
+                self.content_widget.add(CollectionIndexInspectorSection(self.__document_controller, display_data_channel))
+        self.content_widget.add(ComputationInspectorSection(self.__document_controller, data_item))
+
+    def __rebuild(self):
+        self.content_widget.remove_all()
+        self.__build()
+
+
 class DisplayInspector(Widgets.CompositeWidgetBase):
     """A class to manage creation of a widget representing an inspector for a display item.
 
@@ -2502,6 +2703,8 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
         super().__init__(ui.create_column_widget())
 
         self.ui = ui
+
+        self.on_rebuild = None
 
         content_widget = self.content_widget
         content_widget.add_spacing(4)
@@ -2526,29 +2729,12 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
             inspector_sections.append(InfoInspectorSection(document_controller, display_item))
             inspector_sections.append(LinePlotDisplayInspectorSection(document_controller, display_item))
             for index, display_data_channel in enumerate(display_item.display_data_channels):
-                if len(display_item.display_data_channels) > 1:
-                    section_title_row = self.ui.create_row_widget()
-                    section_title_label_widget = self.ui.create_label_widget(properties={"stylesheet": "font-weight: bold"})
-                    section_title_label_widget.text = "{} #{}".format(_("Data"), index + 1)
-                    section_title_row.add_spacing(20)
-                    section_title_row.add(section_title_label_widget)
-                    section_title_row.add_stretch()
-                    section_title_column = self.ui.create_column_widget()
-                    section_title_column.add(section_title_row)
-                    section_title_column.add_spacing(4)
-                    inspector_sections.append(section_title_column)
-                data_item = display_data_channel.data_item
-                inspector_sections.append(DataInfoInspectorSection(document_controller, display_data_channel))
-                inspector_sections.append(CalibrationsInspectorSection(document_controller, display_data_channel, display_item))
-                inspector_sections.append(SessionInspectorSection(document_controller, data_item))
-                if data_item and data_item.is_sequence:
-                    inspector_sections.append(SequenceInspectorSection(document_controller, display_data_channel))
-                if data_item and data_item.is_collection:
-                    if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
-                        inspector_sections.append(SliceInspectorSection(document_controller, display_data_channel))
-                    else:  # default, pick
-                        inspector_sections.append(CollectionIndexInspectorSection(document_controller, display_data_channel))
-                inspector_sections.append(ComputationInspectorSection(document_controller, data_item))
+                data_item_group_widget = DataItemGroupWidget(self.ui, document_controller, display_item, index)
+                def rebuild():
+                    if callable(self.on_rebuild):
+                        self.on_rebuild()
+                data_item_group_widget.on_rebuild = rebuild
+                inspector_sections.append(data_item_group_widget)
             inspector_sections.append(LinePlotDisplayLayersInspectorSection(document_controller, display_item))
             if len(display_item.graphics) > 0:
                 inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))

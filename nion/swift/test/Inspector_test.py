@@ -1008,7 +1008,7 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
             computation = document_model.get_data_item_computation(new_data_item)
             old_bins = computation._get_variable("bins").value
-            inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))
+            inspector_section = Inspector.ComputationInspectorSection(document_controller, new_data_item)
             field_widget = inspector_section.find_widget_by_id("value")
             field_widget.on_editing_finished("100")
             self.assertEqual(100, computation._get_variable("bins").value)
