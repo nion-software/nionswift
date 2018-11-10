@@ -1016,7 +1016,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.begin_path()
                 drawing_context.rect(plot_origin_x + plot_width - 10 - line_height - legend_width - border, plot_origin_y + line_height * 0.5 - border, legend_width + border * 2 + line_height, len(
                     legend_labels) * line_height + border * 2)
-                drawing_context.fill_style = "rgba(192, 192, 192, 1.0)"
+                drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
                 drawing_context.fill()
 
             colors = ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00")
