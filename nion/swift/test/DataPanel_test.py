@@ -114,7 +114,6 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
             document_controller.periodic()
-            data_item = document_model.data_items[0]
             display_item = document_model.display_items[0]
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)

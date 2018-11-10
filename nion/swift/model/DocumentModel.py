@@ -850,7 +850,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for data_item_copy, display_data_channel in zip(data_item_copies, display_item.display_data_channels):
             display_data_channel_copy = DisplayItem.DisplayDataChannel(data_item=data_item_copy)
             display_data_channel_copy.copy_display_data_properties_from(display_data_channel)
-            display_item_copy.append_display_data_channel(display_data_channel_copy)
+            display_item_copy.append_display_data_channel(display_data_channel_copy, display_layer=dict())
         self.append_display_item(display_item_copy)
         return display_item_copy
 
@@ -2325,7 +2325,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for data_item_copy, display_data_channel in zip(data_item_copies, display_item.display_data_channels):
             display_data_channel_copy = DisplayItem.DisplayDataChannel(data_item=data_item_copy)
             display_data_channel_copy.copy_display_data_properties_from(display_data_channel)
-            display_item_copy.append_display_data_channel(display_data_channel_copy)
+            display_item_copy.append_display_data_channel(display_data_channel_copy, display_layer=dict())
         self.append_display_item(display_item_copy)
         return display_item_copy
 

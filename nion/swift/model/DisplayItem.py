@@ -826,7 +826,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__graphic_selection_changed_event_listener = self.graphic_selection.changed_event.listen(graphic_selection_changed)
 
         if data_item:
-            self.append_display_data_channel(DisplayDataChannel(data_item))
+            self.append_display_data_channel_for_data_item(data_item)
 
     def close(self):
         if self.__registration_listener:
@@ -1111,15 +1111,15 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.display_layers = display_layers
 
     def populate_display_layers(self) -> None:
-        while len(self.display_layers) < len(self.display_data_channels):
-            self.add_display_layer(data_index=len(self.display_layers))
+        if len(self.display_layers) == 0:
+            while len(self.display_layers) < len(self.display_data_channels):
+                self.add_display_layer(data_index=len(self.display_layers))
 
     def append_display_data_channel_for_data_item(self, data_item: DataItem.DataItem) -> None:
         self.populate_display_layers()
-        display_data_channel = DisplayDataChannel(data_item)
-        self.append_display_data_channel(display_data_channel)
-        data_index = self.display_data_channels.index(display_data_channel)
-        self.add_display_layer(data_index=data_index)
+        if not data_item in self.data_items:
+            display_data_channel = DisplayDataChannel(data_item)
+            self.append_display_data_channel(display_data_channel, display_layer=dict())
 
     def save_properties(self) -> typing.Tuple:
         return self.display_properties, self.display_layers, self.calibration_style_id
@@ -1313,12 +1313,35 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__display_data_channel_data_item_changed_event_listeners.insert(before_index, display_data_channel.data_item_changed_event.listen(self.__item_changed))
         self.__display_data_channel_data_item_description_changed_event_listeners.insert(before_index, display_data_channel.data_item_description_changed_event.listen(self._description_changed))
         self.notify_insert_item("display_data_channels", display_data_channel, before_index)
+        # adjust the display layers
+        if not self._is_reading:
+            display_layers = self.display_layers
+            for display_layer in display_layers:
+                data_index = display_layer.get("data_index")
+                if data_index is not None and data_index >= before_index:
+                    display_layer["data_index"] = data_index + 1
+            self.display_layers = display_layers
 
     def __remove_display_data_channel(self, name, index, display_data_channel: DisplayDataChannel) -> None:
         display_data_channel.decrement_display_ref_count(self._display_ref_count)
         display_data_channel.about_to_be_removed()
         self.__disconnect_display_data_channel(display_data_channel, index)
         display_data_channel.close()
+        # adjust the display layers
+        if not self._is_reading:
+            display_layers = self.display_layers
+            new_display_layers = list()
+            for display_layer in display_layers:
+                data_index = display_layer.get("data_index")
+                if data_index is not None:
+                    if data_index < index:
+                        new_display_layers.append(display_layer)
+                    elif data_index > index:
+                        display_layer["data_index"] = data_index - 1
+                        new_display_layers.append(display_layer)
+                else:
+                    new_display_layers.append(display_layer)
+            self.display_layers = new_display_layers
 
     def __disconnect_display_data_channel(self, display_data_channel: DisplayDataChannel, index: int) -> None:
         self.__display_data_channel_property_changed_event_listeners[index].close()
@@ -1333,8 +1356,12 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         del self.__display_data_channel_data_item_description_changed_event_listeners[index]
         self.notify_remove_item("display_data_channels", display_data_channel, index)
 
-    def append_display_data_channel(self, display_data_channel: DisplayDataChannel) -> None:
+    def append_display_data_channel(self, display_data_channel: DisplayDataChannel, display_layer: typing.Mapping=None) -> None:
         self.insert_display_data_channel(len(self.display_data_channels), display_data_channel)
+        if display_layer is not None:
+            data_index = self.display_data_channels.index(display_data_channel)
+            display_layer["data_index"] = data_index
+            self.add_display_layer(**display_layer)
 
     def insert_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel) -> None:
         self.insert_model_item(self, "display_data_channels", before_index, display_data_channel)

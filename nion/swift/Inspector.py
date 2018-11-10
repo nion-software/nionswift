@@ -71,6 +71,7 @@ class InspectorPanel(Panel.Panel):
 
         self.__display_changed_listener = None
         self.__display_graphic_selection_changed_event_listener = None
+        self.__display_about_to_be_removed_listener = None
         self.__data_shape = None
         self.__display_type = None
         self.__display_data_shape = None
@@ -103,6 +104,9 @@ class InspectorPanel(Panel.Panel):
             if self.__display_graphic_selection_changed_event_listener:
                 self.__display_graphic_selection_changed_event_listener.close()
                 self.__display_graphic_selection_changed_event_listener = None
+            if self.__display_about_to_be_removed_listener:
+                self.__display_about_to_be_removed_listener.close()
+                self.__display_about_to_be_removed_listener = None
             self.__display_inspector = None
 
         data_item = self.__display_item.data_item if self.__display_item else None
@@ -124,6 +128,9 @@ class InspectorPanel(Panel.Panel):
         # user changes the selection.
         if self.__display_item:
 
+            def display_item_about_to_be_removed():
+                self.document_controller.clear_task("update_display_inspector" + str(id(self)))
+
             def display_graphic_selection_changed(graphic_selection):
                 # not really a recursive call; only delayed
                 # this may come in on a thread (superscan probe position connection closing). delay even more.
@@ -142,6 +149,7 @@ class InspectorPanel(Panel.Panel):
 
             self.__display_changed_listener = self.__display_item.display_changed_event.listen(display_changed)
             self.__display_graphic_selection_changed_event_listener = self.__display_item.graphic_selection_changed_event.listen(display_graphic_selection_changed)
+            self.__display_about_to_be_removed_listener = self.__display_item.about_to_be_removed_event.listen(display_item_about_to_be_removed)
 
         self.column.add(self.__display_inspector)
         stretch_column = self.ui.create_column_widget()

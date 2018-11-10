@@ -53,6 +53,74 @@ class TestDisplayItemClass(unittest.TestCase):
             copy_display_item = copy.deepcopy(display_item)
             self.assertEqual("line_plot", copy_display_item.display_type)
 
+    def test_appending_display_data_channel_does_nothing_if_display_data_channel_already_exists(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item1)
+            self.assertEqual(1, len(display_item.display_data_channels))
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            self.assertEqual(2, len(display_item.display_data_channels))
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            self.assertEqual(2, len(display_item.display_data_channels))
+
+    def test_appending_display_data_channel_adds_layer(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item1)
+            self.assertEqual(1, len(display_item.display_layers))
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            self.assertEqual(2, len(display_item.display_data_channels))
+
+    def test_removing_data_item_updates_display_layer_data_indexes(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item1)
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            display_item.set_display_layer_property(0, "ref", "A")
+            display_item.set_display_layer_property(1, "ref", "B")
+            self.assertEqual(2, len(display_item.display_data_channels))
+            self.assertEqual(0, display_item.get_display_layer_property(0, "data_index"))
+            self.assertEqual(1, display_item.get_display_layer_property(1, "data_index"))
+            document_model.remove_data_item(data_item1)
+            self.assertEqual(1, len(display_item.display_layers))
+            self.assertEqual(0, display_item.get_display_layer_property(0, "data_index"))
+            self.assertEqual("B", display_item.get_display_layer_property(0, "ref"))
+
+    def test_inserting_display_data_channel_updates_display_layer_data_indexes(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item2)
+            data_item3 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item3)
+            display_item = document_model.get_display_item_for_data_item(data_item1)
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            display_item.set_display_layer_property(0, "ref", "A")
+            display_item.set_display_layer_property(1, "ref", "B")
+            self.assertEqual(2, len(display_item.display_data_channels))
+            self.assertEqual(0, display_item.get_display_layer_property(0, "data_index"))
+            self.assertEqual(1, display_item.get_display_layer_property(1, "data_index"))
+            display_item.insert_display_data_channel(1, DisplayItem.DisplayDataChannel(data_item=data_item3))
+            self.assertEqual(3, len(display_item.display_data_channels))
+            self.assertEqual(0, display_item.get_display_layer_property(0, "data_index"))
+            self.assertEqual(2, display_item.get_display_layer_property(1, "data_index"))
+            self.assertEqual("A", display_item.get_display_layer_property(0, "ref"))
+            self.assertEqual("B", display_item.get_display_layer_property(1, "ref"))
+
     # git show cc4bda5372baaaefa168c57db30074f3b26d64e4
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs

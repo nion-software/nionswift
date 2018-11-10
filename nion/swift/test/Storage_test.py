@@ -4038,6 +4038,28 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.display_items[0].data_items))
             self.assertEqual(document_model.data_items[0], document_model.display_items[0].data_items[0])
 
+    def test_display_item_display_layers_reload_with_same_data_indexes(self):
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item1)
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            display_item.set_display_layer_property(0, "ref", "A")
+            display_item.set_display_layer_property(1, "ref", "B")
+            self.assertEqual(2, len(display_item.display_data_channels))
+            self.assertEqual(0, display_item.get_display_layer_property(0, "data_index"))
+            self.assertEqual(1, display_item.get_display_layer_property(1, "data_index"))
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            display_item = document_model.display_items[0]
+            self.assertEqual(2, len(display_item.display_data_channels))
+            self.assertEqual(0, display_item.get_display_layer_property(0, "data_index"))
+            self.assertEqual(1, display_item.get_display_layer_property(1, "data_index"))
+
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
         document_model = DocumentModel.DocumentModel()
