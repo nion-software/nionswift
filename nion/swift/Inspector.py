@@ -636,12 +636,13 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
             display_item.set_display_layer_property(index, "data_row", data_row)
             data_row_widget.select_all()
 
-        def change_color(color_widget, index, color):
+        def change_fill_color(color_widget, index, color):
             display_item.set_display_layer_property(index, "fill_color", color)
             color_widget.select_all()
 
-        def change_is_filled(index, is_filled):
-            display_item.set_display_layer_property(index, "is_filled", is_filled)
+        def change_stroke_color(color_widget, index, color):
+            display_item.set_display_layer_property(index, "stroke_color", color)
+            color_widget.select_all()
 
         def build_column():
             display_layers = display_item.display_layers
@@ -684,23 +685,29 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 display_data_channel_row_widget.text = str(display_layer.get("data_row", 0))
                 display_data_channel_index_widget.on_editing_finished = functools.partial(change_data_index, display_data_channel_index_widget, index)
                 display_data_channel_row_widget.on_editing_finished = functools.partial(change_data_row, display_data_channel_row_widget, index)
-                # display: fill color, is_filled, label
-                color_widget = ui.create_line_edit_widget()
-                filled_widget = ui.create_check_box_widget(_("Filled"))
-                color_row = ui.create_row_widget(properties={"spacing": 12})
-                color_row.add(ui.create_label_widget(_("Color")))
-                color_row.add(color_widget)
-                color_row.add(filled_widget)
-                color_row.add_stretch()
-                color_widget.text = str(display_layer.get("fill_color", "#00F"))
-                filled_widget.checked = display_layer.get("is_filled", False)
-                filled_widget.on_checked_changed = functools.partial(change_is_filled, index)
-                color_widget.on_editing_finished = functools.partial(change_color, color_widget, index)
+                # display: fill color, stroke color, label
+                fill_color_widget = ui.create_line_edit_widget()
+                fill_color_widget.placeholder_text = _("None")
+                fill_color_row = ui.create_row_widget(properties={"spacing": 12})
+                fill_color_row.add(ui.create_label_widget(_("Fill Color")))
+                fill_color_row.add(fill_color_widget)
+                fill_color_row.add_stretch()
+                fill_color_widget.text = str(display_layer.get("fill_color"))
+                fill_color_widget.on_editing_finished = functools.partial(change_fill_color, fill_color_widget, index)
+                stroke_color_widget = ui.create_line_edit_widget()
+                stroke_color_widget.placeholder_text = _("None")
+                stroke_color_row = ui.create_row_widget(properties={"spacing": 12})
+                stroke_color_row.add(ui.create_label_widget(_("Stroke Color")))
+                stroke_color_row.add(stroke_color_widget)
+                stroke_color_row.add_stretch()
+                stroke_color_widget.text = str(display_layer.get("stroke_color"))
+                stroke_color_widget.on_editing_finished = functools.partial(change_stroke_color, stroke_color_widget, index)
                 # build the inner column
                 inner_column.add(label_row)
                 inner_column.add(button_row)
                 inner_column.add(content_row)
-                inner_column.add(color_row)
+                inner_column.add(fill_color_row)
+                inner_column.add(stroke_color_row)
                 # add inner column to overall column
                 column.add(inner_column)
             if len(display_layers) == 0:

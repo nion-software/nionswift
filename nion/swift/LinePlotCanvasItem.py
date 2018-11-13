@@ -470,12 +470,12 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 for scalar_index, scalar_xdata in enumerate(scalar_xdata_list):
                     if scalar_xdata and scalar_xdata.is_data_1d:
                         if index < 16:
-                            display_layers.append({"fill_color": colors[index], "is_filled": index == 0, "data_index": scalar_index})
+                            display_layers.append({"fill_color": colors[index] if index == 0 else None, "stroke_color": colors[index] if index > 0 else None, "data_index": scalar_index})
                             index += 1
                     if scalar_xdata and scalar_xdata.is_data_2d:
                         for row in range(min(scalar_xdata.dimensional_calibrations[-1], 16)):
                             if index < 16:
-                                display_layers.append({"fill_color": colors[index], "is_filled": index == 0, "data_index": scalar_index, "data_row": row})
+                                display_layers.append({"fill_color": colors[index] if index == 0 else None, "stroke_color": colors[index] if index > 0 else None, "data_index": scalar_index, "data_row": row})
                                 index += 1
 
             display_layer_count = len(display_layers)
@@ -484,9 +484,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
             for index, display_layer in enumerate(display_layers):
                 if index < 16:
-                    is_filled = display_layer.get("is_filled", index == 0)
-                    fill_color = display_layer.get("fill_color", None)
-                    fill_color = fill_color or colors[index]
+                    fill_color = display_layer.get("fill_color")
+                    stroke_color = display_layer.get("stroke_color")
                     data_index = display_layer.get("data_index", 0)
                     data_row = display_layer.get("data_row", 0)
                     if 0 <= data_index < len(scalar_xdata_list):
@@ -499,8 +498,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                                 scalar_data = scalar_xdata.data[data_row:data_row + 1, :].reshape((scalar_xdata.dimensional_shape[-1],))
                                 scalar_xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
                         line_graph_canvas_item = self.__line_graph_stack.canvas_items[display_layer_count - (index + 1)]
-                        line_graph_canvas_item.set_is_filled(is_filled)
-                        line_graph_canvas_item.set_color(fill_color)
+                        line_graph_canvas_item.set_fill_color(fill_color)
+                        line_graph_canvas_item.set_stroke_color(stroke_color)
                         line_graph_canvas_item.set_axes(axes)
                         line_graph_canvas_item.set_uncalibrated_xdata(scalar_xdata)
                         self.___has_valid_drawn_graph_data = scalar_xdata is not None
@@ -524,8 +523,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                         label = "Data {}".format(data_index)
                     else:
                         label = "Unknown"
-                fill_color = display_layer.get("fill_color", None) if display_layer.get("is_filled", index == 0) else None
-                stroke_color = display_layer.get("fill_color", None)
+                fill_color = display_layer.get("fill_color")
+                stroke_color = display_layer.get("stroke_color")
                 legend_entries.append(LegendEntry(label, fill_color, stroke_color))
 
             self.__update_canvas_items(axes, legend_position, legend_entries)
