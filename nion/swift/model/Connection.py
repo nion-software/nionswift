@@ -161,7 +161,10 @@ class PropertyConnection(Connection):
                 assert not self.__binding
                 self.__binding = Binding.PropertyBinding(self.__source, self.source_property)
                 self.__binding.target_setter = self.__set_target_from_source
-                self.__binding.update_target_direct(self.__binding.get_target_value())
+                if not self._is_reading:
+                    # while reading, the data item in the display data channel will not be connected;
+                    # so no reason to get its value here. we have to assume that the saved value was valid.
+                    self.__binding.update_target_direct(self.__binding.get_target_value())
 
         def source_registered(source):
             self.__source = source

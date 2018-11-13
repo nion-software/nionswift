@@ -3668,14 +3668,28 @@ class TestStorageClass(unittest.TestCase):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
-            data = numpy.ones((8, 4, 4), numpy.double)
+            data = numpy.ones((8, 4, 100), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            document_model.get_pick_new(data_item)
+            pick_data_item = document_model.get_pick_new(data_item)
             document_model.recompute_all()
+            # check assumptions
+            self.assertEqual((0.0, 0.01), document_model.get_display_item_for_data_item(document_model.data_items[0]).display_data_channels[0].slice_interval)
+            self.assertEqual((0.0, 0.01), document_model.get_display_item_for_data_item(document_model.data_items[1]).graphics[0].interval)
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
+            # check initial assumptions
             self.assertEqual(len(document_model.data_items), 2)
+            self.assertEqual((0.0, 0.01), document_model.get_display_item_for_data_item(document_model.data_items[0]).display_data_channels[0].slice_interval)
+            self.assertEqual((0.0, 0.01), document_model.get_display_item_for_data_item(document_model.data_items[1]).graphics[0].interval)
+            # check still connected
+            document_model.get_display_item_for_data_item(document_model.data_items[0]).display_data_channels[0].slice_interval = (0.3, 0.5)
+            self.assertEqual((0.3, 0.5), document_model.get_display_item_for_data_item(document_model.data_items[0]).display_data_channels[0].slice_interval)
+            self.assertEqual((0.3, 0.5), document_model.get_display_item_for_data_item(document_model.data_items[1]).graphics[0].interval)
+            # check still connected, both directions
+            document_model.get_display_item_for_data_item(document_model.data_items[1]).graphics[0].interval = (0.4, 0.6)
+            self.assertEqual((0.4, 0.6), document_model.get_display_item_for_data_item(document_model.data_items[0]).display_data_channels[0].slice_interval)
+            self.assertEqual((0.4, 0.6), document_model.get_display_item_for_data_item(document_model.data_items[1]).graphics[0].interval)
 
     def test_computation_corrupt_variable_reloads(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
