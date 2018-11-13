@@ -984,19 +984,22 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self, get_font_metrics_fn):
         super().__init__()
         self.__drawing_context = None
-        self.__legend_labels = None
+        self.__legend_position = None
+        self.__legend_entries = None
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.font_size = 12
 
-    def set_legend_labels(self, legend_labels):
-        if self.__legend_labels != legend_labels:
-            self.__legend_labels = legend_labels
+    def set_legend_entries(self, legend_position, legend_entries):
+        if self.__legend_entries != legend_entries or self.__legend_position != legend_position:
+            self.__legend_position = legend_position
+            self.__legend_entries = legend_entries
             self.update()
 
     def _repaint(self, drawing_context):
         # draw the data, if any
-        legend_labels = self.__legend_labels
-        if legend_labels:
+        legend_position = self.__legend_position
+        legend_entries = self.__legend_entries
+        if legend_entries and legend_position in ("top-left", "top-right"):
             plot_rect = self.canvas_bounds
             plot_width = int(plot_rect[1][1]) - 1
             plot_origin_x = int(plot_rect[0][1])
@@ -1004,33 +1007,40 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
             legend_width = 0
             line_height = self.font_size + 4
-            base_y = plot_origin_y + line_height * 1.5 - 4
-            font = "{0:d}px".format(self.font_size)
             border = 4
+            font = "{0:d}px".format(self.font_size)
 
-            for index, legend_label in enumerate(legend_labels):
+            for index, legend_entry in enumerate(legend_entries):
                 with drawing_context.saver():
-                    legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_label).width)
+                    legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
+
+            if legend_position == "top-left":
+                legend_origin = Geometry.IntPoint(x=plot_origin_x + 10, y=plot_origin_y + line_height * 0.5 - border)
+            else:
+                legend_origin = Geometry.IntPoint(x=plot_origin_x + plot_width - 10 - line_height - legend_width - border, y=plot_origin_y + line_height * 0.5 - border)
 
             with drawing_context.saver():
                 drawing_context.begin_path()
-                drawing_context.rect(plot_origin_x + plot_width - 10 - line_height - legend_width - border, plot_origin_y + line_height * 0.5 - border, legend_width + border * 2 + line_height, len(
-                    legend_labels) * line_height + border * 2)
+                drawing_context.rect(legend_origin.x,
+                                     legend_origin.y,
+                                     legend_width + border * 2 + line_height,
+                                     len(legend_entries) * line_height + border * 2)
                 drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
                 drawing_context.fill()
 
-            colors = ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00")
-            for index, legend_label in enumerate(legend_labels):
+            for index, legend_entry in enumerate(legend_entries):
                 with drawing_context.saver():
                     drawing_context.font = font
                     drawing_context.text_align = "right"
                     drawing_context.text_baseline = "bottom"
                     drawing_context.fill_style = "#000"
-                    drawing_context.fill_text(legend_label, plot_origin_x + plot_width - 10 - line_height, base_y)
+                    drawing_context.fill_text(legend_entry.label, legend_origin.x + legend_width + border, legend_origin.y + line_height * (index + 1))
 
                     drawing_context.begin_path()
-                    drawing_context.rect(plot_origin_x + plot_width - 10 - line_height + 3, base_y - line_height + 3 + 4, line_height - 6, line_height - 6)
-                    drawing_context.fill_style = colors[index]
-                    drawing_context.fill()
-
-                    base_y += line_height
+                    drawing_context.rect(legend_origin.x + legend_width + border + 3, legend_origin.y + line_height * index + 3 + 4, line_height - 6, line_height - 6)
+                    if legend_entry.fill_color:
+                        drawing_context.fill_style = legend_entry.fill_color
+                        drawing_context.fill()
+                    if legend_entry.stroke_color:
+                        drawing_context.stroke_style = legend_entry.stroke_color
+                        drawing_context.stroke()

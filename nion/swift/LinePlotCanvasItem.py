@@ -211,7 +211,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__y_style = None
         self.__left_channel = None
         self.__right_channel = None
-        self.__legend_labels = None
+        self.__legend_position = None
 
         self.__graphics = list()
         self.__graphic_selection = None
@@ -278,7 +278,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__y_style = display_properties.get("y_style", "linear")
             self.__left_channel = display_properties.get("left_channel")
             self.__right_channel = display_properties.get("right_channel")
-            self.__legend_labels = display_properties.get("legend_labels")
+            self.__legend_position = display_properties.get("legend_position")
             self.__display_layers = display_layers
 
             if self.__display_values_list and len(self.__display_values_list) > 0:
@@ -415,7 +415,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         y_style = self.__y_style
         left_channel = self.__left_channel
         right_channel = self.__right_channel
-        legend_labels = self.__legend_labels
 
         scalar_xdata_list = None
 
@@ -511,13 +510,31 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 line_graph_canvas_item.set_axes(None)
                 line_graph_canvas_item.set_uncalibrated_xdata(None)
 
-            self.__update_canvas_items(axes, legend_labels)
+            legend_position = self.__legend_position
+            LegendEntry = collections.namedtuple("LegendEntry", ["label", "fill_color", "stroke_color"])
+            legend_entries = list()
+            for index, display_layer in enumerate(self.__display_layers):
+                data_index = display_layer.get("data_index", None)
+                data_row = display_layer.get("data_row", None)
+                label = display_layer.get("label", str())
+                if not label:
+                    if data_index is not None and data_row is not None:
+                        label = "Data {}:{}".format(data_index, data_row)
+                    elif data_index is not None:
+                        label = "Data {}".format(data_index)
+                    else:
+                        label = "Unknown"
+                fill_color = display_layer.get("fill_color", None) if display_layer.get("is_filled", index == 0) else None
+                stroke_color = display_layer.get("fill_color", None)
+                legend_entries.append(LegendEntry(label, fill_color, stroke_color))
+
+            self.__update_canvas_items(axes, legend_position, legend_entries)
         else:
             for line_graph_canvas_item in self.__line_graph_stack.canvas_items:
                 line_graph_canvas_item.set_axes(None)
                 line_graph_canvas_item.set_uncalibrated_xdata(None)
             self.__line_graph_xdata_list = list()
-            self.__update_canvas_items(LineGraphCanvasItem.LineGraphAxes(), None)
+            self.__update_canvas_items(LineGraphCanvasItem.LineGraphAxes(), None, None)
 
     def _inserted(self, container):
         # make sure we get 'prepare_render' calls
@@ -564,12 +581,12 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
                 drawing_context.fill_text("prepare:" + fps4, text_pos.x + 8, text_pos.y + 70)
 
-    def __update_canvas_items(self, axes, legend_labels):
+    def __update_canvas_items(self, axes, legend_position: typing.Optional[str], legend_entries: typing.Optional[typing.Sequence]):
         self.__line_graph_background_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_canvas_item.calibrated_xdata.data if self.line_graph_canvas_item and self.line_graph_canvas_item.calibrated_xdata else None)
         self.__line_graph_frame_canvas_item.set_draw_frame(axes.is_valid)
-        self.__line_graph_legend_canvas_item.set_legend_labels(legend_labels)
+        self.__line_graph_legend_canvas_item.set_legend_entries(legend_position, legend_entries)
         self.__line_graph_vertical_axis_label_canvas_item.set_axes(axes)
         self.__line_graph_vertical_axis_scale_canvas_item.set_axes(axes, self.__get_font_metrics_fn)
         self.__line_graph_vertical_axis_ticks_canvas_item.set_axes(axes)

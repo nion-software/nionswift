@@ -1309,6 +1309,34 @@ class ImageDisplayInspectorSection(InspectorSection):
         super().close()
 
 
+def make_legend_position(document_controller, display_item: DisplayItem.DisplayItem):
+    ui = document_controller.ui
+    legend_position_row = ui.create_row_widget()
+    legend_position_options = [(_("None"), None), (_("Top Left"), "top-left"), (_("Top Right"), "top-right")]
+    legend_position_reverse_map = {p[1]: i for i, p in enumerate(legend_position_options)}
+    legend_position_chooser = ui.create_combo_box_widget(items=legend_position_options, item_getter=operator.itemgetter(0))
+
+    def property_changed(name):
+        if name == "legend_position":
+            legend_position_chooser.current_index = legend_position_reverse_map[display_item.get_display_property("legend_position", None)]
+
+    listener = display_item.display_property_changed_event.listen(property_changed)
+
+    def change_legend_position(item):
+        if display_item.get_display_property("legend_position", None) != item[1]:
+            command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display_item, title=_("Legend Position"), command_id="change_legend_position", is_mergeable=True, legend_position=item[1])
+            command.perform()
+            document_controller.push_undo_command(command)
+
+    legend_position_chooser.on_current_item_changed = change_legend_position
+    legend_position_chooser.current_index = legend_position_reverse_map.get(display_item.get_display_property("legend_position", None), 0)
+    legend_position_row.add(ui.create_label_widget(_("Legend Position:"), properties={"width": 120}))
+    legend_position_row.add(legend_position_chooser)
+    legend_position_row.add_stretch()
+
+    return legend_position_row, listener
+
+
 class LinePlotDisplayInspectorSection(InspectorSection):
 
     """
@@ -1366,14 +1394,19 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         self.style_row.add(self.style_y_log)
         self.style_row.add_stretch()
 
+        legend_position_row, self.__legend_position_changed_listener = make_legend_position(document_controller, display_item)
+
         self.add_widget_to_content(display_type_row)
         self.add_widget_to_content(self.display_limits_limit_row)
         self.add_widget_to_content(self.channels_row)
         self.add_widget_to_content(self.style_row)
+        self.add_widget_to_content(legend_position_row)
 
         self.finish_widget_content()
 
     def close(self):
+        self.__legend_position_changed_listener.close()
+        self.__legend_position_changed_listener = None
         self.__display_type_changed_listener.close()
         self.__display_type_changed_listener = None
         super().close()
