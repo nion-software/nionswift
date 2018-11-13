@@ -473,7 +473,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                             display_layers.append({"fill_color": colors[index] if index == 0 else None, "stroke_color": colors[index] if index > 0 else None, "data_index": scalar_index})
                             index += 1
                     if scalar_xdata and scalar_xdata.is_data_2d:
-                        for row in range(min(scalar_xdata.dimensional_calibrations[-1], 16)):
+                        for row in range(min(scalar_xdata.data_shape[-1], 16)):
                             if index < 16:
                                 display_layers.append({"fill_color": colors[index] if index == 0 else None, "stroke_color": colors[index] if index > 0 else None, "data_index": scalar_index, "data_row": row})
                                 index += 1

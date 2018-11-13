@@ -1361,6 +1361,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         if display_layer is not None:
             display_layer = dict(display_layer)
             data_index = self.display_data_channels.index(display_data_channel)
+            # this fill color code breaks encapsulation. i'm leaving it here as a convenience for now.
+            # eventually there should be a connection to a display controller based on the display type which can be
+            # used to set defaults for the layers.
             display_layer["data_index"] = data_index
             existing_colors = [display_layer_.get("fill_color") for display_layer_ in self.display_layers]
             for color in ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00"):

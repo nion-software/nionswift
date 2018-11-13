@@ -2729,7 +2729,8 @@ class DataItemGroupWidget(Widgets.CompositeWidgetBase):
 
     def __rebuild(self):
         self.content_widget.remove_all()
-        self.__build()
+        if callable(self.on_rebuild):
+            self.on_rebuild()
 
 
 class DisplayInspector(Widgets.CompositeWidgetBase):
