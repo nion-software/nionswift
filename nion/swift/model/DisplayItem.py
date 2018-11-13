@@ -1359,8 +1359,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def append_display_data_channel(self, display_data_channel: DisplayDataChannel, display_layer: typing.Mapping=None) -> None:
         self.insert_display_data_channel(len(self.display_data_channels), display_data_channel)
         if display_layer is not None:
+            display_layer = dict(display_layer)
             data_index = self.display_data_channels.index(display_data_channel)
             display_layer["data_index"] = data_index
+            existing_colors = [display_layer_.get("fill_color") for display_layer_ in self.display_layers]
+            for color in ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00"):
+                if not color in existing_colors:
+                    display_layer.setdefault("fill_color", color)
             self.add_display_layer(**display_layer)
 
     def insert_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel) -> None:
