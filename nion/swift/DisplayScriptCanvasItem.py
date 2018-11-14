@@ -130,6 +130,10 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
                     with self.__drawing_context_lock:
                         self.__drawing_context = drawing_context
 
+    def _update_self_layout(self, canvas_origin, canvas_size, *, immediate=False):
+        super()._update_self_layout(canvas_origin, canvas_size, immediate=immediate)
+        self.prepare_render()
+
     def _repaint(self, drawing_context):
         super()._repaint(drawing_context)
 
