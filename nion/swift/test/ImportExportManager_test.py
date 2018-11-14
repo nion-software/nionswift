@@ -2,6 +2,7 @@
 import contextlib
 import copy
 import datetime
+import json
 import logging
 import os
 import unittest
@@ -90,6 +91,24 @@ class TestImportExportManagerClass(unittest.TestCase):
                 data_item = data_items[0]
             finally:
                 os.remove(file_path)
+
+    def test_npy_write_to_then_read_from_temp_file(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            current_working_directory = os.getcwd()
+            file_path_npy = os.path.join(current_working_directory, "__file.npy")
+            file_path_json = os.path.join(current_working_directory, "__file.json")
+            numpy.save(file_path_npy, numpy.zeros((16, 16)))
+            with open(file_path_json, "w") as f:
+                json.dump({"version": 1}, f)
+            handler = ImportExportManager.NumPyImportExportHandler("numpy-io-handler", "npy", ["npy"])
+            try:
+                data_items = handler.read_data_items(None, "npy", file_path_npy)
+                self.assertEqual(len(data_items), 1)
+                data_item = data_items[0]
+            finally:
+                os.remove(file_path_npy)
+                os.remove(file_path_json)
 
     def test_get_writers_for_empty_data_item_returns_valid_list(self):
         data_item = DataItem.DataItem()

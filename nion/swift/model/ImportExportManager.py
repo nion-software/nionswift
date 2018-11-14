@@ -533,10 +533,10 @@ class NDataImportExportHandler(ImportExportHandler):
             metadata = json.loads(zip_file.read("metadata.json").decode("utf-8"))
             data_bytes = zip_file.read("data.npy")
             data = numpy.load(io.BytesIO(data_bytes))
-        if data is not None:
-            data_element = metadata
-            data_element["data"] = data
-            return [data_element]
+            if data is not None:
+                data_element = metadata
+                data_element["data"] = data
+                return [data_element]
         return list()
 
     def can_write(self, data_and_metadata, extension):
@@ -582,7 +582,8 @@ class NumPyImportExportHandler(ImportExportHandler):
         data = numpy.load(str(path))
         metadata_path = path.with_suffix(".json")
         if metadata_path.exists():
-            metadata = json.load(metadata_path)
+            with open(metadata_path) as f:
+                metadata = json.load(f)
         else:
             metadata = dict()
         if data is not None:
