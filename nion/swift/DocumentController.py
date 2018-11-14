@@ -1612,14 +1612,12 @@ class DocumentController(Window.Window):
         return self.add_data_element(data_element)
 
     def show_display_item(self, display_item: DisplayItem.DisplayItem, *, source_display_item=None, source_data_item=None, request_focus=True) -> None:
-        data_item = display_item.data_item if display_item else None
-        assert data_item is not None
         result_display_panel = self.next_result_display_panel()
         if result_display_panel:
             result_display_panel.set_display_panel_display_item(display_item)
             if request_focus:
                 result_display_panel.request_focus()
-        self.select_data_item_in_data_panel(data_item)
+        self.select_display_items_in_data_panel([display_item])
         if request_focus:
             self.notify_focused_display_changed(display_item)
             inspector_panel = self.find_dock_widget("inspector-panel").panel
