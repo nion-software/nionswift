@@ -279,7 +279,7 @@ class DocumentController(Window.Window):
         self._delete_action = self._edit_menu.add_menu_item(_("Delete"), self._delete, key_sequence="delete")
         self._select_all_action = self._edit_menu.add_menu_item(_("Select All"), self._select_all, key_sequence="select-all")
         self._edit_menu.add_separator()
-        self._script_action = self._edit_menu.add_menu_item(_("Script"), self.prepare_data_item_script, key_sequence="Ctrl+Shift+K")
+        self._script_action = self._edit_menu.add_menu_item(_("Assign Variable Reference"), self.prepare_data_item_script, key_sequence="Ctrl+Shift+K")
         self._copy_uuid_action = self._edit_menu.add_menu_item(_("Copy Item UUID"), self.copy_uuid, key_sequence="Ctrl+Shift+U")
         self._empty_data_item_action = self._edit_menu.add_menu_item(_("Create New Data Item"), self.create_empty_data_item)
         self._edit_menu.add_separator()

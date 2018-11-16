@@ -3,6 +3,10 @@
 Release Notes
 =============
 
+Version 0.14.0, UNRELEASED
+--------------------------
+* (2018-11-15) Make menu item for Assign Variable Reference be named sensibly.
+
 Version 0.13.9, October 1, 2018
 -------------------------------
 * (2017-09-29) Minor improvements for data acquisition support.
