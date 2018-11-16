@@ -962,12 +962,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item._set_persistent_property_value("session_id", self._get_persistent_property_value("session_id"))
         display_item._set_persistent_property_value("calibration_style_id", self._get_persistent_property_value("calibration_style_id"))
         display_item._set_persistent_property_value("display_properties", self._get_persistent_property_value("display_properties"))
-        display_item._set_persistent_property_value("display_layers", self._get_persistent_property_value("display_layers"))
         display_item.created = self.created
         for graphic in self.graphics:
             display_item.add_graphic(copy.deepcopy(graphic))
         for display_data_channel in self.display_data_channels:
             display_item.append_display_data_channel(copy.deepcopy(display_data_channel))
+        # this goes after the display data channels so that the layers don't get adjusted
+        display_item._set_persistent_property_value("display_layers", self._get_persistent_property_value("display_layers"))
         return display_item
 
     def set_storage_cache(self, storage_cache):

@@ -121,6 +121,49 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual("A", display_item.get_display_layer_property(0, "ref"))
             self.assertEqual("B", display_item.get_display_layer_property(1, "ref"))
 
+    def test_copy_display_item_should_copy_all_display_data_channels_and_layers(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2, False)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            self.assertEqual(1, len(document_model.display_items))
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(display_item.data_items))
+            self.assertEqual(2, len(display_item.display_layers))
+            display_item_copy = document_model.get_display_item_copy_new(display_item)
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(2, len(display_item_copy.data_items))
+            self.assertEqual(2, len(display_item_copy.display_layers))
+            self.assertEqual(display_item.display_layers, display_item_copy.display_layers)
+
+    def test_snapshot_display_item_with_data_item_and_multiple_display_layers(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((3, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
+            display_item.display_layers = [
+                {"data_index": 0, "data_row": 2, "label": "Signal"},
+                {"data_index": 0, "data_row": 1, "label": "Background"},
+                {"data_index": 0, "data_row": 0, "label": "Data"},
+            ]
+            self.assertEqual(1, len(document_model.display_items))
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(display_item.data_items))
+            self.assertEqual(3, len(display_item.display_layers))
+            display_item_copy = document_model.get_display_item_snapshot_new(display_item)
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(1, len(display_item_copy.data_items))
+            self.assertEqual(3, len(display_item_copy.display_layers))
+            self.assertEqual(display_item.display_layers, display_item_copy.display_layers)
+
     # git show cc4bda5372baaaefa168c57db30074f3b26d64e4
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs
