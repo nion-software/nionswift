@@ -340,7 +340,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         data_item.description = self.description
         data_item.session_id = self.session_id
         data_item.session_data = copy.deepcopy(self.session_data)
-        data_item.category = self.category
         return data_item
 
     def set_storage_cache(self, storage_cache):

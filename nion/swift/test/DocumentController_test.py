@@ -634,6 +634,41 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_controller.set_filter("none")
             document_controller.show_display_item(document_model.get_display_item_for_data_item(data_item))
 
+    def test_snapshot_of_display_is_added_to_all(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # check assumptions
+            document_controller.set_filter(None)
+            self.assertEqual(1, len(document_controller.filtered_display_items_model.items))
+            # do the snapshot and verify
+            document_controller._perform_display_item_snapshot(display_item)
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(2, len(document_controller.filtered_display_items_model.items))
+
+    def test_snapshot_of_live_display_is_added_to_all(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item.category = "temporary"
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # check assumptions
+            document_controller.set_filter(None)
+            self.assertEqual(0, len(document_controller.filtered_display_items_model.items))
+            # do the snapshot and verify
+            document_controller._perform_display_item_snapshot(display_item)
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(1, len(document_controller.filtered_display_items_model.items))
+
     def test_cut_paste_undo_redo(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

@@ -724,6 +724,12 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(data_item.timezone, data_item_copy.timezone)
         self.assertEqual(data_item.timezone_offset, data_item_copy.timezone_offset)
 
+    def test_snapshot_should_not_copy_category(self):
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+        data_item.category = "temporary"
+        data_item_copy = data_item.snapshot()
+        self.assertNotEqual("temporary", data_item_copy.category)
+
     def test_data_item_allows_adding_of_two_data_sources(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
