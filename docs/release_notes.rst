@@ -6,17 +6,30 @@ Release Notes
 Version 0.14.0, UNRELEASED
 --------------------------
 * (2018-11-15) Make menu item for Assign Variable Reference be named sensibly.
+* (2018-10-29) Fix bug where line plot grid lines were not consistently drawn.
+* (2018-10-15) Introduce composite line plot display items (all inputs must have same calibration units).
+* (2018-10-15) Update to new file format (v13). Display items. Simplified data items.
+* (2018-10-15) Introduce display item and associated operations.
+* (2018-10-08) Print Python and UI versions at startup for reference.
+* (2018-10-08) Fix issue with error handling during computations.
+
+The display item feature makes possible line plots with multiple layers which can be reordered. Each
+layer in the line plot can have its own label (appearing in the legend) and be adjusted with custom fill
+color and stroke color. Additional layers can be added by dragging and removed using the inspector.
+
+The display item feature also make it possible to have two simultaneous views of a single data item
+using the Display Copy command in the View menu.
 
 Version 0.13.9, October 1, 2018
 -------------------------------
-* (2017-09-29) Minor improvements for data acquisition support.
-* (2017-09-12) Improve reliability of undo/redo, enabled in more situations.
-* (2017-08-09) Improve reliability when loading corrupted data files.
-* (2017-08-03) Add some experimental API functions.
+* (2018-09-29) Minor improvements for data acquisition support.
+* (2018-09-12) Improve reliability of undo/redo, enabled in more situations.
+* (2018-08-09) Improve reliability when loading corrupted data files.
+* (2018-08-03) Add some experimental API functions.
 
 Version 0.13.8, July 23, 2018
 -----------------------------
-* (2017-07-23) Make launcher command Python 3.7 compatible.
+* (2018-07-23) Make launcher command Python 3.7 compatible.
 * (2018-07-03) Restructure master session metadata to be stored with application rather than library.
 
 Version 0.13.7, July 2, 2018
