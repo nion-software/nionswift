@@ -2010,6 +2010,47 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.display_canvas_item.prepare_display()  # force layout
             display_panel.display_canvas_item.refresh_layout_immediate()
 
+    def test_append_display_data_channel_undo_redo_cycle(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item)
+            data_item2 = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            original_display_layers = [{"data_index": 0, "label": "A"}]
+            display_item.display_layers = original_display_layers
+            # check assumptions
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(1, len(display_item.data_items))
+            self.assertEqual(1, len(display_item.display_layers))
+            # perform command
+            command = DisplayPanel.AppendDisplayDataChannelCommand(document_model, display_item, data_item2)
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(2, len(display_item.data_items))
+            self.assertEqual(2, len(display_item.display_layers))
+            new_display_layers = display_item.display_layers
+            # try the undo
+            document_controller.handle_undo()
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(1, len(display_item.data_items))
+            self.assertEqual(1, len(display_item.display_layers))
+            self.assertEqual(original_display_layers, display_item.display_layers)
+            # try the redo
+            document_controller.handle_redo()
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(2, len(display_item.data_items))
+            self.assertEqual(2, len(display_item.display_layers))
+            self.assertEqual(new_display_layers, display_item.display_layers)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

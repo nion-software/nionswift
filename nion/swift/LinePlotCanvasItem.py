@@ -951,3 +951,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                     px = axes.drawn_left_channel + x * (axes.drawn_right_channel - axes.drawn_left_channel)
                     pos_1d = px,
             self.delegate.cursor_changed(pos_1d)
+
+    def get_drop_regions_map(self, display_item):
+        if self.__line_graph_area_stack.canvas_rect and display_item and display_item.data_item and display_item.data_item.is_data_1d:
+            return {"plus": self.__line_graph_area_stack.canvas_rect}
+        else:
+            return None

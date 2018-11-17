@@ -716,7 +716,12 @@ class Workspace:
         document_model = self.document_model
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
             d = json.loads(mime_data.data_as_string(MimeTypes.DISPLAY_PANEL_MIME_TYPE))
-            if region == "right" or region == "left" or region == "top" or region == "bottom":
+            display_item_uuid_str = d.get("display_item_uuid", None)
+            display_item_uuid = uuid.UUID(display_item_uuid_str) if display_item_uuid_str else None
+            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
+            if display_item and display_panel.handle_drop_display_item(region, display_item):
+                pass  # already handled
+            elif region == "right" or region == "left" or region == "top" or region == "bottom":
                 command = self.insert_display_panel(display_panel, region, None, d)
                 self.document_controller.push_undo_command(command)
             else:
@@ -727,7 +732,9 @@ class Workspace:
             display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
             display_item = document_model.get_display_item_by_uuid(display_item_uuid)
             if display_item:
-                if region == "right" or region == "left" or region == "top" or region == "bottom":
+                if display_panel.handle_drop_display_item(region, display_item):
+                    pass  # already handled
+                elif region == "right" or region == "left" or region == "top" or region == "bottom":
                     command = self.insert_display_panel(display_panel, region, display_item)
                     self.document_controller.push_undo_command(command)
                 else:

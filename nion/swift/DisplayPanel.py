@@ -123,11 +123,13 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self):
         super().__init__()
         self.wants_drag_events = True
+        self.__is_dragging = False
         self.__drop_region = "none"
         self.__focused = False
         self.__selected = False
         self.__selected_style = "#CCC"  # TODO: platform dependent
         self.__focused_style = "#3876D6"  # TODO: platform dependent
+        self.__drop_regions_map = dict()
         self.on_context_menu_event = None
         self.on_drag_enter = None
         self.on_drag_leave = None
@@ -183,6 +185,14 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
     def focused_style(self, focused_style):
         self.__focused_style = focused_style
 
+    @property
+    def drop_regions_map(self):
+        return self.__drop_regions_map
+
+    @drop_regions_map.setter
+    def drop_regions_map(self, value):
+        self.__drop_regions_map = value if value else dict()
+
     def __set_drop_region(self, drop_region):
         if self.__drop_region != drop_region:
             self.__drop_region = drop_region
@@ -195,10 +205,15 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         canvas_width = self.canvas_size[1]
         canvas_height = self.canvas_size[0]
 
+        drop_regions_map = self.__drop_regions_map
+
         if self.__drop_region != "none":
             with drawing_context.saver():
                 drawing_context.begin_path()
-                if self.__drop_region == "left":
+                if self.__drop_region in drop_regions_map:
+                    drop_region_rect = drop_regions_map[self.__drop_region]
+                    drawing_context.rect(drop_region_rect.left, drop_region_rect.top, drop_region_rect.width, drop_region_rect.height)
+                elif self.__drop_region == "left":
                     drawing_context.rect(0, 0, int(canvas_width * 0.10), canvas_height)
                 elif self.__drop_region == "right":
                     drawing_context.rect(int(canvas_width * 0.90), 0, int(canvas_width - canvas_width * 0.90), canvas_height)
@@ -232,12 +247,14 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         return False
 
     def drag_enter(self, mime_data):
+        self.__is_dragging = True
         self.__set_drop_region("none")
         if self.on_drag_enter:
             self.on_drag_enter(mime_data)
         return "ignore"
 
     def drag_leave(self):
+        self.__is_dragging = False
         self.__set_drop_region("none")
         if self.on_drag_leave:
             self.on_drag_leave()
@@ -247,7 +264,12 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         if self.on_drag_move:
             result = self.on_drag_move(mime_data, x, y)
             if result != "ignore":
+                p = Geometry.IntPoint(y=y, x=x)
                 canvas_size = Geometry.IntSize.make(self.canvas_size)
+                for drop_region, drop_region_rect in self.__drop_regions_map.items():
+                    if drop_region_rect.contains_point(p):
+                        self.__set_drop_region(drop_region)
+                        return result
                 if x < int(canvas_size.width * 0.10):
                     self.__set_drop_region("left")
                 elif x > int(canvas_size.width * 0.90):
@@ -264,6 +286,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
 
     def drop(self, mime_data, x, y):
         drop_region = self.__drop_region
+        self.__is_dragging = False
         self.__set_drop_region("none")
         if self.on_drop:
             return self.on_drop(mime_data, drop_region, x, y)
@@ -651,6 +674,53 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
 
+class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
+
+    def __init__(self, document_model, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, *, title: str=None, command_id: str=None, **kwargs):
+        super().__init__(title if title else _("Append Display"), command_id=command_id)
+        self.__document_model = document_model
+        self.__display_item_uuid = display_item.uuid
+        self.__data_item_uuid = data_item.uuid
+        self.__new_properties = None
+        self.__old_properties = None
+        self.__display_data_channel_index = None
+        self.__value_dict = kwargs
+        self.initialize()
+
+    def close(self):
+        self.__document_model = None
+        self.__display_item = None
+        self.__data_item = None
+        super().close()
+
+    def perform(self):
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        self.__old_properties = display_item.save_properties()
+        display_item.append_display_data_channel_for_data_item(data_item)
+        self.__display_data_channel_index = display_item.display_data_channels.index(display_item.get_display_data_channel_for_data_item(data_item))
+
+    def _get_modified_state(self):
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        return data_item.modified_state, display_item.modified_state, self.__document_model.modified_state
+
+    def _set_modified_state(self, modified_state):
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item.modified_state, display_item.modified_state, self.__document_model.modified_state = modified_state
+
+    def _undo(self):
+        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
+        self.__undelete_logs = list()
+        self.__undelete_logs.append(display_item.remove_display_data_channel(display_data_channel, safe=True))
+        display_item.restore_properties(self.__old_properties)
+
+    def _redo(self):
+        self.perform()
+
+
 class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
 
     def __init__(self, document_model, display_data_channel: DisplayItem.DisplayDataChannel, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
@@ -850,6 +920,22 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         workspace_controller = self.__document_controller.workspace_controller
 
         def drag_enter(mime_data):
+            display_canvas_item = self.display_canvas_item
+            if display_canvas_item and hasattr(display_canvas_item, "get_drop_regions_map"):
+                # give the display canvas item a chance to provide drop regions based on the display item being dropped
+                display_item_uuid = None
+                if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
+                    d = json.loads(mime_data.data_as_string(MimeTypes.DISPLAY_PANEL_MIME_TYPE))
+                    display_item_uuid_str = d.get("display_item_uuid", None)
+                    display_item_uuid = uuid.UUID(display_item_uuid_str) if display_item_uuid_str else None
+                if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
+                    display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
+                if display_item_uuid:
+                    display_item = document_controller.document_model.get_display_item_by_uuid(display_item_uuid)
+                    if display_item:
+                        self.__content_canvas_item.drop_regions_map = display_canvas_item.get_drop_regions_map(display_item)
+            else:
+                self.__content_canvas_item.drop_regions_map = None
             if workspace_controller:
                 return workspace_controller.handle_drag_enter(self, mime_data)
             return "ignore"
@@ -1141,6 +1227,16 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             return "data_item"
         else:
             return "empty"
+
+    def handle_drop_display_item(self, region, display_item) -> bool:
+        if region == "plus":
+            data_item = display_item.data_item if display_item else None
+            if data_item:
+                command = AppendDisplayDataChannelCommand(self.__document_controller.document_model, self.display_item, data_item)
+                command.perform()
+                self.__document_controller.push_undo_command(command)
+                return True
+        return False
 
     def _drag_finished(self, document_controller, action):
         if action == "move" and document_controller.replaced_display_panel_content is not None:
