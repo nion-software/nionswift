@@ -21,7 +21,6 @@ from nion.swift.model import Graphics
 from nion.swift.model import MemoryStorageSystem
 from nion.swift.model import Symbolic
 from nion.ui import TestUI
-from nion.utils import ListModel
 from nion.utils import Recorder
 
 

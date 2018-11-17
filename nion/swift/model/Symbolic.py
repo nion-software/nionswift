@@ -647,6 +647,18 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         variable = self._get_variable(name)
         variable.objects_model.insert_item(index, object)
 
+    def list_item_removed(self, object) -> typing.Sequence[dict]:
+        undelete_entries = list()
+        for variable in self.variables:
+            if variable.bound_item and variable.bound_item.value == object:
+                self.needs_update = True
+            if variable.bound_item and hasattr(variable.bound_item, "list_item_removed"):
+                for undelete_entry in variable.bound_item.list_item_removed(object):
+                    undelete_entry["computation_uuid"] = str(self.uuid)
+                    undelete_entry["variable_index"] = self.variables.index(variable)
+                    undelete_entries.append(undelete_entry)
+        return undelete_entries
+
     def resolve_variable(self, object_specifier: dict) -> typing.Optional[ComputationVariable]:
         if object_specifier:
             uuid_str = object_specifier.get("uuid")

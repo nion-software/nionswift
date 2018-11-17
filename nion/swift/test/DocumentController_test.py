@@ -19,6 +19,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Symbolic
 from nion.ui import TestUI
 
 
@@ -923,6 +924,52 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(3, len(document_model.data_items))
             self.assertEqual(2, len(display_item1.data_items))
             self.assertEqual(2, len(display_item1.display_layers))
+
+    class AddGraphics:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src, graphics_list):
+            self.__data = numpy.full((4, 4), len(graphics_list))
+
+        def commit(self):
+            self.computation.set_referenced_data("dst", self.__data)
+
+    def test_remove_computation_graphic_from_list_is_undoable(self):
+        Symbolic.register_computation_type("add_g", self.AddGraphics)
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.full((2, 2), 1))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.add_graphic(Graphics.RectangleGraphic())
+            display_item.add_graphic(Graphics.RectangleGraphic())
+            computation = document_model.create_computation()
+            items = [document_model.get_object_specifier(display_item.graphics[0]), document_model.get_object_specifier(display_item.graphics[1])]
+            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_objects("graphics_list", items)
+            computation.processing_id = "add_g"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            result_data_item = document_model.data_items[-1]
+            self.assertTrue(numpy.array_equal(result_data_item.data, numpy.full((4, 4), 2)))
+            command = document_controller.RemoveGraphicsCommand(document_controller, display_item, [display_item.graphics[0]])
+            command.perform()
+            document_controller.push_undo_command(command)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(result_data_item.data, numpy.full((4, 4), 1)))
+            document_controller.handle_undo()
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(result_data_item.data, numpy.full((4, 4), 2)))
+            document_controller.handle_redo()
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(result_data_item.data, numpy.full((4, 4), 1)))
+            document_controller.handle_undo()
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(result_data_item.data, numpy.full((4, 4), 2)))
 
 
 if __name__ == '__main__':

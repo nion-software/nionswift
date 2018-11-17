@@ -463,10 +463,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.display_item_inserted_event = Event.Event()
         self.display_item_removed_event = Event.Event()
 
-        # this is provided as a convenience to allow top level view of graphics being removed.
-        # used for handling removed graphics in computations.
-        self.graphic_removed_event = Event.Event()
-
         self.dependency_added_event = Event.Event()
         self.dependency_removed_event = Event.Event()
         self.related_items_changed = Event.Event()
@@ -1077,6 +1073,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__remove_dependency(source, target)
         # now delete the actual items
         for item in reversed(items):
+            for computation in self.computations:
+                new_entries = computation.list_item_removed(item)
+                undelete_log.extend(new_entries)
             container = item.container
             if isinstance(item, DataItem.DataItem):
                 name = "data_items"
@@ -1121,10 +1120,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 # since they're not handled elsewhere.
                 if container == self and name in ("data_structures", "computations"):
                     self.notify_remove_item(name, item, index)
-                # and a special case for graphics since it is not a top level item.
-                # if displays are cascade deleted in the future, they would go here too.
-                elif name in ("graphics", ):
-                    self.graphic_removed_event.fire(container, item)
         # check whether this call of __cascade_delete is the top level one that will finish the computation
         # changed messages.
         if computation_changed_delay_list is not None:
@@ -1151,6 +1146,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 item.finish_reading()
                 item.bind(self)
                 self.insert_computation(index, item)
+            elif name == "object_specifiers":
+                computation = self.get_computation_by_uuid(uuid.UUID(entry["computation_uuid"]))
+                variable = computation.variables[entry["variable_index"]]
+                variable.objects_model.insert_item(index, properties)
             elif name == "graphics":
                 item = Graphics.factory(properties.get)
                 item.begin_reading()
@@ -1868,12 +1867,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         @property
                         def value(self):
                             display_item = self._display_data_channel.container
-                            shape = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
-                            mask = numpy.zeros(shape)
-                            for graphic in display_item.graphics:
-                                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
-                                    mask = numpy.logical_or(mask, graphic.get_mask(shape))
-                            return DataAndMetadata.DataAndMetadata.from_data(mask)
+                            # no display item is a special case for cascade removing graphics from computations. ugh.
+                            # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
+                            if display_item:
+                                shape = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
+                                mask = numpy.zeros(shape)
+                                for graphic in display_item.graphics:
+                                    if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                                        mask = numpy.logical_or(mask, graphic.get_mask(shape))
+                                return DataAndMetadata.DataAndMetadata.from_data(mask)
+                            return None
                         @property
                         def base_objects(self):
                             data_item = self._display_data_channel.data_item
@@ -1894,15 +1897,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         @property
                         def value(self):
                             display_item = self._display_data_channel.container
-                            xdata = self._display_data_channel.data_item.xdata
-                            if xdata.is_data_2d and xdata.is_data_complex_type:
-                                shape = xdata.data_shape
-                                mask = numpy.zeros(shape)
-                                for graphic in display_item.graphics:
-                                    if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
-                                        mask = numpy.logical_or(mask, graphic.get_mask(shape))
-                                return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
-                            return xdata
+                            # no display item is a special case for cascade removing graphics from computations. ugh.
+                            # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
+                            if display_item:
+                                xdata = self._display_data_channel.data_item.xdata
+                                if xdata.is_data_2d and xdata.is_data_complex_type:
+                                    shape = xdata.data_shape
+                                    mask = numpy.zeros(shape)
+                                    for graphic in display_item.graphics:
+                                        if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                                            mask = numpy.logical_or(mask, graphic.get_mask(shape))
+                                    return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
+                                return xdata
+                            return None
                         @property
                         def base_objects(self):
                             data_item = self._display_data_channel.data_item
@@ -1966,15 +1973,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                 if property_name_ == property_name:
                                     self.property_changed_event.fire(property_name_)
                             self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
-                            def graphic_removed(container, graphic):
-                                if graphic == self.__object:
-                                    self.needs_rebind_event.fire()
-                            self.__graphic_removed_event_listener = self.__document_model.graphic_removed_event.listen(graphic_removed)
                         def close(self):
                             self.__property_changed_listener.close()
                             self.__property_changed_listener = None
-                            self.__graphic_removed_event_listener.close()
-                            self.__graphic_removed_event_listener = None
                         @property
                         def value(self):
                             if property_name:
@@ -2029,6 +2030,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                             if not base_object in base_objects:
                                 base_objects.append(base_object)
                     return base_objects
+                def list_item_removed(self, object) -> typing.List[dict]:
+                    base_objects = self.base_objects
+                    if object in base_objects:
+                        for index, bound_item in enumerate(self.__bound_items):
+                            for base_object in bound_item.base_objects:
+                                if base_object in base_objects:
+                                    break
+                        properties = copy.deepcopy(self.__objects_model.items[index])
+                        self.__objects_model.remove_item(index)
+                        self.needs_rebind_event.fire()
+                        return [{"type": "object_specifiers", "index": index, "properties": properties}]
+                    return list()
 
             return BoundList(self, objects_model)
         return None
