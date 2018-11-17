@@ -681,7 +681,6 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
         self.__document_model = document_model
         self.__display_item_uuid = display_item.uuid
         self.__data_item_uuid = data_item.uuid
-        self.__new_properties = None
         self.__old_properties = None
         self.__display_data_channel_index = None
         self.__value_dict = kwargs
