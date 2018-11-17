@@ -624,17 +624,15 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
             adjust_display_layers(DisplayItem.set_display_layer_property(display_item.display_layers, index, "stroke_color", color))
             color_widget.select_all()
 
-        def build_column():
-            display_layers = display_item.display_layers
-            for index, display_layer in enumerate(display_layers):
-                inner_column = ui.create_column_widget()
+        class DisplayLayerWidget(Widgets.CompositeWidgetBase):
+            def __init__(self, index: int):
+                super().__init__(document_controller.ui.create_column_widget())
                 # label
                 label_edit_widget = ui.create_line_edit_widget()
                 label_row = ui.create_row_widget(properties={"spacing": 12})
                 label_row.add(ui.create_label_widget(_("Layer") + " " + str(index) + ":"))
                 label_row.add(label_edit_widget)
                 label_row.add_spacing(12)
-                label_edit_widget.text = display_layer.get("label", str())
                 label_edit_widget.on_editing_finished = functools.partial(change_label, label_edit_widget, index)
                 # move up, move down, add layer, remove layer
                 move_forward_button_widget = ui.create_push_button_widget("\N{UPWARDS WHITE ARROW}")
@@ -661,8 +659,6 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 content_row.add(ui.create_label_widget(_("Row")))
                 content_row.add(display_data_channel_row_widget)
                 content_row.add_stretch()
-                display_data_channel_index_widget.text = str(display_layer.get("data_index", 0))
-                display_data_channel_row_widget.text = str(display_layer.get("data_row", 0))
                 display_data_channel_index_widget.on_editing_finished = functools.partial(change_data_index, display_data_channel_index_widget, index)
                 display_data_channel_row_widget.on_editing_finished = functools.partial(change_data_row, display_data_channel_row_widget, index)
                 # display: fill color, stroke color, label
@@ -672,7 +668,6 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 fill_color_row.add(ui.create_label_widget(_("Fill Color")))
                 fill_color_row.add(fill_color_widget)
                 fill_color_row.add_stretch()
-                fill_color_widget.text = str(display_layer.get("fill_color"))
                 fill_color_widget.on_editing_finished = functools.partial(change_fill_color, fill_color_widget, index)
                 stroke_color_widget = ui.create_line_edit_widget()
                 stroke_color_widget.placeholder_text = _("None")
@@ -680,16 +675,41 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 stroke_color_row.add(ui.create_label_widget(_("Stroke Color")))
                 stroke_color_row.add(stroke_color_widget)
                 stroke_color_row.add_stretch()
-                stroke_color_widget.text = str(display_layer.get("stroke_color"))
                 stroke_color_widget.on_editing_finished = functools.partial(change_stroke_color, stroke_color_widget, index)
                 # build the inner column
-                inner_column.add(label_row)
-                inner_column.add(button_row)
-                inner_column.add(content_row)
-                inner_column.add(fill_color_row)
-                inner_column.add(stroke_color_row)
-                # add inner column to overall column
-                column.add(inner_column)
+                self.content_widget.add(label_row)
+                self.content_widget.add(button_row)
+                self.content_widget.add(content_row)
+                self.content_widget.add(fill_color_row)
+                self.content_widget.add(stroke_color_row)
+                # save for populate
+                self.__label_edit_widget = label_edit_widget
+                self.__display_data_channel_index_widget = display_data_channel_index_widget
+                self.__display_data_channel_row_widget = display_data_channel_row_widget
+                self.__fill_color_widget = fill_color_widget
+                self.__stroke_color_widget = stroke_color_widget
+
+            def close(self):
+                self.__label_edit_widget = None
+                self.__display_data_channel_index_widget = None
+                self.__display_data_channel_row_widget = None
+                self.__fill_color_widget = None
+                self.__stroke_color_widget = None
+                super().close()
+
+            def populate(self, display_layer: dict) -> None:
+                self.__label_edit_widget.text = display_layer.get("label", str())
+                self.__display_data_channel_index_widget.text = str(display_layer.get("data_index", 0))
+                self.__display_data_channel_row_widget.text = str(display_layer.get("data_row", 0))
+                self.__fill_color_widget.text = str(display_layer.get("fill_color"))
+                self.__stroke_color_widget.text = str(display_layer.get("stroke_color"))
+
+        def build_column():
+            display_layers = display_item.display_layers
+            for index, display_layer in enumerate(display_layers):
+                display_layer_widget = DisplayLayerWidget(index)
+                display_layer_widget.populate(display_layer)
+                column.add(display_layer_widget)
             if len(display_layers) == 0:
                 add_layer_button_widget = ui.create_push_button_widget("\N{PLUS SIGN}")
                 button_row = ui.create_row_widget()
@@ -698,10 +718,28 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 add_layer_button_widget.on_clicked = functools.partial(add_layer, 0)
                 column.add(button_row)
 
+        def display_item_property_changed(name):
+            if name == "display_layers":
+                while len(column.children) < len(display_item.display_layers):
+                    display_layer_widget = DisplayLayerWidget(len(column.children))
+                    column.add(display_layer_widget)
+                while len(column.children) > len(display_item.display_layers):
+                    column.remove(-1)
+                for index, display_layer in enumerate(display_item.display_layers):
+                    column.children[index].populate(display_layer)
+
+        self.__display_item_property_changed = display_item.property_changed_event.listen(display_item_property_changed)
+
         build_column()
 
         self.add_widget_to_content(column)
         self.finish_widget_content()
+
+    def close(self):
+        if self.__display_item_property_changed:
+            self.__display_item_property_changed.close()
+            self.__display_item_property_changed = None
+        super().close()
 
 
 class ImageDataInspectorSection(InspectorSection):
@@ -2608,10 +2646,8 @@ class TextPushButtonWidget(Widgets.CompositeWidgetBase):
 
 
 class DataItemLabelWidget(Widgets.CompositeWidgetBase):
-    def __init__(self, ui, document_controller, display_item: DisplayItem.DisplayItem, index: int, rebuild_fn):
+    def __init__(self, ui, document_controller, display_item: DisplayItem.DisplayItem, index: int):
         super().__init__(ui.create_column_widget())
-
-        self.__rebuild_fn = rebuild_fn
 
         remove_display_data_channel_button = TextPushButtonWidget(ui, "\N{MULTIPLICATION X}")
 
@@ -2683,7 +2719,6 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
             command = RemoveDisplayDataChannelCommand(document_controller, display_item, display_data_channel)
             command.perform()
             document_controller.push_undo_command(command)
-            self.__rebuild_fn()
 
         remove_display_data_channel_button.on_button_clicked = remove_display_data_channel
 
@@ -2692,7 +2727,7 @@ class DataItemGroupWidget(Widgets.CompositeWidgetBase):
     def __init__(self, ui, document_controller, display_item: DisplayItem.DisplayItem, index: int):
         super().__init__(ui.create_column_widget())
 
-        self.on_rebuild = None
+        self.on_rebuild_display_data_channels = None
 
         self.__ui = ui
         self.__document_controller = document_controller
@@ -2701,26 +2736,19 @@ class DataItemGroupWidget(Widgets.CompositeWidgetBase):
 
         self.__build()
 
-        self.__display_item_property_changed = None
         self.__display_item_item_inserted = None
         self.__display_item_item_removed = None
 
-        def display_item_property_changed(name):
-            if name == "display_layers":
-                if callable(self.on_rebuild):
-                    self.on_rebuild()
-
         def display_item_item_inserted(key, value, before_index):
             if key == "display_data_channels":
-                if callable(self.on_rebuild):
-                    self.on_rebuild()
+                if callable(self.on_rebuild_display_data_channels):
+                    self.on_rebuild_display_data_channels()
 
         def display_item_item_removed(key, value, index):
             if key == "display_data_channels":
-                if callable(self.on_rebuild):
-                    self.on_rebuild()
+                if callable(self.on_rebuild_display_data_channels):
+                    self.on_rebuild_display_data_channels()
 
-        self.__display_item_property_changed = self.__display_item.property_changed_event.listen(display_item_property_changed)
         self.__display_item_item_inserted = self.__display_item.item_inserted_event.listen(display_item_item_inserted)
         self.__display_item_item_removed = self.__display_item.item_removed_event.listen(display_item_item_removed)
 
@@ -2732,9 +2760,6 @@ class DataItemGroupWidget(Widgets.CompositeWidgetBase):
         super().close()
 
     def __detach_listeners(self):
-        if self.__display_item_property_changed:
-            self.__display_item_property_changed.close()
-            self.__display_item_property_changed = None
         if self.__display_item_item_inserted:
             self.__display_item_item_inserted.close()
             self.__display_item_item_inserted = None
@@ -2744,7 +2769,7 @@ class DataItemGroupWidget(Widgets.CompositeWidgetBase):
 
     def __build(self):
         if len(self.__display_item.display_data_channels) > 1:
-            self.content_widget.add(DataItemLabelWidget(self.__ui, self.__document_controller, self.__display_item, self.__index, self.__rebuild))
+            self.content_widget.add(DataItemLabelWidget(self.__ui, self.__document_controller, self.__display_item, self.__index))
         display_data_channel = self.__display_item.display_data_channels[self.__index]
         data_item = display_data_channel.data_item
         self.content_widget.add(DataInfoInspectorSection(self.__document_controller, display_data_channel))
@@ -2758,11 +2783,6 @@ class DataItemGroupWidget(Widgets.CompositeWidgetBase):
             else:  # default, pick
                 self.content_widget.add(CollectionIndexInspectorSection(self.__document_controller, display_data_channel))
         self.content_widget.add(ComputationInspectorSection(self.__document_controller, data_item))
-
-    def __rebuild(self):
-        self.content_widget.remove_all()
-        if callable(self.on_rebuild):
-            self.on_rebuild()
 
 
 class DisplayInspector(Widgets.CompositeWidgetBase):
@@ -2806,9 +2826,11 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
                 def rebuild():
                     if callable(self.on_rebuild):
                         self.on_rebuild()
-                data_item_group_widget.on_rebuild = rebuild
+                data_item_group_widget.on_rebuild_display_data_channels = rebuild
+                data_item_group_widget.on_rebuild_display_layers = rebuild
                 inspector_sections.append(data_item_group_widget)
-            inspector_sections.append(LinePlotDisplayLayersInspectorSection(document_controller, display_item))
+            line_plot_display_layers_inspector_section = LinePlotDisplayLayersInspectorSection(document_controller, display_item)
+            inspector_sections.append(line_plot_display_layers_inspector_section)
             if len(display_item.graphics) > 0:
                 inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
             def focus_default():
