@@ -235,21 +235,21 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
         self.__document_model = document_model
         self.__display_item_uuid = display_item.uuid
         self.__property_name = property_name
-        self.__new_value = value
-        self.__old_value = getattr(display_item, property_name)
+        self.__new_display_layers = value
+        self.__old_display_layers = getattr(display_item, property_name)
         self.initialize()
 
     def close(self):
         self.__document_model = None
         self.__display_item_uuid = None
         self.__property_name = None
-        self.__new_value = None
-        self.__old_value = None
+        self.__new_display_layers = None
+        self.__old_display_layers = None
         super().close()
 
     def perform(self):
         display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        setattr(display_item, self.__property_name, self.__new_value)
+        setattr(display_item, self.__property_name, self.__new_display_layers)
 
     def _get_modified_state(self):
         display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
@@ -265,8 +265,8 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
 
     def _undo(self) -> None:
         display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        self.__new_value = getattr(display_item, self.__property_name)
-        setattr(display_item, self.__property_name, self.__old_value)
+        self.__new_display_layers = getattr(display_item, self.__property_name)
+        setattr(display_item, self.__property_name, self.__old_display_layers)
 
     def _redo(self) -> None:
         self.perform()
@@ -418,31 +418,6 @@ class DisplayDataChannelPropertyCommandModel(Model.PropertyModel):
                 self.value = getattr(display_data_channel, property_name)
 
         self.__changed_listener = display_data_channel.property_changed_event.listen(property_changed_from_display)
-
-    def close(self):
-        self.__changed_listener.close()
-        self.__changed_listener = None
-        super().close()
-
-
-class DisplayPropertyCommandModel(Model.PropertyModel):
-
-    def __init__(self, document_controller, display, property_name, title, command_id):
-        super().__init__(getattr(display, property_name))
-
-        def property_changed_from_user(value):
-            if value != display_item.get_display_property(property_name):
-                command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display_item, title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
-                command.perform()
-                document_controller.push_undo_command(command)
-
-        self.on_value_changed = property_changed_from_user
-
-        def property_changed_from_display(name):
-            if name == property_name:
-                self.value = display_item.get_display_property(property_name)
-
-        self.__changed_listener = display_item.display_property_changed_event.listen(property_changed_from_display)
 
     def close(self):
         self.__changed_listener.close()
@@ -602,46 +577,51 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
 
         column = ui.create_column_widget(properties={"spacing": 12})
 
+        def adjust_display_layers(display_layers):
+            command = ChangeDisplayItemPropertyCommand(document_controller.document_model, display_item, "display_layers", display_layers)
+            command.perform()
+            document_controller.push_undo_command(command)
+
         def change_label(label_edit_widget, index, label):
-            display_item.set_display_layer_property(index, "label", label)
+            adjust_display_layers(DisplayItem.set_display_layer_property(display_item.display_layers, index, "label", label))
             label_edit_widget.select_all()
 
         def move_layer_forward(index):
-            display_item.move_display_layer_forward(index)
+            adjust_display_layers(DisplayItem.move_display_layer_forward(display_item.display_layers, index))
             column.remove_all()
             build_column()
 
         def move_layer_backward(index):
-            display_item.move_display_layer_backward(index)
+            adjust_display_layers(DisplayItem.move_display_layer_backward(display_item.display_layers, index))
             column.remove_all()
             build_column()
 
         def add_layer(index):
-            display_item.insert_display_layer(index)
+            adjust_display_layers(DisplayItem.insert_display_layer(display_item.display_layers, index))
             column.remove_all()
             build_column()
 
         def remove_layer(index):
-            display_item.remove_display_layer(index)
+            adjust_display_layers(DisplayItem.remove_display_layer(display_item.display_layers, index))
             column.remove_all()
             build_column()
 
         def change_data_index(data_index_widget, index, data_index):
             data_index = int(data_index) if data_index.isdigit() else 0
-            display_item.set_display_layer_property(index, "data_index", data_index)
+            adjust_display_layers(DisplayItem.set_display_layer_property(display_item.display_layers, index, "data_index", data_index))
             data_index_widget.select_all()
 
         def change_data_row(data_row_widget, index, data_row):
             data_row = int(data_row) if data_row.isdigit() else 0
-            display_item.set_display_layer_property(index, "data_row", data_row)
+            adjust_display_layers(DisplayItem.set_display_layer_property(display_item.display_layers, index, "data_row", data_row))
             data_row_widget.select_all()
 
         def change_fill_color(color_widget, index, color):
-            display_item.set_display_layer_property(index, "fill_color", color)
+            adjust_display_layers(DisplayItem.set_display_layer_property(display_item.display_layers, index, "fill_color", color))
             color_widget.select_all()
 
         def change_stroke_color(color_widget, index, color):
-            display_item.set_display_layer_property(index, "stroke_color", color)
+            adjust_display_layers(DisplayItem.set_display_layer_property(display_item.display_layers, index, "stroke_color", color))
             color_widget.select_all()
 
         def build_column():
@@ -2628,7 +2608,7 @@ class TextPushButtonWidget(Widgets.CompositeWidgetBase):
 
 
 class DataItemLabelWidget(Widgets.CompositeWidgetBase):
-    def __init__(self, ui, display_item: DisplayItem.DisplayItem, index: int, rebuild_fn):
+    def __init__(self, ui, document_controller, display_item: DisplayItem.DisplayItem, index: int, rebuild_fn):
         super().__init__(ui.create_column_widget())
 
         self.__rebuild_fn = rebuild_fn
@@ -2649,8 +2629,60 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
 
         display_data_channel = display_item.display_data_channels[index]
 
+        class RemoveDisplayDataChannelCommand(Undo.UndoableCommand):
+
+            def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel):
+                super().__init__(_("Remove Data Item"))
+                self.__document_controller = document_controller
+                self.__display_item_uuid = display_item.uuid
+                self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+                self.__new_workspace_layout = None
+                self.__display_data_channel_index = display_item.display_data_channels.index(display_data_channel)
+                self.__new_value = None
+                self.__old_value = display_item.display_layers
+                self.initialize()
+
+            def close(self):
+                self.__document_controller = None
+                self.__display_item_uuid = None
+                self.__old_workspace_layout = None
+                self.__new_workspace_layout = None
+                self.__display_data_channel_index = None
+                self.__new_value = None
+                self.__old_value = None
+                super().close()
+
+            def perform(self):
+                display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+                self.__undelete_logs = list()
+                display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
+                self.__undelete_logs.append(display_item.remove_display_data_channel(display_data_channel, safe=True))
+                self.__new_value = display_item.display_layers
+
+            def _get_modified_state(self):
+                display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+                return display_item.modified_state, self.__document_controller.document_model.modified_state
+
+            def _set_modified_state(self, modified_state):
+                display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+                display_item.modified_state, self.__document_controller.document_model.modified_state = modified_state
+
+            def _undo(self):
+                self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+                for undelete_log in reversed(self.__undelete_logs):
+                    self.__document_controller.document_model.undelete_all(undelete_log)
+                self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+                self.__new_value = display_item.display_layers
+                display_item.display_layers = self.__old_value
+
+            def _redo(self):
+                self.perform()
+                self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+
         def remove_display_data_channel():
-            display_item.remove_display_data_channel(display_data_channel)
+            command = RemoveDisplayDataChannelCommand(document_controller, display_item, display_data_channel)
+            command.perform()
+            document_controller.push_undo_command(command)
             self.__rebuild_fn()
 
         remove_display_data_channel_button.on_button_clicked = remove_display_data_channel
@@ -2712,7 +2744,7 @@ class DataItemGroupWidget(Widgets.CompositeWidgetBase):
 
     def __build(self):
         if len(self.__display_item.display_data_channels) > 1:
-            self.content_widget.add(DataItemLabelWidget(self.__ui, self.__display_item, self.__index, self.__rebuild))
+            self.content_widget.add(DataItemLabelWidget(self.__ui, self.__document_controller, self.__display_item, self.__index, self.__rebuild))
         display_data_channel = self.__display_item.display_data_channels[self.__index]
         data_item = display_data_channel.data_item
         self.content_widget.add(DataInfoInspectorSection(self.__document_controller, display_data_channel))

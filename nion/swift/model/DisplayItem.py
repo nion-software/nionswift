@@ -1073,43 +1073,23 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             return display_layers[index].get(property_name, default_value)
         return None
 
-    def set_display_layer_property(self, index: int, property_name: str, value) -> None:
-        display_layers = self.display_layers
-        assert 0 <= index < len(display_layers)
-        if value is not None:
-            display_layers[index][property_name] = value
-        else:
-            display_layers[index].pop(property_name, None)
-        self.display_layers = display_layers
+    def _set_display_layer_property(self, index: int, property_name: str, value) -> None:
+        self.display_layers = set_display_layer_property(self.display_layers, index, property_name, value)
 
     def add_display_layer(self, **kwargs) -> None:
-        self.insert_display_layer(len(self.display_layers), **kwargs)
+        self.display_layers = add_display_layer(self.display_layers, **kwargs)
 
     def insert_display_layer(self, before_index: int, **kwargs) -> None:
-        display_layers = self.display_layers
-        display_layers.insert(before_index, kwargs)
-        self.display_layers = display_layers
+        self.display_layers = insert_display_layer(self.display_layers, before_index, **kwargs)
 
     def remove_display_layer(self, index: int) -> None:
-        display_layers = self.display_layers
-        display_layers.pop(index)
-        self.display_layers = display_layers
+        self.display_layers = remove_display_layer(self.display_layers, index)
 
     def move_display_layer_forward(self, index: int) -> None:
-        display_layers = self.display_layers
-        assert 0 <= index < len(display_layers)
-        if index > 0:
-            display_layer = display_layers.pop(index)
-            display_layers.insert(index - 1, display_layer)
-        self.display_layers = display_layers
+        self.display_layers = move_display_layer_forward(self.display_layers, index)
 
     def move_display_layer_backward(self, index: int) -> None:
-        display_layers = self.display_layers
-        assert 0 <= index < len(display_layers)
-        if index < len(display_layers) - 1:
-            display_layer = display_layers.pop(index)
-            display_layers.insert(index + 1, display_layer)
-        self.display_layers = display_layers
+        self.display_layers = move_display_layer_backward(self.display_layers, index)
 
     def populate_display_layers(self) -> None:
         if len(self.display_layers) == 0:
@@ -1711,8 +1691,49 @@ def get_calibration_styles():
     return [CalibrationStyleNative(), CalibrationStylePixelsTopLeft(), CalibrationStylePixelsCenter(),
             CalibrationStyleFractionalTopLeft(), CalibrationStyleFractionalCenter()]
 
+
 def get_default_calibrated_calibration_style():
     return CalibrationStyleNative()
 
+
 def get_default_uncalibrated_calibration_style():
     return CalibrationStylePixelsCenter()
+
+
+def set_display_layer_property(display_layers: list, index: int, property_name: str, value) -> list:
+    assert 0 <= index < len(display_layers)
+    if value is not None:
+        display_layers[index][property_name] = value
+    else:
+        display_layers[index].pop(property_name, None)
+    return display_layers
+
+
+def add_display_layer(display_layers: list, **kwargs) -> list:
+    return insert_display_layer(display_layers, len(display_layers), **kwargs)
+
+
+def insert_display_layer(display_layers: list, before_index: int, **kwargs) -> list:
+    display_layers.insert(before_index, kwargs)
+    return display_layers
+
+
+def remove_display_layer(display_layers: list, index: int) -> list:
+    display_layers.pop(index)
+    return display_layers
+
+
+def move_display_layer_forward(display_layers: list, index: int) -> list:
+    assert 0 <= index < len(display_layers)
+    if index > 0:
+        display_layer = display_layers.pop(index)
+        display_layers.insert(index - 1, display_layer)
+    return display_layers
+
+
+def move_display_layer_backward(display_layers: list, index: int) -> list:
+    assert 0 <= index < len(display_layers)
+    if index < len(display_layers) - 1:
+        display_layer = display_layers.pop(index)
+        display_layers.insert(index + 1, display_layer)
+    return display_layers
