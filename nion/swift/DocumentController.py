@@ -1472,7 +1472,6 @@ class DocumentController(Window.Window):
             super().__init__(_("Remove Graphics"))
             self.__document_controller = document_controller
             self.__display_item_uuid = display_item.uuid
-            self.__old_properties = None
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
             self.__graphic_indexes = [display_item.graphics.index(graphic) for graphic in graphics]
@@ -1488,7 +1487,6 @@ class DocumentController(Window.Window):
 
         def perform(self):
             display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
-            self.__old_properties = display_item.save_properties()
             self.__undelete_logs = list()
             graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
             for graphic in graphics:
@@ -1503,11 +1501,9 @@ class DocumentController(Window.Window):
             display_item.modified_state, self.__document_controller.document_model.modified_state = modified_state
 
         def _undo(self):
-            display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
-            display_item.restore_properties(self.__old_properties)
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
         def _redo(self):

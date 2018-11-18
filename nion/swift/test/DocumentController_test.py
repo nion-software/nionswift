@@ -971,6 +971,49 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(result_data_item.data, numpy.full((4, 4), 2)))
 
+    def test_remove_line_profile_graphic_in_composite_line_plot_undoes_layers(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((2,2)))
+            document_model.append_data_item(data_item)
+            data_item1 = document_model.get_line_profile_new(data_item)
+            data_item2 = document_model.get_line_profile_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item1.append_display_data_channel_for_data_item(data_item2)
+            # check assumptions
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(2, len(display_item1.data_items))
+            self.assertEqual(2, len(display_item1.display_layers))
+            # remove interval and check
+            command = document_controller.RemoveGraphicsCommand(document_controller, display_item, [display_item.graphics[0]])
+            command.perform()
+            document_controller.push_undo_command(command)
+            document_model.recompute_all()
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(1, len(display_item1.data_items))
+            self.assertEqual(1, len(display_item1.display_layers))
+            # undo and check
+            document_controller.handle_undo()
+            document_model.recompute_all()
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(2, len(display_item1.data_items))
+            self.assertEqual(2, len(display_item1.display_layers))
+            # redo and check
+            document_controller.handle_redo()
+            document_model.recompute_all()
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(1, len(display_item1.data_items))
+            self.assertEqual(1, len(display_item1.display_layers))
+            # undo and check one more time
+            document_controller.handle_undo()
+            document_model.recompute_all()
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(2, len(display_item1.data_items))
+            self.assertEqual(2, len(display_item1.display_layers))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

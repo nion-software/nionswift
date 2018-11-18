@@ -1114,7 +1114,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 container_ref = str(container.uuid)
                 index = getattr(container, name).index(item)
                 item_dict = item.write_to_dict()
-                undelete_log.append({"type": name, "container": container_ref, "index": index, "properties": item_dict})
+                container_properties = container.save_properties() if hasattr(container, "save_properties") else dict()
+                undelete_log.append({"type": name, "container": container_ref, "index": index, "properties": item_dict, "container_properties": container_properties})
                 container.remove_item(name, item)
                 # handle top level 'remove item' notifications for data structures, computations, and display items here
                 # since they're not handled elsewhere.
@@ -1155,7 +1156,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 item.begin_reading()
                 item.read_from_dict(properties)
                 item.finish_reading()
-                self.get_display_item_by_uuid(uuid.UUID(entry["container"])).insert_graphic(index, item)
+                display_item = self.get_display_item_by_uuid(uuid.UUID(entry["container"]))
+                display_item.insert_graphic(index, item)
+                display_item.restore_properties(entry["container_properties"])
             elif name == "connections":
                 item = Connection.connection_factory(properties.get)
                 item.begin_reading()
@@ -1179,6 +1182,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 item.finish_reading()
                 display_item = self.get_display_item_by_uuid(uuid.UUID(entry["container"]))
                 display_item.undelete_display_data_channel(index, item, self.get_data_item_by_uuid)
+                display_item.restore_properties(entry["container_properties"])
             else:
                 assert False
 
