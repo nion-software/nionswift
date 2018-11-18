@@ -1629,9 +1629,9 @@ class DocumentController(Window.Window):
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
 
-    def _perform_redimension(self, data_item: DataItem.DataItem, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
+    def _perform_redimension(self, display_item: DisplayItem.DisplayItem, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
         def process() -> DataItem.DataItem:
-            new_data_item = self.document_model.get_redimension_new(data_item, data_descriptor)
+            new_data_item = self.document_model.get_redimension_new(display_item, data_descriptor)
             new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
             self.show_display_item(new_display_item)
             return new_data_item
@@ -1644,9 +1644,9 @@ class DocumentController(Window.Window):
         else:
             command.close()
 
-    def _perform_squeeze(self, data_item: DataItem.DataItem) -> None:
+    def _perform_squeeze(self, display_item: DisplayItem.DisplayItem) -> None:
         def process() -> DataItem.DataItem:
-            new_data_item = self.document_model.get_squeeze_new(data_item)
+            new_data_item = self.document_model.get_squeeze_new(display_item)
             new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
             self.show_display_item(new_display_item)
             return new_data_item
@@ -1664,7 +1664,8 @@ class DocumentController(Window.Window):
             self._processing_redimension_menu.remove_action(action)
         self.__data_menu_actions = list()
         selected_display_panel = self.selected_display_panel
-        data_item = selected_display_panel.data_item if selected_display_panel else None
+        display_item = selected_display_panel.display_item
+        data_item = display_item.data_item if display_item else None
         if data_item:
 
             def describe_data_descriptor(data_descriptor: DataAndMetadata.DataDescriptor, data_shape: typing.List[int]) -> str:
@@ -1697,7 +1698,7 @@ class DocumentController(Window.Window):
                 data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dims, data_dims)
                 if data_descriptor.expected_dimension_count == data_item.xdata.data_descriptor.expected_dimension_count and data_descriptor != data_item.xdata.data_descriptor:
                     data_type_name = describe_data_descriptor(data_descriptor, data_item.xdata.data_shape)
-                    action = self._processing_redimension_menu.add_menu_item(_("Redimension to {}").format(data_type_name), functools.partial(self._perform_redimension, data_item, data_descriptor))
+                    action = self._processing_redimension_menu.add_menu_item(_("Redimension to {}").format(data_type_name), functools.partial(self._perform_redimension, display_item, data_descriptor))
                     self.__data_menu_actions.append(action)
 
             # add squeeze menu item if available
@@ -1716,7 +1717,7 @@ class DocumentController(Window.Window):
                     del data_shape[data_descriptor.datum_dimension_index_slice.start + index]
                     data_descriptor.datum_dimension_count -= 1
                 data_type_name = describe_data_descriptor(data_descriptor, data_shape)
-                self.__data_menu_actions.append(self._processing_redimension_menu.add_menu_item(_("Squeeze to {}").format(data_type_name), functools.partial(self._perform_squeeze, data_item)))
+                self.__data_menu_actions.append(self._processing_redimension_menu.add_menu_item(_("Squeeze to {}").format(data_type_name), functools.partial(self._perform_squeeze, display_item)))
         else:
             action = self._processing_redimension_menu.add_menu_item(_("No Data Selected"), None)
             action.enabled = False
@@ -1995,15 +1996,14 @@ class DocumentController(Window.Window):
 
     def _get_two_data_sources(self):
         """Get two sensible data sources, which may be the same."""
-        selected_data_items = self.selected_data_items
-        if len(selected_data_items) < 2:
-            selected_data_items = list()
+        selected_display_items = self.selected_display_items
+        if len(selected_display_items) < 2:
+            selected_display_items = list()
             display_item = self.selected_display_item
-            data_item = display_item.data_item if display_item else None
-            if data_item:
-                selected_data_items.append(data_item)
-        if len(selected_data_items) == 1:
-            display_item = self.document_model.get_display_item_for_data_item(selected_data_items[0])
+            if display_item:
+                selected_display_items.append(display_item)
+        if len(selected_display_items) == 1:
+            display_item = selected_display_items[0]
             data_item = display_item.data_item if display_item else None
             if display_item and len(display_item.graphic_selection.indexes) == 2:
                 index1 = display_item.graphic_selection.anchor_index
@@ -2026,15 +2026,13 @@ class DocumentController(Window.Window):
             else:
                 crop_graphic1 = self.__get_crop_graphic(display_item)
                 crop_graphic2 = crop_graphic1
-            return (data_item, crop_graphic1), (data_item, crop_graphic2)
-        if len(selected_data_items) == 2:
-            display_item1 = self.document_model.get_display_item_for_data_item(selected_data_items[0])
-            data_item1 = display_item1.data_item if display_item1 else None
+            return (display_item, crop_graphic1), (display_item, crop_graphic2)
+        if len(selected_display_items) == 2:
+            display_item1 = selected_display_items[0]
             crop_graphic1 = self.__get_crop_graphic(display_item1)
-            display_item2 = self.document_model.get_display_item_for_data_item(selected_data_items[1])
-            data_item2 = display_item2.data_item if display_item2 else None
+            display_item2 = selected_display_items[1]
             crop_graphic2 = self.__get_crop_graphic(display_item2)
-            return (data_item1, crop_graphic1), (data_item2, crop_graphic2)
+            return (display_item1, crop_graphic1), (display_item2, crop_graphic2)
         return None
 
     def _perform_processing2(self, data_item1: DataItem.DataItem, data_item2: DataItem.DataItem, crop_graphic1: typing.Optional[Graphics.Graphic], crop_graphic2: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
@@ -2056,16 +2054,16 @@ class DocumentController(Window.Window):
     def __processing_new2(self, fn):
         data_sources = self._get_two_data_sources()
         if data_sources:
-            (data_item1, crop_graphic1), (data_item2, crop_graphic2) = data_sources
-            return self._perform_processing2(data_item1, data_item2, crop_graphic1, crop_graphic2, fn)
+            (display_item1, crop_graphic1), (display_item2, crop_graphic2) = data_sources
+            return self._perform_processing2(display_item1, display_item2, crop_graphic1, crop_graphic2, fn)
         return None
 
     def processing_cross_correlate_new(self):
         return self.__processing_new2(self.document_model.get_cross_correlate_new)
 
-    def _perform_processing(self, data_item: DataItem.DataItem, crop_graphic: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
+    def _perform_processing(self, display_item: DisplayItem.DisplayItem, crop_graphic: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
         def process() -> DataItem.DataItem:
-            new_data_item = fn(data_item, crop_graphic)
+            new_data_item = fn(display_item, crop_graphic)
             if new_data_item:
                 new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
                 self.show_display_item(new_display_item)
@@ -2082,17 +2080,14 @@ class DocumentController(Window.Window):
 
     def __processing_new(self, fn) -> typing.Optional[DataItem.DataItem]:
         display_item = self.selected_display_item
-        data_item = display_item.data_item if display_item else None
-        if data_item:
-            crop_graphic = self.__get_crop_graphic(display_item)
-            return self._perform_processing(data_item, crop_graphic, fn)
-        return None
+        crop_graphic = self.__get_crop_graphic(display_item)
+        return self._perform_processing(display_item, crop_graphic, fn)
 
     def processing_fourier_filter_new(self):
         display_item = self.selected_display_item
         data_item = display_item.data_item if display_item else None
         if data_item:
-            return self._perform_processing(data_item, None, self.document_model.get_fourier_filter_new)
+            return self._perform_processing(display_item, None, self.document_model.get_fourier_filter_new)
         return None
 
     def __change_to_previous_workspace(self):

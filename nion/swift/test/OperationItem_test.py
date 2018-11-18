@@ -64,7 +64,7 @@ class TestProcessingClass(unittest.TestCase):
         processing_list.append((data_item_real, self.document_model.get_transpose_flip_new, {"do_transpose": True, "do_flip_v": True, "do_flip_h": True}))
 
         for source_data_item, fn, params in processing_list:
-            data_item = fn(source_data_item)
+            data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item))
             for name, value in params.items():
                 self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
@@ -96,13 +96,14 @@ class TestProcessingClass(unittest.TestCase):
         processing_list.append((data_item_real, self.document_model.get_crop_new, {}))
         processing_list.append((data_item_real, self.document_model.get_transpose_flip_new, {"do_transpose": True, "do_flip_v": True, "do_flip_h": True}))
         processing_list.append((data_item_real, self.document_model.get_resample_new, {"width": 128, "height": 128}))
+        processing_list.append((data_item_real, self.document_model.get_resize_new, {"width": 128, "height": 128}))
         processing_list.append((data_item_real, self.document_model.get_histogram_new, {}))
         processing_list.append((data_item_real, self.document_model.get_line_profile_new, {}))
         processing_list.append((data_item_real, self.document_model.get_projection_new, {}))
         processing_list.append((data_item_real, self.document_model.get_convert_to_scalar_new, {}))
 
         for source_data_item, fn, params in processing_list:
-            data_item = fn(source_data_item)
+            data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item))
             for name, value in params.items():
                 self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
@@ -130,7 +131,7 @@ class TestProcessingClass(unittest.TestCase):
         processing_list.append((data_item_real, self.document_model.get_subtract_region_average_new, {}))
 
         for source_data_item, fn, params in processing_list:
-            data_item = fn(source_data_item)
+            data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item))
             for name, value in params.items():
                 self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
@@ -160,13 +161,14 @@ class TestProcessingClass(unittest.TestCase):
         processing_list.append((data_item_rgb, self.document_model.get_crop_new, {}))
         processing_list.append((data_item_rgb, self.document_model.get_transpose_flip_new, {"do_transpose": True, "do_flip_v": True, "do_flip_h": True}))
         processing_list.append((data_item_rgb, self.document_model.get_resample_new, {"width": 128, "height": 128}))
+        # processing_list.append((data_item_rgb, self.document_model.get_resize_new, {"width": 128, "height": 128}))
         processing_list.append((data_item_rgb, self.document_model.get_histogram_new, {}))
         processing_list.append((data_item_rgb, self.document_model.get_line_profile_new, {}))
         processing_list.append((data_item_rgb, self.document_model.get_projection_new, {}))
         processing_list.append((data_item_rgb, self.document_model.get_convert_to_scalar_new, {}))
 
         for source_data_item, fn, params in processing_list:
-            data_item = fn(source_data_item)
+            data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item))
             for name, value in params.items():
                 self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
@@ -196,13 +198,14 @@ class TestProcessingClass(unittest.TestCase):
         processing_list.append((data_item_rgb, self.document_model.get_crop_new, {}))
         processing_list.append((data_item_rgb, self.document_model.get_transpose_flip_new, {"do_transpose": True, "do_flip_v": True, "do_flip_h": True}))
         processing_list.append((data_item_rgb, self.document_model.get_resample_new, {"width": 128, "height": 128}))
+        # processing_list.append((data_item_rgb, self.document_model.get_resize_new, {"width": 128, "height": 128}))
         processing_list.append((data_item_rgb, self.document_model.get_histogram_new, {}))
         processing_list.append((data_item_rgb, self.document_model.get_line_profile_new, {}))
         processing_list.append((data_item_rgb, self.document_model.get_projection_new, {}))
         processing_list.append((data_item_rgb, self.document_model.get_convert_to_scalar_new, {}))
 
         for source_data_item, fn, params in processing_list:
-            data_item = fn(source_data_item)
+            data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item))
             for name, value in params.items():
                 self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
@@ -227,7 +230,7 @@ class TestProcessingClass(unittest.TestCase):
         processing_list.append((data_item_complex, self.document_model.get_convert_to_scalar_new, {}))
 
         for source_data_item, fn, params in processing_list:
-            data_item = fn(source_data_item)
+            data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item))
             for name, value in params.items():
                 self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
@@ -252,7 +255,7 @@ class TestProcessingClass(unittest.TestCase):
         processing_list.append((data_item_complex, self.document_model.get_convert_to_scalar_new, {}))
 
         for source_data_item, fn, params in processing_list:
-            data_item = fn(source_data_item)
+            data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item))
             for name, value in params.items():
                 self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
@@ -278,7 +281,7 @@ class TestProcessingClass(unittest.TestCase):
         processing_list.append((data_item, self.document_model.get_convert_to_scalar_new, {}))
 
         for source_data_item, fn, params in processing_list:
-            data_item = fn(source_data_item)
+            data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item))
             for name, value in params.items():
                 self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
@@ -347,7 +350,7 @@ class TestProcessingClass(unittest.TestCase):
             processing_list.append((data_item, self.document_model.get_fft_new, {}))
             processing_list.append((data_item, self.document_model.get_ifft_new, {}))
             processing_list.append((data_item, self.document_model.get_auto_correlate_new, {}))
-            processing_list.append((data_item, functools.partial(self.document_model.get_cross_correlate_new, data_item), {}))
+            processing_list.append((data_item, functools.partial(self.document_model.get_cross_correlate_new, self.document_model.get_display_item_for_data_item(data_item)), {}))
             processing_list.append((data_item, self.document_model.get_invert_new, {}))
             processing_list.append((data_item, self.document_model.get_sobel_new, {}))
             processing_list.append((data_item, self.document_model.get_laplace_new, {}))
@@ -361,13 +364,14 @@ class TestProcessingClass(unittest.TestCase):
             processing_list.append((data_item, self.document_model.get_pick_region_new, {}))
             processing_list.append((data_item, self.document_model.get_pick_region_average_new, {}))
             processing_list.append((data_item, self.document_model.get_resample_new, {"width": 128, "height": 128}))
+            processing_list.append((data_item, self.document_model.get_resize_new, {"width": 128, "height": 128}))
             processing_list.append((data_item, self.document_model.get_histogram_new, {}))
             processing_list.append((data_item, self.document_model.get_line_profile_new, {}))
             processing_list.append((data_item, self.document_model.get_projection_new, {}))
             processing_list.append((data_item, self.document_model.get_convert_to_scalar_new, {}))
 
         for source_data_item, fn, params in processing_list:
-            data_item = fn(source_data_item)
+            data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item))
             if data_item:
                 for name, value in params.items():
                     self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
@@ -379,7 +383,6 @@ class TestProcessingClass(unittest.TestCase):
                     self.assertIsNone(data_ref.data)
                     self.assertFalse(display_item.data_item.dimensional_calibrations)
 
-
     def test_processing_on_none(self):
         # TODO: this test makes less sense with computations; but leave it here until data_item and data_item merge.
         data_item = DataItem.DataItem()
@@ -389,7 +392,7 @@ class TestProcessingClass(unittest.TestCase):
         processing_list.append((data_item, self.document_model.get_fft_new, {}))
         processing_list.append((data_item, self.document_model.get_ifft_new, {}))
         processing_list.append((data_item, self.document_model.get_auto_correlate_new, {}))
-        processing_list.append((data_item, functools.partial(self.document_model.get_cross_correlate_new, data_item), {}))
+        processing_list.append((data_item, functools.partial(self.document_model.get_cross_correlate_new, self.document_model.get_display_item_for_data_item(data_item)), {}))
         processing_list.append((data_item, self.document_model.get_invert_new, {}))
         processing_list.append((data_item, self.document_model.get_sobel_new, {}))
         processing_list.append((data_item, self.document_model.get_laplace_new, {}))
@@ -404,13 +407,14 @@ class TestProcessingClass(unittest.TestCase):
         processing_list.append((data_item, self.document_model.get_pick_region_average_new, {}))
         processing_list.append((data_item, self.document_model.get_subtract_region_average_new, {}))
         processing_list.append((data_item, self.document_model.get_resample_new, {"width": 128, "height": 128}))
+        processing_list.append((data_item, self.document_model.get_resize_new, {"width": 128, "height": 128}))
         processing_list.append((data_item, self.document_model.get_histogram_new, {}))
         processing_list.append((data_item, self.document_model.get_line_profile_new, {}))
         processing_list.append((data_item, self.document_model.get_projection_new, {}))
         processing_list.append((data_item, self.document_model.get_convert_to_scalar_new, {}))
 
         for source_data_item, fn, params in processing_list:
-            data_item = fn(source_data_item)
+            data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item))
             if data_item:
                 for name, value in params.items():
                     self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
@@ -431,7 +435,7 @@ class TestProcessingClass(unittest.TestCase):
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.2, 0.3), (0.5, 0.5)
             display_item.add_graphic(crop_region)
-            real_data_item = document_model.get_crop_new(data_item, crop_region)
+            real_data_item = document_model.get_crop_new(display_item, crop_region)
             real_display_item = document_model.get_display_item_for_data_item(real_data_item)
             document_model.recompute_all()
             # make sure we get the right shape
@@ -444,7 +448,8 @@ class TestProcessingClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.float64))
             document_model.append_data_item(data_item)
-            fft_data_item = document_model.get_fft_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            fft_data_item = document_model.get_fft_new(display_item)
             fft_display_item = document_model.get_display_item_for_data_item(fft_data_item)
             document_model.recompute_all()
             with fft_display_item.data_item.data_ref() as fft_data_ref:
@@ -456,7 +461,8 @@ class TestProcessingClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.complex128))
             document_model.append_data_item(data_item)
-            scalar_data_item = document_model.get_convert_to_scalar_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            scalar_data_item = document_model.get_convert_to_scalar_new(display_item)
             scalar_display_item = document_model.get_display_item_for_data_item(scalar_data_item)
             document_model.recompute_all()
             with scalar_display_item.data_item.data_ref() as scalar_data_ref:
@@ -471,7 +477,7 @@ class TestProcessingClass(unittest.TestCase):
             with rgba_display_item.data_item.data_ref() as data_ref:
                 data_ref.master_data[:] = (20,40,60,100)
                 data_ref.master_data_updated()
-            rgba2_data_item = document_model.get_invert_new(rgba_data_item)
+            rgba2_data_item = document_model.get_invert_new(rgba_display_item)
             rgba2_display_item = document_model.get_display_item_for_data_item(rgba2_data_item)
             document_model.recompute_all()
             with rgba2_display_item.data_item.data_ref() as data_ref:
@@ -488,8 +494,9 @@ class TestProcessingClass(unittest.TestCase):
             document_model.append_data_item(data_item_rgba)
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            document_model.get_display_item_for_data_item(data_item_rgba).add_graphic(crop_region)
-            data_item_rgba2 = document_model.get_crop_new(data_item_rgba, crop_region)
+            display_item_rgba = document_model.get_display_item_for_data_item(data_item_rgba)
+            display_item_rgba.add_graphic(crop_region)
+            data_item_rgba2 = document_model.get_crop_new(display_item_rgba, crop_region)
             data_item_rgba2_copy = copy.deepcopy(data_item_rgba2)
             # make sure the computation was not copied
             self.assertNotEqual(document_model.get_data_item_computation(data_item_rgba2), document_model.get_data_item_computation(data_item_rgba2_copy))
@@ -499,7 +506,8 @@ class TestProcessingClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item_rgba = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))
             document_model.append_data_item(data_item_rgba)
-            data_item_rgba2 = document_model.get_invert_new(data_item_rgba)
+            display_item_rgba = document_model.get_display_item_for_data_item(data_item_rgba)
+            data_item_rgba2 = document_model.get_invert_new(display_item_rgba)
             document_model.recompute_all()
             data_item_rgba2_ss = document_model.get_display_item_snapshot_new(document_model.get_display_item_for_data_item(data_item_rgba2)).data_item
             self.assertTrue(data_item_rgba2_ss.has_data)
@@ -526,11 +534,12 @@ class TestProcessingClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             # setup
             data_item.set_dimensional_calibration(0, Calibration.Calibration(5.0, 2.0, u"nm"))
             data_item.set_dimensional_calibration(1, Calibration.Calibration(5.0, 2.0, u"nm"))
             data_item.set_intensity_calibration(Calibration.Calibration(7.5, 2.5, u"ll"))
-            data_item2 = document_model.get_invert_new(data_item)
+            data_item2 = document_model.get_invert_new(display_item)
             document_model.recompute_all()
             # make sure our assumptions are correct
             self.assertEqual(len(data_item.dimensional_calibrations), 2)
@@ -568,7 +577,7 @@ class TestProcessingClass(unittest.TestCase):
             spatial_calibration_1.units = "cats"
             data_item.set_dimensional_calibration(0, spatial_calibration_0)
             data_item.set_dimensional_calibration(1, spatial_calibration_1)
-            data_item2 = document_model.get_crop_new(data_item, crop_region)
+            data_item2 = document_model.get_crop_new(display_item, crop_region)
             document_model.recompute_all()
             # make sure the calibrations are correct
             self.assertAlmostEqual(data_item2.dimensional_calibrations[0].offset, 20.0 + 20 * 0.2 * 5.0)
@@ -583,6 +592,7 @@ class TestProcessingClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((20, 10), numpy.double))
             document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
             spatial_calibration_0 = data_item.dimensional_calibrations[0]
             spatial_calibration_0.offset = 20.0
             spatial_calibration_0.scale = 5.0
@@ -593,7 +603,7 @@ class TestProcessingClass(unittest.TestCase):
             spatial_calibration_1.units = "cats"
             data_item.set_dimensional_calibration(0, spatial_calibration_0)
             data_item.set_dimensional_calibration(1, spatial_calibration_1)
-            data_item2 = document_model.get_projection_new(data_item)
+            data_item2 = document_model.get_projection_new(display_item)
             document_model.recompute_all()
             # make sure the calibrations are correct
             self.assertAlmostEqual(data_item2.dimensional_calibrations[0].offset, 55.0)
@@ -689,7 +699,8 @@ class TestProcessingClass(unittest.TestCase):
             # set up the data items
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
-            blurred_data_item = document_model.get_gaussian_blur_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            blurred_data_item = document_model.get_gaussian_blur_new(display_item)
             blurred_display_item = document_model.get_display_item_for_data_item(blurred_data_item)
             # establish listeners
             data_changed_ref = [False]
@@ -718,7 +729,7 @@ class TestProcessingClass(unittest.TestCase):
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
             display_item.add_graphic(crop_region)
-            cropped_data_item = document_model.get_crop_new(data_item, crop_region)
+            cropped_data_item = document_model.get_crop_new(display_item, crop_region)
             cropped_display_item = document_model.get_display_item_for_data_item(cropped_data_item)
             # establish listeners
             data_changed_ref = [False]
@@ -746,8 +757,8 @@ class TestProcessingClass(unittest.TestCase):
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
             display_item.add_graphic(crop_region)
-            fft_data_item = document_model.get_fft_new(data_item)
-            crop_data_item = document_model.get_crop_new(data_item, crop_region)
+            fft_data_item = document_model.get_fft_new(display_item)
+            crop_data_item = document_model.get_crop_new(display_item, crop_region)
             document_model.recompute_all()
             self.assertFalse(document_model.get_data_item_computation(fft_data_item).needs_update)
             self.assertFalse(document_model.get_data_item_computation(crop_data_item).needs_update)
@@ -762,7 +773,9 @@ class TestProcessingClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
-            document_model.get_cross_correlate_new(data_item1, data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            document_model.get_cross_correlate_new(display_item1, display_item2)
             document_model.recompute_all()
             document_model.remove_data_item(data_item1)
             document_model.recompute_all()
@@ -773,13 +786,14 @@ class TestProcessingClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((32, 32, 16), numpy.float))
             document_model.append_data_item(data_item)
-            slice_data_item = document_model.get_slice_sum_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            slice_data_item = document_model.get_slice_sum_new(display_item)
             slice_display_item = document_model.get_display_item_for_data_item(slice_data_item)
             document_model.recompute_all()
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
             slice_display_item.add_graphic(crop_region)
-            crop_data_item = document_model.get_crop_new(slice_data_item, crop_region)
+            crop_data_item = document_model.get_crop_new(slice_display_item, crop_region)
             document_model.recompute_all()
 
     def test_projection_of_2d_by_2d_sums_first_datum_dimension(self):
@@ -790,7 +804,8 @@ class TestProcessingClass(unittest.TestCase):
             data_and_metadata = DataAndMetadata.new_data_and_metadata(d, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
-            slice_data_item = document_model.get_projection_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            slice_data_item = document_model.get_projection_new(display_item)
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(numpy.sum(d, 2), slice_data_item.xdata.data))
 
@@ -841,9 +856,9 @@ class TestProcessingClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             data_sources = document_controller._get_two_data_sources()
-            self.assertEqual(data_sources[0][0], data_item)
+            self.assertEqual(data_sources[0][0], display_item)
             self.assertEqual(data_sources[0][1], None)
-            self.assertEqual(data_sources[1][0], data_item)
+            self.assertEqual(data_sources[1][0], display_item)
             self.assertEqual(data_sources[1][1], None)
 
     def test_get_two_data_sources_handles_two_selected_data_items(self):
@@ -859,9 +874,9 @@ class TestProcessingClass(unittest.TestCase):
             self.assertIsNone(document_controller._get_two_data_sources())
             document_controller.select_data_items_in_data_panel([data_item1, data_item2])
             data_sources = document_controller._get_two_data_sources()
-            self.assertEqual(data_sources[0][0], data_item1)
+            self.assertEqual(data_sources[0][0], document_model.get_display_item_for_data_item(data_item1))
             self.assertEqual(data_sources[0][1], None)
-            self.assertEqual(data_sources[1][0], data_item2)
+            self.assertEqual(data_sources[1][0], document_model.get_display_item_for_data_item(data_item2))
             self.assertEqual(data_sources[1][1], None)
 
     def test_get_two_data_sources_handles_three_selected_data_items(self):
@@ -892,9 +907,9 @@ class TestProcessingClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_item.graphic_selection.set(0)
             data_sources = document_controller._get_two_data_sources()
-            self.assertEqual(data_sources[0][0], data_item)
+            self.assertEqual(data_sources[0][0], display_item)
             self.assertEqual(data_sources[0][1], crop_region)
-            self.assertEqual(data_sources[1][0], data_item)
+            self.assertEqual(data_sources[1][0], display_item)
             self.assertEqual(data_sources[1][1], crop_region)
 
     def test_get_two_data_sources_handles_one_selected_data_item_and_two_crop_graphics(self):
@@ -919,9 +934,9 @@ class TestProcessingClass(unittest.TestCase):
             display_item.graphic_selection.set(0)
             display_item.graphic_selection.add(1)
             data_sources = document_controller._get_two_data_sources()
-            self.assertEqual(data_sources[0][0], data_item)
+            self.assertEqual(data_sources[0][0], display_item)
             self.assertEqual(data_sources[0][1], crop_region1)
-            self.assertEqual(data_sources[1][0], data_item)
+            self.assertEqual(data_sources[1][0], display_item)
             self.assertEqual(data_sources[1][1], crop_region2)
 
     def test_get_two_data_sources_handles_one_selected_data_item_and_three_crop_graphics(self):
@@ -939,9 +954,9 @@ class TestProcessingClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_item.graphic_selection.add_range(range(3))
             data_sources = document_controller._get_two_data_sources()
-            self.assertEqual(data_sources[0][0], data_item)
+            self.assertEqual(data_sources[0][0], display_item)
             self.assertEqual(data_sources[0][1], None)
-            self.assertEqual(data_sources[1][0], data_item)
+            self.assertEqual(data_sources[1][0], display_item)
             self.assertEqual(data_sources[1][1], None)
 
     def test_crop_handles_1d_case_with_existing_interval(self):
@@ -995,7 +1010,8 @@ class TestProcessingClass(unittest.TestCase):
             xdata = DataAndMetadata.new_data_and_metadata(data, data_descriptor=data_descriptor, dimensional_calibrations=dimensional_calibrations)
             data_item = DataItem.new_data_item(xdata)
             document_model.append_data_item(data_item)
-            document_controller._perform_redimension(data_item, DataAndMetadata.DataDescriptor(False, 1, 2))
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_controller._perform_redimension(display_item, DataAndMetadata.DataDescriptor(False, 1, 2))
             document_model.recompute_all()
             redim_data_item = document_model.data_items[1]
             self.assertEqual(redim_data_item.xdata.data_descriptor, DataAndMetadata.DataDescriptor(False, 1, 2))
@@ -1016,7 +1032,8 @@ class TestProcessingClass(unittest.TestCase):
             xdata = DataAndMetadata.new_data_and_metadata(data, data_descriptor=data_descriptor, dimensional_calibrations=dimensional_calibrations)
             data_item = DataItem.new_data_item(xdata)
             document_model.append_data_item(data_item)
-            document_controller._perform_squeeze(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_controller._perform_squeeze(display_item)
             document_model.recompute_all()
             squeezed_data_item = document_model.data_items[1]
             self.assertEqual(squeezed_data_item.xdata.data_descriptor, DataAndMetadata.DataDescriptor(False, 1, 1))
@@ -1038,7 +1055,8 @@ class TestProcessingClass(unittest.TestCase):
             xdata = DataAndMetadata.new_data_and_metadata(data, data_descriptor=data_descriptor, dimensional_calibrations=dimensional_calibrations)
             data_item = DataItem.new_data_item(xdata)
             document_model.append_data_item(data_item)
-            document_controller._perform_squeeze(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_controller._perform_squeeze(display_item)
             document_model.recompute_all()
             squeezed_data_item = document_model.data_items[1]
             self.assertEqual(squeezed_data_item.xdata.data_descriptor, DataAndMetadata.DataDescriptor(False, 1, 1))
@@ -1050,7 +1068,8 @@ class TestProcessingClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((3, 3)))
             document_model.append_data_item(data_item)
-            document_controller._perform_processing(data_item, None, document_model.get_pick_new)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_controller._perform_processing(display_item, None, document_model.get_pick_new)
 
 
 if __name__ == '__main__':

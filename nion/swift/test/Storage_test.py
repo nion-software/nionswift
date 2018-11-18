@@ -428,7 +428,8 @@ class TestStorageClass(unittest.TestCase):
             src_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             src_data_item.category = "temporary"
             document_model.append_data_item(src_data_item)
-            dst_data_item = document_model.get_fft_new(src_data_item)
+            src_display_item = document_model.get_display_item_for_data_item(src_data_item)
+            dst_data_item = document_model.get_fft_new(src_display_item)
             document_model.recompute_all()
             dst_data_item.created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
             src_data_item_uuid = src_data_item.uuid
@@ -482,8 +483,8 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
-            document_model.get_invert_new(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
+            document_model.get_invert_new(display_item)
             document_model.get_display_item_copy_new(display_item)
             self.assertEqual(1, len(document_model.get_dependent_data_items(data_item)))
             self.assertEqual(document_model.data_items[1], document_model.get_dependent_data_items(data_item)[0])
@@ -1108,7 +1109,7 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            document_model.get_line_profile_new(data_item)
+            document_model.get_line_profile_new(display_item)
             display_item.graphics[0].vector = (0.1, 0.2), (0.3, 0.4)
         # read it back
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
@@ -1232,7 +1233,8 @@ class TestStorageClass(unittest.TestCase):
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
-                data_item2 = document_model.get_invert_new(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_item2 = document_model.get_invert_new(display_item)
                 data_file_path = data_item._test_get_file_path()
                 data2_file_path = data_item2._test_get_file_path()
                 # make sure assumptions are correct
@@ -1381,7 +1383,7 @@ class TestStorageClass(unittest.TestCase):
             display_item.add_graphic(crop_region)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            new_data_item = document_model.get_invert_new(data_item, crop_region)
+            new_data_item = document_model.get_invert_new(display_item, crop_region)
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             read_data_item = document_model.data_items[0]
@@ -1398,7 +1400,8 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             document_model.append_data_item(data_item)
-            document_model.get_invert_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_model.get_invert_new(display_item)
             document_model.recompute_all()
         # reload and check inverted data item does not need recompute
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
@@ -1418,7 +1421,8 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
                 document_model.append_data_item(data_item)
-                inverted_data_item = document_model.get_invert_new(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                inverted_data_item = document_model.get_invert_new(display_item)
                 document_model.recompute_all()
                 document_model.assign_variable_to_data_item(data_item)
                 file_path = data_item._test_get_file_path()
@@ -1443,8 +1447,8 @@ class TestStorageClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             display_item.add_graphic(crop_region)
-            inverted_data_item = document_model.get_invert_new(data_item)
-            cropped_inverted_data_item = document_model.get_invert_new(data_item, crop_region)
+            inverted_data_item = document_model.get_invert_new(display_item)
+            cropped_inverted_data_item = document_model.get_invert_new(display_item, crop_region)
             document_model.recompute_all()
             modifieds[str(inverted_data_item.uuid)] = inverted_data_item.modified
             modifieds[str(cropped_inverted_data_item.uuid)] = cropped_inverted_data_item.modified
@@ -1474,7 +1478,7 @@ class TestStorageClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             display_item.add_graphic(crop_region)
-            document_model.get_crop_new(data_item, crop_region)
+            document_model.get_crop_new(display_item, crop_region)
             document_model.recompute_all()
             read_data_item2 = document_model.data_items[1]
             read_display_item2 = document_model.get_display_item_for_data_item(read_data_item2)
@@ -1494,7 +1498,7 @@ class TestStorageClass(unittest.TestCase):
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
             display_item.add_graphic(crop_region)
-            document_model.get_crop_new(data_item, crop_region)
+            document_model.get_crop_new(display_item, crop_region)
             document_model.recompute_all()
             read_data_item2 = document_model.data_items[1]
             read_display_item2 = document_model.get_display_item_for_data_item(read_data_item2)
@@ -3339,7 +3343,7 @@ class TestStorageClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             display_item.add_graphic(crop_region)
-            data_item_cropped = document_model.get_crop_new(data_item, crop_region)
+            data_item_cropped = document_model.get_crop_new(display_item, crop_region)
             document_model.recompute_all()
             data_item._set_modified(modified)
             data_item_cropped._set_modified(modified)
@@ -3671,7 +3675,8 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.ones((8, 4, 100), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            pick_data_item = document_model.get_pick_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            pick_data_item = document_model.get_pick_new(display_item)
             document_model.recompute_all()
             # check assumptions
             self.assertEqual((0.0, 0.01), document_model.get_display_item_for_data_item(document_model.data_items[0]).display_data_channels[0].slice_interval)
@@ -3954,7 +3959,8 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
-            data_item_cropped = document_model.get_crop_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            data_item_cropped = document_model.get_crop_new(display_item)
             document_model.recompute_all()
             self.assertEqual(len(document_model.data_items), 2)
             self.assertEqual(len(document_model.data_item_deletions), 0)

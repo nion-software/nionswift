@@ -307,7 +307,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_item.add_graphic(crop_region)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            new_data_item = document_model.get_invert_new(data_item, crop_region)
+            new_data_item = document_model.get_invert_new(display_item, crop_region)
             document_model.recompute_all()
             self.assertEqual(new_data_item.data_shape, (h//2, w//2))
             self.assertEqual(new_data_item.data_dtype, data_item.data_dtype)
@@ -320,8 +320,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         crop_region = Graphics.RectangleGraphic()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
-        document_model.get_display_item_for_data_item(data_item).add_graphic(crop_region)
-        new_data_item = document_model.get_invert_new(data_item, crop_region)
+        display_item = document_model.get_display_item_for_data_item(data_item)
+        display_item.add_graphic(crop_region)
+        new_data_item = document_model.get_invert_new(display_item, crop_region)
         self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(document_model.get_data_item_computation(new_data_item).variables[0].secondary_specifier).value.bounds)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
         self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(document_model.get_data_item_computation(new_data_item).variables[0].secondary_specifier).value.bounds)
@@ -334,12 +335,14 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         crop_region = Graphics.RectangleGraphic()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
-        document_model.get_display_item_for_data_item(data_item).add_graphic(crop_region)
-        cropped_data_item = document_model.get_invert_new(data_item, crop_region)
+        display_item = document_model.get_display_item_for_data_item(data_item)
+        display_item.add_graphic(crop_region)
+        cropped_data_item = document_model.get_invert_new(display_item, crop_region)
         document_model.recompute_all()
-        self.assertFalse(document_model.get_data_item_computation(cropped_data_item).needs_update)
+        cropped_display_item = document_model.get_data_item_computation(cropped_data_item)
+        self.assertFalse(cropped_display_item.needs_update)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-        self.assertTrue(document_model.get_data_item_computation(cropped_data_item).needs_update)
+        self.assertTrue(cropped_display_item.needs_update)
         document_controller.close()
 
     def test_creating_with_variable_produces_valid_computation(self):
@@ -386,7 +389,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_item.add_graphic(crop_region)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            data_item_result = document_model.get_invert_new(data_item, crop_region)
+            data_item_result = document_model.get_invert_new(display_item, crop_region)
             document_model.remove_data_item(data_item_result)
             document_model.recompute_all()
 
@@ -396,10 +399,10 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
-            target_data_item = document_model.get_line_profile_new(source_data_item, None)
-            display_item = document_model.get_display_item_for_data_item(source_data_item)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
+            target_data_item = document_model.get_line_profile_new(source_display_item, None)
             self.assertIn(target_data_item, document_model.data_items)
-            display_item.remove_graphic(display_item.graphics[0])
+            source_display_item.remove_graphic(source_display_item.graphics[0])
             self.assertNotIn(target_data_item, document_model.data_items)
 
     def test_delete_source_data_item_of_computation_deletes_target_data_item(self):
@@ -408,7 +411,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
-            target_data_item = document_model.get_line_profile_new(source_data_item, None)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
+            target_data_item = document_model.get_line_profile_new(source_display_item, None)
             self.assertIn(target_data_item, document_model.data_items)
             document_model.remove_data_item(source_data_item)
             self.assertNotIn(target_data_item, document_model.data_items)
@@ -419,12 +423,12 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
-            target_data_item = document_model.get_line_profile_new(source_data_item, None)
-            display_item = document_model.get_display_item_for_data_item(source_data_item)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
+            target_data_item = document_model.get_line_profile_new(source_display_item, None)
             self.assertIn(target_data_item, document_model.data_items)
-            self.assertEqual(len(display_item.graphics), 1)
+            self.assertEqual(len(source_display_item.graphics), 1)
             document_model.remove_data_item(target_data_item)
-            self.assertEqual(len(display_item.graphics), 0)
+            self.assertEqual(len(source_display_item.graphics), 0)
             self.assertNotIn(target_data_item, document_model.data_items)
 
     def test_delete_data_item_with_source_region_also_cascade_deletes_target(self):
@@ -433,11 +437,12 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
-            intermediate_data_item = document_model.get_pick_region_new(source_data_item)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
+            intermediate_data_item = document_model.get_pick_region_new(source_display_item)
             intermediate_display_item = document_model.get_display_item_for_data_item(intermediate_data_item)
             interval_region = Graphics.IntervalGraphic()
             intermediate_display_item.add_graphic(interval_region)
-            target_data_item = document_model.get_invert_new(source_data_item)
+            target_data_item = document_model.get_invert_new(source_display_item)
             target_computation = document_model.get_data_item_computation(target_data_item)
             target_computation.create_object("interval", document_model.get_object_specifier(interval_region), label="I")
             self.assertIn(source_data_item, document_model.data_items)
@@ -454,13 +459,14 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
-            intermediate_data_item = document_model.get_pick_region_new(source_data_item)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
+            intermediate_data_item = document_model.get_pick_region_new(source_display_item)
             intermediate_display_item = document_model.get_display_item_for_data_item(intermediate_data_item)
             interval_region1 = Graphics.IntervalGraphic()
             intermediate_display_item.add_graphic(interval_region1)
             interval_region2 = Graphics.IntervalGraphic()
             intermediate_display_item.add_graphic(interval_region2)
-            target_data_item = document_model.get_invert_new(source_data_item)
+            target_data_item = document_model.get_invert_new(source_display_item)
             target_computation = document_model.get_data_item_computation(target_data_item)
             target_computation.create_object("interval1", document_model.get_object_specifier(interval_region1), label="I")
             target_computation.create_object("interval2", document_model.get_object_specifier(interval_region2), label="I")
@@ -483,8 +489,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
             crop_region = Graphics.RectangleGraphic()
             source_display_item.add_graphic(crop_region)
-            target_data_item1 = document_model.get_invert_new(source_data_item, crop_region)
-            target_data_item2 = document_model.get_invert_new(source_data_item, crop_region)
+            target_data_item1 = document_model.get_invert_new(source_display_item, crop_region)
+            target_data_item2 = document_model.get_invert_new(source_display_item, crop_region)
             self.assertIn(target_data_item1, document_model.data_items)
             self.assertIn(target_data_item2, document_model.data_items)
             source_display_item.remove_graphic(crop_region)
@@ -500,8 +506,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
             crop_region = Graphics.RectangleGraphic()
             source_display_item.add_graphic(crop_region)
-            target_data_item1 = document_model.get_invert_new(source_data_item, crop_region)
-            target_data_item2 = document_model.get_invert_new(source_data_item, crop_region)
+            target_data_item1 = document_model.get_invert_new(source_display_item, crop_region)
+            target_data_item2 = document_model.get_invert_new(source_display_item, crop_region)
             self.assertIn(target_data_item1, document_model.data_items)
             self.assertIn(target_data_item2, document_model.data_items)
             # removing one of two targets should not delete the other target
@@ -520,7 +526,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
-            data_item = document_model.get_crop_new(source_data_item, None)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
+            data_item = document_model.get_crop_new(source_display_item, None)
             self.assertIsNotNone(data_item)
 
     def test_processing_duplicate_does_copy(self):
@@ -553,7 +560,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
-            data_item = document_model.get_invert_new(source_data_item)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
+            data_item = document_model.get_invert_new(source_display_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
@@ -887,7 +895,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((2,2)))
             document_model.append_data_item(data_item2)
-            data_item3 = document_model.get_line_profile_new(data_item2)
+            data_item3 = document_model.get_line_profile_new(document_model.get_display_item_for_data_item(data_item2))
             document_model.recompute_all()
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
             display_item1.append_display_data_channel_for_data_item(data_item3)
@@ -978,9 +986,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((2,2)))
             document_model.append_data_item(data_item)
-            data_item1 = document_model.get_line_profile_new(data_item)
-            data_item2 = document_model.get_line_profile_new(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
+            data_item1 = document_model.get_line_profile_new(display_item)
+            data_item2 = document_model.get_line_profile_new(display_item)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
             display_item1.append_display_data_channel_for_data_item(data_item2)
             # check assumptions

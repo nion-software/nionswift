@@ -68,7 +68,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
             data_group.append_display_item(display_item1)
-            data_item1a = document_model.get_invert_new(data_item1)
+            data_item1a = document_model.get_invert_new(display_item1)
             data_item1a.title = "data_item1a"
             display_item1a = document_model.get_display_item_for_data_item(data_item1a)
             data_group.append_display_item(display_item1a)
@@ -77,7 +77,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
             data_group.append_display_item(display_item2)
-            data_item2a = document_model.get_invert_new(data_item2)
+            data_item2a = document_model.get_invert_new(display_item2)
             data_item2a.title = "data_item2a"
             display_item2a = document_model.get_display_item_for_data_item(data_item2a)
             data_group.append_display_item(display_item2a)
@@ -746,7 +746,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.selected_display_panel.set_display_panel_display_item(display_item1)
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 1)
             self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).data_item, data_item1)
-            data_item3 = document_model.get_invert_new(data_item1)
+            data_item3 = document_model.get_invert_new(display_item1)
             document_model.recompute_all()
             document_controller.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 2)

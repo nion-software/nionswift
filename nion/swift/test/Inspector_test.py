@@ -792,7 +792,7 @@ class TestInspectorClass(unittest.TestCase):
             expected_inspector_section_count = len(inspector_panel._get_inspector_sections())
             # add the point graphic, ensure that inspector is updated with just a section for point graphic
             self.assertEqual(len(document_controller.selected_display_item.graphic_selection.indexes), 0)  # make sure graphic is not selected
-            document_model.get_pick_new(data_item)
+            document_model.get_pick_new(display_item)
             self.assertEqual(document_controller.selected_data_item, data_item)
             document_controller.selected_display_item.graphic_selection.add(0)
             document_controller.periodic()
@@ -951,7 +951,8 @@ class TestInspectorClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
-            new_data_item = document_model.get_transpose_flip_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            new_data_item = document_model.get_transpose_flip_new(display_item)
             new_display_item = document_model.get_display_item_for_data_item(new_data_item)
             document_model.recompute_all()
             display_panel = document_controller.selected_display_panel
@@ -975,7 +976,8 @@ class TestInspectorClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
-            new_data_item = document_model.get_gaussian_blur_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            new_data_item = document_model.get_gaussian_blur_new(display_item)
             new_display_item = document_model.get_display_item_for_data_item(new_data_item)
             document_model.recompute_all()
             display_panel = document_controller.selected_display_panel
@@ -999,7 +1001,8 @@ class TestInspectorClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
-            new_data_item = document_model.get_histogram_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            new_data_item = document_model.get_histogram_new(display_item)
             new_display_item = document_model.get_display_item_for_data_item(new_data_item)
             document_model.recompute_all()
             display_panel = document_controller.selected_display_panel
@@ -1023,7 +1026,8 @@ class TestInspectorClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
-            new_data_item = document_model.get_invert_new(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            new_data_item = document_model.get_invert_new(display_item)
             document_model.recompute_all()
             computation = document_model.get_data_item_computation(new_data_item)
             self.assertEqual(data_item, list(computation._get_variable("src").bound_item.base_objects)[0])

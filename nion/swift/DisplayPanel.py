@@ -1721,8 +1721,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return region
 
     def create_line_profile(self, pos):
-        data_item = self.data_item
-        if data_item:
+        display_item = self.__display_item
+        if display_item:
             pos = tuple(pos)
             self.__display_item.graphic_selection.clear()
             line_profile_region = Graphics.LineProfileGraphic()
@@ -1731,7 +1731,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             self.__display_item.add_graphic(line_profile_region)
             document_controller = self.__document_controller
             document_model = document_controller.document_model
-            line_profile_data_item = document_model.get_line_profile_new(data_item, None, line_profile_region)
+            line_profile_data_item = document_model.get_line_profile_new(display_item, None, line_profile_region)
             line_profile_display_item = document_model.get_display_item_for_data_item(line_profile_data_item)
             document_controller.show_display_item(line_profile_display_item)
             return line_profile_region

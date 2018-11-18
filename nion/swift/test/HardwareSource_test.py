@@ -673,7 +673,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.__acquire_one(document_controller, hardware_source)
             display_panel.set_display_panel_display_item(document_model.display_items[0])
             display_panel.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
-            document_model.get_invert_new(document_model.data_items[0])
+            document_model.get_invert_new(document_model.display_items[0])
             document_model.remove_data_item(document_model.data_items[1])
             document_model.data_items[0].set_data(numpy.zeros((4, 4)))
 
@@ -827,7 +827,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         with contextlib.closing(document_controller):
             self.__acquire_one(document_controller, hardware_source)
-            new_data_item = document_model.get_invert_new(document_model.data_items[0], None)
+            new_data_item = document_model.get_invert_new(document_model.display_items[0], None)
             document_controller.periodic()
             document_model.recompute_all()
             modified = document_model.data_items[1].modified
@@ -848,7 +848,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         with contextlib.closing(document_controller):
             self.__acquire_one(document_controller, hardware_source)
-            new_data_item = document_model.get_invert_new(document_model.data_items[0], None)
+            new_data_item = document_model.get_invert_new(document_model.display_items[0], None)
             document_controller.periodic()
             document_model.recompute_all()
             document_model.start_new_session()
