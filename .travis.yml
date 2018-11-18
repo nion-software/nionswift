@@ -17,6 +17,10 @@ matrix:
     - python: 3.8-dev
     - python: nightly
 
+branches:
+  only:
+    - master
+
 # command to install dependencies
 install:
   - pip install -r test-requirements.txt
