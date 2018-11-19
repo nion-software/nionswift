@@ -3189,6 +3189,60 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", library_dir)
             shutil.rmtree(library_dir)
 
+    def test_auto_migrate_migrates_new_data_items(self):
+        current_working_directory = os.getcwd()
+        library_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(library_dir)
+        try:
+            # construct workspace with old file
+            old_library_filename = "Nion Swift Workspace.nslib"
+            old_library_path = os.path.join(library_dir, old_library_filename)
+            old_data_path = os.path.join(library_dir, "Nion Swift Data")
+            with open(old_library_path, "w") as fp:
+                json.dump({}, fp)
+            src_uuid_str = str(uuid.uuid4())
+            data_item_dict = dict()
+            data_item_dict["uuid"] = src_uuid_str
+            data_item_dict["version"] = 9
+            data_source_dict = dict()
+            data_source_dict["uuid"] = str(uuid.uuid4())
+            data_source_dict["type"] = "buffered-data-source"
+            data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+            data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+            data_source_dict["data_shape"] = (8, 8)
+            data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+            data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+            data_item_dict["data_sources"] = [data_source_dict]
+            file_handler = FileStorageSystem.FileStorageSystem._file_handlers[0]
+            handler = file_handler(pathlib.PurePath(old_data_path, "File").with_suffix(file_handler.get_extension()))
+            with contextlib.closing(handler):
+                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+
+            # make new library
+            library_filename = "Nion Swift Workspace {version}.nslib".format(version=DataItem.DataItem.storage_version)
+            library_path = os.path.join(library_dir, library_filename)
+            data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.storage_version))
+            file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path])
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+                new_data_item_uuid = data_item.uuid
+
+            # auto migrate workspace
+            auto_migration = DocumentModel.AutoMigration(library_path=old_library_path, paths=[old_data_path], log_copying=False)
+            file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=[auto_migration])
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
+            with contextlib.closing(document_model):
+                self.assertEqual(2, len(document_model.data_items))
+                self.assertIsNotNone(document_model.get_data_item_by_uuid(uuid.UUID(src_uuid_str)))
+                self.assertIsNotNone(document_model.get_data_item_by_uuid(new_data_item_uuid))
+
+        finally:
+            #logging.debug("rmtree %s", library_dir)
+            shutil.rmtree(library_dir)
+
     def test_auto_migrate_skips_migrated_and_deleted_data_items(self):
         current_working_directory = os.getcwd()
         library_dir = os.path.join(current_working_directory, "__Test")
