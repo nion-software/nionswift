@@ -2134,6 +2134,15 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(0, len(document_model.display_items[0].graphics))
 
+    def test_snapshot_has_unique_title(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            snapshot_display_item = document_model.get_display_item_snapshot_new(display_item)
+            self.assertNotEqual(display_item.displayed_title, snapshot_display_item.displayed_title)
+
     def test_snapshot_snapshots_display(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
