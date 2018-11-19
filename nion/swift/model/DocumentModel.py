@@ -2030,9 +2030,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     # return the base objects in a stable order
                     base_objects = list()
                     for bound_item in self.__bound_items:
-                        for base_object in bound_item.base_objects:
-                            if not base_object in base_objects:
-                                base_objects.append(base_object)
+                        if bound_item:
+                            for base_object in bound_item.base_objects:
+                                if not base_object in base_objects:
+                                    base_objects.append(base_object)
                     return base_objects
                 def list_item_removed(self, object) -> typing.List[dict]:
                     base_objects = self.base_objects

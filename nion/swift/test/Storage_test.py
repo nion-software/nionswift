@@ -3924,6 +3924,31 @@ class TestStorageClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(document_model.data_items[2].data, numpy.full((2, 2), 5)))
 
+    def test_library_computation_with_list_input_with_missing_reloads_and_library_remove_data_item_still_functions(self):
+        Symbolic.register_computation_type("add_n", self.AddN)
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
+            document_model.append_data_item(data_item1)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
+            document_model.append_data_item(data_item2)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            computation = document_model.create_computation()
+            items = [document_model.get_object_specifier(display_item1.display_data_channel, "display_xdata"), document_model.get_object_specifier(display_item2.display_data_channel, "display_xdata")]
+            computation.create_objects("src_list", items)
+            computation.processing_id = "add_n"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+        library_storage_properties = memory_persistent_storage_system.library_storage_properties
+        library_storage_properties["computations"][0]["variables"][0]["object_specifiers"][0]["uuid"] = str(uuid.uuid4())
+        memory_persistent_storage_system._set_properties(library_storage_properties)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            document_model.remove_data_item(document_model.data_items[0])
+
     def test_data_item_with_corrupt_created_still_loads(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
