@@ -90,7 +90,7 @@ class TestDocumentModelClass(unittest.TestCase):
         memory_persistent_storage_system.data[new_data_key] = copy.deepcopy(memory_persistent_storage_system.data[old_data_key])
         memory_persistent_storage_system.persistent_storage_properties[new_properties_key] = copy.deepcopy(memory_persistent_storage_system.persistent_storage_properties[old_properties_key])
         # reload and verify
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
             self.assertEqual(len(document_model.data_items), 1)

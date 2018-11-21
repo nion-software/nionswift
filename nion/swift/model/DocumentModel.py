@@ -452,7 +452,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     computation_min_period = 0.0
     library_version = 2
 
-    def __init__(self, *, storage_system=None, storage_cache=None, log_migrations=True, ignore_older_files=False):
+    def __init__(self, *, storage_system=None, storage_cache=None, ignore_older_files=False):
         super().__init__()
 
         self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
@@ -474,7 +474,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__storage_system = storage_system if storage_system else MemoryStorageSystem.MemoryStorageSystem()
         self.__storage_system.reset()  # this makes storage reusable during tests
         self.__ignore_older_files = ignore_older_files
-        self.__log_migrations = log_migrations
 
         # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
         # there is a single shared object context per document model.
@@ -544,7 +543,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __read(self):
         # first read the library (for deletions) and the library items from the primary storage systems
-        properties = self.__storage_system.read_library(self.__ignore_older_files, self.__log_migrations)
+        properties = self.__storage_system.read_library(self.__ignore_older_files)
 
         self.begin_reading()
         try:

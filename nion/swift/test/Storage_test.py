@@ -807,7 +807,7 @@ class TestStorageClass(unittest.TestCase):
                 data_item_uuid = data_item.uuid
                 document_model.remove_data_item(data_item, safe=True)
             # read it back
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 self.assertEqual(0, len(document_model.data_items))
                 document_model.restore_data_item(data_item_uuid)
@@ -1428,7 +1428,7 @@ class TestStorageClass(unittest.TestCase):
                 file_path = data_item._test_get_file_path()
             file_path_base, file_path_ext = os.path.splitext(file_path)
             # read it back
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 read_data_item2 = document_model.data_items[1]
                 read_display_item2 = document_model.get_display_item_for_data_item(read_data_item2)
@@ -1527,7 +1527,7 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["version"] = 1
         memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
@@ -1555,7 +1555,7 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["version"] = 2
         memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
@@ -1577,7 +1577,7 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["version"] = 3
         memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
@@ -1602,7 +1602,7 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["version"] = 4
         memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
@@ -1632,7 +1632,7 @@ class TestStorageClass(unittest.TestCase):
         data_item2_dict["datetime_original"] = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
         data_item2_dict["version"] = 5
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 2)
@@ -1679,7 +1679,7 @@ class TestStorageClass(unittest.TestCase):
         data_item2_dict["datetime_original"] = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
         data_item3_dict["version"] = 6
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # # check it
             self.assertEqual(len(document_model.data_items), 3)
@@ -1723,7 +1723,7 @@ class TestStorageClass(unittest.TestCase):
         new_metadata = {"instrument": "a big screwdriver", "autostem": { "high_tension_v": 42}, "extra_high_tension": 42 }
         data_item_dict["hardware_source"] = metadata
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 1)
@@ -1769,7 +1769,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -1836,7 +1836,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 3)
@@ -1905,7 +1905,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -1962,7 +1962,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2014,7 +2014,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2069,7 +2069,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2136,7 +2136,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2207,7 +2207,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2263,7 +2263,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2318,7 +2318,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2379,7 +2379,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2436,7 +2436,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_source_dict["data_source"] = dst_reference
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2474,7 +2474,7 @@ class TestStorageClass(unittest.TestCase):
         ]
         data_item_dict["data_sources"] = [data_source_dict]
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 1)
@@ -2561,7 +2561,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_item_dict["connections"] = [{"source_uuid": dst_data_source_uuid, "target_uuid": line_uuid_str, "type": "interval-list-connection", "uuid": str(uuid.uuid4())}]
 
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2594,7 +2594,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_item_dict["data_sources"] = [src_data_source_dict]
 
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(document_model.data_items[0].created.date(), DataItem.DatetimeToStringConverter().convert_back(created_str).date())
             self.assertEqual(document_model.data_items[0].modified.date(), DataItem.DatetimeToStringConverter().convert_back(modified_str).date())
@@ -2636,7 +2636,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
 
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2691,7 +2691,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
 
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
@@ -2762,7 +2762,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_item_dict["data_sources"] = [dst_data_source_dict]
 
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 3)
@@ -2820,7 +2820,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_item_dict["data_source"] = dst_data_source_dict
 
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(2, len(document_model.data_items))
@@ -2876,7 +2876,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_item_dict["data_source"] = dst_data_source_dict
 
         # read it back
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(2, len(document_model.data_items))
@@ -2928,7 +2928,7 @@ class TestStorageClass(unittest.TestCase):
         dst_data_item_dict["data_source"] = dst_data_source_dict
 
         # make sure it reloads twice
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             self.assertEqual(1, len(document_model.computations))
 
@@ -2959,7 +2959,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_item_dict["connections"] = []
 
         # make sure it reloads twice
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system, log_migrations=False)
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         with contextlib.closing(document_model):
             data_item = document_model.data_items[0]
             display_item = document_model.display_items[0]
@@ -3017,7 +3017,7 @@ class TestStorageClass(unittest.TestCase):
 
             # read workspace
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path])
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False, ignore_older_files=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, ignore_older_files=False)
             document_model.close()
 
             # verify
@@ -3044,7 +3044,7 @@ class TestStorageClass(unittest.TestCase):
 
             # read workspace
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path])
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False, ignore_older_files=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, ignore_older_files=False)
             document_model.close()
 
             with open(library_path, "r") as fp:
@@ -3134,7 +3134,7 @@ class TestStorageClass(unittest.TestCase):
             data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.storage_version))
             auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=[auto_migration])
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.data_items[0].uuid, uuid.UUID(data_item_dict["uuid"]))
@@ -3180,7 +3180,7 @@ class TestStorageClass(unittest.TestCase):
             auto_migration1 = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
             auto_migration2 = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=[auto_migration1, auto_migration2])
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.data_items[0].uuid, uuid.UUID(data_item_dict["uuid"]))
@@ -3233,7 +3233,7 @@ class TestStorageClass(unittest.TestCase):
             # auto migrate workspace
             auto_migration = DocumentModel.AutoMigration(library_path=old_library_path, paths=[old_data_path], log_copying=False)
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=[auto_migration])
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 self.assertEqual(2, len(document_model.data_items))
                 self.assertIsNotNone(document_model.get_data_item_by_uuid(uuid.UUID(src_uuid_str)))
@@ -3278,7 +3278,7 @@ class TestStorageClass(unittest.TestCase):
             auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=[auto_migration])
             file_persistent_storage_system._set_properties({"data_item_deletions": [src_uuid_str, str(uuid.uuid4())]})
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 0)
                 self.assertTrue(uuid.UUID(src_uuid_str) in document_model.data_item_deletions)
@@ -3333,7 +3333,7 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_properties(data_item.write_to_dict(), datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
 
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(len(file_persistent_storage_system.find_data_items()), 1)
@@ -3378,7 +3378,7 @@ class TestStorageClass(unittest.TestCase):
             auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=[auto_migration])
             file_persistent_storage_system._set_properties({"data_item_references": {"key": src_uuid_str}})
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.get_data_item_reference("key").data_item, document_model.data_items[0])
@@ -3446,7 +3446,7 @@ class TestStorageClass(unittest.TestCase):
             data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.storage_version))
             auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=[auto_migration])
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
 
@@ -3454,7 +3454,7 @@ class TestStorageClass(unittest.TestCase):
             data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.storage_version))
             auto_migration = DocumentModel.AutoMigration(paths=[old_data_path], log_copying=False)
             file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=[auto_migration])
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
 
@@ -3977,7 +3977,7 @@ class TestStorageClass(unittest.TestCase):
             file_path_base, file_path_ext = os.path.splitext(file_path)
             shutil.copyfile(file_path, file_path_base + "_" + file_path_ext)
             # read it back
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
         finally:
@@ -3999,7 +3999,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item1)
                 document_model.append_data_item(data_item2)
             # read it back
-            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system, log_migrations=False)
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
             with contextlib.closing(document_model):
                 data_item1 = document_model.data_items[0]
                 data_item2 = document_model.data_items[1]

@@ -303,5 +303,5 @@ class MemoryStorageSystem:
     def read_data_items_version_stats(self):
         return FileStorageSystem.read_data_items_version_stats(self)
 
-    def read_library(self, ignore_older_files, log_migrations):
-        return FileStorageSystem.read_library(self, ignore_older_files, log_migrations)
+    def read_library(self, ignore_older_files) -> typing.Mapping:
+        return FileStorageSystem.read_library(self, ignore_older_files)

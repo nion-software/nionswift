@@ -391,8 +391,8 @@ class FileStorageSystem:
     def read_data_items_version_stats(self):
         return read_data_items_version_stats(self)
 
-    def read_library(self, ignore_older_files, log_migrations):
-        return read_library(self, ignore_older_files, log_migrations)
+    def read_library(self, ignore_older_files) -> typing.Mapping:
+        return read_library(self, ignore_older_files)
 
 
 def read_data_items_version_stats(persistent_storage_system):
@@ -415,13 +415,12 @@ def read_data_items_version_stats(persistent_storage_system):
     return count
 
 
-def read_library(persistent_storage_system, ignore_older_files, log_migrations):
+def read_library(persistent_storage_system, ignore_older_files) -> typing.Mapping:
     """Read data items from the data reference handler and return as a list.
 
     Data items will have persistent_object_context set upon return, but caller will need to call finish_reading
     on each of the data items.
     """
-    migration_log = Migration.MigrationLog(log_migrations)
     data_item_uuids = set()
     utilized_deletions = set()  # the uuid's skipped due to being deleted
     deletions = list()
@@ -431,8 +430,7 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
                                                                     data_item_uuids=data_item_uuids,
                                                                     deletions=deletions,
                                                                     utilized_deletions=utilized_deletions,
-                                                                    ignore_older_files=ignore_older_files,
-                                                                    migration_log=migration_log)
+                                                                    ignore_older_files=ignore_older_files)
 
     # next, for each auto migration, create a temporary storage system and read items from that storage system
     # using auto_migrate_storage_system. the data items returned will have been copied to the current storage
@@ -444,8 +442,7 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
                                                                                 data_item_uuids=data_item_uuids,
                                                                                 deletions=deletions,
                                                                                 utilized_deletions=utilized_deletions,
-                                                                                ignore_older_files=ignore_older_files,
-                                                                                migration_log=Migration.MigrationLog(False))
+                                                                                ignore_older_files=ignore_older_files)
         reader_info_list.extend(new_reader_info_list)
         library_updates.update(new_library_updates)
 
@@ -569,7 +566,7 @@ def read_library(persistent_storage_system, ignore_older_files, log_migrations):
     return properties
 
 
-def auto_migrate_data_item(reader_info, persistent_storage_system, new_persistent_storage_system, migration_log: Migration.MigrationLog):
+def auto_migrate_data_item(reader_info, persistent_storage_system, new_persistent_storage_system, index: int, count: int) -> None:
     storage_handler = reader_info.storage_handler
     properties = reader_info.properties
     properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
@@ -595,12 +592,12 @@ def auto_migrate_data_item(reader_info, persistent_storage_system, new_persisten
             shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
             target_storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
             new_persistent_storage_system.register_data_item(None, data_item_uuid, target_storage_handler, properties)
-            migration_log.push("Copying data item {} to library.".format(data_item_uuid))
+            logging.getLogger("migration").info("Copying data item ({}/{}) {} to new library.".format(index + 1, count, data_item_uuid))
         else:
-            migration_log.push("Unable to copy data item %s to library.".format(data_item_uuid))
+            logging.getLogger("migration").warning("Unable to copy data item %s to new library.".format(data_item_uuid))
 
 
-def auto_migrate_storage_system(*, persistent_storage_system=None, new_persistent_storage_system=None, data_item_uuids=None, deletions: typing.List[uuid.UUID] = None, utilized_deletions: typing.Set[uuid.UUID] = None, ignore_older_files: bool = True, migration_log: Migration.MigrationLog = None):
+def auto_migrate_storage_system(*, persistent_storage_system=None, new_persistent_storage_system=None, data_item_uuids=None, deletions: typing.List[uuid.UUID] = None, utilized_deletions: typing.Set[uuid.UUID] = None, ignore_older_files: bool = True):
     """Migrate items from the storage system to the object context.
 
     Files in data_item_uuids have already been loaded and are ignored (not migrated).
@@ -632,9 +629,10 @@ def auto_migrate_storage_system(*, persistent_storage_system=None, new_persisten
     preliminary_library_updates = dict()
     library_updates = dict()
     if not ignore_older_files:
-        Migration.migrate_to_latest(reader_info_list, preliminary_library_updates, migration_log)
+        Migration.migrate_to_latest(reader_info_list, preliminary_library_updates)
     good_reader_info_list = list()
-    for reader_info in reader_info_list:
+    count = len(reader_info_list)
+    for index, reader_info in enumerate(reader_info_list):
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
         try:
@@ -645,7 +643,7 @@ def auto_migrate_storage_system(*, persistent_storage_system=None, new_persisten
                     if str(data_item_uuid) in deletions:
                         utilized_deletions.add(data_item_uuid)
                     else:
-                        auto_migrate_data_item(reader_info, persistent_storage_system, new_persistent_storage_system, migration_log)
+                        auto_migrate_data_item(reader_info, persistent_storage_system, new_persistent_storage_system, index, count)
                         good_reader_info_list.append(reader_info)
                         data_item_uuids.add(data_item_uuid)
                         library_update = preliminary_library_updates.get(data_item_uuid)

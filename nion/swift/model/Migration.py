@@ -10,28 +10,20 @@ from nion.swift.model import Utility
 _ = gettext.gettext
 
 
-class MigrationLog:
-    def __init__(self, enabled: bool):
-        self.__enabled = enabled
 
-    def push(self, entry: str) -> None:
-        if self.__enabled:
-            logging.info(entry)
-
-
-def migrate_to_latest(reader_info_list, library_updates, migration_log: MigrationLog) -> None:
-    migrate_to_v2(reader_info_list, migration_log)
-    migrate_to_v3(reader_info_list, migration_log)
-    migrate_to_v4(reader_info_list, migration_log)
-    migrate_to_v5(reader_info_list, migration_log)
-    migrate_to_v6(reader_info_list, migration_log)
-    migrate_to_v7(reader_info_list, migration_log)
-    migrate_to_v8(reader_info_list, migration_log)
-    migrate_to_v9(reader_info_list, migration_log)
-    migrate_to_v10(reader_info_list, migration_log)
-    migrate_to_v11(reader_info_list, migration_log)
-    migrate_to_v12(reader_info_list, library_updates, migration_log)
-    migrate_to_v13(reader_info_list, library_updates, migration_log)
+def migrate_to_latest(reader_info_list, library_updates) -> None:
+    migrate_to_v2(reader_info_list)
+    migrate_to_v3(reader_info_list)
+    migrate_to_v4(reader_info_list)
+    migrate_to_v5(reader_info_list)
+    migrate_to_v6(reader_info_list)
+    migrate_to_v7(reader_info_list)
+    migrate_to_v8(reader_info_list)
+    migrate_to_v9(reader_info_list)
+    migrate_to_v10(reader_info_list)
+    migrate_to_v11(reader_info_list)
+    migrate_to_v12(reader_info_list, library_updates)
+    migrate_to_v13(reader_info_list, library_updates)
 
     # TODO: file format. Rename workspaces to workspace_layouts.
     # TODO: store session metadata as regular metadata
@@ -46,7 +38,7 @@ def transform_from_latest(properties):
     return properties
 
 
-def migrate_to_v13(reader_info_list, library_updates, migration_log: MigrationLog):
+def migrate_to_v13(reader_info_list, library_updates):
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -188,14 +180,14 @@ def migrate_to_v13(reader_info_list, library_updates, migration_log: MigrationLo
 
                 properties["version"] = 13
 
-                migration_log.push("Updated {} to {} (separate data item/move display to lirbary)".format(storage_handler.reference, properties["version"]))
+                logging.getLogger("migration").debug("Updated {} to {} (separate data item/move display to lirbary)".format(storage_handler.reference, properties["version"]))
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v12(reader_info_list, library_updates, migration_log: MigrationLog):
+def migrate_to_v12(reader_info_list, library_updates):
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -224,14 +216,14 @@ def migrate_to_v12(reader_info_list, library_updates, migration_log: MigrationLo
 
                 properties["version"] = 12
 
-                migration_log.push("Updated {} to {} (move connections/computations to library)".format(storage_handler.reference, properties["version"]))
+                logging.getLogger("migration").debug("Updated {} to {} (move connections/computations to library)".format(storage_handler.reference, properties["version"]))
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v11(reader_info_list, migration_log: MigrationLog):
+def migrate_to_v11(reader_info_list):
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -289,14 +281,14 @@ def migrate_to_v11(reader_info_list, migration_log: MigrationLog):
 
                 properties["version"] = 11
 
-                migration_log.push("Updated {} to {} (computed data items combined crop, data source merge)".format(storage_handler.reference, properties["version"]))
+                logging.getLogger("migration").debug("Updated {} to {} (computed data items combined crop, data source merge)".format(storage_handler.reference, properties["version"]))
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v10(reader_info_list, migration_log: MigrationLog):
+def migrate_to_v10(reader_info_list):
     translate_region_type = {"point-region": "point-graphic", "line-region": "line-profile-graphic", "rectangle-region": "rect-graphic", "ellipse-region": "ellipse-graphic",
         "interval-region": "interval-graphic"}
     for reader_info in reader_info_list:
@@ -358,14 +350,14 @@ def migrate_to_v10(reader_info_list, migration_log: MigrationLog):
                 # pprint.pprint(properties)
                 # version 9 -> 10 merges regions into graphics.
                 properties["version"] = 10
-                migration_log.push("Updated {} to {} (regions merged into graphics)".format(storage_handler.reference, properties["version"]))
+                logging.getLogger("migration").debug("Updated {} to {} (regions merged into graphics)".format(storage_handler.reference, properties["version"]))
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v9(reader_info_list, migration_log: MigrationLog):
+def migrate_to_v9(reader_info_list):
     data_source_uuid_to_data_item_uuid = dict()
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
@@ -488,14 +480,14 @@ def migrate_to_v9(reader_info_list, migration_log: MigrationLog):
                             computation_dict["original_expression"] = info[operation_id].expression.format(**kws)
                             data_source_dict["computation"] = computation_dict
                 properties["version"] = 9
-                migration_log.push("Updated {} to {} (operation to computation)".format(storage_handler.reference, properties["version"]))
+                logging.getLogger("migration").debug("Updated {} to {} (operation to computation)".format(storage_handler.reference, properties["version"]))
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v8(reader_info_list, migration_log: MigrationLog):
+def migrate_to_v8(reader_info_list):
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -540,14 +532,14 @@ def migrate_to_v8(reader_info_list, migration_log: MigrationLog):
                 properties.pop("datetime_original", None)
                 properties.pop("datetime_modified", None)
                 properties["version"] = 8
-                migration_log.push("Updated {} to {} (metadata to data source)".format(storage_handler.reference, properties["version"]))
+                logging.getLogger("migration").debug("Updated {} to {} (metadata to data source)".format(storage_handler.reference, properties["version"]))
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v7(reader_info_list, migration_log: MigrationLog):
+def migrate_to_v7(reader_info_list):
     v7lookup = dict()  # map data_item.uuid to buffered data source.uuid
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
@@ -590,14 +582,14 @@ def migrate_to_v7(reader_info_list, migration_log: MigrationLog):
                 if include_data or operation_dict is not None:
                     properties["data_sources"] = [buffered_data_source_dict]
                 properties["version"] = 7
-                migration_log.push("Updated {} to {} (buffered data sources)".format(storage_handler.reference, properties["version"]))
+                logging.getLogger("migration").debug("Updated {} to {} (buffered data sources)".format(storage_handler.reference, properties["version"]))
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v6(reader_info_list, migration_log: MigrationLog):
+def migrate_to_v6(reader_info_list):
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -628,14 +620,14 @@ def migrate_to_v6(reader_info_list, migration_log: MigrationLog):
                     properties["dimensional_calibrations"] = properties["intrinsic_spatial_calibrations"]
                     del properties["intrinsic_spatial_calibrations"]
                 properties["version"] = 6
-                migration_log.push("Updated {} to {} (operation hierarchy)".format(storage_handler.reference, properties["version"]))
+                logging.getLogger("migration").debug("Updated {} to {} (operation hierarchy)".format(storage_handler.reference, properties["version"]))
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v5(reader_info_list, migration_log: MigrationLog):
+def migrate_to_v5(reader_info_list):
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -653,14 +645,14 @@ def migrate_to_v5(reader_info_list, migration_log: MigrationLog):
                         operation_dict["region_connections"] = {"line": operation_dict["region_uuid"]}
                         del operation_dict["region_uuid"]
                 properties["version"] = 5
-                migration_log.push("Updated {} to {} (region_uuid)".format(storage_handler.reference, properties["version"]))
+                logging.getLogger("migration").debug("Updated {} to {} (region_uuid)".format(storage_handler.reference, properties["version"]))
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v4(reader_info_list, migration_log: MigrationLog):
+def migrate_to_v4(reader_info_list):
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -678,14 +670,14 @@ def migrate_to_v4(reader_info_list, migration_log: MigrationLog):
                         calibration_dict["offset"] = calibration_dict["origin"]
                         del calibration_dict["origin"]
                 properties["version"] = 4
-                migration_log.push("Updated {} to {} (calibration offset)".format(storage_handler.reference, properties["version"]))
+                logging.getLogger("migration").debug("Updated {} to {} (calibration offset)".format(storage_handler.reference, properties["version"]))
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v3(reader_info_list, migration_log: MigrationLog):
+def migrate_to_v3(reader_info_list):
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -701,14 +693,14 @@ def migrate_to_v3(reader_info_list, migration_log: MigrationLog):
                 for operation_properties in properties.get("operations", list()):
                     operation_properties.setdefault("uuid", str(uuid.uuid4()))
                 properties["version"] = 3
-                migration_log.push("Updated {} to {} (add uuids)".format(storage_handler.reference, properties["version"]))
+                logging.getLogger("migration").debug("Updated {} to {} (add uuids)".format(storage_handler.reference, properties["version"]))
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v2(reader_info_list, migration_log: MigrationLog):
+def migrate_to_v2(reader_info_list):
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -738,7 +730,7 @@ def migrate_to_v2(reader_info_list, migration_log: MigrationLog):
                 properties["displays"] = [{}]
                 properties["uuid"] = properties.get("uuid", str(uuid.uuid4()))  # assign a new uuid if it doesn't exist
                 properties["version"] = 2
-                migration_log.push("Updated {} to {} (ndata1)".format(storage_handler.reference, properties["version"]))
+                logging.getLogger("migration").debug("Updated {} to {} (ndata1)".format(storage_handler.reference, properties["version"]))
         except Exception as e:
             logging.debug("Error reading %s", storage_handler.reference)
             import traceback

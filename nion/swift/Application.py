@@ -55,6 +55,8 @@ class Application(UIApplication.Application):
     def __init__(self, ui, set_global=True, resources_path=None):
         super().__init__(ui)
 
+        logging.getLogger("migration").setLevel(logging.ERROR)
+
         global app
 
         ui.set_application_info("Nion Swift", "Nion", "nion.com")
@@ -211,6 +213,7 @@ class Application(UIApplication.Application):
 
             Creates document model, resources path, etc.
         """
+        logging.getLogger("migration").setLevel(logging.INFO)
         if fixed_workspace_dir:
             workspace_dir = fixed_workspace_dir
         else:
