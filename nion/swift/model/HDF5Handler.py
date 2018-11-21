@@ -106,7 +106,7 @@ class HDF5Handler:
             #   3 - 'data' exists and is the same size (overwrite)
             if not "data" in self.__fp:
                 # case 1
-                self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype, data=data)
+                self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype)
             else:
                 self.__dataset = self.__fp["data"]
                 if self.__dataset.shape != data.shape or self.__dataset.dtype != data.dtype:
@@ -117,13 +117,22 @@ class HDF5Handler:
                     self.__fp = None
                     os.remove(self.__file_path)
                     self.__ensure_open()
-                    self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype, data=data)
-                else:
-                    # case 3
-                    self.__dataset[:] = data
+                    self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype)
+            self.__copy_data(data)
             if json_properties is not None:
                 self.__dataset.attrs["properties"] = json_properties
             self.__fp.flush()
+
+    def __copy_data(self, data):
+        if len(data.shape) == 4:
+            for r in range(data.shape[0]):
+                for c in range(data.shape[1]):
+                    self.__dataset[r, c, ...] = data[r, c, ...]
+        elif len(data.shape) == 3:
+            for r in range(data.shape[0]):
+                self.__dataset[r, ...] = data[r, ...]
+        else:
+            self.__dataset[:] = data
 
     def write_properties(self, properties, file_datetime):
         with self.__lock:
