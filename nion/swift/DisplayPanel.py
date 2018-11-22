@@ -1119,6 +1119,10 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.__display_panel_controller
 
     @property
+    def display_panel_controller(self):
+        return self.__display_panel_controller
+
+    @property
     def _display_canvas_item(self):
         return self.display_canvas_item
 
@@ -1858,7 +1862,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
 
         display_panel_type = display_panel.display_panel_type
 
-        empty_action.checked = display_panel_type == "empty"
+        empty_action.checked = display_panel_type == "empty" and display_panel.display_panel_controller is None
         data_item_display_action.checked = display_panel_type == "data_item"
         thumbnail_browser_action.checked = display_panel_type == "horizontal"
         grid_browser_action.checked = display_panel_type == "grid"
