@@ -1281,8 +1281,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     # not thread safe
     def set_displayed_data_item(self, data_item: DataItem.DataItem) -> None:
         display_item = self.document_controller.document_model.get_any_display_item_for_data_item(data_item)
-        if display_item:
-            self.set_display_item(display_item)
+        self.set_display_item(display_item)
 
     def set_display_panel_data_item(self, data_item: DataItem.DataItem, detect_controller: bool=False) -> None:
         display_item = self.document_controller.document_model.get_any_display_item_for_data_item(data_item)

@@ -2054,6 +2054,21 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(2, len(display_item.display_layers))
             self.assertEqual(new_display_layers, display_item.display_layers)
 
+    def test_setting_display_panel_data_item_to_none_clears_the_display(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.ones((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            self.assertEqual(display_item, display_panel.display_item)
+            self.assertEqual(data_item, display_panel.data_item)
+            display_panel.set_displayed_data_item(None)
+            self.assertEqual(None, display_panel.display_item)
+            self.assertEqual(None, display_panel.data_item)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
