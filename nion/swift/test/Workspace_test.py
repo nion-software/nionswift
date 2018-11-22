@@ -330,28 +330,30 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_workspace_saves_contents_immediately_following_controller_change(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
-        storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=storage_system)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            workspace_controller = document_controller.workspace_controller
-            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-            display_panel = workspace_controller.display_panels[0]
-            d = {"type": "image", "controller_type": "test"}
-            display_panel.change_display_panel_content(d)
-            # copy the storage before the document closes
-            storage_system_copy = copy.deepcopy(storage_system)
-        # reload with the storage copied before the document closes
-        document_model = DocumentModel.DocumentModel(storage_system=storage_system_copy)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            workspace_controller = document_controller.workspace_controller
-            display_panel = workspace_controller.display_panels[0]
-            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-            self.assertEqual("test", display_panel.save_contents()["controller_type"])
-        DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
+        try:
+            storage_system = MemoryStorageSystem.MemoryStorageSystem()
+            document_model = DocumentModel.DocumentModel(storage_system=storage_system)
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                workspace_controller = document_controller.workspace_controller
+                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                display_panel = workspace_controller.display_panels[0]
+                d = {"type": "image", "controller_type": "test"}
+                display_panel.change_display_panel_content(d)
+                # copy the storage before the document closes
+                storage_system_copy = copy.deepcopy(storage_system)
+            # reload with the storage copied before the document closes
+            document_model = DocumentModel.DocumentModel(storage_system=storage_system_copy)
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                workspace_controller = document_controller.workspace_controller
+                display_panel = workspace_controller.display_panels[0]
+                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                self.assertEqual("test", display_panel.save_contents()["controller_type"])
+        finally:
+            DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
     def test_workspace_saves_contents_immediately_following_view_change(self):
         storage_system = MemoryStorageSystem.MemoryStorageSystem()
@@ -1106,12 +1108,13 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertIsNotNone(document_controller.focused_data_item)
 
     class DisplayPanelController:
-        def __init__(self, display_panel, error=False):
+        def __init__(self, display_panel, data_item, error=False):
             self.type = "test" if not error else "error"
             self.__display_panel = display_panel
             self.__composition = CanvasItem.CanvasItemComposition()
             self.__composition.add_canvas_item(CanvasItem.TextButtonCanvasItem("ABC"))
             self.__display_panel.footer_canvas_item.insert_canvas_item(0, self.__composition)
+            display_panel.set_displayed_data_item(data_item)
             if error: raise RuntimeError()
             self.closed = False
         def close(self):
@@ -1127,9 +1130,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self._match = match
         def make_new(self, controller_type, display_panel, d):
             if controller_type == "test":
-                return TestWorkspaceClass.DisplayPanelController(display_panel)
+                return TestWorkspaceClass.DisplayPanelController(display_panel, self._match)
             if controller_type == "error":
-                return TestWorkspaceClass.DisplayPanelController(display_panel, error=True)
+                return TestWorkspaceClass.DisplayPanelController(display_panel, self._match, error=True)
             return None
         def match(self, document_model, data_item):
             if data_item == self._match:
@@ -1139,96 +1142,105 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_drop_controlled_data_item_on_1x1_top_constructs_controller(self):
         data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory(data_item))
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            document_model.append_data_item(data_item)
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-            display_panel = document_controller.workspace_controller.display_panels[0]
-            mime_data = MimeData(MimeTypes.DISPLAY_ITEM_MIME_TYPE, str(display_item.uuid))
-            document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
-            # check that there are now two image panels
-            self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
-            # check that the data items are in the right spot
-            self.assertEqual(document_controller.workspace_controller.display_panels[1].save_contents().get("display-panel-type"), None)  # uninitialized
-            self.assertTrue(isinstance(document_controller.workspace_controller.display_panels[0]._display_panel_controller_for_test, TestWorkspaceClass.DisplayPanelController))
-            # check that it closes properly too
+        try:
+            document_model = DocumentModel.DocumentModel()
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                display_panel = document_controller.workspace_controller.display_panels[0]
+                mime_data = MimeData(MimeTypes.DISPLAY_ITEM_MIME_TYPE, str(display_item.uuid))
+                document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
+                # check that there are now two image panels
+                self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
+                # check that the data items are in the right spot
+                self.assertEqual(document_controller.workspace_controller.display_panels[1].save_contents().get("display-panel-type"), None)  # uninitialized
+                self.assertTrue(isinstance(document_controller.workspace_controller.display_panels[0]._display_panel_controller_for_test, TestWorkspaceClass.DisplayPanelController))
+        finally:
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
     def test_switch_from_layout_with_controller_with_footer_works(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
-            document_model.append_data_item(data_item)
-            workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
-            workspace2 = document_controller.workspace_controller.new_workspace("2", {"type": "image", "display-panel-type": "browser-display-panel"})
-            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-            document_controller.workspace_controller.change_workspace(workspace1)
-            document_controller.workspace_controller.change_workspace(workspace2)
+        try:
+            document_model = DocumentModel.DocumentModel()
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+                document_model.append_data_item(data_item)
+                workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
+                workspace2 = document_controller.workspace_controller.new_workspace("2", {"type": "image", "display-panel-type": "browser-display-panel"})
+                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                document_controller.workspace_controller.change_workspace(workspace1)
+                document_controller.workspace_controller.change_workspace(workspace2)
+        finally:
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
     def test_closing_display_panel_with_display_controller_shuts_down_controller_correctly(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
-            document_model.append_data_item(data_item)
-            d = {"type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [
-                {"type": "image", "uuid": "0569ca31-afd7-48bd-ad54-5e2bb9f21102", "identifier": "a", "selected": True,
-                    "display-panel-type": "data-display-panel", "controller_type": "test"},
-                {"type": "image", "uuid": "acd77f9f-2f6f-4fbf-af5e-94330b73b997", "identifier": "b"}]}
-            workspace1 = document_controller.workspace_controller.new_workspace("1", d)
-            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-            document_controller.workspace_controller.change_workspace(workspace1)
-            display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel_controller = display_panel._display_panel_controller_for_test
-            self.assertFalse(display_panel_controller.closed)
-            document_controller.workspace_controller.remove_display_panel(display_panel)
-            self.assertTrue(display_panel_controller.closed)
+        try:
+            document_model = DocumentModel.DocumentModel()
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+                document_model.append_data_item(data_item)
+                d = {"type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [
+                    {"type": "image", "uuid": "0569ca31-afd7-48bd-ad54-5e2bb9f21102", "identifier": "a", "selected": True,
+                        "display-panel-type": "data-display-panel", "controller_type": "test"},
+                    {"type": "image", "uuid": "acd77f9f-2f6f-4fbf-af5e-94330b73b997", "identifier": "b"}]}
+                workspace1 = document_controller.workspace_controller.new_workspace("1", d)
+                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                document_controller.workspace_controller.change_workspace(workspace1)
+                display_panel = document_controller.workspace_controller.display_panels[0]
+                display_panel_controller = display_panel._display_panel_controller_for_test
+                self.assertFalse(display_panel_controller.closed)
+                document_controller.workspace_controller.remove_display_panel(display_panel)
+                self.assertTrue(display_panel_controller.closed)
+        finally:
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
     def test_switching_display_panel_with_display_controller_shuts_down_controller_correctly(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
-            document_model.append_data_item(data_item)
-            workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
-            workspace2 = document_controller.workspace_controller.new_workspace("2", {"type": "image", "display-panel-type": "browser-display-panel"})
-            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-            document_controller.workspace_controller.change_workspace(workspace1)
-            display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel_controller = display_panel._display_panel_controller_for_test
-            self.assertFalse(display_panel_controller.closed)
-            document_controller.workspace_controller.change_workspace(workspace2)
-            self.assertTrue(display_panel_controller.closed)
+        try:
+            document_model = DocumentModel.DocumentModel()
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+                document_model.append_data_item(data_item)
+                workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
+                workspace2 = document_controller.workspace_controller.new_workspace("2", {"type": "image", "display-panel-type": "browser-display-panel"})
+                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                document_controller.workspace_controller.change_workspace(workspace1)
+                display_panel = document_controller.workspace_controller.display_panels[0]
+                display_panel_controller = display_panel._display_panel_controller_for_test
+                self.assertFalse(display_panel_controller.closed)
+                document_controller.workspace_controller.change_workspace(workspace2)
+                self.assertTrue(display_panel_controller.closed)
+        finally:
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
     def test_switch_workspace_closes_display_panel_controller(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
-            document_model.append_data_item(data_item)
-            workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
-            document_controller.workspace_controller.new_workspace("2", {"type": "image", "display-panel-type": "browser-display-panel"})
-            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-            document_controller.workspace_controller.change_workspace(workspace1)
-            display_panel_controller = document_controller.workspace_controller.display_panels[0]._display_panel_controller_for_test
-            self.assertFalse(display_panel_controller.closed)
-            document_controller.workspace_controller.change_to_previous_workspace()
-            self.assertTrue(display_panel_controller.closed)
+        try:
+            document_model = DocumentModel.DocumentModel()
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+                document_model.append_data_item(data_item)
+                workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
+                document_controller.workspace_controller.new_workspace("2", {"type": "image", "display-panel-type": "browser-display-panel"})
+                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                document_controller.workspace_controller.change_workspace(workspace1)
+                display_panel_controller = document_controller.workspace_controller.display_panels[0]._display_panel_controller_for_test
+                self.assertFalse(display_panel_controller.closed)
+                document_controller.workspace_controller.change_to_previous_workspace()
+                self.assertTrue(display_panel_controller.closed)
+        finally:
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
     def test_closing_data_item_display_after_closing_browser_detaches_browser_delegate(self):
@@ -1248,22 +1260,24 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_restore_panel_like_drag_and_drop_closes_display_panel_controller(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
-            document_model.append_data_item(data_item)
-            workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
-            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-            document_controller.workspace_controller.change_workspace(workspace1)
-            display_panel = document_controller.workspace_controller.display_panels[0]
-            self.assertTrue(isinstance(display_panel._display_panel_controller_for_test, TestWorkspaceClass.DisplayPanelController))
-            display_panel_controller = display_panel._display_panel_controller_for_test
-            self.assertFalse(display_panel_controller.closed)
-            display_panel.change_display_panel_content({"type": "image"})
-            self.assertIsNone(display_panel._display_panel_controller_for_test)
-            self.assertTrue(display_panel_controller.closed)  # the old one
+        try:
+            document_model = DocumentModel.DocumentModel()
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+                document_model.append_data_item(data_item)
+                workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
+                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                document_controller.workspace_controller.change_workspace(workspace1)
+                display_panel = document_controller.workspace_controller.display_panels[0]
+                self.assertTrue(isinstance(display_panel._display_panel_controller_for_test, TestWorkspaceClass.DisplayPanelController))
+                display_panel_controller = display_panel._display_panel_controller_for_test
+                self.assertFalse(display_panel_controller.closed)
+                display_panel.change_display_panel_content({"type": "image"})
+                self.assertIsNone(display_panel._display_panel_controller_for_test)
+                self.assertTrue(display_panel_controller.closed)  # the old one
+        finally:
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
     def test_processing_puts_new_data_into_empty_display_panel_if_possible(self):
@@ -1284,57 +1298,71 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_data_display_panel_with_controller_not_treated_as_potential_result_panel(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            workspace = document_controller.workspace_controller.new_workspace("1", {"type": "image", "controller_type": "test"})
-            document_controller.workspace_controller.change_workspace(workspace)
-            self.assertIsNone(document_controller.next_result_display_panel())
+        try:
+            document_model = DocumentModel.DocumentModel()
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                workspace = document_controller.workspace_controller.new_workspace("1", {"type": "image", "controller_type": "test"})
+                document_controller.workspace_controller.change_workspace(workspace)
+                self.assertIsNone(document_controller.next_result_display_panel())
+        finally:
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
     def test_reloading_display_panel_with_exception_keeps_workspace_layout_intact(self):
         DisplayPanel._test_log_exceptions = False
         try:
             DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("error", TestWorkspaceClass.DisplayPanelControllerFactory())
-            storage_system = MemoryStorageSystem.MemoryStorageSystem()
-            document_model = DocumentModel.DocumentModel(storage_system=storage_system)
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            # first create a workspace
-            with contextlib.closing(document_controller):
-                workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
-                document_controller.workspace_controller.change_workspace(workspace_2x1)
-            # modify it to include a controller which raises an exception during init
-            library_storage_properties = storage_system.library_storage_properties
-            library_storage_properties["workspaces"][1]["layout"]["children"][0]["controller_type"] = "error"
-            # create a new document based on the corrupt layout
-            storage_system_copy = copy.deepcopy(storage_system)
-            document_model = DocumentModel.DocumentModel(storage_system=storage_system_copy)
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
-                pass
-            # check to ensure that the exception didn't invalidate the entire layout
-            self.assertEqual(2, len(storage_system_copy.library_storage_properties["workspaces"][1].get("layout", dict()).get("children", list())))
-            DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("error")
+            try:
+                storage_system = MemoryStorageSystem.MemoryStorageSystem()
+                document_model = DocumentModel.DocumentModel(storage_system=storage_system)
+                document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+                # first create a workspace
+                with contextlib.closing(document_controller):
+                    workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
+                    document_controller.workspace_controller.change_workspace(workspace_2x1)
+                # modify it to include a controller which raises an exception during init
+                library_storage_properties = storage_system.library_storage_properties
+                library_storage_properties["workspaces"][1]["layout"]["children"][0]["controller_type"] = "error"
+                # create a new document based on the corrupt layout
+                storage_system_copy = copy.deepcopy(storage_system)
+                document_model = DocumentModel.DocumentModel(storage_system=storage_system_copy)
+                document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+                with contextlib.closing(document_controller):
+                    pass
+                # check to ensure that the exception didn't invalidate the entire layout
+                self.assertEqual(2, len(storage_system_copy.library_storage_properties["workspaces"][1].get("layout", dict()).get("children", list())))
+            finally:
+                DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("error")
         finally:
             DisplayPanel._test_log_exceptions = True
 
     def test_data_display_panel_with_controller_only_enabled_for_primary_display_item(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8)))
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory(data_item))
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            document_model.append_data_item(data_item)
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item_copy = document_model.get_display_item_copy_new(display_item)
-            workspace = document_controller.workspace_controller.new_workspace("1", {"type": "image"})
-            document_controller.workspace_controller.change_workspace(workspace)
-            display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel.set_display_panel_display_item(display_item, detect_controller=True)
-            self.assertIsNotNone(display_panel._display_panel_controller_for_test)
-            display_panel.set_display_panel_display_item(display_item_copy, detect_controller=True)
-            self.assertIsNone(display_panel._display_panel_controller_for_test)
+        try:
+            document_model = DocumentModel.DocumentModel()
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_item_copy = document_model.get_display_item_copy_new(display_item)
+                workspace = document_controller.workspace_controller.new_workspace("1", {"type": "image"})
+                document_controller.workspace_controller.change_workspace(workspace)
+                display_panel = document_controller.workspace_controller.display_panels[0]
+                display_panel.set_display_panel_display_item(display_item, detect_controller=True)
+                self.assertIsNotNone(display_panel._display_panel_controller_for_test)
+                display_panel.set_display_panel_display_item(display_item_copy, detect_controller=True)
+                self.assertIsNone(display_panel._display_panel_controller_for_test)
+        finally:
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
+
+    # def test_display_panel_controller_initially_displays_existing_data(self):
+    #     # cannot implement until common code for display controllers is moved into document model
+    #     pass
+
+    # def test_display_panel_controller_displays_fresh_data(self):
+    #     # cannot implement until common code for display controllers is moved into document model
+    #     pass
 
 
 if __name__ == '__main__':
