@@ -279,8 +279,12 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
             self.__thumbnail_source = None
 
     def __update_thumbnail(self) -> None:
-        self._set_thumbnail_data(Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(self.__display_item))
-        self.overlay_canvas_item.active = self.__display_item.is_live
+        if self.__display_item:
+            self._set_thumbnail_data(Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(self.__display_item))
+            self.overlay_canvas_item.active = self.__display_item.is_live
+        else:
+            self._set_thumbnail_data(None)
+            self.overlay_canvas_item.active = False
         if callable(self.on_thumbnail_data_changed):
             self.on_thumbnail_data_changed(self.thumbnail_data)
 

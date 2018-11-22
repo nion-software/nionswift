@@ -19,6 +19,7 @@ from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift import Application
+from nion.swift import DataItemThumbnailWidget
 from nion.swift import Facade
 from nion.swift import Thumbnails
 from nion.swift.model import DataItem
@@ -365,6 +366,13 @@ class TestDataItemClass(unittest.TestCase):
                     data_ref.master_data = data_ref.master_data + 1.0
                 document_model.recompute_all()
                 self.assertTrue(inverted_display_item._display_cache.is_cached_value_dirty(inverted_display_item, "thumbnail_data"))
+
+    def test_thumbnail_widget_when_data_item_has_no_associated_display_item(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item_reference = document_model.get_data_item_reference(document_model.make_data_item_reference_key("abc"))
+            with contextlib.closing(DataItemThumbnailWidget.DataItemReferenceThumbnailSource(self.app.ui, document_model, data_item_reference)):
+                data_item_reference.data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
 
     def test_delete_nested_data_item(self):
         document_model = DocumentModel.DocumentModel()
