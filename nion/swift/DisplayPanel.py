@@ -510,6 +510,8 @@ class DisplayTracker:
 
         self.__display_canvas_item = create_display_canvas_item(display_item, get_font_metrics, delegate, event_loop, draw_background=self.__draw_background)
 
+        display_data_channel_shapes_ref = [list()]
+
         def display_graphics_changed(graphic_selection):
             # this message comes from the display when the graphic selection changes
             self.__display_canvas_item.update_graphics(display_item.graphics, graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item))
@@ -521,6 +523,14 @@ class DisplayTracker:
                 display_values_list = [display_data_channel.get_calculated_display_values() for display_data_channel in display_item.display_data_channels]
                 self.__display_canvas_item.update_display_values(display_values_list)
             display_changed()
+            # if the display data channel shapes change, update the graphics, but use the display channel to determine the shape; otherwise
+            # the graphics update will use the shape from the last update. this design needs work.
+            new_display_data_channel_shapes =  [display_data_channel.display_data_shape for display_data_channel in display_item.display_data_channels]
+            if new_display_data_channel_shapes != display_data_channel_shapes_ref[0]:
+                # use display data shape from the new shapes
+                display_data_shape = new_display_data_channel_shapes[0] if len(new_display_data_channel_shapes) > 0 else None
+                self.__display_canvas_item.update_graphics(display_item.graphics, display_item.graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item, display_data_shape))
+                display_data_channel_shapes_ref[0] = new_display_data_channel_shapes
 
         def display_changed():
             # called when anything in the data item changes, including things like graphics or the data itself.

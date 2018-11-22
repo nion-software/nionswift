@@ -1664,8 +1664,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
 class DisplayCalibrationInfo:
 
-    def __init__(self, display_item):
-        self.display_data_shape = display_item.display_data_shape
+    def __init__(self, display_item, display_data_shape=None):
+        self.display_data_shape = display_data_shape if display_data_shape is not None else display_item.display_data_shape
         self.displayed_dimensional_scales = display_item.displayed_dimensional_scales
         self.displayed_dimensional_calibrations = copy.deepcopy(display_item.displayed_dimensional_calibrations)
         self.displayed_intensity_calibration = copy.deepcopy(display_item.displayed_intensity_calibration)
