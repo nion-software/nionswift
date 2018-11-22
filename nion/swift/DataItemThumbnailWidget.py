@@ -319,11 +319,11 @@ class DataItemReferenceThumbnailSource(DataItemThumbnailSource):
             display_item = document_model.get_display_item_for_data_item(data_item_reference.data_item)
             self.set_display_item(display_item)
 
-        self.__data_item_changed_event_listener = data_item_reference.data_item_changed_event.listen(data_item_changed)
+        self.__data_item_reference_changed_event_listener = data_item_reference.data_item_reference_changed_event.listen(data_item_changed)
 
     def close(self):
-        self.__data_item_changed_event_listener.close()
-        self.__data_item_changed_event_listener = None
+        self.__data_item_reference_changed_event_listener.close()
+        self.__data_item_reference_changed_event_listener = None
         super().close()
 
 

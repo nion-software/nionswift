@@ -964,7 +964,7 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
         self.__crop_graphic = None
         self.__crop_listener = None
         self.__remove_listener = None
-        self.__data_item_changed_event_listener = None
+        self.__data_item_reference_changed_event_listener = None
 
     @property
     def label(self):
@@ -1009,10 +1009,10 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
         if data_item and display_item:
             self.__connect_display(display_item)
         else:
-            def data_item_changed():
-                self.__data_item_changed_event_listener.close()
+            def data_item_reference_changed():
+                self.__data_item_reference_changed_event_listener.close()
                 self.connect_data_item_reference(data_item_reference)  # ugh. recursive mess.
-            self.__data_item_changed_event_listener = data_item_reference.data_item_changed_event.listen(data_item_changed)
+            self.__data_item_reference_changed_event_listener = data_item_reference.data_item_reference_changed_event.listen(data_item_reference_changed)
 
     def __connect_display(self, display_item):
         assert threading.current_thread() == threading.main_thread()

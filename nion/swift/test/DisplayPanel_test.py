@@ -1513,7 +1513,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(data_item, document_controller.focused_data_item)
             display_panel._select()
             self.assertEqual(data_item, document_controller.focused_data_item)
-            display_panel.set_displayed_data_item(data_item2)
+            display_panel.set_display_item(document_model.get_display_item_for_data_item(data_item2))
             self.assertEqual(data_item2, document_controller.focused_data_item)
 
     def test_dependency_icons_updated_properly_when_one_of_two_dependents_are_removed(self):
@@ -2062,12 +2062,29 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_item(display_item)
             self.assertEqual(display_item, display_panel.display_item)
             self.assertEqual(data_item, display_panel.data_item)
-            display_panel.set_displayed_data_item(None)
+            display_panel.set_display_item(None)
             self.assertEqual(None, display_panel.display_item)
             self.assertEqual(None, display_panel.data_item)
+
+    def test_setting_display_panel_data_item_reference_updates_when_data_item_set_before_added_to_library(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.ones((8, 8)))
+            data_item_reference = DocumentModel.DocumentModel.DataItemReference(document_model, "abc")
+            data_item_reference.data_item = data_item
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_data_item_reference(data_item_reference)
+            self.assertEqual(None, display_panel.display_item)
+            self.assertEqual(None, display_panel.data_item)
+            document_model.append_data_item(data_item)
+            document_controller.periodic()
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            self.assertEqual(display_item, display_panel.display_item)
+            self.assertEqual(data_item, display_panel.data_item)
 
 
 if __name__ == '__main__':

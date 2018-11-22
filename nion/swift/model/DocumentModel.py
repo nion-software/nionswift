@@ -2069,7 +2069,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__pending_starts = 0
             self.__data_item_transaction = None
             self.mutex = threading.RLock()
-            self.data_item_changed_event = Event.Event()
+            self.data_item_reference_changed_event = Event.Event()
 
         def start(self):
             """Start using the data item reference. Must call stop a matching number of times.
@@ -2152,7 +2152,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     for i in range(self.__pending_starts):
                         self.__start()
                     self.__pending_starts = 0
-                    self.data_item_changed_event.fire()
+                    if self.__data_item in self.__document_model.data_items:
+                        self.data_item_reference_changed_event.fire()
+                    else:
+                        def item_inserted(key, value, index):
+                            if value == self.__data_item:
+                                self.data_item_reference_changed_event.fire()
+                                self.__item_inserted_listener.close()
+                                self.__item_inserted_listener = None
+                        self.__item_inserted_listener = self.__document_model.item_inserted_event.listen(item_inserted)
 
     def __queue_data_item_update(self, data_item, data_and_metadata):
         # put the data update to data_item into the pending_data_item_updates list.
@@ -2256,6 +2264,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     data_channel.processor.connect_data_item_reference(src_data_item_reference)
 
             self.__call_soon(update_session)
+
             return data_item_reference
 
     def __data_channel_start(self, hardware_source, data_channel):

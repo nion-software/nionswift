@@ -464,7 +464,7 @@ class TestFacadeClass(unittest.TestCase):
             workspace_1x1 = document_controller.document_model.workspaces[0]
             document_controller.workspace_controller.change_workspace(workspace_1x1)
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item1)
+            display_panel.set_display_item(display_item1)
 
             api = Facade.get_api("~1.0", "~1.0")
             library = api.library

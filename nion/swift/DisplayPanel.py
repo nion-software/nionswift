@@ -22,6 +22,7 @@ from nion.swift import Thumbnails
 from nion.swift import Undo
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
+from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
@@ -976,6 +977,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         self.__display_item = None
         self.__display_tracker = None
+        self.__data_item_reference_changed_event_listener = None
+        self.__data_item_reference_changed_task = None
 
         document_model = self.__document_controller.document_model
 
@@ -1080,6 +1083,13 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def close(self):
         self.on_contents_changed = None
+
+        if self.__data_item_reference_changed_task:
+            self.__data_item_reference_changed_task.cancel()
+            self.__data_item_reference_changed_task = None
+        if self.__data_item_reference_changed_event_listener:
+            self.__data_item_reference_changed_event_listener.close()
+            self.__data_item_reference_changed_event_listener = None
 
         with self.__closing_lock:  # ensures that display pipeline finishes
             self.set_display_item(None)  # required before destructing display thread
@@ -1282,6 +1292,25 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def set_displayed_data_item(self, data_item: DataItem.DataItem) -> None:
         display_item = self.document_controller.document_model.get_any_display_item_for_data_item(data_item)
         self.set_display_item(display_item)
+
+    def set_data_item_reference(self, data_item_reference: DocumentModel.DocumentModel.DataItemReference) -> None:
+        if self.__data_item_reference_changed_event_listener:
+            self.__data_item_reference_changed_event_listener.close()
+            self.__data_item_reference_changed_event_listener = None
+
+        def handle_data_item_reference_changed():
+            if self.__data_item_reference_changed_task:
+                self.__data_item_reference_changed_task.cancel()
+                self.__data_item_reference_changed_task = None
+
+            async def update_display_item():
+                self.set_display_item(self.document_controller.document_model.get_any_display_item_for_data_item(data_item_reference.data_item))
+
+            self.__data_item_reference_changed_task = self.document_controller.event_loop.create_task(update_display_item())
+
+        if data_item_reference:
+            self.__data_item_reference_changed_event_listener = data_item_reference.data_item_reference_changed_event.listen(handle_data_item_reference_changed)
+            self.set_display_item(self.document_controller.document_model.get_any_display_item_for_data_item(data_item_reference.data_item))
 
     def set_display_panel_data_item(self, data_item: DataItem.DataItem, detect_controller: bool=False) -> None:
         display_item = self.document_controller.document_model.get_any_display_item_for_data_item(data_item)

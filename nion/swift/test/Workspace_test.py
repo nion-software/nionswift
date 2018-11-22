@@ -143,8 +143,8 @@ class TestWorkspaceClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             document_controller.workspace_controller.change_workspace(workspace_2x1)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
-            document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
+            document_controller.workspace_controller.display_panels[1].set_display_item(document_model.get_display_item_for_data_item(data_item2))
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # click in first panel
@@ -177,7 +177,7 @@ class TestWorkspaceClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
             document_controller.workspace_controller.change_workspace(workspace_2x1)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # click in first panel
@@ -197,7 +197,7 @@ class TestWorkspaceClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
             document_controller.workspace_controller.change_workspace(workspace_2x1)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # click in right panel and change the display type
@@ -260,10 +260,10 @@ class TestWorkspaceClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item2)
-            document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item3)
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item2))
+            document_controller.workspace_controller.display_panels[1].set_display_item(document_model.get_display_item_for_data_item(data_item3))
             document_controller.workspace_controller.change_workspace(workspace_1x1)
             self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item1)
             document_controller.workspace_controller.change_workspace(workspace_2x1)
@@ -278,7 +278,7 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace_1x1 = document_controller.document_model.workspaces[0]
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
         json_str = json.dumps(storage_system.library_storage_properties["workspaces"])
         properties = json.loads(json_str)
         self.assertEqual(properties, storage_system.library_storage_properties["workspaces"])
@@ -735,7 +735,7 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace_1x1 = document_controller.document_model.workspaces[0]
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
         # reload
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -914,8 +914,8 @@ class TestWorkspaceClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
-            document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
+            document_controller.workspace_controller.display_panels[1].set_display_item(document_model.get_display_item_for_data_item(data_item2))
             display_panel = document_controller.workspace_controller.display_panels[0]
             document_controller.workspace_controller.remove_display_panel(display_panel)
             # check that there is now one image panel
@@ -937,9 +937,9 @@ class TestWorkspaceClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
-            document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
-            document_controller.workspace_controller.display_panels[2].set_displayed_data_item(data_item3)
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
+            document_controller.workspace_controller.display_panels[1].set_display_item(document_model.get_display_item_for_data_item(data_item2))
+            document_controller.workspace_controller.display_panels[2].set_display_item(document_model.get_display_item_for_data_item(data_item3))
             display_panel2 = document_controller.workspace_controller.display_panels[1]
             document_controller.workspace_controller.remove_display_panel(display_panel2)
             root_canvas_item.refresh_layout_immediate()
@@ -961,9 +961,9 @@ class TestWorkspaceClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
-            document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
-            document_controller.workspace_controller.display_panels[2].set_displayed_data_item(data_item3)
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
+            document_controller.workspace_controller.display_panels[1].set_display_item(document_model.get_display_item_for_data_item(data_item2))
+            document_controller.workspace_controller.display_panels[2].set_display_item(document_model.get_display_item_for_data_item(data_item3))
             display_panel = document_controller.workspace_controller.display_panels[1]
             splits = root_canvas_item.canvas_items[0].canvas_items[0].splits
             #logging.debug(document_controller.workspace_controller._deconstruct(root_canvas_item.canvas_items[0]))
@@ -988,8 +988,8 @@ class TestWorkspaceClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
-            document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
+            document_controller.workspace_controller.display_panels[1].set_display_item(document_model.get_display_item_for_data_item(data_item2))
             root_canvas_item.refresh_layout_immediate()
             document_controller.workspace_controller.display_panels[0].header_canvas_item.simulate_click((12, 308))
 
@@ -1033,8 +1033,8 @@ class TestWorkspaceClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
-            document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
+            document_controller.workspace_controller.display_panels[1].set_display_item(document_model.get_display_item_for_data_item(data_item2))
             document_controller.workspace_controller.display_panels[0].request_focus()
             root_canvas_item.refresh_layout_immediate()
             self.assertTrue(document_controller.workspace_controller.display_panels[0].content_canvas_item.selected)
@@ -1114,7 +1114,7 @@ class TestWorkspaceClass(unittest.TestCase):
             self.__composition = CanvasItem.CanvasItemComposition()
             self.__composition.add_canvas_item(CanvasItem.TextButtonCanvasItem("ABC"))
             self.__display_panel.footer_canvas_item.insert_canvas_item(0, self.__composition)
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_item(display_panel.document_controller.document_model.get_display_item_for_data_item(data_item))
             if error: raise RuntimeError()
             self.closed = False
         def close(self):
@@ -1254,7 +1254,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             document_controller.workspace_controller.display_panels[0].change_display_panel_content({"type": "image", "display-panel-type": "browser-display-panel"})
-            document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item1)
+            document_controller.workspace_controller.display_panels[1].set_display_item(document_model.get_display_item_for_data_item(data_item1))
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
 
@@ -1288,7 +1288,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_model.append_data_item(source_data_item)
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(source_data_item)
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(source_data_item))
             document_controller.workspace_controller.display_panels[0].request_focus()
             self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, source_data_item)
             self.assertIsNone(document_controller.workspace_controller.display_panels[1].data_item)
