@@ -212,8 +212,8 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             with drawing_context.saver():
                 drawing_context.begin_path()
                 if self.__drop_region in drop_regions_map:
-                    drop_region_rect = drop_regions_map[self.__drop_region]
-                    drawing_context.rect(drop_region_rect.left, drop_region_rect.top, drop_region_rect.width, drop_region_rect.height)
+                    drop_region_hit_rect, drop_region_draw_rect = drop_regions_map[self.__drop_region]
+                    drawing_context.rect(drop_region_draw_rect.left, drop_region_draw_rect.top, drop_region_draw_rect.width, drop_region_draw_rect.height)
                 elif self.__drop_region == "left":
                     drawing_context.rect(0, 0, int(canvas_width * 0.10), canvas_height)
                 elif self.__drop_region == "right":
@@ -267,8 +267,8 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             if result != "ignore":
                 p = Geometry.IntPoint(y=y, x=x)
                 canvas_size = Geometry.IntSize.make(self.canvas_size)
-                for drop_region, drop_region_rect in self.__drop_regions_map.items():
-                    if drop_region_rect.contains_point(p):
+                for drop_region, (drop_region_hit_rect, drop_region_draw_rect) in self.__drop_regions_map.items():
+                    if drop_region_hit_rect.contains_point(p):
                         self.__set_drop_region(drop_region)
                         return result
                 if x < int(canvas_size.width * 0.10):

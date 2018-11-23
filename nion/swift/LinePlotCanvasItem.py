@@ -954,6 +954,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
     def get_drop_regions_map(self, display_item):
         if self.__line_graph_area_stack.canvas_rect and display_item and display_item.data_item and display_item.data_item.is_data_1d:
-            return {"plus": self.__line_graph_area_stack.canvas_rect}
+            canvas_rect = self.__line_graph_area_stack.canvas_rect
+            hit_rect = Geometry.IntRect.from_center_and_size(canvas_rect.center, Geometry.IntSize(height=canvas_rect.height // 2, width=canvas_rect.width // 2))
+            return {"plus": (hit_rect, self.__line_graph_area_stack.canvas_rect)}
         else:
             return None
