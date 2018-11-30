@@ -4,6 +4,7 @@ import copy
 import functools
 import gettext
 import logging
+import pkgutil
 import threading
 import uuid
 
@@ -11,7 +12,6 @@ import uuid
 # None
 
 # local libraries
-from nion.swift import Decorators
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Thumbnails
@@ -1127,8 +1127,8 @@ class DataPanel(Panel.Panel):
         data_list_widget = DataListWidget(ui, self.data_list_controller)
         data_grid_widget = DataGridWidget(ui, self.data_grid_controller)
 
-        list_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/list_icon_20.png")))
-        grid_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/grid_icon_20.png")))
+        list_icon_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/list_icon_20.png")))
+        grid_icon_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/grid_icon_20.png")))
 
         list_icon_button.sizing.set_fixed_size(Geometry.IntSize(20, 20))
         grid_icon_button.sizing.set_fixed_size(Geometry.IntSize(20, 20))

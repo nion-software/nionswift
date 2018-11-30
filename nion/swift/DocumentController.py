@@ -9,6 +9,7 @@ import math
 import operator
 import os.path
 import pathlib
+import pkgutil
 import sys
 import threading
 import time
@@ -20,7 +21,6 @@ import weakref
 from nion.data import DataAndMetadata
 from nion.swift import ComputationPanel
 from nion.swift import ConsoleDialog
-from nion.swift import Decorators
 from nion.swift import DisplayEditorPanel
 from nion.swift import DisplayPanel
 from nion.swift import ExportDialog
@@ -38,6 +38,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Symbolic
+from nion.ui import CanvasItem
 from nion.ui import Dialog
 from nion.ui import PreferencesDialog
 from nion.ui import Window
@@ -507,8 +508,7 @@ class DocumentController(Window.Window):
                 row = self.ui.create_row_widget()
                 logo_column = self.ui.create_column_widget()
                 logo_button = self.ui.create_push_button_widget()
-                image = self.ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/logo3.png"))
-                logo_button.icon = image
+                logo_button.icon = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/logo3.png"))
                 logo_column.add_spacing(26)
                 logo_column.add(logo_button)
                 logo_column.add_stretch()

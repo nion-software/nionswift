@@ -12,6 +12,7 @@ import json
 import numpy
 import math
 import os
+import pkgutil
 import re
 import typing
 import xml.etree.ElementTree as ET
@@ -172,7 +173,14 @@ def load_color_maps(color_maps_dir) -> None:
                     import traceback
                     traceback.print_exc()
 
-load_color_maps(os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources/color_maps"))
+def load_color_map_resource(resource_path: str) -> None:
+    color_map_json = json.loads(pkgutil.get_data(__name__, resource_path))
+    color_maps[color_map_json["id"]] = ColorMap(color_map_json["name"], generate_lookup_array_from_points(color_map_json["points"], 256))
+
+load_color_map_resource("resources/color_maps/black_body.json")
+load_color_map_resource("resources/color_maps/extended_black_body.json")
+load_color_map_resource("resources/color_maps/extended_kindlmann.json")
+load_color_map_resource("resources/color_maps/kindlmann.json")
 
 def get_color_map_data_by_id(color_map_id: str) -> numpy.ndarray:
     return color_maps.get(color_map_id, color_maps["grayscale"]).data
