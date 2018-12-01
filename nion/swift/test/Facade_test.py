@@ -143,7 +143,7 @@ class TestFacadeClass(unittest.TestCase):
             data_item = DataItem.DataItem(data0)
             data_item.set_intensity_calibration(Calibration.Calibration(0.1, 0.2, "dogs"))
             data_item.set_dimensional_calibrations([Calibration.Calibration(0.3, 0.4, "cats"), Calibration.Calibration(0.5, 0.6, "cats")])
-            metadata = {"title": "Dogs eat cats."}
+            metadata = {"subtitle": "Dogs eat cats."}
             data_item.metadata = metadata
             document_model.append_data_item(data_item)
             api = Facade.get_api("~1.0", "~1.0")
@@ -151,10 +151,10 @@ class TestFacadeClass(unittest.TestCase):
             data_item_ref = library.data_items[0]
             self.assertEqual(data_item_ref.intensity_calibration.units, "dogs")
             self.assertEqual(data_item_ref.dimensional_calibrations[1].units, "cats")
-            self.assertEqual(data_item_ref.metadata, metadata)
+            self.assertEqual(data_item_ref.metadata["subtitle"], metadata["subtitle"])
             data_item_ref.set_intensity_calibration(api.create_calibration(0.11, 0.22, "cats"))
             data_item_ref.set_dimensional_calibrations([api.create_calibration(0.33, 0.44, "mice"), api.create_calibration(0.44, 0.66, "mice")])
-            metadata2 = {"title": "Cats eat mice."}
+            metadata2 = {"subtitle": "Cats eat mice."}
             data_item_ref.set_metadata(metadata2)
             self.assertAlmostEqual(data_item.intensity_calibration.offset, 0.11)
             self.assertAlmostEqual(data_item.dimensional_calibrations[0].offset, 0.33)
