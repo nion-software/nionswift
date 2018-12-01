@@ -35,8 +35,7 @@ class TestImportExportManagerClass(unittest.TestCase):
         data_element["datetime_modified"] = Utility.get_current_datetime_item()
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         self.assertIsNotNone(data_item.created)
-        self.assertEqual(data_item.metadata["description"]["time_zone"]["tz"], data_element["datetime_modified"]["tz"])
-        self.assertEqual(data_item.metadata["description"]["time_zone"]["dst"], data_element["datetime_modified"]["dst"])
+        self.assertEqual(data_item.timezone_offset, data_element["datetime_modified"]["tz"])
 
     def test_convert_data_element_sets_timezone_and_timezone_offset_if_present(self):
         data_element = dict()
@@ -127,8 +126,7 @@ class TestImportExportManagerClass(unittest.TestCase):
         data_element["datetime_modified"] = {'tz': '+0300', 'dst': '+60', 'local_datetime': '2015-06-10T19:31:52.780511'}
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         self.assertIsNotNone(data_item.created)
-        self.assertEqual(data_item.metadata["description"]["time_zone"]["tz"], "+0300")
-        self.assertEqual(data_item.metadata["description"]["time_zone"]["dst"], "+60")
+        self.assertEqual(data_item.timezone_offset, "+0300")
         local_offset_seconds = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds()))
         # check both matches for DST
         match1 = datetime.datetime(year=2015, month=6, day=10, hour=19 - 3, minute=31, second=52, microsecond=780511) + datetime.timedelta(seconds=local_offset_seconds)
@@ -188,13 +186,7 @@ class TestImportExportManagerClass(unittest.TestCase):
         self.assertNotEqual(id(new_xdata.dimensional_calibrations[0]), id(dimensional_calibrations[0]))
         self.assertEqual(new_xdata.dimensional_calibrations, dimensional_calibrations)
         self.assertNotEqual(id(new_xdata.metadata), id(metadata))
-        # the handling of time zone in xdata is probably not correct right now; this is a temporary workaround
-        # the reason it is probably not correct is that the timezone for a data item is recorded in the data
-        # item metadata, not the buffered data source metadata. however, here it is stored with the extended
-        # data which eventually gets put into the buffered data source metadata.
-        xdata_metadata_without_description = copy.deepcopy(new_xdata.metadata)
-        xdata_metadata_without_description.pop("description")
-        self.assertEqual(xdata_metadata_without_description, metadata)
+        self.assertEqual(new_xdata.metadata, metadata)
         self.assertNotEqual(id(new_xdata.data_descriptor), id(data_descriptor))
         self.assertEqual(new_xdata.data_descriptor, data_descriptor)
 
@@ -224,8 +216,7 @@ class TestImportExportManagerClass(unittest.TestCase):
         data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
         data_element["datetime_modified"] = {'tz': '+0300', 'dst': '+60', 'local_datetime': '2015-06-10T19:31:52.780511'}
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
-        self.assertEqual(data_item.metadata["description"]["time_zone"]["tz"], "+0300")
-        self.assertEqual(data_item.metadata["description"]["time_zone"]["dst"], "+60")
+        self.assertEqual(data_item.timezone_offset, "+0300")
         self.assertEqual(str(data_item.created), "2015-06-10 16:31:52.780511")
 
     def test_data_element_to_extended_data_includes_time_zone(self):
@@ -234,8 +225,7 @@ class TestImportExportManagerClass(unittest.TestCase):
         data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
         data_element["datetime_modified"] = {'tz': '+0300', 'dst': '+60', 'local_datetime': '2015-06-10T19:31:52.780511'}
         xdata = ImportExportManager.convert_data_element_to_data_and_metadata(data_element)
-        self.assertEqual(xdata.metadata["description"]["time_zone"]["tz"], "+0300")
-        self.assertEqual(xdata.metadata["description"]["time_zone"]["dst"], "+60")
+        self.assertEqual(xdata.timezone_offset, "+0300")
         self.assertEqual(str(xdata.timestamp), "2015-06-10 16:31:52.780511")
 
     def test_time_zone_in_extended_data_to_data_element_to_data_item_conversion(self):

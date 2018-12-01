@@ -194,7 +194,7 @@ def update_data_item_from_data_element(data_item: DataItem.DataItem, data_elemen
         raise NotImplementedError("Data element version {:d} not supported.".format(version))
 
 
-def update_data_item_from_data_element_1(data_item: DataItem.DataItem, data_element, data_file_path=None):
+def update_data_item_from_data_element_1(data_item: DataItem.DataItem, data_element: typing.Dict, data_file_path=None):
     assert data_item
     with data_item.data_item_changes(), data_item.data_source_changes():
         # file path
@@ -351,9 +351,15 @@ def convert_data_element_to_data_and_metadata_1(data_element) -> DataAndMetadata
     tz_adjust = (int(tz_value[1:3]) * 60 + int(tz_value[3:5])) * (-1 if tz_value[0] == '-' else 1)
     utc_datetime = local_datetime - datetime.timedelta(minutes=tz_adjust)  # tz_adjust already contains dst_adjust
     timestamp = utc_datetime
-    metadata.setdefault("description", dict())["time_zone"] = time_zone
 
-    return DataAndMetadata.new_data_and_metadata(data, intensity_calibration=intensity_calibration, dimensional_calibrations=dimensional_calibrations, metadata=metadata, timestamp=timestamp, data_descriptor=data_descriptor)
+    return DataAndMetadata.new_data_and_metadata(data,
+                                                 intensity_calibration=intensity_calibration,
+                                                 dimensional_calibrations=dimensional_calibrations,
+                                                 metadata=metadata,
+                                                 timestamp=timestamp,
+                                                 data_descriptor=data_descriptor,
+                                                 timezone=timezone,
+                                                 timezone_offset=tz_value)
 
 
 def create_data_element_from_data_item(data_item, include_data=True):

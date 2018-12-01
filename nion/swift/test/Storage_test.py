@@ -2945,6 +2945,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_source_dict["type"] = "buffered-data-source"
         src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
         src_data_source_dict["data_shape"] = (8, 8)
+        src_data_source_dict["metadata"] = {"a": "AAA", "description": {"timezone": "America/Los_Angeles"}}
         graphic_uuid_str = str(uuid.uuid4())
         src_data_item_dict["displays"] = [{"uuid": str(uuid.uuid4()), "dimensional_calibration_style": "pixels-center", "display_calibrated_values": True, "y_style": "log", "graphics": [{"type": "line-graphic", "uuid": graphic_uuid_str, "start": (0, 0), "end": (1, 1)}]}]
         src_data_item_dict["data_source"] = src_data_source_dict
@@ -2970,6 +2971,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual("temporary", data_item.category)
             self.assertEqual("a big screwdriver", data_item.session_data["instrument"])
             self.assertEqual("a big screwdriver", data_item.session_metadata["instrument"])
+            self.assertEqual({"a": "AAA"}, data_item.metadata)
             self.assertNotIn("description", data_item_properties)
             self.assertNotIn("session_metadata", data_item_properties)
             self.assertEqual("Europe/Athens", data_item_properties["timezone"])

@@ -82,6 +82,7 @@ def migrate_to_v13(reader_info_list, library_updates):
                         data_source_properties["timezone"] = timezone
                     if timezone_offset is not None:
                         data_source_properties["timezone_offset"] = timezone_offset
+                    data_source_properties.get("metadata", dict()).pop("description", None)
 
                 # copy session id, category to data source; move session data
 
