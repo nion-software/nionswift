@@ -3414,6 +3414,72 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.data_items[0].modified, modified)
             self.assertEqual(document_model.data_items[1].modified, modified)
 
+    def test_data_modified_property_is_persistent(self):
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            data_item.data_modified = modified
+            document_model.append_data_item(data_item)
+        # make sure it reloads without changing modification
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            self.assertEqual(modified, document_model.data_items[0].data_modified)
+
+    def test_copy_retains_data_modified_property(self):
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            data_item.data_modified = modified
+            document_model.append_data_item(data_item)
+            data_item_copy = document_model.copy_data_item(data_item)
+            self.assertEqual(modified, data_item_copy.data_modified)
+
+    def test_snapshot_retains_data_modified_property(self):
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            data_item.data_modified = modified
+            document_model.append_data_item(data_item)
+            data_item_copy = document_model.get_display_item_snapshot_new(document_model.get_display_item_for_data_item(data_item)).data_item
+            self.assertEqual(modified, data_item_copy.data_modified)
+
+    def test_data_modified_and_modified_are_updated_when_modifying_data(self):
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            data_item.created = modified
+            data_item.data_modified = modified
+            data_item._set_modified(modified)
+            document_model.append_data_item(data_item)
+            data_item.set_data(numpy.zeros((16, 16)))
+            self.assertEqual(modified, data_item.created)
+            self.assertLess(modified, data_item.modified)
+            self.assertLess(modified, data_item.data_modified)
+
+    def test_only_modified_are_updated_when_modifying_metadata(self):
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            data_item.created = modified
+            data_item.data_modified = modified
+            data_item._set_modified(modified)
+            document_model.append_data_item(data_item)
+            data_item.title = "BBB"
+            data_item.metadata = {"A": "B"}
+            self.assertEqual(modified, data_item.created)
+            self.assertLess(modified, data_item.modified)
+            self.assertEqual(modified, data_item.data_modified)
+
     def test_auto_migrate_handles_secondary_storage_types(self):
         current_working_directory = os.getcwd()
         library_dir = os.path.join(current_working_directory, "__Test")

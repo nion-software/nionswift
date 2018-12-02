@@ -185,14 +185,14 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         datum_dimension_count = len(dimensional_shape) - collection_dimension_count if dimensional_shape is not None else None
         self.define_property("data_shape", data_shape, hidden=True, recordable=False)
         self.define_property("data_dtype", data_dtype, hidden=True, recordable=False, converter=DtypeToStringConverter())
-        self.define_property("is_sequence", False, recordable=False, changed=self.__data_description_changed)
-        self.define_property("collection_dimension_count", collection_dimension_count, recordable=False, changed=self.__data_description_changed)
-        self.define_property("datum_dimension_count", datum_dimension_count, recordable=False, changed=self.__data_description_changed)
+        self.define_property("is_sequence", False, hidden=True, recordable=False, changed=self.__data_description_changed)
+        self.define_property("collection_dimension_count", collection_dimension_count, hidden=True, recordable=False, changed=self.__data_description_changed)
+        self.define_property("datum_dimension_count", datum_dimension_count, hidden=True, recordable=False, changed=self.__data_description_changed)
         self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
         self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__dimensional_calibrations_changed)
-        self.define_property("data_modified", recordable=False, converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
-        self.define_property("timezone", Utility.get_local_timezone(), changed=self.__timezone_property_changed)
-        self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), changed=self.__timezone_property_changed)
+        self.define_property("data_modified", hidden=True, recordable=False, converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
+        self.define_property("timezone", Utility.get_local_timezone(), hidden=True, changed=self.__timezone_property_changed, recordable=False)
+        self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), hidden=True, changed=self.__timezone_property_changed, recordable=False)
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
         self.define_property("title", UNTITLED_STR, changed=self.__property_changed)
         self.define_property("caption", changed=self.__property_changed)
@@ -255,7 +255,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         data_item_copy.large_format = self.large_format
         # metadata
         data_item_copy.created = self.created
-        data_item_copy.data_modified = self.data_modified
         data_item_copy.timezone = self.timezone
         data_item_copy.timezone_offset = self.timezone_offset
         data_item_copy.metadata = self.metadata
@@ -266,7 +265,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         data_item_copy.session_data = copy.deepcopy(self.session_data)
         data_item_copy.category = self.category
         # data and metadata
-        data_item_copy.set_data_and_metadata(copy.deepcopy(self.data_and_metadata))
+        data_item_copy.set_data_and_metadata(copy.deepcopy(self.data_and_metadata), self.data_modified)
         memo[id(self)] = data_item_copy
         return data_item_copy
 
@@ -328,10 +327,9 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         data_item = self.__class__()
         # data format (temporary until moved to buffered data source)
         data_item.large_format = self.large_format
-        data_item.set_data_and_metadata(copy.deepcopy(self.data_and_metadata))
+        data_item.set_data_and_metadata(copy.deepcopy(self.data_and_metadata), self.data_modified)
         # metadata
         data_item.created = self.created
-        data_item.data_modified = self.data_modified
         data_item.timezone = self.timezone
         data_item.timezone_offset = self.timezone_offset
         data_item.metadata = self.metadata
@@ -471,10 +469,10 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                     while len(dimensional_shape) < len(dimensional_calibrations):
                         dimensional_calibrations.pop(-1)
                 metadata = self._get_persistent_property_value("metadata")
-                timestamp = self._get_persistent_property_value("created")
+                timestamp = self._get_persistent_property_value("data_modified")
                 if timestamp is None:  # invalid timestamp -- set property to now but don't trigger change
-                    timestamp = datetime.datetime.now()
-                    self._get_persistent_property("created").value = timestamp
+                    timestamp = self.created or datetime.datetime.now()
+                    self._get_persistent_property("data_modified").value = timestamp
                 is_sequence = self._get_persistent_property_value("is_sequence", False)
                 collection_dimension_count = self._get_persistent_property_value("collection_dimension_count")
                 datum_dimension_count = self._get_persistent_property_value("datum_dimension_count")
@@ -494,10 +492,12 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                 with self.__data_ref_count_mutex:
                     self.__data_and_metadata._add_data_ref_count(self.__data_ref_count)
                 self.__data_and_metadata.unloadable = self.persistent_object_context is not None
+            else:
+                metadata = self._get_persistent_property_value("metadata")
+                self.__metadata = copy.deepcopy(metadata)
             self.__pending_write = False
             if self.created is None:  # invalid timestamp -- set property to now but don't trigger change
-                timestamp = datetime.datetime.now()
-                self._get_persistent_property("created").value = timestamp
+                self._get_persistent_property("created").value = datetime.datetime.now()
             self.__content_changed = False
         self.__pending_write = False
 
@@ -717,9 +717,10 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         if change_count == 0:
             if data_changed:
                 self.data_changed_event.fire()
-            if changed:
-                if not self._is_reading:
-                    self._handle_write_delay_data_changed()
+            if not self._is_reading:
+                if data_changed:
+                     self._handle_write_delay_data_changed()
+                if data_changed or changed:
                     self._notify_data_item_content_changed()
                     self.data_item_changed_event.fire()
         self.did_change_event.fire()
@@ -778,12 +779,12 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self._set_persistent_property_value("session", copy.deepcopy(value))
 
     @property
-    def session_data(self) -> dict:
-        return copy.deepcopy(self._get_persistent_property_value("session"))
+    def session_data(self) -> typing.Dict:
+        return self.session_metadata
 
     @session_data.setter
-    def session_data(self, value: dict) -> None:
-        self._set_persistent_property_value("session", copy.deepcopy(value))
+    def session_data(self, value: typing.Dict) -> None:
+        self.session_metadata = value
 
     def __validate_session_id(self, value):
         assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
@@ -895,7 +896,40 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.set_dimensional_calibrations(dimensional_calibrations)
 
     @property
-    def metadata(self) -> dict:
+    def data_modified(self) -> str:
+        return self.__data_and_metadata.timestamp if self.__data_and_metadata else None
+
+    @data_modified.setter
+    def data_modified(self, value: str) -> None:
+        if self.__data_and_metadata:
+            self.__data_and_metadata.timestamp = value
+            self._set_persistent_property_value("data_modified", value)
+            self.__metadata_property_changed("data_modified", value)
+
+    @property
+    def timezone(self) -> str:
+        return self.__data_and_metadata.timezone if self.__data_and_metadata else Utility.get_local_timezone()
+
+    @timezone.setter
+    def timezone(self, value):
+        if self.__data_and_metadata:
+            self.__data_and_metadata.timezone = value
+            self._set_persistent_property_value("timezone", value)
+            self.__timezone_property_changed("timezone", value)
+
+    @property
+    def timezone_offset(self) -> str:
+        return self.__data_and_metadata.timezone_offset if self.__data_and_metadata else Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
+
+    @timezone_offset.setter
+    def timezone_offset(self, value):
+        if self.__data_and_metadata:
+            self.__data_and_metadata.timezone_offset = value
+            self._set_persistent_property_value("timezone_offset", value)
+            self.__timezone_property_changed("timezone_offset", value)
+
+    @property
+    def metadata(self) -> typing.Dict:
         return copy.deepcopy(self.__data_and_metadata.metadata) if self.__data_and_metadata else self.__metadata
 
     @metadata.setter
@@ -949,10 +983,13 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                 self._set_persistent_property_value("timezone", timezone)
             if timezone_offset:
                 self._set_persistent_property_value("timezone_offset", timezone_offset)
-            metadata_copy = copy.deepcopy(self.__data_and_metadata.metadata)
-            self.__metadata = metadata_copy
-            self._set_persistent_property_value("metadata", metadata_copy)
-        self.data_modified = data_modified if data_modified else datetime.datetime.utcnow()
+            # explicitly set metadata into persistent storage to prevent notifications.
+            self.__metadata = self.__data_and_metadata.metadata
+            self._set_persistent_property_value("metadata", self.__metadata)
+            # set the data modified directly
+            data_modified = data_modified if data_modified else datetime.datetime.utcnow()
+            self.__data_and_metadata.timestamp = data_modified
+            self._set_persistent_property_value("data_modified", data_modified)
         self.__change_changed = True
         self.__change_data_changed = True
         if self._session_manager:
