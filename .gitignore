@@ -59,3 +59,6 @@ target/
 
 # Dummy files
 *~
+
+# Mac
+.DS_Store
