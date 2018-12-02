@@ -61,9 +61,9 @@ def migrate_to_v13(reader_info_list, library_updates):
 
                 if data_source_properties is not None:
                     if title is not None:
-                        data_source_properties.setdefault("metadata", dict())["title"] = title
+                        data_source_properties["title"] = title
                     if caption is not None:
-                        data_source_properties.setdefault("metadata", dict())["caption"] = caption
+                        data_source_properties["caption"] = caption
                 else:
                     if title is not None:
                         properties["title"] = title
@@ -86,17 +86,17 @@ def migrate_to_v13(reader_info_list, library_updates):
 
                 # copy session id, category to data source; move session data
 
-                session_id = properties.pop("session_id", None)
-                category = properties.pop("category", None)
+                session_id = properties.get("session_id", None)
+                category = properties.get("category", None)
                 session_data = properties.pop("session_metadata", None)
 
                 if data_source_properties is not None:
-                    if session_data is not None:
-                        data_source_properties.setdefault("metadata", dict())["session"] = session_data
                     if session_id is not None:
-                        data_source_properties.setdefault("metadata", dict()).setdefault("session", dict())["session_id"] = session_id
+                        data_source_properties["session_id"] = session_id
                     if category is not None:
-                        data_source_properties.setdefault("metadata", dict())["category"] = category
+                        data_source_properties["category"] = category
+                    if session_data is not None:
+                        data_source_properties["session"] = session_data
 
                     data_source_properties.pop("uuid", None)
 

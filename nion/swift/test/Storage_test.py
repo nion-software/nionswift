@@ -2971,7 +2971,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual("temporary", data_item.category)
             self.assertEqual("a big screwdriver", data_item.session_data["instrument"])
             self.assertEqual("a big screwdriver", data_item.session_metadata["instrument"])
-            self.assertEqual("AAA", data_item.metadata["a"])
+            self.assertEqual({"a": "AAA"}, data_item.metadata)
             self.assertNotIn("description", data_item_properties)
             self.assertNotIn("session_metadata", data_item_properties)
             self.assertEqual("Europe/Athens", data_item_properties["timezone"])
