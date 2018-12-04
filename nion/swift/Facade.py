@@ -2928,7 +2928,12 @@ class API_1:
             def can_write(self, data_and_metadata, extension):
                 return io_handler_delegate.can_write_data_and_metadata(data_and_metadata, extension)
 
-            def write(self, ui, data_item, file_path, extension):
+            def write_display_item(self, ui, display_item: DisplayItemModule.DisplayItem, file_path: str, extension: str) -> None:
+                data_item = display_item.data_item
+                if data_item:
+                    self.write_data_item(ui, data_item, file_path, extension)
+
+            def write_data_item(self, ui, data_item, file_path, extension):
                 data_and_metadata = data_item.xdata
                 data = data_and_metadata.data
                 if data is not None:

@@ -156,7 +156,7 @@ class ImportExportManager(metaclass=Utility.Singleton):
             extension = extension.lower()
             data_metadata = display_item.data_item.data_metadata
             if extension in writer.extensions and data_metadata and writer.can_write(data_metadata, extension):
-                writer.write_data_item(ui, display_item, path_str, extension)
+                writer.write_display_item(ui, display_item, path_str, extension)
 
     def write_display_item(self, ui, display_item: DisplayItem.DisplayItem, path_str: str) -> None:
         root, extension = os.path.splitext(path_str)
@@ -166,7 +166,7 @@ class ImportExportManager(metaclass=Utility.Singleton):
             for io_handler in self.__io_handlers:
                 data_metadata = display_item.data_item.data_metadata
                 if extension in io_handler.extensions and data_metadata and io_handler.can_write(data_metadata, extension):
-                    io_handler.write_data_item(ui, display_item, path_str, extension)
+                    io_handler.write_display_item(ui, display_item, path_str, extension)
 
 
 # create a new data item with a data element.
