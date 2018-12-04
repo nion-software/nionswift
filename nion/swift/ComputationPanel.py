@@ -498,7 +498,7 @@ class ComputationPanelSection:
             name_text_edit = ui.create_line_edit_widget()
             name_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "name"))
 
-            type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("data_source", _("Data Source")), ("graphic", _("Graphic"))]
+            type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("string", _("String")),("data_source", _("Data Source")), ("graphic", _("Graphic"))]
             type_combo_box = ui.create_combo_box_widget(items=type_items, item_getter=operator.itemgetter(1))
 
             remove_button = ui.create_push_button_widget(_("X"))
@@ -602,6 +602,41 @@ class ComputationPanelSection:
 
             return column
 
+        def make_string_row(ui, variable: Symbolic.ComputationVariable, converter, on_change_type_fn, on_remove_fn):
+            name_type_row = make_name_type_row(ui, variable, on_change_type_fn, on_remove_fn)
+
+            value_text_edit = ui.create_line_edit_widget()
+
+            value_default_text_edit = ui.create_line_edit_widget()
+
+            value_row = ui.create_row_widget()
+            value_row.add_spacing(8)
+            value_row.add(value_text_edit)
+            value_row.add_spacing(4)
+            value_row.add(value_default_text_edit)
+            value_row.add_stretch()
+
+            label_text_edit = ui.create_line_edit_widget()
+            label_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "label"))
+
+            display_row = ui.create_row_widget()
+            display_row.add_spacing(8)
+            display_row.add(label_text_edit)
+            display_row.add_stretch()
+
+            column = ui.create_column_widget()
+            column.add(make_label_row(ui, _("Variable Name / Type")))
+            column.add(name_type_row)
+            column.add(make_label_row(ui, _("Value / Default")))
+            column.add(value_row)
+            column.add(make_label_row(ui, _("Label")))
+            column.add(display_row)
+
+            value_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "value", converter=converter))
+            value_default_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "value_default", converter=converter))
+
+            return column
+
         def make_specifier_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn, *, include_secondary=False):
             column = ui.create_column_widget()
 
@@ -669,6 +704,8 @@ class ComputationPanelSection:
                 stack.add(make_number_row(ui, variable, Converter.IntegerToStringConverter(), change_type, on_remove))
             elif variable_type == "real":
                 stack.add(make_number_row(ui, variable, Converter.FloatToStringConverter(), change_type, on_remove))
+            elif variable_type == "string":
+                stack.add(make_string_row(ui, variable, None, change_type, on_remove))
             elif variable_type == "data_source":
                 stack.add(make_specifier_row(ui, variable, change_type, on_remove, include_secondary=True))
             elif variable_type == "graphic":

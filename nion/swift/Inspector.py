@@ -2485,6 +2485,10 @@ class VariableWidget(Widgets.CompositeWidgetBase):
             widget, closeables = make_image_chooser(document_controller, computation, variable)
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
+        elif variable.variable_type == "string":
+            widget, closeables = make_field(document_controller, computation, variable, None)
+            self.content_widget.add(widget)
+            self.closeables.extend(closeables)
 
 
 class ComputationInspectorSection(InspectorSection):

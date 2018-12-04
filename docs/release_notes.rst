@@ -5,6 +5,7 @@ Release Notes
 
 Version 0.14.0, UNRELEASED
 --------------------------
+* (2018-12-04) Add support for string types within computations (inspector, computation panel).
 * (2018-11-15) Make menu item for Assign Variable Reference be named sensibly.
 * (2018-10-29) Fix bug where line plot grid lines were not consistently drawn.
 * (2018-10-15) Introduce composite line plot display items (all inputs must have same calibration units).
