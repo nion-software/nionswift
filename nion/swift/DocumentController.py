@@ -1,4 +1,5 @@
 # standard libraries
+import collections
 import copy
 import functools
 import gettext
@@ -44,6 +45,7 @@ from nion.ui import PreferencesDialog
 from nion.ui import Window
 from nion.ui import UserInterface
 from nion.utils import Event
+from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Selection
 
@@ -256,6 +258,11 @@ class DocumentController(Window.Window):
             elif self.selected_display_item:
                 self.export_file(self.selected_display_item)
         self._export_action = self._file_menu.add_menu_item(_("Export..."), export_files)
+        def export_svg():
+            selected_display_item = self.selected_display_item
+            if selected_display_item:
+                self.export_svg(selected_display_item)
+        self._export_action = self._file_menu.add_menu_item(_("Export SVG..."), export_svg)
         #self._file_menu.add_separator()
         #self._save_action = self._file_menu.add_menu_item(_("Save"), self.no_operation, key_sequence="save")
         #self._save_as_action = self._file_menu.add_menu_item(_("Save As..."), self.no_operation, key_sequence="save-as")
@@ -934,6 +941,36 @@ class DocumentController(Window.Window):
             self.__dialogs.append(weakref.ref(export_dialog))
         elif len(display_items) == 1:
             self.export_file(display_items[0])
+
+    def export_svg(self, display_item: DisplayItem.DisplayItem) -> None:
+        filter = "SVG File (*.svg);;All Files (*.*)"
+        export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
+        export_dir = os.path.join(export_dir, display_item.displayed_title)
+        path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, None)
+        if path and not os.path.splitext(path)[1]:
+            path = path + os.path.extsep + "svg"
+        if path:
+            self.ui.set_persistent_string("export_directory", selected_directory)
+            FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
+
+            def get_font_metrics(font, text):
+                return FontMetrics(width=6.5 * len(text), height=15, ascent=12, descent=3, leading=0)
+
+            if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
+                display_shape = Geometry.IntSize(height=800, width=800)
+            else:
+                display_shape = Geometry.IntSize(height=600, width=800)
+
+            drawing_context, shape = DisplayPanel.preview(get_font_metrics, display_item, display_shape.width, display_shape.height)
+
+            view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
+
+            svg = drawing_context.to_svg(shape, view_box)
+
+            temp_filepath = path + ".temp"
+            with open(temp_filepath, "w") as fp:
+                fp.write(svg)
+            os.replace(temp_filepath, path)
 
     # this method creates a task. it is thread safe.
     def create_task_context_manager(self, title, task_type, logging=True):
