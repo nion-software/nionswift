@@ -1239,7 +1239,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def text_for_filter(self) -> str:
-        return " ".join([self.displayed_title, self.caption, self.description])
+        return " ".join([self.displayed_title, self.caption, self.description, self.size_and_data_format_as_string])
 
     @property
     def displayed_title(self):
