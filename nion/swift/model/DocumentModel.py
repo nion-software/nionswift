@@ -856,6 +856,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.insert_item("display_items", before_index, display_item)
         self.display_item_inserted_event.fire(self, display_item, before_index, False)
         display_item.connect_data_items(self.get_data_item_by_uuid)
+        assert not self._is_reading
+        display_item.session_id = self.session_id
+        self.__rebind_computations()  # rebind any unresolved that may now be resolved
         self.notify_insert_item("display_items", display_item, before_index)
 
     def remove_display_item(self, display_item) -> typing.Optional[typing.Sequence]:
@@ -864,10 +867,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __inserted_display_item(self, name, before_index, display_item):
         display_item.about_to_be_inserted(self)
         display_item.set_storage_cache(self.storage_cache)
-        # update the session
-        if not self._is_reading:
-            display_item.session_id = self.session_id
-            self.__rebind_computations()  # rebind any unresolved that may now be resolved
 
     def __remove_display_item(self, display_item, *, safe: bool=False) -> typing.Sequence:
         undelete_log = list()
@@ -2414,6 +2413,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def insert_data_structure(self, before_index, data_structure):
         self.insert_item("data_structures", before_index, data_structure)
+        assert not self._is_reading
+        self.__rebind_computations()  # rebind any unresolved that may now be resolved
         self.notify_insert_item("data_structures", data_structure, before_index)
 
     def remove_data_structure(self, data_structure: DataStructure) -> typing.Optional[typing.Sequence]:
@@ -2424,8 +2425,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         def rebuild_transactions(): self.__transaction_manager._rebuild_transactions()
         self.__data_structure_listeners[data_structure] = data_structure.referenced_objects_changed_event.listen(rebuild_transactions)
         self.__transaction_manager._add_item(data_structure)
-        if not self._is_reading:
-            self.__rebind_computations()  # rebind any unresolved that may now be resolved
 
     def __removed_data_structure(self, name, index, data_structure):
         self.__data_structure_listeners[data_structure].close()
@@ -2476,6 +2475,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         if input_set.intersection(output_set):
             raise Exception("Computation would result in duplicate dependency.")
         self.insert_item("computations", before_index, computation)
+        assert not self._is_reading
+        self.__computation_changed(computation)  # ensure the initial mutation is reported
         self.notify_insert_item("computations", computation, before_index)
 
     def remove_computation(self, computation: Symbolic.Computation, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
@@ -2515,8 +2516,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         computation.about_to_be_inserted(self)
         self.__computation_changed_listeners[computation] = computation.computation_mutated_event.listen(functools.partial(self.__computation_changed, computation))
         self.__computation_output_changed_listeners[computation] = computation.computation_output_changed_event.listen(functools.partial(self.__computation_update_dependencies, computation))
-        if not self._is_reading:
-            self.__computation_changed(computation)  # ensure the initial mutation is reported
 
     def __removed_computation(self, name: str, index: int, computation: Symbolic.Computation) -> None:
         with self.__computation_queue_lock:

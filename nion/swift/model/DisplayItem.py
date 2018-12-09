@@ -372,6 +372,8 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.__is_master = True
         self.__display_ref_count = 0
 
+        self.__slice_interval = None
+
         self.__data_item = None
         if data_item:
             self.data_item_reference = str(data_item.uuid)
@@ -610,6 +612,12 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
             self.slice_center = self.slice_center
             self.slice_width = old_slice_width
 
+        # the slice interval may be invalid if the associated data item is not valid;
+        # this ensures that as the data item becomes valid or invalid, the slice interval
+        # if updated accordingly.
+        if self.slice_interval != self.__slice_interval:
+            self.__slice_interval_changed("slice_interval", None)
+
     @property
     def slice_interval(self):
         data_metadata = self._get_data_metadata()
@@ -637,6 +645,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         # notify for dependent slice_interval property
         self.__property_changed(name, value)
         self.notify_property_changed("slice_interval")
+        self.__slice_interval = self.slice_interval
 
     def __color_map_id_changed(self, property_name, value):
         self.__property_changed(property_name, value)
@@ -1299,14 +1308,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__display_data_channel_data_item_changed_event_listeners.insert(before_index, display_data_channel.data_item_changed_event.listen(self.__item_changed))
         self.__display_data_channel_data_item_description_changed_event_listeners.insert(before_index, display_data_channel.data_item_description_changed_event.listen(self._description_changed))
         self.notify_insert_item("display_data_channels", display_data_channel, before_index)
-        # adjust the display layers
-        if not self._is_reading:
-            display_layers = self.display_layers
-            for display_layer in display_layers:
-                data_index = display_layer.get("data_index")
-                if data_index is not None and data_index >= before_index:
-                    display_layer["data_index"] = data_index + 1
-            self.display_layers = display_layers
 
     def __remove_display_data_channel(self, name, index, display_data_channel: DisplayDataChannel) -> None:
         display_data_channel.decrement_display_ref_count(self._display_ref_count)
@@ -1314,20 +1315,20 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__disconnect_display_data_channel(display_data_channel, index)
         display_data_channel.close()
         # adjust the display layers
-        if not self._is_reading:
-            display_layers = self.display_layers
-            new_display_layers = list()
-            for display_layer in display_layers:
-                data_index = display_layer.get("data_index")
-                if data_index is not None:
-                    if data_index < index:
-                        new_display_layers.append(display_layer)
-                    elif data_index > index:
-                        display_layer["data_index"] = data_index - 1
-                        new_display_layers.append(display_layer)
-                else:
+        assert not self._is_reading
+        display_layers = self.display_layers
+        new_display_layers = list()
+        for display_layer in display_layers:
+            data_index = display_layer.get("data_index")
+            if data_index is not None:
+                if data_index < index:
                     new_display_layers.append(display_layer)
-            self.display_layers = new_display_layers
+                elif data_index > index:
+                    display_layer["data_index"] = data_index - 1
+                    new_display_layers.append(display_layer)
+            else:
+                new_display_layers.append(display_layer)
+        self.display_layers = new_display_layers
 
     def __disconnect_display_data_channel(self, display_data_channel: DisplayDataChannel, index: int) -> None:
         self.__display_data_channel_property_changed_event_listeners[index].close()
@@ -1364,6 +1365,14 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def insert_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel) -> None:
         self.insert_model_item(self, "display_data_channels", before_index, display_data_channel)
+        # adjust the display layers
+        assert not self._is_reading
+        display_layers = self.display_layers
+        for display_layer in display_layers:
+            data_index = display_layer.get("data_index")
+            if data_index is not None and data_index >= before_index:
+                display_layer["data_index"] = data_index + 1
+        self.display_layers = display_layers
 
     def remove_display_data_channel(self, display_data_channel: DisplayDataChannel, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         return self.remove_model_item(self, "display_data_channels", display_data_channel, safe=safe)
