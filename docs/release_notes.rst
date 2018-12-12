@@ -3,8 +3,8 @@
 Release Notes
 =============
 
-Version 0.14.0, UNRELEASED
---------------------------
+Version 0.14.0, December 12, 2018
+---------------------------------
 * (2018-12-05) Allow text filtering in data panel on data shape and type.
 * (2018-12-05) Add export to SVG menu item File > Export SVG...
 * (2018-12-04) Add support for string types within computations (inspector, computation panel).
