@@ -23,6 +23,12 @@ color and stroke color. Additional layers can be added by dragging and removed u
 The display item feature also make it possible to have two simultaneous views of a single data item
 using the Display Copy command in the View menu.
 
+The procedure for updating files from file version 12 to 13 is to open the library folder in the new version -- files
+will be automatically updated, but may trigger a delay up to a couple minutes, depending on the size of the library. You
+can switch between old versions of Nion Swift and new versions, but when you have fully verified the new data and are
+only using the new version of Nion Swift, you can remove the old, unneeded data by removing the folder ``Nion Swift Data
+12`` in the library folder.
+
 Version 0.13.9, October 1, 2018
 -------------------------------
 * (2018-09-29) Minor improvements for data acquisition support.
