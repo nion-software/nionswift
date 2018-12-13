@@ -10,14 +10,14 @@ import uuid
 from nion.swift.model import Cache
 from nion.swift.model import DataItem
 from nion.swift.model import FileStorageSystem
-from nion.swift.model import MemoryStorageSystem
+from nion.utils import Event
 from nion.utils import Persistence
 
 
 class Profile:
 
     def __init__(self, storage_system=None, storage_cache=None, ignore_older_files=False):
-        self.__storage_system = storage_system if storage_system else MemoryStorageSystem.MemoryStorageSystem()
+        self.__storage_system = storage_system if storage_system else FileStorageSystem.FileStorageSystem(FileStorageSystem.MemoryLibraryHandler())
         self.__ignore_older_files = ignore_older_files
         self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
         # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
@@ -50,44 +50,24 @@ class MemoryProfileContext:
     # used for testing
 
     def __init__(self):
-        self.__storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        self.storage_cache = Cache.DictStorageCache()
+        self.library_properties = dict()
+        self.data_properties_map = dict()
+        self.data_map = dict()
+        self.trash_map = dict()
+        self._test_data_read_event = Event.Event()
+        library_handler = FileStorageSystem.MemoryLibraryHandler(library_properties=self.library_properties,
+                                                         data_properties_map=self.data_properties_map,
+                                                         data_map=self.data_map, trash_map=self.trash_map,
+                                                         data_read_event=self._test_data_read_event)
+        self.storage_system = FileStorageSystem.FileStorageSystem(library_handler)
 
     def create_profile(self, *, storage_cache=None) -> Profile:
-        storage_system = self.__storage_system
-        storage_cache = storage_cache or self.storage_cache
+        storage_system = self.storage_system
+        storage_cache = storage_cache or Cache.DictStorageCache()
         profile = Profile(storage_system=storage_system, storage_cache=storage_cache)
         profile.storage_cache = storage_cache
         profile.storage_system = storage_system
         return profile
-
-    @property
-    def project_properties(self) -> typing.Dict:
-        return self.__storage_system.library_properties
-
-    @property
-    def profile_properties(self) -> typing.Dict:
-        return self.__storage_system.library_properties
-
-    @profile_properties.setter
-    def profile_properties(self, value: typing.Dict) -> None:
-        self.__storage_system._set_library_properties(value)
-
-    @property
-    def data_map(self) -> typing.Dict:
-        return self.__storage_system.data
-
-    @property
-    def data_properties_map(self) -> typing.Dict:
-        return self.__storage_system.persistent_storage_properties
-
-    @property
-    def _test_data_read_event(self):
-        return self.__storage_system._test_data_read_event
-
-    @property
-    def storage_system(self):
-        return self.__storage_system
 
     def __enter__(self):
         return self
@@ -141,7 +121,7 @@ def create_profile(workspace_dir: pathlib.Path, do_logging: bool, force_create: 
     auto_migrations.append(AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Workspace.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data 11"]))
     auto_migrations.append(AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Library 12.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data 12"]))
     # NOTE: when adding an AutoMigration here, also add the corresponding file copy in _migrate_library
-    storage_system = FileStorageSystem.FileStorageSystem(library_path, [pathlib.Path(workspace_dir) / f"Nion Swift Data {DataItem.DataItem.storage_version}"], auto_migrations=auto_migrations)
+    storage_system = FileStorageSystem.FileStorageSystem(FileStorageSystem.FileLibraryHandler(library_path))
     cache_filename = f"Nion Swift Cache {DataItem.DataItem.storage_version}.nscache"
     cache_path = workspace_dir / cache_filename
     storage_cache = Cache.DbStorageCache(cache_path)

@@ -63,7 +63,7 @@ class TempProfileContext:
         cache_path = workspace_dir / "Data.cache"
         library_path = workspace_dir / library_name
         storage_cache = Cache.DbStorageCache(cache_path)
-        storage_system = FileStorageSystem.FileStorageSystem(library_path, [data_path], auto_migrations=auto_migrations)
+        storage_system = FileStorageSystem.FileStorageSystem(FileStorageSystem.FileLibraryHandler(library_path))
         profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, ignore_older_files=ignore_older_files)
         profile.storage_cache = storage_cache
         profile.storage_system = storage_system
@@ -71,7 +71,7 @@ class TempProfileContext:
 
     @property
     def _file_handlers(self):
-        return FileStorageSystem.FileStorageSystem._file_handlers
+        return FileStorageSystem.FileLibraryHandler._file_handlers
 
     def __enter__(self):
         return self

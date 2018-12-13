@@ -368,6 +368,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # first read the library (for deletions) and the library items from the primary storage systems
         properties = self.__profile.read_library()
 
+        # only add items that aren't in the library already.
+        # this will probably need rework to accommodate project loading/unloading.
+        # this does not handle any except data items.
+        data_item_uuids = {data_item.uuid for data_item in self.data_items}
+        data_item_d_list = list()
+        for data_item_d in properties.get("data_items", list()):
+            data_item_uuid = uuid.UUID(data_item_d["uuid"])
+            if not data_item_uuid in data_item_uuids:
+                data_item_d_list.append(data_item_d)
+                data_item_uuids.add(data_item_uuid)
+        properties["data_items"] = data_item_d_list
+
         self.begin_reading()
         try:
             self.read_from_dict(properties)
