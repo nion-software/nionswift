@@ -2233,6 +2233,18 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(2, len(document_model.get_display_items_for_data_item(data_item2)))
 
+    def test_modified_property_is_updated_when_child_item_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2,)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            graphic = Graphics.PointGraphic()
+            display_item.add_graphic(graphic)
+            modified = display_item.modified
+            graphic.label = "Fred"
+            self.assertGreater(display_item.modified, modified)
+
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)
