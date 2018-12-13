@@ -732,7 +732,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         with self.__data_ref_count_mutex:
             initial_count = self.__data_ref_count
             self.__data_ref_count += 1
-            if initial_count == 0 and self.__data_and_metadata:
+            if self.__data_and_metadata:
                 self.__data_and_metadata.increment_data_ref_count()
         return initial_count+1
 
@@ -741,7 +741,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             assert self.__data_ref_count > 0
             self.__data_ref_count -= 1
             final_count = self.__data_ref_count
-            if final_count == 0 and self.__data_and_metadata:
+            if self.__data_and_metadata:
                 self.__data_and_metadata.decrement_data_ref_count()
         return final_count
 
@@ -964,9 +964,11 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         return None
 
     def __set_data_metadata_direct(self, data_and_metadata, data_modified=None):
-        self.__data_and_metadata = data_and_metadata
-        if self.__data_and_metadata:
-            with self.__data_ref_count_mutex:
+        with self.__data_ref_count_mutex:
+            if self.__data_and_metadata:
+                self.__data_and_metadata._subtract_data_ref_count(self.__data_ref_count)
+            self.__data_and_metadata = data_and_metadata
+            if self.__data_and_metadata:
                 self.__data_and_metadata._add_data_ref_count(self.__data_ref_count)
         if self.__data_and_metadata:
             self._set_persistent_property_value("data_shape", self.__data_and_metadata.data_shape)

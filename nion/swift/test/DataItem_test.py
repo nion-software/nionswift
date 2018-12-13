@@ -1294,6 +1294,17 @@ class TestDataItemClass(unittest.TestCase):
                 Utility.local_timezone_override = None
                 Utility.local_utcoffset_override = None
 
+    def test_xdata_data_ref_counts_are_correct_after_setting_xdata_on_data_item_in_transaction(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((16, 16)))
+            data_item_xdata = data_item.xdata
+            self.assertEqual(0, data_item_xdata._data_ref_count)
+            with document_model.item_transaction(data_item):
+                self.assertEqual(1, data_item_xdata._data_ref_count)
+                data_item.set_data(numpy.zeros((16, 16)))
+            self.assertEqual(0, data_item_xdata._data_ref_count)
+
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot
 
