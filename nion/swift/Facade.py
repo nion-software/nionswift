@@ -57,6 +57,7 @@ from nion.swift import DisplayPanel as DisplayPanelModule
 from nion.swift import Panel as PanelModule
 from nion.swift import Workspace
 from nion.swift.model import ApplicationData
+from nion.swift.model import DataStructure as DataStructureModule
 from nion.swift.model import DataItem as DataItemModule
 from nion.swift.model import DisplayItem as DisplayItemModule
 from nion.swift.model import DocumentModel as DocumentModelModule
@@ -2027,11 +2028,11 @@ class Instrument(metaclass=SharedInstance):
 class DataStructure(metaclass=SharedInstance):
     release = ["uuid"]
 
-    def __init__(self, data_structure: DocumentModelModule.DataStructure):
+    def __init__(self, data_structure: DataStructureModule.DataStructure):
         self.__data_structure = data_structure
 
     @property
-    def _data_structure(self) -> DocumentModelModule.DataStructure:
+    def _data_structure(self) -> DataStructureModule.DataStructure:
         return self.__data_structure
 
     @property
@@ -3298,7 +3299,7 @@ def _new_api_object(object):
         return DataSource(object)
     if isinstance(object, Symbolic.Computation):
         return Computation(object)
-    if isinstance(object, DocumentModelModule.DataStructure):
+    if isinstance(object, DataStructureModule.DataStructure):
         return DataStructure(object)
     return None
 

@@ -27,6 +27,7 @@ from nion.swift.model import Cache
 from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
+from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
@@ -112,163 +113,6 @@ class AutoMigration:
         self.storage_system = storage_system
 
 
-class DataStructure(Observable.Observable, Persistence.PersistentObject):
-    # regarding naming: https://en.wikipedia.org/wiki/Passive_data_structure
-    def __init__(self, *, structure_type: str=None, source=None):
-        super().__init__()
-        self.__container_weak_ref = None
-        self.about_to_be_removed_event = Event.Event()
-        self._about_to_be_removed = False
-        self._closed = False
-        self.__properties = dict()
-        self.__referenced_objects = dict()
-        self.define_type("data_structure")
-        self.define_property("structure_type", structure_type)
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
-        # properties is handled explicitly
-        self.data_structure_changed_event = Event.Event()
-        self.referenced_objects_changed_event = Event.Event()
-        self.__source = source
-        if source is not None:
-            self.source_uuid = source.uuid
-
-    def close(self):
-        assert self._about_to_be_removed
-        assert not self._closed
-        self._closed = True
-        self.__container_weak_ref = None
-
-    def __getattr__(self, name):
-        properties = self.__dict__.get("_DataStructure__properties", dict())
-        if name in properties:
-            return properties[name]
-        return super().__getattr__(name)
-
-    def __setattr__(self, name, value):
-        properties = self.__dict__.get("_DataStructure__properties", dict())
-        if name in properties:
-            if value is not None:
-                self.set_property_value(name, value)
-            else:
-                self.remove_property_value(name)
-        else:
-            super().__setattr__(name, value)
-
-    @property
-    def container(self):
-        return self.__container_weak_ref()
-
-    def about_to_be_inserted(self, container):
-        assert self.__container_weak_ref is None
-        self.__container_weak_ref = weakref.ref(container)
-
-    def about_to_be_removed(self):
-        # called before close and before item is removed from its container
-        self.about_to_be_removed_event.fire()
-        assert not self._about_to_be_removed
-        self._about_to_be_removed = True
-        self.__container_weak_ref = None
-
-    def insert_model_item(self, container, name, before_index, item):
-        if self.__container_weak_ref:
-            self.container.insert_model_item(container, name, before_index, item)
-        else:
-            container.insert_item(name, before_index, item)
-
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
-        if self.__container_weak_ref:
-            return self.container.remove_model_item(container, name, item, safe=safe)
-        else:
-            container.remove_item(name, item)
-            return None
-
-    def read_from_dict(self, properties):
-        super().read_from_dict(properties)
-        self.__properties = properties.get("properties")
-
-    def write_to_dict(self):
-        properties = super().write_to_dict()
-        properties["properties"] = copy.deepcopy(self.__properties)
-        return properties
-
-    @property
-    def source(self):
-        return self.__source
-
-    @source.setter
-    def source(self, source):
-        self.__source = source
-        self.source_uuid = source.uuid if source else None
-
-    def persistent_object_context_changed(self):
-        """ Override from PersistentObject. """
-        super().persistent_object_context_changed()
-
-        def source_registered(source):
-            self.__source = source
-
-        def source_unregistered(source=None):
-            pass
-
-        def reference_registered(property_name, reference):
-            self.__referenced_objects[property_name] = reference
-
-        def reference_unregistered(property_name, reference=None):
-            pass
-
-        if self.persistent_object_context:
-            self.persistent_object_context.subscribe(self.source_uuid, source_registered, source_unregistered)
-
-            for property_name, value in self.__properties.items():
-                if isinstance(value, dict) and value.get("type") in {"data_item", "data_source", "graphic", "structure"} and "uuid" in value:
-                    self.persistent_object_context.subscribe(uuid.UUID(value["uuid"]), functools.partial(reference_registered, property_name), functools.partial(reference_unregistered, property_name))
-        else:
-            source_unregistered()
-
-            for property_name, value in self.__properties.items():
-                if isinstance(value, dict) and value.get("type") in {"data_source", "graphic", "structure"} and "uuid" in value:
-                    reference_unregistered(property_name)
-
-    def set_property_value(self, property: str, value) -> None:
-        self.__properties[property] = value
-        self.__referenced_objects.pop(property, None)
-        self.data_structure_changed_event.fire(property)
-        self.property_changed_event.fire(property)
-        self._update_persistent_property("properties", self.__properties)
-
-    def remove_property_value(self, property: str) -> None:
-        if property in self.__properties:
-            self.__properties.pop(property)
-            self.__referenced_objects.pop(property, None)
-            self.data_structure_changed_event.fire(property)
-            self.property_changed_event.fire(property)
-            self._update_persistent_property("properties", self.__properties)
-
-    def get_property_value(self, property: str, default_value=None):
-        return self.__properties.get(property, default_value)
-
-    def set_referenced_object(self, property: str, item) -> None:
-        assert item is not None
-        if item != self.__referenced_objects.get(property):
-            object_type = "data_item" if isinstance(item, DataItem.DataItem) else None
-            self.__properties[property] = get_object_specifier(item, object_type)
-            self.data_structure_changed_event.fire(property)
-            self.property_changed_event.fire(property)
-            self._update_persistent_property("properties", self.__properties)
-            self.__referenced_objects[property] = item
-            self.referenced_objects_changed_event.fire()
-
-    def remove_referenced_object(self, property: str) -> None:
-        self.remove_property_value(property)
-
-    def get_referenced_object(self, property: str):
-        return self.__referenced_objects.get(property)
-
-    @property
-    def _referenced_objects(self):
-        return self.__referenced_objects.values()
-
-
 def data_item_factory(lookup_id):
     data_item_uuid = uuid.UUID(lookup_id("uuid"))
     large_format = lookup_id("__large_format", False)
@@ -285,25 +129,7 @@ def computation_factory(lookup_id):
 
 
 def data_structure_factory(lookup_id):
-    return DataStructure()
-
-
-def get_object_specifier(object, object_type: str=None) -> typing.Optional[typing.Mapping]:
-    if isinstance(object, DataItem.DataItem):
-        return {"version": 1, "type": object_type or "data_item", "uuid": str(object.uuid)}
-    if object_type in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
-        assert isinstance(object, DisplayItem.DisplayDataChannel)
-        return {"version": 1, "type": object_type, "uuid": str(object.uuid)}
-    assert not isinstance(object, DataItem.DataItem)
-    assert not isinstance(object, DisplayItem.DisplayItem)
-    if isinstance(object, DisplayItem.DisplayDataChannel):
-        # should be "data_source" but requires file format change
-        return {"version": 1, "type": "data_source", "uuid": str(object.uuid)}
-    elif isinstance(object, Graphics.Graphic):
-        return {"version": 1, "type": "graphic", "uuid": str(object.uuid)}
-    elif isinstance(object, DataStructure):
-        return {"version": 1, "type": "structure", "uuid": str(object.uuid)}
-    return None
+    return DataStructure.DataStructure()
 
 
 class Transaction:
@@ -410,7 +236,7 @@ class TransactionManager:
             if isinstance(item, DataItem.DataItem):
                 for display_item in self.__document_model.get_display_items_for_data_item(item):
                     self.__get_deep_transaction_item_set(display_item, items)
-            if isinstance(item, DataStructure):
+            if isinstance(item, DataStructure.DataStructure):
                 for referenced_object in item._referenced_objects:
                     self.__get_deep_transaction_item_set(referenced_object, items)
             if isinstance(item, Connection.Connection):
@@ -727,11 +553,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         assert data_item.uuid not in self.__uuid_to_data_item
         # ensure the data item has a new persistent storage
         assert not self.persistent_object_context._get_persistent_storage_for_object(data_item)
-        do_write = True
         # update the session
         data_item.session_id = self.session_id
         # insert in internal list
-        self.__insert_data_item(before_index, data_item, do_write)
+        self.__insert_data_item(before_index, data_item, do_write=True)
         # automatically add a display
         if auto_display:
             display_item = DisplayItem.DisplayItem(data_item=data_item)
@@ -1089,7 +914,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 name = "display_items"
             elif isinstance(item, Graphics.Graphic):
                 name = "graphics"
-            elif isinstance(item, DataStructure):
+            elif isinstance(item, DataStructure.DataStructure):
                 name = "data_structures"
             elif isinstance(item, Symbolic.Computation):
                 name = "computations"
@@ -1172,7 +997,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 item.finish_reading()
                 self.insert_connection(index, item)
             elif name == "data_structures":
-                item = data_structure_factory(properties.get)
+                item = DataStructure.DataStructure()
                 item.begin_reading()
                 item.read_from_dict(properties)
                 item.finish_reading()
@@ -1677,7 +1502,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             await event_loop.run_in_executor(None, sync_recompute)
 
     def get_object_specifier(self, object, object_type: str=None) -> typing.Optional[typing.Dict]:
-        return get_object_specifier(object, object_type)
+        return DataStructure.get_object_specifier(object, object_type)
 
     def get_graphic_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Graphics.Graphic]:
         for display_item in self.display_items:
@@ -1686,7 +1511,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     return graphic
         return None
 
-    def get_data_structure_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[DataStructure]:
+    def get_data_structure_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[DataStructure.DataStructure]:
         for data_structure in self.data_structures:
             if data_structure.uuid == object_uuid:
                 return data_structure
@@ -2406,7 +2231,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         connection.close()
 
     def create_data_structure(self, *, structure_type: str=None, source=None):
-        return DataStructure(structure_type=structure_type, source=source)
+        return DataStructure.DataStructure(structure_type=structure_type, source=source)
 
     def append_data_structure(self, data_structure):
         self.insert_data_structure(len(self.data_structures), data_structure)
@@ -2417,7 +2242,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__rebind_computations()  # rebind any unresolved that may now be resolved
         self.notify_insert_item("data_structures", data_structure, before_index)
 
-    def remove_data_structure(self, data_structure: DataStructure) -> typing.Optional[typing.Sequence]:
+    def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> typing.Optional[typing.Sequence]:
         return self.__cascade_delete(data_structure)
 
     def __inserted_data_structure(self, name, before_index, data_structure):
