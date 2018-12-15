@@ -373,11 +373,12 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def _finish_pending_write(self):
         if self.__pending_write:
-            # write the uuid and version explicitly
-            self.persistent_object_context.property_changed(self, "uuid", str(self.uuid))
-            self.persistent_object_context.property_changed(self, "version", DataItem.writer_version)
-            self.__write_data()
-            self.__pending_write = False
+            if not self.persistent_object_context.is_write_delayed(self):
+                # write the uuid and version explicitly
+                self.persistent_object_context.property_changed(self, "uuid", str(self.uuid))
+                self.persistent_object_context.property_changed(self, "version", DataItem.writer_version)
+                self.__write_data()
+                self.__pending_write = False
         else:
             if self.modified_count > self.__write_delay_modified_count:
                 self.persistent_object_context.rewrite_item(self)

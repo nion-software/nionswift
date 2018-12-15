@@ -304,8 +304,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
         # there is a single shared object context per document model.
         self.persistent_object_context = Persistence.PersistentObjectContext()
-
         self.persistent_object_context._set_persistent_storage_for_object(self, self.__storage_system)
+
         self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
         self.__transaction_manager = TransactionManager(self)
         self.__data_structure_listeners = dict()
@@ -385,8 +385,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__uuid_to_data_item[data_item.uuid] = data_item
             data_item.about_to_be_inserted(self)
             data_item.set_storage_cache(self.storage_cache)
-            # persistent storage facilitates writing properties and relationships to the storage handler
-            self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
         for data_item in data_items:
             self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
         for data_item in data_items:
@@ -411,7 +409,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item = self.get_data_item_by_uuid(uuid.UUID(data_item_uuid))
             if data_item:
                 self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, data_item))
-        # all data items will already have a persistent_object_context
         for data_group in self.data_groups:
             data_group.connect_display_items(self.get_display_item_by_uuid)
         # handle the reference variable assignments
@@ -543,16 +540,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def insert_data_item(self, before_index, data_item, auto_display: bool = True) -> None:
         """Insert a new data item into document model.
 
-        Data item will have persistent_object_context set upon return.
-
         This method is NOT threadsafe.
         """
         assert data_item is not None
         assert data_item not in self.data_items
         assert before_index <= len(self.data_items) and before_index >= 0
         assert data_item.uuid not in self.__uuid_to_data_item
-        # ensure the data item has a new persistent storage
-        assert not self.persistent_object_context._get_persistent_storage_for_object(data_item)
         # update the session
         data_item.session_id = self.session_id
         # insert in internal list
@@ -568,10 +561,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__uuid_to_data_item[data_item.uuid] = data_item
         data_item.about_to_be_inserted(self)
         data_item.set_storage_cache(self.storage_cache)
-        # persistent storage facilitates writing properties and relationships to the storage handler
-        # persistent object context tracks the persistent storage for each object in the system
-        data_item.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
-        if do_write and not self.persistent_object_context.is_write_delayed(data_item):
+        if do_write:
             # don't directly write data item, or else write_pending is not cleared on data item
             # call finish pending write instead
             data_item._finish_pending_write()  # initially write to disk
@@ -594,8 +584,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def remove_data_item(self, data_item: DataItem.DataItem, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         """Remove data item from document model.
-
-        Data item will have persistent_object_context cleared upon return.
 
         This method is NOT threadsafe.
         """
