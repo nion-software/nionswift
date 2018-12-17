@@ -19,6 +19,7 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import MemoryStorageSystem
+from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.ui import TestUI
 from nion.utils import Recorder
@@ -38,7 +39,7 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_remove_data_items_on_document_model(self):
         cache_name = ":memory:"
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_cache=storage_cache))
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem()
             data_item1.title = 'title'
@@ -56,7 +57,7 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_removing_data_item_should_remove_from_groups_too(self):
         cache_name = ":memory:"
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_cache=storage_cache))
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem()
             data_item1.title = 'title'
@@ -78,7 +79,7 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_loading_document_with_duplicated_data_items_ignores_earlier_ones(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -90,7 +91,7 @@ class TestDocumentModelClass(unittest.TestCase):
         memory_persistent_storage_system.data[new_data_key] = copy.deepcopy(memory_persistent_storage_system.data[old_data_key])
         memory_persistent_storage_system.persistent_storage_properties[new_properties_key] = copy.deepcopy(memory_persistent_storage_system.persistent_storage_properties[old_properties_key])
         # reload and verify
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
             self.assertEqual(len(document_model.data_items), 1)
@@ -301,7 +302,7 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_display_item_associated_with_data_item_should_be_under_transaction(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -315,7 +316,7 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_display_item_associated_with_dependent_data_items_should_be_under_transaction(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -2178,7 +2179,7 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_delete_display_item_with_missing_data_item_reference(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem(numpy.ones((2, 2)))
             document_model.append_data_item(data_item1)
@@ -2191,7 +2192,7 @@ class TestDocumentModelClass(unittest.TestCase):
         library_storage_properties = memory_persistent_storage_system.library_storage_properties
         library_storage_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
         memory_persistent_storage_system._set_properties(library_storage_properties)
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         with contextlib.closing(document_model):
             document_model.remove_display_item(document_model.display_items[-1])
 

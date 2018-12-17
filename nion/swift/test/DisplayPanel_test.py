@@ -23,6 +23,7 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import MemoryStorageSystem
+from nion.swift.model import Profile
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import TestUI
@@ -1957,7 +1958,7 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_line_plot_display_item_with_missing_data_item_fails_gracefully(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item1 = DataItem.DataItem(numpy.ones((2,)))
@@ -1976,7 +1977,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         library_storage_properties = memory_persistent_storage_system.library_storage_properties
         library_storage_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
         memory_persistent_storage_system._set_properties(library_storage_properties)
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             display_panel = document_controller.selected_display_panel
@@ -1986,7 +1987,7 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_image_display_item_with_missing_data_item_fails_gracefully(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item1 = DataItem.DataItem(numpy.ones((2, 2)))
@@ -2005,7 +2006,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         library_storage_properties = memory_persistent_storage_system.library_storage_properties
         library_storage_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
         memory_persistent_storage_system._set_properties(library_storage_properties)
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             display_panel = document_controller.selected_display_panel

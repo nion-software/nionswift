@@ -391,7 +391,7 @@ class FileStorageSystem:
     def read_data_items_version_stats(self):
         return read_data_items_version_stats(self)
 
-    def read_library(self, ignore_older_files) -> typing.Mapping:
+    def read_library(self, ignore_older_files) -> typing.Dict:
         return read_library(self, ignore_older_files)
 
 
@@ -415,7 +415,7 @@ def read_data_items_version_stats(persistent_storage_system):
     return count
 
 
-def read_library(persistent_storage_system, ignore_older_files) -> typing.Mapping:
+def read_library(persistent_storage_system, ignore_older_files) -> typing.Dict:
     """Read data items from the data reference handler and return as a list.
 
     Data items will have persistent_object_context set upon return, but caller will need to call finish_reading

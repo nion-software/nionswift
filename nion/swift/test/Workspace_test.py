@@ -18,6 +18,7 @@ from nion.swift import Workspace
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import MemoryStorageSystem
+from nion.swift.model import Profile
 from nion.swift.test import DocumentController_test
 from nion.ui import CanvasItem
 from nion.ui import TestUI
@@ -272,7 +273,7 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_workspace_records_json_compatible_content_when_closing_document(self):
         storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             workspace_1x1 = document_controller.document_model.workspaces[0]
@@ -285,7 +286,7 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_workspace_saves_contents_immediately_following_change(self):
         storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -296,7 +297,7 @@ class TestWorkspaceClass(unittest.TestCase):
             # copy the storage before the document closes
             storage_system_copy = copy.deepcopy(storage_system)
         # reload with the storage copied before the document closes
-        document_model = DocumentModel.DocumentModel(storage_system=storage_system_copy)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system_copy))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             workspace_controller = document_controller.workspace_controller
@@ -304,7 +305,7 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_workspace_saves_contents_immediately_following_adjustment(self):
         storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             workspace_controller = document_controller.workspace_controller
@@ -319,7 +320,7 @@ class TestWorkspaceClass(unittest.TestCase):
             # copy the storage before the document closes
             storage_system_copy = copy.deepcopy(storage_system)
         # reload with the storage copied before the document closes
-        document_model = DocumentModel.DocumentModel(storage_system=storage_system_copy)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system_copy))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             workspace_controller = document_controller.workspace_controller
@@ -332,7 +333,7 @@ class TestWorkspaceClass(unittest.TestCase):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
         try:
             storage_system = MemoryStorageSystem.MemoryStorageSystem()
-            document_model = DocumentModel.DocumentModel(storage_system=storage_system)
+            document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             with contextlib.closing(document_controller):
                 workspace_controller = document_controller.workspace_controller
@@ -344,7 +345,7 @@ class TestWorkspaceClass(unittest.TestCase):
                 # copy the storage before the document closes
                 storage_system_copy = copy.deepcopy(storage_system)
             # reload with the storage copied before the document closes
-            document_model = DocumentModel.DocumentModel(storage_system=storage_system_copy)
+            document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system_copy))
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             with contextlib.closing(document_controller):
                 workspace_controller = document_controller.workspace_controller
@@ -357,7 +358,7 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_workspace_saves_contents_immediately_following_view_change(self):
         storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             workspace_controller = document_controller.workspace_controller
@@ -369,7 +370,7 @@ class TestWorkspaceClass(unittest.TestCase):
             # copy the storage before the document closes
             storage_system_copy = copy.deepcopy(storage_system)
         # reload with the storage copied before the document closes
-        document_model = DocumentModel.DocumentModel(storage_system=storage_system_copy)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system_copy))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             workspace_controller = document_controller.workspace_controller
@@ -729,7 +730,7 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_workspace_records_and_reloads_image_panel_contents(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             workspace_1x1 = document_controller.document_model.workspaces[0]
@@ -737,7 +738,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
         # reload
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             workspace_1x1 = document_controller.document_model.workspaces[0]
@@ -1314,7 +1315,7 @@ class TestWorkspaceClass(unittest.TestCase):
             DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("error", TestWorkspaceClass.DisplayPanelControllerFactory())
             try:
                 storage_system = MemoryStorageSystem.MemoryStorageSystem()
-                document_model = DocumentModel.DocumentModel(storage_system=storage_system)
+                document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
                 document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
                 # first create a workspace
                 with contextlib.closing(document_controller):
@@ -1325,7 +1326,7 @@ class TestWorkspaceClass(unittest.TestCase):
                 library_storage_properties["workspaces"][1]["layout"]["children"][0]["controller_type"] = "error"
                 # create a new document based on the corrupt layout
                 storage_system_copy = copy.deepcopy(storage_system)
-                document_model = DocumentModel.DocumentModel(storage_system=storage_system_copy)
+                document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system_copy))
                 document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
                 with contextlib.closing(document_controller):
                     pass

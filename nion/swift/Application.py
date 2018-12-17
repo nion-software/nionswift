@@ -37,6 +37,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import FileStorageSystem
 from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
+from nion.swift.model import Profile
 from nion.swift.model import Utility
 from nion.ui import Application as UIApplication
 from nion.ui import Dialog
@@ -315,8 +316,8 @@ class Application(UIApplication.Application):
     def continue_start(self, cache_path, create_new_document, file_persistent_storage_system, workspace_dir, ignore_older_files, welcome_message=True):
         storage_cache = Cache.DbStorageCache(cache_path)
         DocumentModel.DocumentModel.computation_min_period = 0.1
-        document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system,
-                                                     storage_cache=storage_cache, ignore_older_files=ignore_older_files)
+        profile = Profile.Profile(storage_system=file_persistent_storage_system, storage_cache=storage_cache, ignore_older_files=ignore_older_files)
+        document_model = DocumentModel.DocumentModel(profile=profile)
         document_model.create_default_data_groups()
         document_model.start_dispatcher()
         # parse the hardware aliases file

@@ -14,7 +14,6 @@ from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import Facade
-from nion.swift.model import Cache
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
@@ -29,9 +28,7 @@ class TestProcessingClass(unittest.TestCase):
 
     def setUp(self):
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
-        cache_name = ":memory:"
-        storage_cache = Cache.DbStorageCache(cache_name)
-        self.document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
+        self.document_model = DocumentModel.DocumentModel()
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.display_panel = self.document_controller.selected_display_panel
         self.data_item = DataItem.DataItem(numpy.zeros((10, 10)))

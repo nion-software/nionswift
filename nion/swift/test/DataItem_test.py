@@ -26,6 +26,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import MemoryStorageSystem
+from nion.swift.model import Profile
 from nion.swift.model import Utility
 from nion.ui import TestUI
 from nion.utils import Recorder
@@ -1107,7 +1108,7 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_data_item_in_transaction_does_not_write_until_end_of_transaction(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
             with document_model.item_transaction(data_item):
@@ -1117,7 +1118,7 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_extra_changing_data_item_session_id_in_transaction_does_not_result_in_duplicated_data_items(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
             with document_model.item_transaction(data_item):
@@ -1129,7 +1130,7 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_changing_data_item_session_id_in_transaction_does_not_result_in_duplicated_data_items(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
             with document_model.item_transaction(data_item):

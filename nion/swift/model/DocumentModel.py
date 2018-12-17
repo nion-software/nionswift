@@ -33,6 +33,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
 from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
+from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
 from nion.swift.model import MemoryStorageSystem
@@ -278,7 +279,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     computation_min_period = 0.0
     library_version = 2
 
-    def __init__(self, *, storage_system=None, storage_cache=None, ignore_older_files=False):
+    def __init__(self, *, profile: Profile.Profile = None):
         super().__init__()
 
         self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
@@ -297,16 +298,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         self.__thread_pool = ThreadPool.ThreadPool()
         self.__computation_thread_pool = ThreadPool.ThreadPool()
-        self.__storage_system = storage_system if storage_system else MemoryStorageSystem.MemoryStorageSystem()
-        self.__storage_system.reset()  # this makes storage reusable during tests
-        self.__ignore_older_files = ignore_older_files
+
+        self.__profile = profile if profile else Profile.Profile()
 
         # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
-        # there is a single shared object context per document model.
-        self.persistent_object_context = Persistence.PersistentObjectContext()
-        self.persistent_object_context._set_persistent_storage_for_object(self, self.__storage_system)
+        # there is a single shared object context per document model. this code establishes that connection.
+        self.persistent_object_context = self.__profile.persistent_object_context
+        self.__profile.connect_document_model(self)
 
-        self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
+        self.storage_cache = self.__profile.storage_cache
         self.__transaction_manager = TransactionManager(self)
         self.__data_structure_listeners = dict()
         self.__live_data_items_lock = threading.RLock()
@@ -338,8 +338,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.start_new_session()
         self.__prune()
         self.__read()
-        self.__storage_system.set_property(self, "uuid", str(self.uuid))
-        self.__storage_system.set_property(self, "version", DocumentModel.library_version)
+        self.__profile.validate_uuid_and_version(self, self.uuid, DocumentModel.library_version)
 
         self.__data_channel_updated_listeners = dict()
         self.__data_channel_start_listeners = dict()
@@ -365,11 +364,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__hardware_source_added(hardware_source)
 
     def __prune(self):
-        self.__storage_system.prune()
+        self.__profile.prune()
 
     def __read(self):
         # first read the library (for deletions) and the library items from the primary storage systems
-        properties = self.__storage_system.read_library(self.__ignore_older_files)
+        properties = self.__profile.read_library()
 
         self.begin_reading()
         try:
@@ -633,7 +632,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int=None) -> DataItem.DataItem:
         before_index = before_index if before_index is not None else len(self.data_items)
-        properties = self.__storage_system.restore_item(data_item_uuid)
+        properties = self.__profile.restore_data_item(data_item_uuid)
         data_item = data_item_factory(lambda k, dv=None: properties.get(k, dv))
         data_item.begin_reading()
         data_item.read_from_dict(properties)

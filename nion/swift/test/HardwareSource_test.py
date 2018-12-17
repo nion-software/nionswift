@@ -14,6 +14,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
 from nion.swift.model import ImportExportManager
 from nion.swift.model import MemoryStorageSystem
+from nion.swift.model import Profile
 from nion.swift.model import Utility
 from nion.swift import Application
 from nion.swift import DocumentController
@@ -504,7 +505,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller.periodic()
 
     def __setup_simple_hardware_source(self, storage_system=None):
-        document_model = DocumentModel.DocumentModel(storage_system=storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         hardware_source = SimpleHardwareSource()
         hardware_source.exposure = 0.01
@@ -512,7 +513,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         return document_controller, document_model, hardware_source
 
     def __setup_summed_hardware_source(self, storage_system=None):
-        document_model = DocumentModel.DocumentModel(storage_system=storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         hardware_source = SummedHardwareSource()
         hardware_source.exposure = 0.01
@@ -520,7 +521,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         return document_controller, document_model, hardware_source
 
     def __setup_line_plot_hardware_source(self, shape, processed=False, storage_system=None):
-        document_model = DocumentModel.DocumentModel(storage_system=storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         hardware_source = LinePlotHardwareSource(shape, processed)
         hardware_source.exposure = 0.01
@@ -878,7 +879,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.__acquire_one(document_controller, hardware_source)
             self.assertEqual(len(document_model.data_items), 2)
         # reload
-        document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
