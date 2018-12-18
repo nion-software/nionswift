@@ -18,7 +18,6 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import MemoryStorageSystem
 from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.ui import TestUI
@@ -26,6 +25,10 @@ from nion.utils import Recorder
 
 
 Facade.initialize()
+
+
+def create_memory_profile_context():
+    return Profile.MemoryProfileContext()
 
 
 class TestDocumentModelClass(unittest.TestCase):
@@ -78,23 +81,23 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(data_group.counted_display_items[display_item2], 1)
 
     def test_loading_document_with_duplicated_data_items_ignores_earlier_ones(self):
-        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
-            document_model.append_data_item(data_item)
-        # modify data reference to have duplicate
-        old_data_key = list(memory_persistent_storage_system.data.keys())[0]
-        new_data_key = "2000" + old_data_key[4:]
-        old_properties_key = list(memory_persistent_storage_system.persistent_storage_properties.keys())[0]
-        new_properties_key = "2000" + old_properties_key[4:]
-        memory_persistent_storage_system.data[new_data_key] = copy.deepcopy(memory_persistent_storage_system.data[old_data_key])
-        memory_persistent_storage_system.persistent_storage_properties[new_properties_key] = copy.deepcopy(memory_persistent_storage_system.persistent_storage_properties[old_properties_key])
-        # reload and verify
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
-        with contextlib.closing(document_model):
-            self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
-            self.assertEqual(len(document_model.data_items), 1)
+        with create_memory_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
+                document_model.append_data_item(data_item)
+            # modify data reference to have duplicate
+            old_data_key = list(profile_context.storage_system.data.keys())[0]
+            new_data_key = "2000" + old_data_key[4:]
+            old_properties_key = list(profile_context.storage_system.persistent_storage_properties.keys())[0]
+            new_properties_key = "2000" + old_properties_key[4:]
+            profile_context.storage_system.data[new_data_key] = copy.deepcopy(profile_context.storage_system.data[old_data_key])
+            profile_context.storage_system.persistent_storage_properties[new_properties_key] = copy.deepcopy(profile_context.storage_system.persistent_storage_properties[old_properties_key])
+            # reload and verify
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
+                self.assertEqual(len(document_model.data_items), 1)
 
     def test_document_model_releases_data_item(self):
         # test memory usage
@@ -301,34 +304,34 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, document_model.transaction_count)
 
     def test_display_item_associated_with_data_item_should_be_under_transaction(self):
-        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-            document_model.append_data_item(data_item)
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            with document_model.item_transaction(data_item):
-                self.assertTrue(data_item.in_transaction_state)
-                self.assertTrue(display_item.in_transaction_state)
-            self.assertFalse(data_item.in_transaction_state)
-            self.assertFalse(display_item.in_transaction_state)
-            self.assertEqual(0, document_model.transaction_count)
+        with create_memory_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                with document_model.item_transaction(data_item):
+                    self.assertTrue(data_item.in_transaction_state)
+                    self.assertTrue(display_item.in_transaction_state)
+                self.assertFalse(data_item.in_transaction_state)
+                self.assertFalse(display_item.in_transaction_state)
+                self.assertEqual(0, document_model.transaction_count)
 
     def test_display_item_associated_with_dependent_data_items_should_be_under_transaction(self):
-        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-            document_model.append_data_item(data_item)
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            line_profile_data_item = document_model.get_line_profile_new(display_item)
-            line_profile_display_item = document_model.get_display_item_for_data_item(line_profile_data_item)
-            with document_model.item_transaction(data_item):
-                self.assertTrue(line_profile_data_item.in_transaction_state)
-                self.assertTrue(line_profile_display_item.in_transaction_state)
-            self.assertFalse(line_profile_data_item.in_transaction_state)
-            self.assertFalse(line_profile_display_item.in_transaction_state)
-            self.assertEqual(0, document_model.transaction_count)
+        with create_memory_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                line_profile_data_item = document_model.get_line_profile_new(display_item)
+                line_profile_display_item = document_model.get_display_item_for_data_item(line_profile_data_item)
+                with document_model.item_transaction(data_item):
+                    self.assertTrue(line_profile_data_item.in_transaction_state)
+                    self.assertTrue(line_profile_display_item.in_transaction_state)
+                self.assertFalse(line_profile_data_item.in_transaction_state)
+                self.assertFalse(line_profile_display_item.in_transaction_state)
+                self.assertEqual(0, document_model.transaction_count)
 
     def test_data_item_with_associated_data_structure_deletes_when_data_item_deleted(self):
         document_model = DocumentModel.DocumentModel()
@@ -2178,23 +2181,23 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(3, len(document_model.display_items))
 
     def test_delete_display_item_with_missing_data_item_reference(self):
-        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
-        with contextlib.closing(document_model):
-            data_item1 = DataItem.DataItem(numpy.ones((2, 2)))
-            document_model.append_data_item(data_item1)
-            data_item2 = DataItem.DataItem(numpy.ones((2, 2)))
-            document_model.append_data_item(data_item2)
-            display_item = DisplayItem.DisplayItem()
-            document_model.append_display_item(display_item)
-            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item1))
-            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
-        library_storage_properties = memory_persistent_storage_system.library_storage_properties
-        library_storage_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
-        memory_persistent_storage_system._set_properties(library_storage_properties)
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
-        with contextlib.closing(document_model):
-            document_model.remove_display_item(document_model.display_items[-1])
+        with create_memory_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                data_item1 = DataItem.DataItem(numpy.ones((2, 2)))
+                document_model.append_data_item(data_item1)
+                data_item2 = DataItem.DataItem(numpy.ones((2, 2)))
+                document_model.append_data_item(data_item2)
+                display_item = DisplayItem.DisplayItem()
+                document_model.append_display_item(display_item)
+                display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item1))
+                display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
+            library_storage_properties = profile_context.storage_system.library_storage_properties
+            library_storage_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
+            profile_context.storage_system._set_properties(library_storage_properties)
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                document_model.remove_display_item(document_model.display_items[-1])
 
     def test_delete_one_data_item_from_multi_data_item_display(self):
         document_model = DocumentModel.DocumentModel()

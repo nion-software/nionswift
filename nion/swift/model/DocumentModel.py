@@ -8,6 +8,7 @@ import gettext
 import logging
 import numbers
 import os.path
+import pathlib
 import threading
 import time
 import typing
@@ -23,7 +24,6 @@ from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import ApplicationData
-from nion.swift.model import Cache
 from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
@@ -36,7 +36,6 @@ from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
-from nion.swift.model import MemoryStorageSystem
 from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Observable
@@ -107,7 +106,7 @@ class ComputationQueueItem:
 
 
 class AutoMigration:
-    def __init__(self, library_path: str=None, paths: typing.List[str]=None, log_copying: bool=True, storage_system=None):
+    def __init__(self, library_path: pathlib.Path=None, paths: typing.List[pathlib.Path]=None, log_copying: bool=True, storage_system=None):
         self.library_path = library_path
         self.paths = paths
         self.log_copying = log_copying
@@ -300,11 +299,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_thread_pool = ThreadPool.ThreadPool()
 
         self.__profile = profile if profile else Profile.Profile()
+        self.__profile.open(self)
 
         # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
         # there is a single shared object context per document model. this code establishes that connection.
         self.persistent_object_context = self.__profile.persistent_object_context
-        self.__profile.connect_document_model(self)
 
         self.storage_cache = self.__profile.storage_cache
         self.__transaction_manager = TransactionManager(self)
@@ -483,6 +482,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__transaction_manager.close()
         self.__transaction_manager = None
 
+        self.__profile.close()
+
     def __call_soon(self, fn):
         self.call_soon_event.fire_any(fn)
 
@@ -494,6 +495,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.undefine_properties()
         self.undefine_items()
         self.undefine_relationships()
+
+    @property
+    def profile(self) -> Profile.Profile:
+        return self.__profile
 
     @property
     def _s2tm(self):

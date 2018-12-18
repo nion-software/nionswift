@@ -17,13 +17,15 @@ from nion.swift import MimeTypes
 from nion.swift import Workspace
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import MemoryStorageSystem
 from nion.swift.model import Profile
 from nion.swift.test import DocumentController_test
 from nion.ui import CanvasItem
 from nion.ui import TestUI
 from nion.utils import Geometry
 
+
+def create_memory_profile_context():
+    return Profile.MemoryProfileContext()
 
 
 def get_layout(layout_id):
@@ -272,112 +274,104 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item3)
 
     def test_workspace_records_json_compatible_content_when_closing_document(self):
-        storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            workspace_1x1 = document_controller.document_model.workspaces[0]
-            data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
-            document_model.append_data_item(data_item1)
-            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
-        json_str = json.dumps(storage_system.library_storage_properties["workspaces"])
-        properties = json.loads(json_str)
-        self.assertEqual(properties, storage_system.library_storage_properties["workspaces"])
+        with create_memory_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                workspace_1x1 = document_controller.document_model.workspaces[0]
+                data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+                document_model.append_data_item(data_item1)
+                document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
+            json_str = json.dumps(profile_context.storage_system.library_storage_properties["workspaces"])
+            properties = json.loads(json_str)
+            self.assertEqual(properties, profile_context.storage_system.library_storage_properties["workspaces"])
 
     def test_workspace_saves_contents_immediately_following_change(self):
-        storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-            workspace_controller = document_controller.workspace_controller
-            display_panel = workspace_controller.display_panels[0]
-            workspace_controller.insert_display_panel(display_panel, "bottom")
-            # copy the storage before the document closes
-            storage_system_copy = copy.deepcopy(storage_system)
-        # reload with the storage copied before the document closes
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system_copy))
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            workspace_controller = document_controller.workspace_controller
-            self.assertEqual(2, len(workspace_controller.display_panels))
+        with create_memory_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                workspace_controller = document_controller.workspace_controller
+                display_panel = workspace_controller.display_panels[0]
+                workspace_controller.insert_display_panel(display_panel, "bottom")
+            # reload with the storage copied before the document closes
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                workspace_controller = document_controller.workspace_controller
+                self.assertEqual(2, len(workspace_controller.display_panels))
 
     def test_workspace_saves_contents_immediately_following_adjustment(self):
-        storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            workspace_controller = document_controller.workspace_controller
-            workspace_2x1 = workspace_controller.new_workspace(*get_layout("2x1"))
-            workspace_controller.change_workspace(workspace_2x1)
-            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-            display_panel = workspace_controller.display_panels[0]
-            display_panel.container.on_splits_will_change()
-            display_panel.container.splits = [0.4, 0.6]
-            display_panel.container.on_splits_changed()
-            # copy the storage before the document closes
-            storage_system_copy = copy.deepcopy(storage_system)
-        # reload with the storage copied before the document closes
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system_copy))
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            workspace_controller = document_controller.workspace_controller
-            display_panel = workspace_controller.display_panels[0]
-            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-            self.assertEqual([0.4, 0.6], display_panel.container.splits)
+        with create_memory_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                workspace_controller = document_controller.workspace_controller
+                workspace_2x1 = workspace_controller.new_workspace(*get_layout("2x1"))
+                workspace_controller.change_workspace(workspace_2x1)
+                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                display_panel = workspace_controller.display_panels[0]
+                display_panel.container.on_splits_will_change()
+                display_panel.container.splits = [0.4, 0.6]
+                display_panel.container.on_splits_changed()
+            # reload with the storage copied before the document closes
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                workspace_controller = document_controller.workspace_controller
+                display_panel = workspace_controller.display_panels[0]
+                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                self.assertEqual([0.4, 0.6], display_panel.container.splits)
 
     def test_workspace_saves_contents_immediately_following_controller_change(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
         try:
-            storage_system = MemoryStorageSystem.MemoryStorageSystem()
-            document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
-                workspace_controller = document_controller.workspace_controller
-                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-                display_panel = workspace_controller.display_panels[0]
-                d = {"type": "image", "controller_type": "test"}
-                display_panel.change_display_panel_content(d)
-                # copy the storage before the document closes
-                storage_system_copy = copy.deepcopy(storage_system)
-            # reload with the storage copied before the document closes
-            document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system_copy))
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
-                workspace_controller = document_controller.workspace_controller
-                display_panel = workspace_controller.display_panels[0]
-                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-                self.assertEqual("test", display_panel.save_contents()["controller_type"])
+            with create_memory_profile_context() as profile_context:
+                document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+                document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+                with contextlib.closing(document_controller):
+                    workspace_controller = document_controller.workspace_controller
+                    root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                    root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                    display_panel = workspace_controller.display_panels[0]
+                    d = {"type": "image", "controller_type": "test"}
+                    display_panel.change_display_panel_content(d)
+                # reload with the storage copied before the document closes
+                document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+                document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+                with contextlib.closing(document_controller):
+                    workspace_controller = document_controller.workspace_controller
+                    display_panel = workspace_controller.display_panels[0]
+                    root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                    root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                    self.assertEqual("test", display_panel.save_contents()["controller_type"])
         finally:
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
     def test_workspace_saves_contents_immediately_following_view_change(self):
-        storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            workspace_controller = document_controller.workspace_controller
-            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-            display_panel = workspace_controller.display_panels[0]
-            d = {"type": "image", "display-panel-type": "browser-display-panel"}
-            display_panel.change_display_panel_content(d)
-            # copy the storage before the document closes
-            storage_system_copy = copy.deepcopy(storage_system)
-        # reload with the storage copied before the document closes
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system_copy))
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            workspace_controller = document_controller.workspace_controller
-            display_panel = workspace_controller.display_panels[0]
-            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-            self.assertEqual("grid", display_panel.save_contents()["browser_type"])
+        with create_memory_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                workspace_controller = document_controller.workspace_controller
+                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                display_panel = workspace_controller.display_panels[0]
+                d = {"type": "image", "display-panel-type": "browser-display-panel"}
+                display_panel.change_display_panel_content(d)
+            # reload with the storage copied before the document closes
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                workspace_controller = document_controller.workspace_controller
+                display_panel = workspace_controller.display_panels[0]
+                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                self.assertEqual("grid", display_panel.save_contents()["browser_type"])
 
     def test_workspace_insert_into_no_splitter_undo_and_redo_works_cleanly(self):
         document_model = DocumentModel.DocumentModel()
@@ -729,20 +723,20 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(2, len(document_model.workspaces))
 
     def test_workspace_records_and_reloads_image_panel_contents(self):
-        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            workspace_1x1 = document_controller.document_model.workspaces[0]
-            data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
-            document_model.append_data_item(data_item1)
-            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
-        # reload
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            workspace_1x1 = document_controller.document_model.workspaces[0]
-            self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, document_model.data_items[0])
+        with create_memory_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                workspace_1x1 = document_controller.document_model.workspaces[0]
+                data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+                document_model.append_data_item(data_item1)
+                document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
+            # reload
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                workspace_1x1 = document_controller.document_model.workspaces[0]
+                self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, document_model.data_items[0])
 
     def __test_drop_on_1x1(self, region):
         document_model = DocumentModel.DocumentModel()
@@ -1314,24 +1308,23 @@ class TestWorkspaceClass(unittest.TestCase):
         try:
             DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("error", TestWorkspaceClass.DisplayPanelControllerFactory())
             try:
-                storage_system = MemoryStorageSystem.MemoryStorageSystem()
-                document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
-                document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-                # first create a workspace
-                with contextlib.closing(document_controller):
-                    workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
-                    document_controller.workspace_controller.change_workspace(workspace_2x1)
-                # modify it to include a controller which raises an exception during init
-                library_storage_properties = storage_system.library_storage_properties
-                library_storage_properties["workspaces"][1]["layout"]["children"][0]["controller_type"] = "error"
-                # create a new document based on the corrupt layout
-                storage_system_copy = copy.deepcopy(storage_system)
-                document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system_copy))
-                document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-                with contextlib.closing(document_controller):
-                    pass
-                # check to ensure that the exception didn't invalidate the entire layout
-                self.assertEqual(2, len(storage_system_copy.library_storage_properties["workspaces"][1].get("layout", dict()).get("children", list())))
+                with create_memory_profile_context() as profile_context:
+                    document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+                    document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+                    # first create a workspace
+                    with contextlib.closing(document_controller):
+                        workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
+                        document_controller.workspace_controller.change_workspace(workspace_2x1)
+                    # modify it to include a controller which raises an exception during init
+                    library_storage_properties = profile_context.storage_system.library_storage_properties
+                    library_storage_properties["workspaces"][1]["layout"]["children"][0]["controller_type"] = "error"
+                    # create a new document based on the corrupt layout
+                    document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+                    document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+                    with contextlib.closing(document_controller):
+                        pass
+                    # check to ensure that the exception didn't invalidate the entire layout
+                    self.assertEqual(2, len(profile_context.storage_system.library_storage_properties["workspaces"][1].get("layout", dict()).get("children", list())))
             finally:
                 DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("error")
         finally:

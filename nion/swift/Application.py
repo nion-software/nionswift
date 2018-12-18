@@ -235,12 +235,12 @@ class Application(UIApplication.Application):
             if welcome_message_enabled:
                 logging.info("Using existing document %s", library_path)
         auto_migrations = list()
-        auto_migrations.append(DocumentModel.AutoMigration(os.path.join(workspace_dir, "Nion Swift Workspace.nslib"), [os.path.join(workspace_dir, "Nion Swift Data")]))
-        auto_migrations.append(DocumentModel.AutoMigration(os.path.join(workspace_dir, "Nion Swift Workspace.nslib"), [os.path.join(workspace_dir, "Nion Swift Data 10")]))
-        auto_migrations.append(DocumentModel.AutoMigration(os.path.join(workspace_dir, "Nion Swift Workspace.nslib"), [os.path.join(workspace_dir, "Nion Swift Data 11")]))
-        auto_migrations.append(DocumentModel.AutoMigration(os.path.join(workspace_dir, "Nion Swift Library 12.nslib"), [os.path.join(workspace_dir, "Nion Swift Data 12")]))
+        auto_migrations.append(DocumentModel.AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Workspace.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data"]))
+        auto_migrations.append(DocumentModel.AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Workspace.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data 10"]))
+        auto_migrations.append(DocumentModel.AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Workspace.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data 11"]))
+        auto_migrations.append(DocumentModel.AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Library 12.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data 12"]))
         # NOTE: when adding an AutoMigration here, also add the corresponding file copy in __migrate_library
-        file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.storage_version))], auto_migrations=auto_migrations)
+        file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [pathlib.Path(workspace_dir) / f"Nion Swift Data {DataItem.DataItem.storage_version}"], auto_migrations=auto_migrations)
         cache_filename = "Nion Swift Cache {version}.nscache".format(version=DataItem.DataItem.storage_version)
         cache_path = os.path.join(workspace_dir, cache_filename)
         counts = file_persistent_storage_system.read_data_items_version_stats()

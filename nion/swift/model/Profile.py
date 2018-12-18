@@ -12,15 +12,18 @@ class Profile:
 
     def __init__(self, storage_system=None, storage_cache=None, ignore_older_files=False):
         self.__storage_system = storage_system if storage_system else MemoryStorageSystem.MemoryStorageSystem()
-        self.__storage_system.reset()  # this makes storage reusable during tests
         self.__ignore_older_files = ignore_older_files
         self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
         # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
         # there is a single shared object context per profile.
         self.persistent_object_context = Persistence.PersistentObjectContext()
 
-    def connect_document_model(self, document_model) -> None:
+    def open(self, document_model):
+        self.__storage_system.reset()  # this makes storage reusable during tests
         self.persistent_object_context._set_persistent_storage_for_object(document_model, self.__storage_system)
+
+    def close(self):
+        pass
 
     def validate_uuid_and_version(self, document_model, uuid_: uuid.UUID, version: int) -> None:
         self.__storage_system.set_property(document_model, "uuid", str(uuid_))
@@ -35,3 +38,28 @@ class Profile:
     def read_library(self) -> typing.Dict:
         # first read the library (for deletions) and the library items from the primary storage systems
         return self.__storage_system.read_library(self.__ignore_older_files)
+
+
+class MemoryProfileContext:
+    # used for testing
+
+    def __init__(self):
+        self.__storage_system = MemoryStorageSystem.MemoryStorageSystem()
+
+    def create_profile(self, *, storage_cache=None) -> Profile:
+        storage_system = self.__storage_system
+        storage_cache = storage_cache or Cache.DictStorageCache()
+        profile = Profile(storage_system=storage_system, storage_cache=storage_cache)
+        profile.storage_cache = storage_cache
+        profile.storage_system = storage_system
+        return profile
+
+    @property
+    def storage_system(self):
+        return self.__storage_system
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type_, value, traceback):
+        pass

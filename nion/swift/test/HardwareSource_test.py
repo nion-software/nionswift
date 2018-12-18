@@ -13,7 +13,6 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
 from nion.swift.model import ImportExportManager
-from nion.swift.model import MemoryStorageSystem
 from nion.swift.model import Profile
 from nion.swift.model import Utility
 from nion.swift import Application
@@ -25,6 +24,10 @@ from nion.utils import Geometry
 
 
 Facade.initialize()
+
+
+def create_memory_profile_context():
+    return Profile.MemoryProfileContext()
 
 
 class SimpleAcquisitionTask(HardwareSource.AcquisitionTask):
@@ -504,8 +507,11 @@ class TestHardwareSourceClass(unittest.TestCase):
         hardware_source.start_recording(sync_timeout=3.0)
         document_controller.periodic()
 
-    def __setup_simple_hardware_source(self, storage_system=None):
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
+    def __setup_simple_hardware_source(self, profile_context=None):
+        if profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+        else:
+            document_model = DocumentModel.DocumentModel(profile=Profile.Profile())
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         hardware_source = SimpleHardwareSource()
         hardware_source.exposure = 0.01
@@ -867,23 +873,23 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(value, -acq_value0)
 
     def test_reloading_restarted_view_after_size_change_produces_data_item_with_unique_uuid(self):
-        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source(storage_system=memory_persistent_storage_system)
-        with contextlib.closing(document_controller):
-            document_model.session_id = "20000630-150200"
-            self.__acquire_one(document_controller, hardware_source)
-            self.assertEqual(len(document_model.data_items), 1)
-            new_data_item = copy.deepcopy(document_model.data_items[0])
-            document_model.append_data_item(new_data_item)
-            document_model.session_id = "20000630-150201"
-            self.__acquire_one(document_controller, hardware_source)
-            self.assertEqual(len(document_model.data_items), 2)
-        # reload
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
-            self.assertEqual(len(document_model.data_items), 2)
+        with create_memory_profile_context() as profile_context:
+            document_controller, document_model, hardware_source = self.__setup_simple_hardware_source(profile_context=profile_context)
+            with contextlib.closing(document_controller):
+                document_model.session_id = "20000630-150200"
+                self.__acquire_one(document_controller, hardware_source)
+                self.assertEqual(len(document_model.data_items), 1)
+                new_data_item = copy.deepcopy(document_model.data_items[0])
+                document_model.append_data_item(new_data_item)
+                document_model.session_id = "20000630-150201"
+                self.__acquire_one(document_controller, hardware_source)
+                self.assertEqual(len(document_model.data_items), 2)
+            # reload
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
+                self.assertEqual(len(document_model.data_items), 2)
 
     def test_single_frame_acquisition_generates_single_canvas_repaint_event_for_image(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()

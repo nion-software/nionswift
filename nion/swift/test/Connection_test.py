@@ -13,10 +13,13 @@ from nion.swift.model import Connection
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import MemoryStorageSystem
 from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.ui import TestUI
+
+
+def create_memory_profile_context():
+    return Profile.MemoryProfileContext()
 
 
 class TestConnectionClass(unittest.TestCase):
@@ -66,35 +69,35 @@ class TestConnectionClass(unittest.TestCase):
 
     def test_connection_saves_and_restores(self):
         # setup document
-        memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
-        with contextlib.closing(document_model):
-            data_item_3d = DataItem.DataItem(numpy.zeros((8, 8, 32), numpy.uint32))
-            data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
-            document_model.append_data_item(data_item_3d)
-            document_model.append_data_item(data_item_1d)
-            display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
-            display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
-            interval = Graphics.IntervalGraphic()
-            display_item_1d.add_graphic(interval)
-            connection = Connection.PropertyConnection(display_item_3d.display_data_channels[0], "slice_center", interval, "start", parent=data_item_1d)
-            document_model.append_connection(connection)
-        # read it back
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=memory_persistent_storage_system))
-        with contextlib.closing(document_model):
-            # verify it read back
-            data_item_3d = document_model.data_items[0]
-            data_item_1d = document_model.data_items[1]
-            display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
-            display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
-            interval = display_item_1d.graphics[0]
-            self.assertEqual(1, len(document_model.connections))
-            # verify connection is working in both directions
-            display_data_channel_3d = display_item_3d.display_data_channels[0]
-            display_data_channel_3d.slice_center = 11
-            self.assertEqual(interval.start, 11)
-            interval.start = 7
-            self.assertEqual(display_data_channel_3d.slice_center, 7)
+        with create_memory_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                data_item_3d = DataItem.DataItem(numpy.zeros((8, 8, 32), numpy.uint32))
+                data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
+                document_model.append_data_item(data_item_3d)
+                document_model.append_data_item(data_item_1d)
+                display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
+                display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
+                interval = Graphics.IntervalGraphic()
+                display_item_1d.add_graphic(interval)
+                connection = Connection.PropertyConnection(display_item_3d.display_data_channels[0], "slice_center", interval, "start", parent=data_item_1d)
+                document_model.append_connection(connection)
+            # read it back
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                # verify it read back
+                data_item_3d = document_model.data_items[0]
+                data_item_1d = document_model.data_items[1]
+                display_item_1d = document_model.get_display_item_for_data_item(data_item_1d)
+                display_item_3d = document_model.get_display_item_for_data_item(data_item_1d)
+                interval = display_item_1d.graphics[0]
+                self.assertEqual(1, len(document_model.connections))
+                # verify connection is working in both directions
+                display_data_channel_3d = display_item_3d.display_data_channels[0]
+                display_data_channel_3d.slice_center = 11
+                self.assertEqual(interval.start, 11)
+                interval.start = 7
+                self.assertEqual(display_data_channel_3d.slice_center, 7)
 
     def test_connection_closed_when_removed_from_data_item(self):
         document_model = DocumentModel.DocumentModel()

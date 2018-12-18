@@ -113,10 +113,11 @@ class FileStorageSystem:
             elif not persistent_object_parent:
                 if self.__filepath:
                     # atomically overwrite
-                    temp_filepath = self.__filepath + ".temp"
-                    with open(temp_filepath, "w") as fp:
+                    filepath = pathlib.Path(self.__filepath)
+                    temp_filepath = filepath.with_name(filepath.name + ".temp")
+                    with temp_filepath.open("w") as fp:
                         json.dump(Utility.clean_dict(self.__properties), fp)
-                    os.replace(temp_filepath, self.__filepath)
+                    os.replace(temp_filepath, filepath)
             else:
                 self.__write_properties(persistent_object_parent.parent)
 
