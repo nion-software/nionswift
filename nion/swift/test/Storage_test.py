@@ -2974,7 +2974,7 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # auto migrate workspace
             new_data_name = f"Nion Swift Data {DataItem.DataItem.storage_version}"
-            auto_migration = DocumentModel.AutoMigration(paths=[data_path], log_copying=False)
+            auto_migration = Profile.AutoMigration(paths=[data_path], log_copying=False)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile(library_name=library_name, data_name=new_data_name, auto_migrations=[auto_migration]))
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
@@ -3012,8 +3012,8 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # auto migrate workspace
             new_data_name = f"Nion Swift Data {DataItem.DataItem.storage_version}"
-            auto_migration1 = DocumentModel.AutoMigration(paths=[data_path], log_copying=False)
-            auto_migration2 = DocumentModel.AutoMigration(paths=[data_path], log_copying=False)
+            auto_migration1 = Profile.AutoMigration(paths=[data_path], log_copying=False)
+            auto_migration2 = Profile.AutoMigration(paths=[data_path], log_copying=False)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile(library_name=library_name, data_name=new_data_name, auto_migrations=[auto_migration1, auto_migration2]))
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
@@ -3056,7 +3056,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
                 new_data_item_uuid = data_item.uuid
             # auto migrate workspace
-            auto_migration = DocumentModel.AutoMigration(library_path=library_path, paths=[data_path], log_copying=False)
+            auto_migration = Profile.AutoMigration(library_path=library_path, paths=[data_path], log_copying=False)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile(library_name=new_library_name, data_name=new_data_name, auto_migrations=[auto_migration]))
             with contextlib.closing(document_model):
                 self.assertEqual(2, len(document_model.data_items))
@@ -3093,7 +3093,7 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # auto migrate workspace
             new_data_name = f"Nion Swift Data {DataItem.DataItem.storage_version}"
-            auto_migration = DocumentModel.AutoMigration(paths=[data_path], log_copying=False)
+            auto_migration = Profile.AutoMigration(paths=[data_path], log_copying=False)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile(library_name=library_name, data_name=new_data_name, auto_migrations=[auto_migration]))
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 0)
@@ -3133,7 +3133,7 @@ class TestStorageClass(unittest.TestCase):
             # auto migrate workspace
             new_data_name = f"Nion Swift Data {DataItem.DataItem.storage_version}"
             # write a newer item with same uuid
-            auto_migration = DocumentModel.AutoMigration(paths=[data_path], log_copying=False)
+            auto_migration = Profile.AutoMigration(paths=[data_path], log_copying=False)
             handler = file_handler(pathlib.Path(profile_context.workspace_dir / new_data_name, "File").with_suffix(file_handler.get_extension()))
             with contextlib.closing(handler):
                 data_item = DataItem.DataItem(numpy.zeros((8,8)), item_uuid=src_uuid_str)
@@ -3176,7 +3176,7 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # auto migrate workspace
             new_data_name = f"Nion Swift Data {DataItem.DataItem.storage_version}"
-            auto_migration = DocumentModel.AutoMigration(paths=[data_path], log_copying=False)
+            auto_migration = Profile.AutoMigration(paths=[data_path], log_copying=False)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile(library_name=library_name, data_name=new_data_name, auto_migrations=[auto_migration]))
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
@@ -3303,12 +3303,12 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # auto migrate workspace
             new_data_name = f"Nion Swift Data {DataItem.DataItem.storage_version}"
-            auto_migration = DocumentModel.AutoMigration(paths=[data_path], log_copying=False)
+            auto_migration = Profile.AutoMigration(paths=[data_path], log_copying=False)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile(library_name=library_name, data_name=new_data_name, auto_migrations=[auto_migration]))
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
             # ensure it imports twice
-            auto_migration = DocumentModel.AutoMigration(paths=[data_path], log_copying=False)
+            auto_migration = Profile.AutoMigration(paths=[data_path], log_copying=False)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile(library_name=library_name, data_name=new_data_name, auto_migrations=[auto_migration]))
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)

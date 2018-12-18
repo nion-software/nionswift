@@ -1,9 +1,15 @@
 # standard libraries
+import logging
+import os
+import pathlib
+import shutil
 import typing
 import uuid
 
 # local libraries
 from nion.swift.model import Cache
+from nion.swift.model import DataItem
+from nion.swift.model import FileStorageSystem
 from nion.swift.model import MemoryStorageSystem
 from nion.utils import Persistence
 
@@ -63,3 +69,55 @@ class MemoryProfileContext:
 
     def __exit__(self, type_, value, traceback):
         pass
+
+
+def _migrate_library(workspace_dir: pathlib.Path, do_logging: bool=True) -> pathlib.Path:
+    """ Migrate library to latest version. """
+
+    library_path_11 = workspace_dir / "Nion Swift Workspace.nslib"
+    library_path_12 = workspace_dir / "Nion Swift Library 12.nslib"
+    library_path_13 = workspace_dir / "Nion Swift Library 13.nslib"
+
+    library_paths = (library_path_11, library_path_12)
+    library_path_latest = library_path_13
+
+    if not os.path.exists(library_path_latest):
+        for library_path in reversed(library_paths):
+            if os.path.exists(library_path):
+                if do_logging:
+                    logging.info("Migrating library: %s -> %s", library_path, library_path_latest)
+                shutil.copyfile(library_path, library_path_latest)
+                break
+
+    return library_path_latest
+
+
+class AutoMigration:
+    def __init__(self, library_path: pathlib.Path=None, paths: typing.List[pathlib.Path]=None, log_copying: bool=True, storage_system=None):
+        self.library_path = library_path
+        self.paths = paths
+        self.log_copying = log_copying
+        self.storage_system = storage_system
+
+
+def create_profile(workspace_dir: pathlib.Path, do_logging: bool, force_create: bool) -> typing.Tuple[typing.Optional[Profile], bool]:
+    library_path = _migrate_library(workspace_dir, do_logging)
+    if not force_create and not os.path.exists(library_path):
+        return None, False
+    create_new_document = not os.path.exists(library_path)
+    if do_logging:
+        if create_new_document:
+            logging.info(f"Creating new document: {library_path}")
+        else:
+            logging.info(f"Using existing document {library_path}")
+    auto_migrations = list()
+    auto_migrations.append(AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Workspace.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data"]))
+    auto_migrations.append(AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Workspace.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data 10"]))
+    auto_migrations.append(AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Workspace.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data 11"]))
+    auto_migrations.append(AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Library 12.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data 12"]))
+    # NOTE: when adding an AutoMigration here, also add the corresponding file copy in _migrate_library
+    storage_system = FileStorageSystem.FileStorageSystem(library_path, [pathlib.Path(workspace_dir) / f"Nion Swift Data {DataItem.DataItem.storage_version}"], auto_migrations=auto_migrations)
+    cache_filename = f"Nion Swift Cache {DataItem.DataItem.storage_version}.nscache"
+    cache_path = workspace_dir / cache_filename
+    storage_cache = Cache.DbStorageCache(cache_path)
+    return Profile(storage_system=storage_system, storage_cache=storage_cache, ignore_older_files=True), create_new_document

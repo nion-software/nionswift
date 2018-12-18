@@ -105,14 +105,6 @@ class ComputationQueueItem:
         return pending_data_item_merge
 
 
-class AutoMigration:
-    def __init__(self, library_path: pathlib.Path=None, paths: typing.List[pathlib.Path]=None, log_copying: bool=True, storage_system=None):
-        self.library_path = library_path
-        self.paths = paths
-        self.log_copying = log_copying
-        self.storage_system = storage_system
-
-
 def data_item_factory(lookup_id):
     data_item_uuid = uuid.UUID(lookup_id("uuid"))
     large_format = lookup_id("__large_format", False)

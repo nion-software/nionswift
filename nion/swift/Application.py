@@ -8,7 +8,6 @@ import json
 import logging
 import os
 import pathlib
-import shutil
 import sys
 import typing
 
@@ -32,9 +31,7 @@ from nion.swift import Workspace
 from nion.swift.model import ApplicationData
 from nion.swift.model import Cache
 from nion.swift.model import ColorMaps
-from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import FileStorageSystem
 from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
@@ -176,26 +173,6 @@ class Application(UIApplication.Application):
     def _set_document_model(self, document_model):
         self.__document_model = document_model
 
-    def __migrate_library(self, workspace_dir: str, welcome_message_enabled: bool=True) -> str:
-        """ Migrate library to latest version. """
-
-        library_path_11 = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
-        library_path_12 = os.path.join(workspace_dir, "Nion Swift Library 12.nslib")
-        library_path_13 = os.path.join(workspace_dir, "Nion Swift Library 13.nslib")
-
-        library_paths = (library_path_11, library_path_12)
-        library_path_latest = library_path_13
-
-        if not os.path.exists(library_path_latest):
-            for library_path in reversed(library_paths):
-                if os.path.exists(library_path):
-                    if welcome_message_enabled:
-                        logging.info("Migrating library: %s -> %s", library_path, library_path_latest)
-                    shutil.copyfile(library_path, library_path_latest)
-                    break
-
-        return library_path_latest
-
     def start(self, skip_choose=False, fixed_workspace_dir=None):
         """
             Start the application.
@@ -222,101 +199,12 @@ class Application(UIApplication.Application):
             workspace_dir = os.path.join(documents_dir, "Nion Swift Libraries")
             workspace_dir = self.ui.get_persistent_string("workspace_location", workspace_dir)
         welcome_message_enabled = fixed_workspace_dir is None
-        library_path = self.__migrate_library(workspace_dir, welcome_message_enabled)
-        if not skip_choose and not os.path.exists(library_path):
+        profile, is_created = Profile.create_profile(pathlib.Path(workspace_dir), welcome_message_enabled, skip_choose)
+        if not profile:
             self.choose_library()
             return True
         self.workspace_dir = workspace_dir
-        create_new_document = not os.path.exists(library_path)
-        if create_new_document:
-            if welcome_message_enabled:
-                logging.info("Creating new document: %s", library_path)
-        else:
-            if welcome_message_enabled:
-                logging.info("Using existing document %s", library_path)
-        auto_migrations = list()
-        auto_migrations.append(DocumentModel.AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Workspace.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data"]))
-        auto_migrations.append(DocumentModel.AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Workspace.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data 10"]))
-        auto_migrations.append(DocumentModel.AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Workspace.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data 11"]))
-        auto_migrations.append(DocumentModel.AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Library 12.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data 12"]))
-        # NOTE: when adding an AutoMigration here, also add the corresponding file copy in __migrate_library
-        file_persistent_storage_system = FileStorageSystem.FileStorageSystem(library_path, [pathlib.Path(workspace_dir) / f"Nion Swift Data {DataItem.DataItem.storage_version}"], auto_migrations=auto_migrations)
-        cache_filename = "Nion Swift Cache {version}.nscache".format(version=DataItem.DataItem.storage_version)
-        cache_path = os.path.join(workspace_dir, cache_filename)
-        counts = file_persistent_storage_system.read_data_items_version_stats()
-        if counts[2] > 0:
-
-            assert fixed_workspace_dir is None
-
-            def do_ignore():
-                self.continue_start(cache_path, create_new_document, file_persistent_storage_system, workspace_dir, True)
-                return True
-
-            def do_upgrade():
-                self.continue_start(cache_path, create_new_document, file_persistent_storage_system, workspace_dir, False)
-                return True
-
-            class UpgradeDialog(Dialog.ActionDialog):
-                def __init__(self, ui):
-                    super().__init__(ui)
-
-                    self.add_button(_("Upgrade"), do_upgrade)
-
-                    self.add_button(_("Ignore"), do_ignore)
-
-                    column = self.ui.create_column_widget()
-                    column.add_spacing(12)
-
-                    row_one = self.ui.create_row_widget()
-                    row_one.add_spacing(13)
-                    row_one.add(self.ui.create_label_widget("{0} data items need to be updated.".format(counts[2])))
-                    row_one.add_stretch()
-                    row_one.add_spacing(13)
-                    column.add(row_one)
-                    column.add_spacing(4)
-
-                    row_two = self.ui.create_row_widget()
-                    row_two.add_spacing(13)
-                    row_two.add(self.ui.create_label_widget("{0} data items are newer than this version and won't be loaded.".format(counts[1])))
-                    row_two.add_stretch()
-                    row_two.add_spacing(13)
-                    column.add(row_two)
-                    column.add_spacing(4)
-
-                    row_three = self.ui.create_row_widget()
-                    row_three.add_spacing(13)
-                    row_three.add(self.ui.create_label_widget("{0} data items match this version.".format(counts[0])))
-                    row_three.add_stretch()
-                    row_three.add_spacing(13)
-                    column.add(row_three)
-                    column.add_spacing(4)
-
-                    row_three = self.ui.create_row_widget()
-                    row_three.add_spacing(13)
-                    row_three.add(self.ui.create_label_widget("If you choose to upgrade, the upgraded items will not\nbe able to be loaded in earlier versions.".format(counts[0])))
-                    row_three.add_stretch()
-                    row_three.add_spacing(13)
-                    column.add_spacing(8)
-                    column.add(row_three)
-                    column.add_spacing(4)
-
-                    column.add_spacing(12)
-                    column.add_stretch()
-
-                    self.content.add(column)
-
-            upgrade_dialog = UpgradeDialog(self.ui)
-            upgrade_dialog.show()
-
-        else:
-            self.continue_start(cache_path, create_new_document, file_persistent_storage_system, workspace_dir, False, welcome_message=welcome_message_enabled)
-
-        return True
-
-    def continue_start(self, cache_path, create_new_document, file_persistent_storage_system, workspace_dir, ignore_older_files, welcome_message=True):
-        storage_cache = Cache.DbStorageCache(cache_path)
         DocumentModel.DocumentModel.computation_min_period = 0.1
-        profile = Profile.Profile(storage_system=file_persistent_storage_system, storage_cache=storage_cache, ignore_older_files=ignore_older_files)
         document_model = DocumentModel.DocumentModel(profile=profile)
         document_model.create_default_data_groups()
         document_model.start_dispatcher()
@@ -333,11 +221,12 @@ class Application(UIApplication.Application):
         workspace_history.insert(0, workspace_dir)
         self.ui.set_persistent_object("workspace_history", workspace_history)
         self.ui.set_persistent_string("workspace_location", workspace_dir)
-        if welcome_message:
+        if welcome_message_enabled:
             logging.info("Welcome to Nion Swift.")
-        if create_new_document and len(document_model.display_items) > 0:
+        if is_created and len(document_model.display_items) > 0:
             document_controller.selected_display_panel.set_display_panel_display_item(document_model.display_items[0])
             document_controller.selected_display_panel.perform_action("set_fill_mode")
+        return True
 
     def stop(self):
         # program is really stopping, clean up.
