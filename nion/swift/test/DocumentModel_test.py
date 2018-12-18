@@ -87,12 +87,12 @@ class TestDocumentModelClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
                 document_model.append_data_item(data_item)
             # modify data reference to have duplicate
-            old_data_key = list(profile_context.storage_system.data.keys())[0]
+            old_data_key = list(profile_context.data_map.keys())[0]
             new_data_key = "2000" + old_data_key[4:]
-            old_properties_key = list(profile_context.storage_system.persistent_storage_properties.keys())[0]
+            old_properties_key = list(profile_context.data_properties_map.keys())[0]
             new_properties_key = "2000" + old_properties_key[4:]
-            profile_context.storage_system.data[new_data_key] = copy.deepcopy(profile_context.storage_system.data[old_data_key])
-            profile_context.storage_system.persistent_storage_properties[new_properties_key] = copy.deepcopy(profile_context.storage_system.persistent_storage_properties[old_properties_key])
+            profile_context.data_map[new_data_key] = copy.deepcopy(profile_context.data_map[old_data_key])
+            profile_context.data_properties_map[new_properties_key] = copy.deepcopy(profile_context.data_properties_map[old_properties_key])
             # reload and verify
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
@@ -2192,9 +2192,7 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.append_display_item(display_item)
                 display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item1))
                 display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
-            library_storage_properties = profile_context.storage_system.library_storage_properties
-            library_storage_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
-            profile_context.storage_system._set_library_properties(library_storage_properties)
+            profile_context.library_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 document_model.remove_display_item(document_model.display_items[-1])

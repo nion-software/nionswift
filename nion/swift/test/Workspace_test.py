@@ -282,9 +282,9 @@ class TestWorkspaceClass(unittest.TestCase):
                 data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
                 document_model.append_data_item(data_item1)
                 document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
-            json_str = json.dumps(profile_context.storage_system.library_storage_properties["workspaces"])
+            json_str = json.dumps(profile_context.library_properties["workspaces"])
             properties = json.loads(json_str)
-            self.assertEqual(properties, profile_context.storage_system.library_storage_properties["workspaces"])
+            self.assertEqual(properties, profile_context.library_properties["workspaces"])
 
     def test_workspace_saves_contents_immediately_following_change(self):
         with create_memory_profile_context() as profile_context:
@@ -1316,7 +1316,7 @@ class TestWorkspaceClass(unittest.TestCase):
                         workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
                         document_controller.workspace_controller.change_workspace(workspace_2x1)
                     # modify it to include a controller which raises an exception during init
-                    library_storage_properties = profile_context.storage_system.library_storage_properties
+                    library_storage_properties = profile_context.library_properties
                     library_storage_properties["workspaces"][1]["layout"]["children"][0]["controller_type"] = "error"
                     # create a new document based on the corrupt layout
                     document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
@@ -1324,7 +1324,7 @@ class TestWorkspaceClass(unittest.TestCase):
                     with contextlib.closing(document_controller):
                         pass
                     # check to ensure that the exception didn't invalidate the entire layout
-                    self.assertEqual(2, len(profile_context.storage_system.library_storage_properties["workspaces"][1].get("layout", dict()).get("children", list())))
+                    self.assertEqual(2, len(profile_context.library_properties["workspaces"][1].get("layout", dict()).get("children", list())))
             finally:
                 DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("error")
         finally:

@@ -61,6 +61,22 @@ class MemoryProfileContext:
         return profile
 
     @property
+    def library_properties(self) -> typing.Dict:
+        return self.__storage_system.library_properties
+
+    @property
+    def data_map(self) -> typing.Dict:
+        return self.__storage_system.data
+
+    @property
+    def data_properties_map(self) -> typing.Dict:
+        return self.__storage_system.persistent_storage_properties
+
+    @property
+    def _test_data_read_event(self):
+        return self.__storage_system._test_data_read_event
+
+    @property
     def storage_system(self):
         return self.__storage_system
 

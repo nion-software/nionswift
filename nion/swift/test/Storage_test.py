@@ -315,7 +315,7 @@ class TestStorageClass(unittest.TestCase):
             data_read_count_ref = [0]
             def data_read(uuid):
                 data_read_count_ref[0] += 1
-            listener = document_model.profile.storage_system._test_data_read_event.listen(data_read)
+            listener = profile_context._test_data_read_event.listen(data_read)
             with contextlib.closing(listener):
                 document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile(storage_cache=storage_cache))
                 with contextlib.closing(document_model):
@@ -353,9 +353,7 @@ class TestStorageClass(unittest.TestCase):
                 display_data_channel.slice_width = 1
                 self.assertEqual(display_data_channel.get_calculated_display_values(True).data_range, (0, 0))
             # make the slice_center be out of bounds
-            library_storage_properties = profile_context.storage_system.library_storage_properties
-            library_storage_properties["display_items"][0]["display_data_channels"][0]["slice_center"] = 20
-            profile_context.storage_system._set_library_properties(library_storage_properties)
+            profile_context.library_properties["display_items"][0]["display_data_channels"][0]["slice_center"] = 20
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
@@ -470,9 +468,9 @@ class TestStorageClass(unittest.TestCase):
                 computation2 = document_model.create_computation(Symbolic.xdata_expression("xd.fft(a.xdata)"))
                 computation2.create_object("a", document_model.get_object_specifier(data_item2))
                 document_model.set_data_item_computation(data_item3, computation2)
-            profile_context.storage_system.persistent_storage_properties["86d982d1-6d81-46fa-b19e-574e904902de"]["created"] = "2015-01-22T17:16:12.421290"
-            profile_context.storage_system.persistent_storage_properties["71ab9215-c6ae-4c36-aaf5-92ce78db02b6"]["created"] = "2015-01-22T17:16:12.219730"
-            profile_context.storage_system.persistent_storage_properties["7d3b374e-e48b-460f-91de-7ff4e1a1a63c"]["created"] = "2015-01-22T17:16:12.308003"
+            profile_context.data_properties_map["86d982d1-6d81-46fa-b19e-574e904902de"]["created"] = "2015-01-22T17:16:12.421290"
+            profile_context.data_properties_map["71ab9215-c6ae-4c36-aaf5-92ce78db02b6"]["created"] = "2015-01-22T17:16:12.219730"
+            profile_context.data_properties_map["7d3b374e-e48b-460f-91de-7ff4e1a1a63c"]["created"] = "2015-01-22T17:16:12.308003"
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 data_item1_uuid = uuid.UUID("71ab9215-c6ae-4c36-aaf5-92ce78db02b6")
@@ -569,7 +567,7 @@ class TestStorageClass(unittest.TestCase):
                 document_controller.document_model.data_groups[0].append_data_group(data_group1)
                 document_controller.document_model.data_groups[0].insert_data_group(0, data_group2)
                 document_controller.document_model.data_groups[0].append_data_group(data_group3)
-                self.assertEqual(len(profile_context.storage_system.library_storage_properties["data_groups"][0]["data_groups"]), 3)
+                self.assertEqual(len(profile_context.library_properties["data_groups"][0]["data_groups"]), 3)
                 # delete items to generate key error unless primary keys handled carefully. need to delete an item that is at index >= 2 to test for this problem.
                 data_group4 = DataGroup.DataGroup()
                 data_group5 = DataGroup.DataGroup()
@@ -577,7 +575,7 @@ class TestStorageClass(unittest.TestCase):
                 document_controller.document_model.data_groups[0].insert_data_group(1, data_group5)
                 document_controller.document_model.data_groups[0].remove_data_group(document_controller.document_model.data_groups[0].data_groups[2])
                 # make sure indexes are in sequence still
-                self.assertEqual(len(profile_context.storage_system.library_storage_properties["data_groups"][0]["data_groups"]), 4)
+                self.assertEqual(len(profile_context.library_properties["data_groups"][0]["data_groups"]), 4)
 
     def test_copy_data_group(self):
         document_model = DocumentModel.DocumentModel()
@@ -632,9 +630,7 @@ class TestStorageClass(unittest.TestCase):
                 data_group.append_display_item(document_model.display_items[0])
                 data_group.append_display_item(document_model.display_items[1])
                 document_model.append_data_group(data_group)
-            library_properties = profile_context.storage_system.library_storage_properties
-            library_properties['data_groups'][0]['display_item_references'][1] = library_properties['data_groups'][0]['display_item_references'][0]
-            profile_context.storage_system._set_library_properties(library_properties)
+            profile_context.library_properties['data_groups'][0]['display_item_references'][1] = profile_context.library_properties['data_groups'][0]['display_item_references'][0]
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_groups[0].display_items), 1)
@@ -872,17 +868,17 @@ class TestStorageClass(unittest.TestCase):
                 # force a write and verify
                 with document_model.item_transaction(data_item):
                     pass
-                self.assertEqual(len(profile_context.storage_system.persistent_storage_properties.keys()), 1)
+                self.assertEqual(len(profile_context.data_properties_map.keys()), 1)
                 # continue with test
                 data_item._set_modified(modified)
                 self.assertEqual(document_model.data_items[0].modified, modified)
                 # now clear the memory_persistent_storage_system and see if it gets written again
-                profile_context.storage_system.persistent_storage_properties.clear()
+                profile_context.data_properties_map.clear()
                 with document_model.item_transaction(data_item):
                     pass
                 self.assertEqual(document_model.data_items[0].modified, modified)
                 # properties should still be empty, unless it was written again
-                self.assertEqual(profile_context.storage_system.persistent_storage_properties, dict())
+                self.assertEqual(profile_context.data_properties_map, dict())
 
     def test_begin_end_transaction_with_change_should_write(self):
         # converse of previous test
@@ -895,12 +891,12 @@ class TestStorageClass(unittest.TestCase):
                 data_item._set_modified(modified)
                 self.assertEqual(document_model.data_items[0].modified, modified)
                 # now clear the memory_persistent_storage_system and see if it gets written again
-                profile_context.storage_system.persistent_storage_properties.clear()
+                profile_context.data_properties_map.clear()
                 with document_model.item_transaction(data_item):
                     data_item.category = "category"
                 self.assertNotEqual(document_model.data_items[0].modified, modified)
                 # properties should still be empty, unless it was written again
-                self.assertNotEqual(profile_context.storage_system.persistent_storage_properties, dict())
+                self.assertNotEqual(profile_context.data_properties_map, dict())
 
     def test_begin_end_transaction_with_non_data_change_should_not_write_data(self):
         with create_memory_profile_context() as profile_context:
@@ -909,10 +905,10 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 # now clear the memory_persistent_storage_system and see if it gets written again
-                profile_context.storage_system.data.clear()
+                profile_context.data_map.clear()
                 with document_model.item_transaction(data_item):
                     data_item.caption = "caption"
-                self.assertEqual(profile_context.storage_system.data, dict())
+                self.assertEqual(profile_context.data_map, dict())
 
     def test_begin_end_transaction_with_data_change_should_write_data(self):
         with create_memory_profile_context() as profile_context:
@@ -921,10 +917,10 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 # now clear the memory_persistent_storage_system and see if it gets written again
-                profile_context.storage_system.data.clear()
+                profile_context.data_map.clear()
                 with document_model.item_transaction(data_item):
                     data_item.set_data(numpy.zeros((17, 17), numpy.uint32))
-                self.assertEqual(profile_context.storage_system.data[str(data_item.uuid)].shape, (17, 17))
+                self.assertEqual(profile_context.data_map[str(data_item.uuid)].shape, (17, 17))
 
     def test_begin_end_transaction_with_data_change_should_write_display_item(self):
         with create_memory_profile_context() as profile_context:
@@ -936,14 +932,14 @@ class TestStorageClass(unittest.TestCase):
                 graphic = Graphics.PointGraphic()
                 display_item.add_graphic(graphic)
                 # now clear the memory_persistent_storage_system and see if it gets written again
-                profile_context.storage_system.library_persistent_storage_enabled = True
-                profile_context.storage_system.library_persistent_storage.clear()
-                with document_model.item_transaction(data_item):
+                profile_context.library_properties["display_items"][0]["graphics"][0].clear()
+                self.assertFalse(profile_context.library_properties["display_items"][0]["graphics"][0])
+                with document_model.item_transaction(display_item):
                     graphic.label = "Fred"
-                    self.assertFalse(profile_context.storage_system.library_persistent_storage)
-                self.assertEqual("Fred", profile_context.storage_system.library_persistent_storage["display_items"][0]["graphics"][0]["label"])
+                    self.assertFalse(profile_context.library_properties["display_items"][0]["graphics"][0])
+                self.assertEqual("Fred", profile_context.library_properties["display_items"][0]["graphics"][0]["label"])
                 graphic.label = "Grumble"
-                self.assertEqual("Grumble", profile_context.storage_system.library_persistent_storage["display_items"][0]["graphics"][0]["label"])
+                self.assertEqual("Grumble", profile_context.library_properties["display_items"][0]["graphics"][0]["label"])
 
     def test_data_removes_file_after_original_date_and_session_change(self):
         with create_temp_profile_context() as profile_context:
@@ -1237,7 +1233,7 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
                 # increment the version on the data item
-                list(profile_context.storage_system.persistent_storage_properties.values())[0]["version"] = DataItem.DataItem.writer_version + 1
+                list(profile_context.data_properties_map.values())[0]["version"] = DataItem.DataItem.writer_version + 1
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
@@ -1319,8 +1315,8 @@ class TestStorageClass(unittest.TestCase):
                 modifieds[str(cropped_inverted_data_item.uuid)] = cropped_inverted_data_item.modified
             # modify original expression to be something else
             original_expressions = dict()
-            for data_item_uuid in profile_context.storage_system.persistent_storage_properties.keys():
-                computation_dict = profile_context.storage_system.persistent_storage_properties[data_item_uuid].get("computation", dict())
+            for data_item_uuid in profile_context.data_properties_map.keys():
+                computation_dict = profile_context.data_properties_map[data_item_uuid].get("computation", dict())
                 original_expression = computation_dict.get("original_expression")
                 if original_expression:
                     computation_dict["original_expression"] = "incorrect"
@@ -1384,13 +1380,13 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v1_migration(self):
         # construct v1 data item
         with create_memory_profile_context() as profile_context:
-            data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["spatial_calibrations"] = [{ "origin": 1.0, "scale": 2.0, "units": "mm" }, { "origin": 1.0, "scale": 2.0, "units": "mm" }]
             data_item_dict["intensity_calibration"] = { "origin": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_source_uuid"] = str(uuid.uuid4())
             data_item_dict["properties"] = { "voltage": 200.0, "session_uuid": str(uuid.uuid4()) }
             data_item_dict["version"] = 1
-            profile_context.storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
+            profile_context.data_map["A"] = numpy.zeros((8, 8), numpy.uint32)
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
@@ -1412,13 +1408,13 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v2_migration(self):
         # construct v2 data item
         with create_memory_profile_context() as profile_context:
-            data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["displays"] = [{"graphics": [{"type": "rect-graphic"}]}]
             data_item_dict["operations"] = [{"operation_id": "invert-operation"}]
             data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
             data_item_dict["master_data_shape"] = (8, 8)
             data_item_dict["version"] = 2
-            profile_context.storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
+            profile_context.data_map["A"] = numpy.zeros((8, 8), numpy.uint32)
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
@@ -1433,14 +1429,14 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v3_migration(self):
         # construct v3 data item
         with create_memory_profile_context() as profile_context:
-            data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
             data_item_dict["intrinsic_spatial_calibrations"] = [{ "origin": 1.0, "scale": 2.0, "units": "mm" }, { "origin": 1.0, "scale": 2.0, "units": "mm" }]
             data_item_dict["intrinsic_intensity_calibration"] = { "origin": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
             data_item_dict["master_data_shape"] = (8, 8)
             data_item_dict["version"] = 3
-            profile_context.storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
+            profile_context.data_map["A"] = numpy.zeros((8, 8), numpy.uint32)
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
@@ -1457,7 +1453,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v4_migration(self):
         # construct v4 data item
         with create_memory_profile_context() as profile_context:
-            data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
             region_uuid_str = str(uuid.uuid4())
             data_item_dict["regions"] = [{"type": "rectangle-region", "uuid": region_uuid_str}]
@@ -1465,7 +1461,7 @@ class TestStorageClass(unittest.TestCase):
             data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
             data_item_dict["master_data_shape"] = (8, 8)
             data_item_dict["version"] = 4
-            profile_context.storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
+            profile_context.data_map["A"] = numpy.zeros((8, 8), numpy.uint32)
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
@@ -1479,7 +1475,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v5_migration(self):
         # construct v5 data item
         with create_memory_profile_context() as profile_context:
-            data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["uuid"] = str(uuid.uuid4())
             data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
             data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
@@ -1488,8 +1484,8 @@ class TestStorageClass(unittest.TestCase):
             data_item_dict["intrinsic_intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["datetime_original"] = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:01:00.000000'}
             data_item_dict["version"] = 5
-            profile_context.storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
-            data_item2_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            profile_context.data_map["A"] = numpy.zeros((8, 8), numpy.uint32)
+            data_item2_dict = profile_context.data_properties_map.setdefault("B", dict())
             data_item2_dict["uuid"] = str(uuid.uuid4())
             data_item2_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
             data_item2_dict["operations"] = [{"operation_id": "invert-operation"}]
@@ -1519,7 +1515,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v6_migration(self):
         # construct v6 data item
         with create_memory_profile_context() as profile_context:
-            data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["uuid"] = str(uuid.uuid4())
             data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
             data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
@@ -1528,13 +1524,13 @@ class TestStorageClass(unittest.TestCase):
             data_item_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["datetime_original"] = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:01:00.000000'}
             data_item_dict["version"] = 6
-            profile_context.storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
-            data_item2_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            profile_context.data_map["A"] = numpy.zeros((8, 8), numpy.uint32)
+            data_item2_dict = profile_context.data_properties_map.setdefault("B", dict())
             data_item2_dict["uuid"] = str(uuid.uuid4())
             data_item2_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
             data_item2_dict["operation"] = {"type": "operation", "operation_id": "invert-operation", "data_sources": [{"type": "data-item-data-source", "data_item_uuid": data_item_dict["uuid"]}]}
             data_item2_dict["version"] = 6
-            data_item3_dict = profile_context.storage_system.persistent_storage_properties.setdefault("C", dict())
+            data_item3_dict = profile_context.data_properties_map.setdefault("C", dict())
             data_item3_dict["uuid"] = str(uuid.uuid4())
             data_item3_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
             data_item3_dict["master_data_dtype"] = None
@@ -1567,7 +1563,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v7_migration(self):
         # construct v7 data item
         with create_memory_profile_context() as profile_context:
-            data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["uuid"] = str(uuid.uuid4())
             data_item_dict["version"] = 7
             caption, title = "caption", "title"
@@ -1602,7 +1598,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_fft_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
             src_data_source_dict = dict()
@@ -1615,7 +1611,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             src_data_item_dict["data_sources"] = [src_data_source_dict]
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 8
             dst_data_source_dict = dict()
@@ -1654,7 +1650,7 @@ class TestStorageClass(unittest.TestCase):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
 
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
             src_data_source_dict = dict()
@@ -1668,7 +1664,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             src_data_item_dict["data_sources"] = [src_data_source_dict]
 
-            src2_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            src2_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             src2_data_item_dict["uuid"] = str(uuid.uuid4())
             src2_data_item_dict["version"] = 8
             src2_data_source_dict = dict()
@@ -1682,7 +1678,7 @@ class TestStorageClass(unittest.TestCase):
             src2_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             src2_data_item_dict["data_sources"] = [src2_data_source_dict]
 
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("C", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("C", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 8
             dst_data_source_dict = dict()
@@ -1724,7 +1720,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_gaussian_blur_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
             src_data_source_dict = dict()
@@ -1739,7 +1735,7 @@ class TestStorageClass(unittest.TestCase):
             crop_uuid_str = str(uuid.uuid4())
             src_data_source_dict["regions"] = [{"type": "rectangle-region", "uuid": crop_uuid_str, "size": (0.4, 0.5), "center": (0.4, 0.55)}]
             src_data_item_dict["data_sources"] = [src_data_source_dict]
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 8
             dst_data_source_dict = dict()
@@ -1796,7 +1792,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_median_filter_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
             src_data_source_dict = dict()
@@ -1809,7 +1805,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             src_data_item_dict["data_sources"] = [src_data_source_dict]
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 8
             dst_data_source_dict = dict()
@@ -1848,7 +1844,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_slice_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
             src_data_source_dict = dict()
@@ -1861,7 +1857,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             src_data_item_dict["data_sources"] = [src_data_source_dict]
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 8
             dst_data_source_dict = dict()
@@ -1901,7 +1897,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_crop_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
             src_data_source_dict = dict()
@@ -1916,7 +1912,7 @@ class TestStorageClass(unittest.TestCase):
             crop_uuid_str = str(uuid.uuid4())
             src_data_source_dict["regions"] = [{"type": "rectangle-region", "uuid": crop_uuid_str, "size": (0.4, 0.5), "center": (0.4, 0.55)}]
             src_data_item_dict["data_sources"] = [src_data_source_dict]
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 8
             dst_data_source_dict = dict()
@@ -1955,7 +1951,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_projection_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
             src_data_source_dict = dict()
@@ -1970,7 +1966,7 @@ class TestStorageClass(unittest.TestCase):
             crop_uuid_str = str(uuid.uuid4())
             src_data_source_dict["regions"] = [{"type": "rectangle-region", "uuid": crop_uuid_str, "size": (0.4, 0.5), "center": (0.4, 0.55)}]
             src_data_item_dict["data_sources"] = [src_data_source_dict]
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 8
             dst_data_source_dict = dict()
@@ -2026,7 +2022,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_convert_to_scalar_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
             src_data_source_dict = dict()
@@ -2041,7 +2037,7 @@ class TestStorageClass(unittest.TestCase):
             crop_uuid_str = str(uuid.uuid4())
             src_data_source_dict["regions"] = [{"type": "rectangle-region", "uuid": crop_uuid_str, "size": (0.4, 0.5), "center": (0.4, 0.55)}]
             src_data_item_dict["data_sources"] = [src_data_source_dict]
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 8
             dst_data_source_dict = dict()
@@ -2097,7 +2093,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_resample_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
             src_data_source_dict = dict()
@@ -2110,7 +2106,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             src_data_item_dict["data_sources"] = [src_data_source_dict]
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 8
             dst_data_source_dict = dict()
@@ -2150,7 +2146,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_pick_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
             src_data_source_dict = dict()
@@ -2165,7 +2161,7 @@ class TestStorageClass(unittest.TestCase):
             point_uuid_str = str(uuid.uuid4())
             src_data_source_dict["regions"] = [{"type": "point-region", "uuid": point_uuid_str, "position": (0.4, 0.5)}]
             src_data_item_dict["data_sources"] = [src_data_source_dict]
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 8
             dst_data_source_dict = dict()
@@ -2211,7 +2207,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_line_profile_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
             src_data_source_dict = dict()
@@ -2226,7 +2222,7 @@ class TestStorageClass(unittest.TestCase):
             line_uuid_str = str(uuid.uuid4())
             src_data_source_dict["regions"] = [{"type": "line-region", "uuid": line_uuid_str, "width": 1.3, "start": (0.2, 0.3), "end": (0.4, 0.5)}]
             src_data_item_dict["data_sources"] = [src_data_source_dict]
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 8
             dst_data_source_dict = dict()
@@ -2270,7 +2266,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_unknown_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
             src_data_source_dict = dict()
@@ -2283,7 +2279,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             src_data_item_dict["data_sources"] = [src_data_source_dict]
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 8
             dst_data_source_dict = dict()
@@ -2313,7 +2309,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v9_to_v10_migration(self):
         # construct v9 data items with regions, make sure they get translated to graphics
         with create_memory_profile_context() as profile_context:
-            data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["uuid"] = str(uuid.uuid4())
             data_item_dict["version"] = 9
             data_source_dict = dict()
@@ -2386,7 +2382,7 @@ class TestStorageClass(unittest.TestCase):
         # construct v9 data items with regions, make sure they get translated to graphics
         with create_memory_profile_context() as profile_context:
 
-            data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_uuid = str(uuid.uuid4())
             data_item_dict["uuid"] = data_item_uuid
             data_item_dict["version"] = 9
@@ -2405,7 +2401,7 @@ class TestStorageClass(unittest.TestCase):
             ]
             data_item_dict["data_sources"] = [data_source_dict]
 
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_uuid = str(uuid.uuid4())
             dst_data_item_dict["uuid"] = dst_data_item_uuid
             dst_data_item_dict["version"] = 9
@@ -2440,7 +2436,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v10_to_v11_created_date_migration(self):
         with create_memory_profile_context() as profile_context:
 
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
             src_data_item_dict["uuid"] = src_uuid_str
             src_data_item_dict["version"] = 10
@@ -2468,7 +2464,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v10_to_v11_crop_migration(self):
         with create_memory_profile_context() as profile_context:
 
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
             src_data_item_dict["uuid"] = src_uuid_str
             src_data_item_dict["version"] = 10
@@ -2483,7 +2479,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             src_data_item_dict["data_sources"] = [src_data_source_dict]
 
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("C", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("C", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 10
             dst_data_source_dict = dict()
@@ -2522,7 +2518,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v10_to_v11_gaussian_migration(self):
         with create_memory_profile_context() as profile_context:
 
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
             src_data_item_dict["uuid"] = src_uuid_str
             src_data_item_dict["version"] = 10
@@ -2537,7 +2533,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             src_data_item_dict["data_sources"] = [src_data_source_dict]
 
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("C", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("C", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 10
             dst_data_source_dict = dict()
@@ -2577,7 +2573,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v10_to_v11_cross_correlate_migration(self):
         with create_memory_profile_context() as profile_context:
 
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
             src_data_item_dict["uuid"] = src_uuid_str
             src_data_item_dict["version"] = 10
@@ -2592,7 +2588,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             src_data_item_dict["data_sources"] = [src_data_source_dict]
 
-            src2_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            src2_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             src2_uuid_str = str(uuid.uuid4())
             src2_data_item_dict["uuid"] = src2_uuid_str
             src2_data_item_dict["version"] = 10
@@ -2607,7 +2603,7 @@ class TestStorageClass(unittest.TestCase):
             src2_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             src2_data_item_dict["data_sources"] = [src2_data_source_dict]
 
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("C", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("C", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 10
             dst_data_source_dict = dict()
@@ -2653,7 +2649,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v11_to_v12_line_profile_migration(self):
         with create_memory_profile_context() as profile_context:
 
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
             src_data_item_dict["uuid"] = src_uuid_str
             src_data_item_dict["version"] = 11
@@ -2666,7 +2662,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_item_dict["displays"] = [{"uuid": str(uuid.uuid4()), "graphics": [{"type": "line-profile-graphic", "uuid": graphic_uuid_str, "start": (0, 0), "end": (1, 1)}]}]
             src_data_item_dict["data_source"] = src_data_source_dict
 
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 11
             dst_data_source_dict = dict()
@@ -2704,7 +2700,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v11_to_v12_pick_migration(self):
         with create_memory_profile_context() as profile_context:
 
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
             src_data_item_dict["uuid"] = src_uuid_str
             src_data_item_dict["version"] = 11
@@ -2718,7 +2714,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_item_dict["displays"] = [{"uuid": src_display_uuid_str, "graphics": [{"type": "point-graphic", "uuid": point_graphic_uuid_str, "start": (0, 0), "end": (1, 1)}]}]
             src_data_item_dict["data_source"] = src_data_source_dict
 
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 11
             dst_data_source_dict = dict()
@@ -2760,7 +2756,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v11_to_v12_computation_reloads_without_duplicating_computation(self):
         with create_memory_profile_context() as profile_context:
 
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
             src_data_item_dict["uuid"] = src_uuid_str
             src_data_item_dict["version"] = 11
@@ -2773,7 +2769,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_item_dict["displays"] = [{"uuid": str(uuid.uuid4()), "graphics": [{"type": "line-profile-graphic", "uuid": graphic_uuid_str, "start": (0, 0), "end": (1, 1)}]}]
             src_data_item_dict["data_source"] = src_data_source_dict
 
-            dst_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("B", dict())
+            dst_data_item_dict = profile_context.data_properties_map.setdefault("B", dict())
             dst_data_item_dict["uuid"] = str(uuid.uuid4())
             dst_data_item_dict["version"] = 11
             dst_data_source_dict = dict()
@@ -2800,7 +2796,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v12_to_v13(self):
         with create_memory_profile_context() as profile_context:
 
-            src_data_item_dict = profile_context.storage_system.persistent_storage_properties.setdefault("A", dict())
+            src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
             src_data_item_dict["uuid"] = src_uuid_str
             src_data_item_dict["version"] = 12
@@ -3628,9 +3624,8 @@ class TestStorageClass(unittest.TestCase):
                 computed_data_item = DataItem.DataItem(data.copy())
                 document_model.append_data_item(computed_data_item)
                 document_model.set_data_item_computation(computed_data_item, computation)
-            library_storage_properties = profile_context.storage_system.library_storage_properties
-            del library_storage_properties["computations"][0]["variables"][0]
-            library_storage_properties["computations"][0]["variables"][0]["uuid"] = str(uuid.uuid4())
+            del profile_context.library_properties["computations"][0]["variables"][0]
+            profile_context.library_properties["computations"][0]["variables"][0]["uuid"] = str(uuid.uuid4())
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             document_model.close()
 
@@ -3717,9 +3712,7 @@ class TestStorageClass(unittest.TestCase):
                 computation.create_result("dst", document_model.get_object_specifier(dst_data_item))
                 document_model.append_computation(computation)
                 document_model.recompute_all()
-            library_storage_properties = profile_context.storage_system.library_storage_properties
-            library_storage_properties["computations"][0]["variables"][0]["specifier"]["uuid"] = str(uuid.uuid4())
-            profile_context.storage_system._set_library_properties(library_storage_properties)
+            profile_context.library_properties["computations"][0]["variables"][0]["specifier"]["uuid"] = str(uuid.uuid4())
             self.computation1_eval_count = 0
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
@@ -3785,9 +3778,7 @@ class TestStorageClass(unittest.TestCase):
                 computation.processing_id = "add_n"
                 document_model.append_computation(computation)
                 document_model.recompute_all()
-            library_storage_properties = profile_context.storage_system.library_storage_properties
-            library_storage_properties["computations"][0]["variables"][0]["object_specifiers"][0]["uuid"] = str(uuid.uuid4())
-            profile_context.storage_system._set_library_properties(library_storage_properties)
+            profile_context.library_properties["computations"][0]["variables"][0]["object_specifiers"][0]["uuid"] = str(uuid.uuid4())
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 document_model.remove_data_item(document_model.data_items[0])
@@ -3798,7 +3789,7 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 src_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(src_data_item)
-            profile_context.storage_system.persistent_storage_properties[str(src_data_item.uuid)]["created"] = "todaytodaytodaytodaytoday0"
+            profile_context.data_properties_map[str(src_data_item.uuid)]["created"] = "todaytodaytodaytodaytoday0"
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 # for corrupt/missing created dates, a new one matching todays date should be assigned
@@ -3910,11 +3901,11 @@ class TestStorageClass(unittest.TestCase):
                 command = DocumentController.DocumentController.InsertDataItemsCommand(document_controller, [data_item], 0)
                 command.perform()
                 document_controller.push_undo_command(command)
-                self.assertEqual(1, len(profile_context.storage_system.persistent_storage_properties.keys()))
+                self.assertEqual(1, len(profile_context.data_properties_map.keys()))
                 document_controller.handle_undo()
-                self.assertEqual(0, len(profile_context.storage_system.persistent_storage_properties.keys()))
+                self.assertEqual(0, len(profile_context.data_properties_map.keys()))
                 document_controller.handle_redo()
-                self.assertEqual(1, len(profile_context.storage_system.persistent_storage_properties.keys()))
+                self.assertEqual(1, len(profile_context.data_properties_map.keys()))
 
     def test_undo_graphic_move_is_written_to_storage(self):
         with create_memory_profile_context() as profile_context:

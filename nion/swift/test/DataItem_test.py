@@ -1116,8 +1116,8 @@ class TestDataItemClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
                 with document_model.item_transaction(data_item):
                     document_model.append_data_item(data_item)
-                    self.assertEqual(len(profile_context.storage_system.data.keys()), 0)
-                self.assertEqual(len(profile_context.storage_system.data.keys()), 1)
+                    self.assertEqual(len(profile_context.data_map.keys()), 0)
+                self.assertEqual(len(profile_context.data_map.keys()), 1)
 
     def test_extra_changing_data_item_session_id_in_transaction_does_not_result_in_duplicated_data_items(self):
         with create_memory_profile_context() as profile_context:
@@ -1127,9 +1127,9 @@ class TestDataItemClass(unittest.TestCase):
                 with document_model.item_transaction(data_item):
                     data_item.session_id = "20000630-150200"
                     document_model.append_data_item(data_item)
-                    self.assertEqual(len(profile_context.storage_system.data.keys()), 0)
+                    self.assertEqual(len(profile_context.data_map.keys()), 0)
                     data_item.session_id = "20000630-150201"
-                self.assertEqual(len(profile_context.storage_system.data.keys()), 1)
+                self.assertEqual(len(profile_context.data_map.keys()), 1)
 
     def test_changing_data_item_session_id_in_transaction_does_not_result_in_duplicated_data_items(self):
         with create_memory_profile_context() as profile_context:
@@ -1139,10 +1139,10 @@ class TestDataItemClass(unittest.TestCase):
                 with document_model.item_transaction(data_item):
                     data_item.session_id = "20000630-150200"
                     document_model.append_data_item(data_item)
-                self.assertEqual(len(profile_context.storage_system.data.keys()), 1)
+                self.assertEqual(len(profile_context.data_map.keys()), 1)
                 with document_model.item_transaction(data_item):
                     data_item.session_id = "20000630-150201"
-                self.assertEqual(len(profile_context.storage_system.data.keys()), 1)
+                self.assertEqual(len(profile_context.data_map.keys()), 1)
 
     def test_data_item_added_to_library_gets_current_session(self):
         document_model = DocumentModel.DocumentModel()

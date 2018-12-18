@@ -58,7 +58,6 @@ class MemoryStorageSystem:
         self._test_data_read_event = Event.Event()
         self.__library_storage = dict()
         self.__library_storage_lock = threading.RLock()
-        self.library_persistent_storage_enabled = False
         self.__library_persistent_storage = dict()
         self.__data_item_storage_adapters = dict()
         self.__write_delay_counts = dict()
@@ -86,8 +85,7 @@ class MemoryStorageSystem:
             if object and isinstance(object, DataItem.DataItem):
                 self.__get_storage_for_item(object).rewrite_item(object)
             elif not persistent_object_parent:
-                if self.library_persistent_storage_enabled:
-                    self.__library_persistent_storage = copy.deepcopy(self.__library_storage)
+                self.__library_persistent_storage = copy.deepcopy(self.__library_storage)
             elif persistent_object_parent:
                 self.__write_properties(persistent_object_parent.parent)
 
@@ -97,8 +95,7 @@ class MemoryStorageSystem:
 
     @property
     def library_storage_properties(self):
-        with self.__library_storage_lock:
-            return copy.deepcopy(self.__library_storage)
+        return self.__library_persistent_storage
 
     @property
     def persistent_storage_properties(self):
@@ -108,6 +105,10 @@ class MemoryStorageSystem:
         """Set the properties; used for testing."""
         with self.__library_storage_lock:
             self.__library_storage = properties
+
+    @property
+    def library_properties(self):
+        return self.__library_persistent_storage
 
     def rewrite_properties(self, properties):
         """Set the properties and write to disk."""
