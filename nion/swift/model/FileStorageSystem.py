@@ -126,7 +126,7 @@ class FileStorageSystem:
         with self.__properties_lock:
             return copy.deepcopy(self.__properties)
 
-    def _set_properties(self, properties):
+    def _set_library_properties(self, properties):
         """Set the properties; used for testing."""
         with self.__properties_lock:
             self.__properties = properties

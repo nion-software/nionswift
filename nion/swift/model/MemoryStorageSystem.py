@@ -68,7 +68,7 @@ class MemoryStorageSystem:
 
     def __deepcopy__(self, memo):
         deepcopy = self.__class__()
-        deepcopy._set_properties(copy.deepcopy(self.library_storage_properties))
+        deepcopy._set_library_properties(copy.deepcopy(self.library_storage_properties))
         deepcopy._set_storage_properties(copy.deepcopy(self.persistent_storage_properties))
         deepcopy.data = copy.deepcopy(self.data)
         memo[id(self)] = deepcopy
@@ -104,7 +104,7 @@ class MemoryStorageSystem:
     def persistent_storage_properties(self):
         return self.__data_item_storage
 
-    def _set_properties(self, properties):
+    def _set_library_properties(self, properties):
         """Set the properties; used for testing."""
         with self.__library_storage_lock:
             self.__library_storage = properties

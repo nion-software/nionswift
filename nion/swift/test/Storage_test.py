@@ -355,7 +355,7 @@ class TestStorageClass(unittest.TestCase):
             # make the slice_center be out of bounds
             library_storage_properties = profile_context.storage_system.library_storage_properties
             library_storage_properties["display_items"][0]["display_data_channels"][0]["slice_center"] = 20
-            profile_context.storage_system._set_properties(library_storage_properties)
+            profile_context.storage_system._set_library_properties(library_storage_properties)
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
@@ -634,7 +634,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_group(data_group)
             library_properties = profile_context.storage_system.library_storage_properties
             library_properties['data_groups'][0]['display_item_references'][1] = library_properties['data_groups'][0]['display_item_references'][0]
-            profile_context.storage_system._set_properties(library_properties)
+            profile_context.storage_system._set_library_properties(library_properties)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_groups[0].display_items), 1)
@@ -3719,7 +3719,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.recompute_all()
             library_storage_properties = profile_context.storage_system.library_storage_properties
             library_storage_properties["computations"][0]["variables"][0]["specifier"]["uuid"] = str(uuid.uuid4())
-            profile_context.storage_system._set_properties(library_storage_properties)
+            profile_context.storage_system._set_library_properties(library_storage_properties)
             self.computation1_eval_count = 0
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
@@ -3787,7 +3787,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.recompute_all()
             library_storage_properties = profile_context.storage_system.library_storage_properties
             library_storage_properties["computations"][0]["variables"][0]["object_specifiers"][0]["uuid"] = str(uuid.uuid4())
-            profile_context.storage_system._set_properties(library_storage_properties)
+            profile_context.storage_system._set_library_properties(library_storage_properties)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 document_model.remove_data_item(document_model.data_items[0])

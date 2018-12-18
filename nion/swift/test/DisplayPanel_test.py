@@ -1979,7 +1979,7 @@ class TestDisplayPanelClass(unittest.TestCase):
                 display_panel.display_canvas_item.refresh_layout_immediate()
             library_storage_properties = profile_context.storage_system.library_storage_properties
             library_storage_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
-            profile_context.storage_system._set_properties(library_storage_properties)
+            profile_context.storage_system._set_library_properties(library_storage_properties)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             with contextlib.closing(document_controller):
@@ -2008,7 +2008,7 @@ class TestDisplayPanelClass(unittest.TestCase):
                 display_panel.display_canvas_item.refresh_layout_immediate()
             library_storage_properties = profile_context.storage_system.library_storage_properties
             library_storage_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
-            profile_context.storage_system._set_properties(library_storage_properties)
+            profile_context.storage_system._set_library_properties(library_storage_properties)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             with contextlib.closing(document_controller):

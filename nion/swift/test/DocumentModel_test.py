@@ -2194,7 +2194,7 @@ class TestDocumentModelClass(unittest.TestCase):
                 display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
             library_storage_properties = profile_context.storage_system.library_storage_properties
             library_storage_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
-            profile_context.storage_system._set_properties(library_storage_properties)
+            profile_context.storage_system._set_library_properties(library_storage_properties)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 document_model.remove_display_item(document_model.display_items[-1])
