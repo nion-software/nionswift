@@ -2203,10 +2203,11 @@ class Library(metaclass=SharedInstance):
         """
         return [DataItem(data_item) for data_item in self._document_model.get_dependent_data_items(data_item._data_item)] if data_item else None
 
-    def create_data_item(self, title: str=None) -> DataItem:
+    def create_data_item(self, title: str=None, large_format: bool=False) -> DataItem:
         """Create an empty data item in the library.
 
         :param title: The title of the data item (optional).
+        :param large_format: Controls whether the data item is HDF5 backed (optional).
         :return: The new :py:class:`nion.swift.Facade.DataItem` object.
         :rtype: :py:class:`nion.swift.Facade.DataItem`
 
@@ -2214,7 +2215,7 @@ class Library(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        data_item = DataItemModule.DataItem()
+        data_item = DataItemModule.DataItem(large_format=large_format)
         data_item.ensure_data_source()
         if title is not None:
             data_item.title = title
