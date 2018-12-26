@@ -8,7 +8,6 @@ import gettext
 import logging
 import numbers
 import os.path
-import pathlib
 import threading
 import time
 import typing
@@ -323,20 +322,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.define_type("library")
         self.define_relationship("data_items", data_item_factory)
         self.define_relationship("display_items", display_item_factory, insert=self.__inserted_display_item)
-        self.define_relationship("data_groups", DataGroup.data_group_factory)
-        self.define_relationship("workspaces", WorkspaceLayout.factory)
         self.define_relationship("computations", computation_factory, insert=self.__inserted_computation, remove=self.__removed_computation)
         self.define_relationship("data_structures", data_structure_factory, insert=self.__inserted_data_structure, remove=self.__removed_data_structure)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__inserted_connection, remove=self.__removed_connection)
-        self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
-        self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
-        self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
-        self.define_property("data_item_deletions", list(), hidden=True)  # list of deleted uuids. usefor for migration.
         self.session_id = None
         self.start_new_session()
         self.__prune()
-        self.__read()
-        self.__profile.validate_uuid_and_version(self, self.uuid, DocumentModel.library_version)
+        self.__profile.read()
+        self.__profile.read_projects()
 
         self.__data_channel_updated_listeners = dict()
         self.__data_channel_start_listeners = dict()
@@ -364,29 +357,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __prune(self):
         self.__profile.prune()
 
-    def __read(self):
-        # first read the library (for deletions) and the library items from the primary storage systems
-        properties = self.__profile.read_library()
-
-        # only add items that aren't in the library already.
-        # this will probably need rework to accommodate project loading/unloading.
-        # this does not handle any except data items.
-        data_item_uuids = {data_item.uuid for data_item in self.data_items}
-        data_item_d_list = list()
-        for data_item_d in properties.get("data_items", list()):
-            data_item_uuid = uuid.UUID(data_item_d["uuid"])
-            if not data_item_uuid in data_item_uuids:
-                data_item_d_list.append(data_item_d)
-                data_item_uuids.add(data_item_uuid)
-        properties["data_items"] = data_item_d_list
-
-        self.begin_reading()
-        try:
-            self.read_from_dict(properties)
-            self.__finish_read()
-        finally:
-            self.finish_reading()
-
     def __finish_read(self) -> None:
         # computations and connections
         data_items = self.data_items
@@ -413,15 +383,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__computation_changed(computation)
             computation.bind(self)
         # initialize data item references
-        data_item_references_dict = self._get_persistent_property_value("data_item_references")
-        for key, data_item_uuid in data_item_references_dict.items():
-            data_item = self.get_data_item_by_uuid(uuid.UUID(data_item_uuid))
+        data_item_references = self.__profile.data_item_references
+        for key, data_item_uuid in data_item_references.items():
+            data_item = self.get_data_item_by_uuid(data_item_uuid)
             if data_item:
                 self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, data_item))
         for data_group in self.data_groups:
             data_group.connect_display_items(self.get_display_item_by_uuid)
         # handle the reference variable assignments
-        data_item_variables = self._get_persistent_property_value("data_item_variables")
+        data_item_variables = self.__profile.data_item_variables
         new_data_item_variables = dict()
         for r_var, data_item_uuid_str in data_item_variables.items():
             data_item_uuid = uuid.UUID(data_item_uuid_str)
@@ -429,7 +399,58 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 new_data_item_variables[r_var] = data_item_uuid_str
                 data_item = self.__uuid_to_data_item[data_item_uuid]
                 data_item.set_r_value(r_var, notify_changed=False)
-        self._set_persistent_property_value("data_item_variables", new_data_item_variables)
+        if new_data_item_variables != data_item_variables:
+            self.__profile.data_item_variables = new_data_item_variables
+
+    def handle_load_item(self, item_type: str, item_d, storage_system):
+        if item_type == "data_items":
+            data_item = DataItem.DataItem()
+            data_item.begin_reading()
+            data_item.read_from_dict(item_d)
+            data_item.finish_reading()
+            self.persistent_object_context._set_persistent_storage_for_object(data_item, storage_system)
+            before_index = len(self.data_items)
+            self.load_item("data_items", before_index, data_item)
+            self.__finish_load_data_item(before_index, data_item, do_write=False)
+        elif item_type == "display_items":
+            display_item = DisplayItem.DisplayItem()
+            display_item.begin_reading()
+            display_item.read_from_dict(item_d)
+            display_item.finish_reading()
+            self.persistent_object_context._set_persistent_storage_for_object(display_item, storage_system)
+            before_index = len(self.display_items)
+            self.load_item("display_items", before_index, display_item)
+            self.__finish_load_display_item(before_index, display_item, update_session=False)
+        elif item_type == "data_structures":
+            data_structure = DataStructure.DataStructure()
+            data_structure.begin_reading()
+            data_structure.read_from_dict(item_d)
+            data_structure.finish_reading()
+            self.persistent_object_context._set_persistent_storage_for_object(data_structure, storage_system)
+            before_index = len(self.data_structures)
+            self.load_item("data_structures", before_index, data_structure)
+            self.__finish_load_data_structure(before_index, data_structure)
+        elif item_type == "connections":
+            connection = Connection.connection_factory(item_d.get)
+            connection.begin_reading()
+            connection.read_from_dict(item_d)
+            connection.finish_reading()
+            self.persistent_object_context._set_persistent_storage_for_object(connection, storage_system)
+            before_index = len(self.connections)
+            self.load_item("connections", before_index, connection)
+            self.__finish_load_connection(before_index, connection)
+        elif item_type == "computations":
+            computation = Symbolic.Computation()
+            computation.begin_reading()
+            computation.read_from_dict(item_d)
+            computation.finish_reading()
+            self.persistent_object_context._set_persistent_storage_for_object(computation, storage_system)
+            before_index = len(self.computations)
+            self.load_item("computations", before_index, computation)
+            self.__finish_load_computation(before_index, computation)
+            computation.update_script(self._processing_descriptions)
+            self.__computation_changed(computation)
+            computation.bind(self)
 
     def write_to_dict(self):
         # this should not be used in regular operation of the application since it is
@@ -497,6 +518,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__transaction_manager = None
 
         self.__profile.close()
+        self.__profile = None
 
     def __call_soon(self, fn):
         self.call_soon_event.fire_any(fn)
@@ -513,6 +535,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     @property
     def profile(self) -> Profile.Profile:
         return self.__profile
+
+    def _get_persistent_storage_for_new_object(self, object):
+        if isinstance(object, (DataItem.DataItem, DisplayItem.DisplayItem, DataStructure.DataStructure, Connection.Connection, Symbolic.Computation)):
+            return self.__profile._target_project_storage_system
+        return self.__profile._profile_storage_system
+
+    def _get_persistent_storage_for_existing_object(self, object):
+        if isinstance(object, (DataItem.DataItem, DisplayItem.DisplayItem, DataStructure.DataStructure, Connection.Connection, Symbolic.Computation)):
+            return self.__profile._target_project_storage_system
+        return self.__profile._profile_storage_system
 
     @property
     def _s2tm(self):
@@ -533,12 +565,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.insert_workspace(len(self.workspaces), workspace)
 
     def insert_workspace(self, before_index, workspace):
-        self.insert_item("workspaces", before_index, workspace)
+        self.__profile.insert_item("workspaces", before_index, workspace)
         self.notify_insert_item("workspaces", workspace, before_index)
 
     def remove_workspace(self, workspace):
         index = self.workspaces.index(workspace)
-        self.remove_item("workspaces", workspace)
+        self.__profile.remove_item("workspaces", workspace)
         self.notify_remove_item("workspaces", workspace, index)
 
     def copy_data_item(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
@@ -575,7 +607,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __insert_data_item(self, before_index, data_item, do_write):
         self.insert_item("data_items", before_index, data_item)
+        self.__finish_load_data_item(before_index, data_item, do_write)
 
+    def __finish_load_data_item(self, before_index, data_item, do_write):
         self.__uuid_to_data_item[data_item.uuid] = data_item
         data_item.about_to_be_inserted(self)
         data_item.set_storage_cache(self.storage_cache)
@@ -630,12 +664,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         assert data_item in self.data_items
         index = self.data_items.index(data_item)
 
-        self._set_persistent_property_value("data_item_deletions", self._get_persistent_property_value("data_item_deletions") + [str(data_item.uuid)])
         self.__uuid_to_data_item.pop(data_item.uuid, None)
         if data_item.r_var:
-            data_item_variables = self._get_persistent_property_value("data_item_variables")
+            data_item_variables = self.__profile.data_item_variables
             del data_item_variables[data_item.r_var]
-            self._set_persistent_property_value("data_item_variables", data_item_variables)
+            self.__profile.data_item_variables = data_item_variables
             data_item.r_var = None
         data_item.__storage_cache = None
         # update data item count
@@ -658,7 +691,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # insert in internal list
         self.__insert_data_item(before_index, data_item, do_write=False)
         data_item.finish_reading()
-        self._set_persistent_property_value("data_item_deletions", list(set(self._get_persistent_property_value("data_item_deletions")) - {str(data_item.uuid)}))
         return data_item
 
     def deepcopy_display_item(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
@@ -683,12 +715,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def append_display_item(self, display_item):
         self.insert_display_item(len(self.display_items), display_item)
 
-    def insert_display_item(self, before_index, display_item):
+    def insert_display_item(self, before_index, display_item, *, update_session: bool = True):
         self.insert_item("display_items", before_index, display_item)
+        self.__finish_load_display_item(before_index, display_item, update_session=update_session)
+
+    def __finish_load_display_item(self, before_index, display_item, *, update_session: bool = True):
         self.display_item_inserted_event.fire(self, display_item, before_index, False)
         display_item.connect_data_items(self.get_data_item_by_uuid)
         assert not self._is_reading
-        display_item.session_id = self.session_id
+        if update_session:
+            display_item.session_id = self.session_id
         self.__rebind_computations()  # rebind any unresolved that may now be resolved
         self.notify_insert_item("display_items", display_item, before_index)
 
@@ -731,7 +767,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def assign_variable_to_data_item(self, data_item: DataItem.DataItem) -> str:
         if not data_item.r_var:
-            data_item_variables = self._get_persistent_property_value("data_item_variables")
+            data_item_variables = self.__profile.data_item_variables
             def find_var() -> str:
                 for r in range(1, 1000000):
                     r_var = "r{:02d}".format(r)
@@ -741,12 +777,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item_var = find_var()
             data_item_variables[data_item_var] = str(data_item.uuid)
             data_item.set_r_value(data_item_var)
-            self._set_persistent_property_value("data_item_variables", data_item_variables)
+            self.__profile.data_item_variables = data_item_variables
         return data_item.r_var
 
     def variable_to_data_item_map(self) -> typing.Mapping[str, DataItem.DataItem]:
         m = dict()
-        data_item_variables = self._get_persistent_property_value("data_item_variables")
+        data_item_variables = self.__profile.data_item_variables
         for variable, data_item_uuid_str in data_item_variables.items():
             m[variable] = self.__uuid_to_data_item[uuid.UUID(data_item_uuid_str)]
         return m
@@ -1211,19 +1247,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def transaction_context(self):
         """Return a context object for a document-wide transaction."""
-        class DocumentModelTransaction:
-            def __init__(self, document_model):
-                self.__document_model = document_model
-
-            def __enter__(self):
-                self.__document_model.persistent_object_context.enter_write_delay(self.__document_model)
-                return self
-
-            def __exit__(self, type, value, traceback):
-                self.__document_model.persistent_object_context.exit_write_delay(self.__document_model)
-                self.__document_model.persistent_object_context.rewrite_item(self.__document_model)
-
-        return DocumentModelTransaction(self)
+        return self.profile.transaction_context()
 
     def item_transaction(self, item) -> Transaction:
         return self.__transaction_manager.item_transaction(item)
@@ -1291,13 +1315,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.insert_data_group(len(self.data_groups), data_group)
 
     def insert_data_group(self, before_index, data_group):
-        self.insert_item("data_groups", before_index, data_group)
+        self.__profile.insert_item("data_groups", before_index, data_group)
         self.notify_insert_item("data_groups", data_group, before_index)
 
     def remove_data_group(self, data_group):
         data_group.disconnect_display_items()
         index = self.data_groups.index(data_group)
-        self.remove_item("data_groups", data_group)
+        self.__profile.remove_item("data_groups", data_group)
         self.notify_remove_item("data_groups", data_group, index)
 
     def create_default_data_groups(self):
@@ -2060,17 +2084,27 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return len(self.__pending_data_item_updates)
 
     @property
-    def data_item_deletions(self) -> typing.Set[uuid.UUID]:
-        return {uuid.UUID(uuid_str) for uuid_str in self._get_persistent_property_value("data_item_deletions")}
+    def workspace_uuid(self) -> uuid.UUID:
+        return self.__profile.workspace_uuid
+
+    @workspace_uuid.setter
+    def workspace_uuid(self, value: uuid.UUID) -> None:
+        self.__profile.workspace_uuid = value
+
+    @property
+    def data_groups(self) -> typing.List[DataGroup.DataGroup]:
+        return self.__profile.data_groups
+
+    @property
+    def workspaces(self) -> typing.List[WorkspaceLayout.WorkspaceLayout]:
+        return self.__profile.workspaces
 
     def _update_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
         assert threading.current_thread() == threading.main_thread()
-        data_item_references_dict = copy.deepcopy(self._get_persistent_property_value("data_item_references"))
         if data_item:
-            data_item_references_dict[key] = str(data_item.uuid)
+            self.__profile.set_data_item_reference(key, data_item)
         else:
-            del data_item_references_dict[key]
-        self._set_persistent_property_value("data_item_references", data_item_references_dict)
+            self.__profile.clear_data_item_reference(key)
 
     def make_data_item_reference_key(self, *components) -> str:
         return "_".join([str(component) for component in list(components) if component is not None])
@@ -2230,6 +2264,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def insert_connection(self, before_index, connection):
         self.insert_item("connections", before_index, connection)
+        self.__finish_load_connection(before_index, connection)
+
+    def __finish_load_connection(self, before_index, connection):
         self.notify_insert_item("connections", connection, before_index)
 
     def remove_connection(self, connection):
@@ -2252,6 +2289,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def insert_data_structure(self, before_index, data_structure):
         self.insert_item("data_structures", before_index, data_structure)
+        self.__finish_load_data_structure(before_index, data_structure)
+
+    def __finish_load_data_structure(self, before_index, data_structure):
         assert not self._is_reading
         self.__rebind_computations()  # rebind any unresolved that may now be resolved
         self.notify_insert_item("data_structures", data_structure, before_index)
@@ -2314,6 +2354,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         if input_set.intersection(output_set):
             raise Exception("Computation would result in duplicate dependency.")
         self.insert_item("computations", before_index, computation)
+        self.__finish_load_computation(before_index, computation)
+
+    def __finish_load_computation(self, before_index, computation):
         assert not self._is_reading
         self.__computation_changed(computation)  # ensure the initial mutation is reported
         self.notify_insert_item("computations", computation, before_index)

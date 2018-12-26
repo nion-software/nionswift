@@ -31,6 +31,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import FileStorageSystem
 from nion.swift.model import Graphics
 from nion.swift.model import Profile
+from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.ui import TestUI
 
@@ -53,18 +54,24 @@ class TempProfileContext:
 
     def __init__(self, base_directory: pathlib.Path):
         self.workspace_dir = base_directory / "__Test"
+        self.profiles_dir = base_directory / "__Test" / "Profiles"
+        self.projects_dir = base_directory / "__Test" / "Projects"
+        if self.workspace_dir.exists():
+            shutil.rmtree(self.workspace_dir)
         Cache.db_make_directory_if_needed(self.workspace_dir)
+        Cache.db_make_directory_if_needed(self.profiles_dir)
+        Cache.db_make_directory_if_needed(self.projects_dir)
 
     def create_profile(self, *, library_name: str = None, data_name: str = None, ignore_older_files: bool = False, auto_migrations=None) -> Profile.Profile:
-        library_name = library_name if library_name else "Data.nslib"
-        data_name = data_name if data_name else "Data"
-        workspace_dir = self.workspace_dir
-        data_path = workspace_dir / data_name
-        cache_path = workspace_dir / "Data.cache"
-        library_path = workspace_dir / library_name
+        profile_name = library_name if library_name else "Profile.nslib"
+        data_name = data_name if data_name else "Project.nslib"
+        data_path = self.projects_dir / data_name
+        cache_path = self.profiles_dir / "ProfileCache.cache"
+        profile_path = self.profiles_dir / profile_name
         storage_cache = Cache.DbStorageCache(cache_path)
-        storage_system = FileStorageSystem.FileStorageSystem(FileStorageSystem.FileLibraryHandler(library_path))
-        profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, ignore_older_files=ignore_older_files)
+        project = Project.Project(FileStorageSystem.FileLibraryHandler(data_path))
+        storage_system = FileStorageSystem.FileStorageSystem(FileStorageSystem.FileLibraryHandler(profile_path))
+        profile = Profile.Profile(storage_system=storage_system, projects=[project], storage_cache=storage_cache)
         profile.storage_cache = storage_cache
         profile.storage_system = storage_system
         return profile
@@ -384,7 +391,7 @@ class TestStorageClass(unittest.TestCase):
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             with contextlib.closing(document_controller):
                 self.save_document(document_controller)
-                document_model_uuid = document_controller.document_model.uuid
+                document_model_uuid = document_controller.document_model.profile.uuid
                 data_items_count = len(document_controller.document_model.data_items)
                 data_items_type = type(document_controller.document_model.data_items)
                 data_item0 = document_controller.document_model.data_items[0]
@@ -401,7 +408,7 @@ class TestStorageClass(unittest.TestCase):
                 new_data_item0 = document_controller.document_model.get_data_item_by_uuid(data_item0_uuid)
                 new_data_item0_display_item = document_model.get_display_item_for_data_item(new_data_item0)
                 self.assertIsNotNone(new_data_item0)
-                self.assertEqual(document_model_uuid, document_controller.document_model.uuid)
+                self.assertEqual(document_model_uuid, document_controller.document_model.profile.uuid)
                 self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
                 self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
                 self.assertIsNotNone(new_data_item0_display_item.data_item.data)

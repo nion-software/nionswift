@@ -100,8 +100,8 @@ class LibraryHandler:
     def _remove_storage_handler(self, storage_handler, *, safe: bool=False) -> None:
         pass
 
-    def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Tuple[typing.Optional[dict], bool]:
-        return None, False
+    def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
+        return None
 
     def reset(self):
         self.__data_properties_map = dict()
@@ -254,7 +254,7 @@ class LibraryHandler:
         storage = self.__data_properties_map.get(data_item.uuid)
         self._remove_storage_handler(storage._storage_handler, safe=safe)
 
-    def restore_item(self, data_item_uuid: uuid.UUID) -> typing.Tuple[typing.Optional[dict], bool]:
+    def restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
         return self._restore_item(data_item_uuid)
 
     def set_write_delayed(self, data_item: DataItem.DataItem, write_delayed: bool) -> None:
@@ -327,7 +327,7 @@ class FileLibraryHandler(LibraryHandler):
             shutil.move(file_path, new_file_path)
         storage_handler.remove()
 
-    def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Tuple[typing.Optional[dict], bool]:
+    def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
         data_item_uuid_str = str(data_item_uuid)
         trash_dir = self.__directory / "trash"
         storage_handlers = self.__find_storage_handlers(trash_dir, skip_trash=False)
@@ -346,7 +346,7 @@ class FileLibraryHandler(LibraryHandler):
                 self._make_storage_handler(data_item, file_handler=None)
                 properties["__large_format"] = isinstance(storage_handler, HDF5Handler.HDF5Handler)
                 return properties
-        return None, False
+        return None
 
     def get_file_handler_for_file(self, path: str):
         for file_handler in self._file_handlers:
@@ -474,7 +474,7 @@ class MemoryLibraryHandler(LibraryHandler):
             self.__trash_map[storage_handler_reference] = {"data": data, "properties": properties}
         storage_handler.close()  # moving files in the storage handler requires it to be closed.
 
-    def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Tuple[typing.Optional[dict], bool]:
+    def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
         data_item_uuid_str = str(data_item_uuid)
         trash_entry = self.__trash_map.pop(data_item_uuid_str)
         assert data_item_uuid_str not in self.__data_properties_map
@@ -497,6 +497,7 @@ class FileStorageSystem:
     def __init__(self, library_handler: LibraryHandler):
         self.__library_handler = library_handler
         self.__write_delay_counts = dict()
+        self.__write_delay_count = 0
 
     def reset(self):
         self.__library_handler.reset()
@@ -514,7 +515,8 @@ class FileStorageSystem:
             if object and isinstance(object, DataItem.DataItem):
                 self.__library_handler.rewrite_data_item_properties(object)
             elif not persistent_object_parent:
-                self.__library_handler.write_properties()
+                if self.__write_delay_count == 0:
+                    self.__library_handler.write_properties()
             else:
                 self.__write_properties(persistent_object_parent.parent)
 
@@ -587,7 +589,7 @@ class FileStorageSystem:
         self.__library_handler.clear_property(storage_dict, name)
         self.__write_properties(object)
 
-    def restore_item(self, data_item_uuid: uuid.UUID) -> typing.Tuple[typing.Optional[dict], bool]:
+    def restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
         return self.__library_handler.restore_item(data_item_uuid)
 
     def prune(self) -> None:
@@ -640,8 +642,20 @@ class FileStorageSystem:
     def read_data_items_version_stats(self):
         return read_data_items_version_stats(self)
 
-    def read_library(self, ignore_older_files) -> typing.Dict:
+    def read_library(self) -> typing.Dict:
         return self.__library_handler.read_library()
+
+    def migrate_to_latest(self) -> None:
+        self.__library_handler.migrate_to_latest()
+
+    def _enter_transaction(self):
+        self.__write_delay_count += 1
+        return self
+
+    def _exit_transaction(self):
+        self.__write_delay_count -= 1
+        if self.__write_delay_count == 0:
+            self.__write_properties(None)
 
 
 def read_data_items_version_stats(persistent_storage_system):
