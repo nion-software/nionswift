@@ -40,9 +40,7 @@ class TestDocumentModelClass(unittest.TestCase):
         pass
 
     def test_remove_data_items_on_document_model(self):
-        cache_name = ":memory:"
-        storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_cache=storage_cache))
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile())
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem()
             data_item1.title = 'title'
@@ -58,9 +56,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(data_item2 in document_model.data_items)
 
     def test_removing_data_item_should_remove_from_groups_too(self):
-        cache_name = ":memory:"
-        storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_cache=storage_cache))
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile())
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem()
             data_item1.title = 'title'
@@ -2192,7 +2188,7 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.append_display_item(display_item)
                 display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item1))
                 display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
-            profile_context.library_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
+            profile_context.project_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 document_model.remove_display_item(document_model.display_items[-1])

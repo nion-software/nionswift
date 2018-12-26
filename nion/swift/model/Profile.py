@@ -51,18 +51,27 @@ class MemoryProfileContext:
 
     def __init__(self):
         self.__storage_system = MemoryStorageSystem.MemoryStorageSystem()
+        self.storage_cache = Cache.DictStorageCache()
 
     def create_profile(self, *, storage_cache=None) -> Profile:
         storage_system = self.__storage_system
-        storage_cache = storage_cache or Cache.DictStorageCache()
+        storage_cache = storage_cache or self.storage_cache
         profile = Profile(storage_system=storage_system, storage_cache=storage_cache)
         profile.storage_cache = storage_cache
         profile.storage_system = storage_system
         return profile
 
     @property
-    def library_properties(self) -> typing.Dict:
+    def project_properties(self) -> typing.Dict:
         return self.__storage_system.library_properties
+
+    @property
+    def profile_properties(self) -> typing.Dict:
+        return self.__storage_system.library_properties
+
+    @profile_properties.setter
+    def profile_properties(self, value: typing.Dict) -> None:
+        self.__storage_system._set_library_properties(value)
 
     @property
     def data_map(self) -> typing.Dict:
