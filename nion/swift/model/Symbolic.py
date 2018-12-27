@@ -559,19 +559,14 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def persistent_object_context_changed(self):
         super().persistent_object_context_changed()
 
-        def register():
-            if self.__source is not None:
-                pass
-
-        def source_registered(source):
+        def registered(source):
             self.__source = source
-            register()
 
         def unregistered(source=None):
-            pass
+            self.__source = None
 
         if self.persistent_object_context:
-            self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
+            self.persistent_object_context.subscribe(self.source_uuid, registered, unregistered)
         else:
             unregistered()
 
