@@ -28,13 +28,13 @@ class Project:
     def _project_storage_system(self) -> FileStorageSystem.FileStorageSystem:
         return self.__storage_system
 
-    def open(self):
+    def open(self) -> None:
         self.__storage_system.reset()  # this makes storage reusable during tests
 
-    def close(self):
+    def close(self) -> None:
         pass
 
-    def read(self):
+    def read(self) -> None:
         # first read the library (for deletions) and the library items from the primary storage systems
         properties = self.__storage_system.read_library()
 
@@ -45,5 +45,9 @@ class Project:
     def restore_data_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
         return self.__storage_system.restore_item(data_item_uuid)
 
-    def prune(self):
+    def prune(self) -> None:
         self.__storage_system.prune()
+
+    def migrate_to_latest(self) -> None:
+        self.__storage_system.migrate_to_latest()
+        self.read()

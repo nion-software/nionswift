@@ -214,6 +214,181 @@ class LibraryHandler:
 
         return properties_copy
 
+    def _get_migration_stages(self) -> typing.List:
+        return list()
+
+    def _read_library_properties(self, migration_stage) -> typing.Dict:
+        return dict()
+
+    def _find_data_items(self, migration_stage) -> typing.List:
+        return list()
+
+    def _migrate_data_item(self, reader_info) -> None:
+        pass
+
+    def _migrate_library_properties(self, library_properties: typing.Dict, data_properties_map: typing.Dict[str, typing.Dict]) -> None:
+        pass
+
+    def migrate_to_latest(self) -> None:
+        library_properties = None
+        data_item_uuids = set()
+        reader_info_list = list()
+        library_updates = dict()
+        deletions = list()
+        for migration_stage in self._get_migration_stages():
+            storage_handlers = self._find_data_items(migration_stage)
+            ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "large_format", "storage_handler", "identifier"])
+            new_reader_info_list = list()
+            for storage_handler in storage_handlers:
+                try:
+                    large_format = self._is_storage_handler_large_format(storage_handler)
+                    properties = Migration.transform_to_latest(storage_handler.read_properties())
+                    reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
+                    new_reader_info_list.append(reader_info)
+                except Exception as e:
+                    logging.debug("Error reading %s", storage_handler.reference)
+                    import traceback
+                    traceback.print_exc()
+                    traceback.print_stack()
+            new_library_properties = self._read_library_properties(migration_stage)
+            for deletion in copy.deepcopy(new_library_properties.get("data_item_deletions", list())):
+                if not deletion in deletions:
+                    deletions.append(deletion)
+            if library_properties is None:
+                library_properties = copy.deepcopy(new_library_properties)
+            preliminary_library_updates = dict()
+            Migration.migrate_to_latest(new_reader_info_list, preliminary_library_updates)
+            count = len(new_reader_info_list)
+            for index, reader_info in enumerate(new_reader_info_list):
+                storage_handler = reader_info.storage_handler
+                properties = reader_info.properties
+                try:
+                    version = properties.get("version", 0)
+                    if version == DataItem.DataItem.writer_version:
+                        data_item_uuid = uuid.UUID(properties["uuid"])
+                        if not data_item_uuid in data_item_uuids:
+                            if not str(data_item_uuid) in deletions:
+                                self._migrate_data_item(reader_info)
+                                reader_info_list.append(reader_info)
+                                data_item_uuids.add(data_item_uuid)
+                                library_update = preliminary_library_updates.get(data_item_uuid)
+                                if library_update:
+                                    library_updates[data_item_uuid] = library_update
+                except Exception as e:
+                    logging.debug("Error reading %s", storage_handler.reference)
+                    import traceback
+                    traceback.print_exc()
+                    traceback.print_stack()
+
+        assert len(reader_info_list) == len(data_item_uuids)
+
+        for reader_info in reader_info_list:
+            properties = reader_info.properties
+            properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
+            version = properties.get("version", 0)
+            if version == DataItem.DataItem.writer_version:
+                data_item_uuid = uuid.UUID(properties.get("uuid", uuid.uuid4()))
+                library_update = library_updates.get(data_item_uuid, dict())
+                library_properties.setdefault("connections", list()).extend(library_update.get("connections", list()))
+                library_properties.setdefault("computations", list()).extend(library_update.get("computations", list()))
+                library_properties.setdefault("display_items", list()).extend(library_update.get("display_items", list()))
+
+        connections_list = library_properties.get("connections", list())
+        assert len(connections_list) == len({connection.get("uuid") for connection in connections_list})
+
+        computations_list = library_properties.get("computations", list())
+        assert len(computations_list) == len({computation.get("uuid") for computation in computations_list})
+
+        # migrations
+
+        if library_properties.get("version", 0) < 2:
+            for data_group_properties in library_properties.get("data_groups", list()):
+                data_group_properties.pop("data_groups")
+                display_item_references = data_group_properties.setdefault("display_item_references", list())
+                data_item_uuid_strs = data_group_properties.pop("data_item_uuids", list())
+                for data_item_uuid_str in data_item_uuid_strs:
+                    for display_item_properties in library_properties.get("display_items", list()):
+                        data_item_references = [d.get("data_item_reference", None) for d in display_item_properties.get("display_data_channels", list())]
+                        if data_item_uuid_str in data_item_references:
+                            display_item_references.append(display_item_properties["uuid"])
+            data_item_uuid_to_display_item_uuid_map = dict()
+            data_item_uuid_to_display_item_dict_map = dict()
+            display_to_display_item_map = dict()
+            display_to_display_data_channel_map = dict()
+            for display_item_properties in library_properties.get("display_items", list()):
+                display_to_display_item_map[display_item_properties["display"]["uuid"]] = display_item_properties["uuid"]
+                display_to_display_data_channel_map[display_item_properties["display"]["uuid"]] = display_item_properties["display_data_channels"][0]["uuid"]
+                data_item_references = [d.get("data_item_reference", None) for d in display_item_properties.get("display_data_channels", list())]
+                for data_item_uuid_str in data_item_references:
+                    data_item_uuid_to_display_item_uuid_map.setdefault(data_item_uuid_str, display_item_properties["uuid"])
+                    data_item_uuid_to_display_item_dict_map.setdefault(data_item_uuid_str, display_item_properties)
+                display_item_properties.pop("display", None)
+            for workspace_properties in library_properties.get("workspaces", list()):
+                def replace1(d):
+                    if "children" in d:
+                        for dd in d["children"]:
+                            replace1(dd)
+                    if "data_item_uuid" in d:
+                        data_item_uuid_str = d.pop("data_item_uuid")
+                        display_item_uuid_str = data_item_uuid_to_display_item_uuid_map.get(data_item_uuid_str)
+                        if display_item_uuid_str:
+                            d["display_item_uuid"] = display_item_uuid_str
+                replace1(workspace_properties["layout"])
+            for connection_dict in library_properties.get("connections", list()):
+                source_uuid_str = connection_dict["source_uuid"]
+                if connection_dict["type"] == "interval-list-connection":
+                    connection_dict["source_uuid"] = display_to_display_item_map.get(source_uuid_str, None)
+                if connection_dict["type"] == "property-connection" and connection_dict["source_property"] == "slice_interval":
+                    connection_dict["source_uuid"] = display_to_display_data_channel_map.get(source_uuid_str, None)
+
+            def fix_specifier(specifier_dict):
+                if specifier_dict.get("type") in ("data_item", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
+                    if specifier_dict.get("uuid") in data_item_uuid_to_display_item_dict_map:
+                        specifier_dict["uuid"] = data_item_uuid_to_display_item_dict_map[specifier_dict["uuid"]]["display_data_channels"][0]["uuid"]
+                    else:
+                        specifier_dict.pop("uuid", None)
+                if specifier_dict.get("type") == "data_item":
+                    specifier_dict["type"] = "data_source"
+                if specifier_dict.get("type") == "data_item_object":
+                    specifier_dict["type"] = "data_item"
+                if specifier_dict.get("type") == "region":
+                    specifier_dict["type"] = "graphic"
+
+            for computation_dict in library_properties.get("computations", list()):
+                for variable_dict in computation_dict.get("variables", list()):
+                    if "specifier" in variable_dict:
+                        specifier_dict = variable_dict["specifier"]
+                        if specifier_dict is not None:
+                            fix_specifier(specifier_dict)
+                    if "secondary_specifier" in variable_dict:
+                        specifier_dict = variable_dict["secondary_specifier"]
+                        if specifier_dict is not None:
+                            fix_specifier(specifier_dict)
+                for result_dict in computation_dict.get("results", list()):
+                    fix_specifier(result_dict["specifier"])
+
+            library_properties["version"] = DocumentModel.DocumentModel.library_version
+
+        # TODO: add consistency checks: no duplicated items [by uuid] such as connections or computations or data items
+
+        assert library_properties["version"] == DocumentModel.DocumentModel.library_version
+
+        data_properties_map = dict()
+
+        for reader_info in reader_info_list:
+            data_item_properties = Utility.clean_dict(reader_info.properties if reader_info.properties else dict())
+            if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
+                data_item_properties["__large_format"] = reader_info.large_format
+                data_item_properties["__identifier"] = reader_info.identifier
+                data_properties_map[reader_info.identifier] = data_item_properties
+
+        def data_item_created(data_item_properties: typing.Mapping) -> str:
+            return data_item_properties[1].get("created", "1900-01-01T00:00:00.000000")
+
+        data_properties_map = {k: v for k, v in sorted(data_properties_map.items(), key=data_item_created)}
+
+        self._migrate_library_properties(library_properties, data_properties_map)
+
     def prune(self) -> None:
         self._prune()
 
@@ -485,6 +660,26 @@ class MemoryLibraryHandler(LibraryHandler):
         properties["__large_format"] = False
         properties = Migration.transform_to_latest(properties)
         return properties
+
+    def _get_migration_stages(self) -> typing.List:
+        return [None]
+
+    def _read_library_properties(self, migration_stage) -> typing.Dict:
+        return copy.deepcopy(self.__library_properties)
+
+    def _find_data_items(self, migration_stage) -> typing.List:
+        return self._find_storage_handlers()
+
+    def _migrate_data_item(self, reader_info) -> None:
+        storage_handler = reader_info.storage_handler
+        properties = reader_info.properties
+        properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
+        if reader_info.changed_ref[0]:
+            self.data_properties_map[storage_handler.reference] = Migration.transform_from_latest(copy.deepcopy(properties))
+
+    def _migrate_library_properties(self, library_properties: typing.Dict, data_properties_map: typing.Dict[str, typing.Dict]) -> None:
+        self.__library_properties = library_properties
+        self.__data_properties_map = data_properties_map
 
 
 class FileStorageSystem:

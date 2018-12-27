@@ -456,11 +456,8 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 data_item1 = DataItem.DataItem(item_uuid=uuid.UUID('86d982d1-6d81-46fa-b19e-574e904902de'))
-                data_item1.ensure_data_source()
                 data_item2 = DataItem.DataItem(item_uuid=uuid.UUID('71ab9215-c6ae-4c36-aaf5-92ce78db02b6'))
-                data_item2.ensure_data_source()
                 data_item3 = DataItem.DataItem(item_uuid=uuid.UUID('7d3b374e-e48b-460f-91de-7ff4e1a1a63c'))
-                data_item3.ensure_data_source()
                 document_model.append_data_item(data_item1)
                 document_model.append_data_item(data_item2)
                 document_model.append_data_item(data_item3)
@@ -475,10 +472,8 @@ class TestStorageClass(unittest.TestCase):
             profile_context.data_properties_map["7d3b374e-e48b-460f-91de-7ff4e1a1a63c"]["created"] = "2015-01-22T17:16:12.308003"
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
-                data_item1_uuid = uuid.UUID("71ab9215-c6ae-4c36-aaf5-92ce78db02b6")
-                new_data_item1 = document_model.get_data_item_by_uuid(data_item1_uuid)
+                new_data_item1 = document_model.get_data_item_by_uuid(uuid.UUID("71ab9215-c6ae-4c36-aaf5-92ce78db02b6"))
                 new_data_item1_data_items_len = len(document_model.get_dependent_data_items(new_data_item1))
-                self.assertEqual(data_item1_uuid, new_data_item1.uuid)
                 self.assertEqual(2, new_data_item1_data_items_len)
 
     def test_dependencies_load_correctly_for_data_item_with_multiple_displays(self):
@@ -1402,6 +1397,7 @@ class TestStorageClass(unittest.TestCase):
             profile_context.data_map["A"] = numpy.zeros((8, 8), numpy.uint32)
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check it
                 self.assertEqual(len(document_model.data_items), 1)
@@ -1430,6 +1426,7 @@ class TestStorageClass(unittest.TestCase):
             profile_context.data_map["A"] = numpy.zeros((8, 8), numpy.uint32)
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check it
                 self.assertEqual(len(document_model.data_items), 1)
@@ -1452,6 +1449,7 @@ class TestStorageClass(unittest.TestCase):
             profile_context.data_map["A"] = numpy.zeros((8, 8), numpy.uint32)
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check it
                 self.assertEqual(len(document_model.data_items), 1)
@@ -1477,6 +1475,7 @@ class TestStorageClass(unittest.TestCase):
             profile_context.data_map["A"] = numpy.zeros((8, 8), numpy.uint32)
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check it
                 self.assertEqual(len(document_model.data_items), 1)
@@ -1507,6 +1506,7 @@ class TestStorageClass(unittest.TestCase):
             data_item2_dict["version"] = 5
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check it
                 self.assertEqual(len(document_model.data_items), 2)
@@ -1554,6 +1554,7 @@ class TestStorageClass(unittest.TestCase):
             data_item3_dict["version"] = 6
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # # check it
                 self.assertEqual(len(document_model.data_items), 3)
@@ -1598,6 +1599,7 @@ class TestStorageClass(unittest.TestCase):
             data_item_dict["hardware_source"] = metadata
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 1)
@@ -1644,6 +1646,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 2)
@@ -1712,6 +1715,7 @@ class TestStorageClass(unittest.TestCase):
 
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 3)
@@ -1781,6 +1785,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 2)
@@ -1838,6 +1843,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 2)
@@ -1890,6 +1896,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 2)
@@ -1945,6 +1952,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 2)
@@ -2012,6 +2020,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 2)
@@ -2083,6 +2092,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 2)
@@ -2139,6 +2149,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 2)
@@ -2194,6 +2205,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 2)
@@ -2255,6 +2267,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 2)
@@ -2312,6 +2325,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 2)
@@ -2350,6 +2364,7 @@ class TestStorageClass(unittest.TestCase):
             data_item_dict["data_sources"] = [data_source_dict]
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 1)
@@ -2437,6 +2452,7 @@ class TestStorageClass(unittest.TestCase):
 
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 2)
@@ -2470,6 +2486,7 @@ class TestStorageClass(unittest.TestCase):
 
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 self.assertEqual(document_model.data_items[0].created.date(), DataItem.DatetimeToStringConverter().convert_back(created_str).date())
                 self.assertEqual(document_model.data_items[0].modified.date(), DataItem.DatetimeToStringConverter().convert_back(modified_str).date())
@@ -2512,6 +2529,7 @@ class TestStorageClass(unittest.TestCase):
 
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 2)
@@ -2567,6 +2585,7 @@ class TestStorageClass(unittest.TestCase):
 
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 2)
@@ -2638,6 +2657,7 @@ class TestStorageClass(unittest.TestCase):
 
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(len(document_model.data_items), 3)
@@ -2696,6 +2716,7 @@ class TestStorageClass(unittest.TestCase):
 
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(2, len(document_model.data_items))
@@ -2752,6 +2773,7 @@ class TestStorageClass(unittest.TestCase):
 
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 # check metadata transferred to data source
                 self.assertEqual(2, len(document_model.data_items))
@@ -2803,6 +2825,7 @@ class TestStorageClass(unittest.TestCase):
 
             # make sure it reloads twice
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 self.assertEqual(1, len(document_model.computations))
 
@@ -2834,6 +2857,7 @@ class TestStorageClass(unittest.TestCase):
 
             # make sure it reloads twice
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 data_item = document_model.data_items[0]
                 display_item = document_model.display_items[0]
@@ -3876,26 +3900,6 @@ class TestStorageClass(unittest.TestCase):
                     data_and_metadata = data_item.data_and_metadata  # this xdata contains ability to reload from data item
                     data_item.set_data(numpy.ones((2, 2)))  # but it is overwritten here and may be unloaded
                     self.assertIsNotNone(data_and_metadata.data)  # ensure that it isn't actually unloaded
-
-    def test_deleted_data_item_updates_into_deleted_list_and_clears_on_reload(self):
-        with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-                document_model.append_data_item(data_item)
-                display_item = document_model.get_display_item_for_data_item(data_item)
-                data_item_cropped = document_model.get_crop_new(display_item)
-                document_model.recompute_all()
-                self.assertEqual(len(document_model.data_items), 2)
-                self.assertEqual(len(document_model.data_item_deletions), 0)
-                document_model.remove_data_item(data_item)
-                self.assertEqual(len(document_model.data_items), 0)
-                self.assertEqual(len(document_model.data_item_deletions), 2)
-            # make sure it reloads without changing modification
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
-                self.assertEqual(len(document_model.data_items), 0)
-                self.assertEqual(len(document_model.data_item_deletions), 0)
 
     def test_undo_redo_is_written_to_storage(self):
         with create_memory_profile_context() as profile_context:

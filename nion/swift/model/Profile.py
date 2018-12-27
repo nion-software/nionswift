@@ -45,6 +45,10 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.__document_model = None
 
     @property
+    def projects(self) -> typing.List[Project.Project]:
+        return self.__projects
+
+    @property
     def _profile_storage_system(self) -> FileStorageSystem.FileStorageSystem:
         return self.storage_system
 

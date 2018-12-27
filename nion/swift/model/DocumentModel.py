@@ -331,6 +331,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__profile.read()
         self.__profile.read_projects()
 
+        for data_group in self.data_groups:
+            data_group.connect_display_items(self.get_display_item_by_uuid)
+
         self.__data_channel_updated_listeners = dict()
         self.__data_channel_start_listeners = dict()
         self.__data_channel_stop_listeners = dict()
@@ -408,49 +411,59 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item.begin_reading()
             data_item.read_from_dict(item_d)
             data_item.finish_reading()
-            self.persistent_object_context._set_persistent_storage_for_object(data_item, storage_system)
-            before_index = len(self.data_items)
-            self.load_item("data_items", before_index, data_item)
-            self.__finish_load_data_item(before_index, data_item, do_write=False)
+            data_item_uuids = {data_item.uuid for data_item in self.data_items}
+            if not data_item.uuid in data_item_uuids:
+                self.persistent_object_context._set_persistent_storage_for_object(data_item, storage_system)
+                before_index = len(self.data_items)
+                self.load_item("data_items", before_index, data_item)
+                self.__finish_load_data_item(before_index, data_item, do_write=False)
         elif item_type == "display_items":
             display_item = DisplayItem.DisplayItem()
             display_item.begin_reading()
             display_item.read_from_dict(item_d)
             display_item.finish_reading()
-            self.persistent_object_context._set_persistent_storage_for_object(display_item, storage_system)
-            before_index = len(self.display_items)
-            self.load_item("display_items", before_index, display_item)
-            self.__finish_load_display_item(before_index, display_item, update_session=False)
+            display_item_uuids = {display_item.uuid for display_item in self.display_items}
+            if not display_item.uuid in display_item_uuids:
+                self.persistent_object_context._set_persistent_storage_for_object(display_item, storage_system)
+                before_index = len(self.display_items)
+                self.load_item("display_items", before_index, display_item)
+                self.__finish_load_display_item(before_index, display_item, update_session=False)
         elif item_type == "data_structures":
             data_structure = DataStructure.DataStructure()
             data_structure.begin_reading()
             data_structure.read_from_dict(item_d)
             data_structure.finish_reading()
-            self.persistent_object_context._set_persistent_storage_for_object(data_structure, storage_system)
-            before_index = len(self.data_structures)
-            self.load_item("data_structures", before_index, data_structure)
-            self.__finish_load_data_structure(before_index, data_structure)
+            data_structure_uuids = {data_structure.uuid for data_structure in self.data_structures}
+            if not data_structure.uuid in data_structure_uuids:
+                self.persistent_object_context._set_persistent_storage_for_object(data_structure, storage_system)
+                before_index = len(self.data_structures)
+                self.load_item("data_structures", before_index, data_structure)
+                self.__finish_load_data_structure(before_index, data_structure)
         elif item_type == "connections":
             connection = Connection.connection_factory(item_d.get)
             connection.begin_reading()
             connection.read_from_dict(item_d)
             connection.finish_reading()
-            self.persistent_object_context._set_persistent_storage_for_object(connection, storage_system)
-            before_index = len(self.connections)
-            self.load_item("connections", before_index, connection)
-            self.__finish_load_connection(before_index, connection)
+            connection_uuids = {connection.uuid for connection in self.connections}
+            if not connection.uuid in connection_uuids:
+                self.persistent_object_context._set_persistent_storage_for_object(connection, storage_system)
+                before_index = len(self.connections)
+                self.load_item("connections", before_index, connection)
+                self.__finish_load_connection(before_index, connection)
         elif item_type == "computations":
             computation = Symbolic.Computation()
             computation.begin_reading()
             computation.read_from_dict(item_d)
             computation.finish_reading()
-            self.persistent_object_context._set_persistent_storage_for_object(computation, storage_system)
-            before_index = len(self.computations)
-            self.load_item("computations", before_index, computation)
-            self.__finish_load_computation(before_index, computation)
-            computation.update_script(self._processing_descriptions)
-            self.__computation_changed(computation)
-            computation.bind(self)
+            computation_uuids = {computation.uuid for computation in self.computations}
+            if not computation.uuid in computation_uuids:
+                self.persistent_object_context._set_persistent_storage_for_object(computation, storage_system)
+                before_index = len(self.computations)
+                self.load_item("computations", before_index, computation)
+                self.__finish_load_computation(before_index, computation)
+                computation.update_script(self._processing_descriptions)
+                self.__computation_changed(computation)
+                computation.bind(self)
 
     def write_to_dict(self):
         # this should not be used in regular operation of the application since it is
