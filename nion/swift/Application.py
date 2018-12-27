@@ -62,7 +62,6 @@ class Application(UIApplication.Application):
         self.ui.persistence_root = "3"  # sets of preferences
         self.__resources_path = resources_path
         self.version_str = "0.14.8"
-        self.workspace_dir = None
 
         self.document_model_available_event = Event.Event()
 
@@ -160,7 +159,7 @@ class Application(UIApplication.Application):
     def _set_document_model(self, document_model):
         self.__document_model = document_model
 
-    def start(self, skip_choose=False, fixed_workspace_dir=None):
+    def start(self, *, profile_dir: pathlib.Path = None):
         """
             Start the application.
 
@@ -179,36 +178,21 @@ class Application(UIApplication.Application):
             Creates document model, resources path, etc.
         """
         logging.getLogger("migration").setLevel(logging.INFO)
-        if fixed_workspace_dir:
-            workspace_dir = fixed_workspace_dir
+        if profile_dir:
+            profile_path = profile_dir / pathlib.Path("Profile").with_suffix("nsproj")
         else:
-            documents_dir = self.ui.get_document_location()
-            workspace_dir = os.path.join(documents_dir, "Nion Swift Libraries")
-            workspace_dir = self.ui.get_persistent_string("workspace_location", workspace_dir)
-        welcome_message_enabled = fixed_workspace_dir is None
-        profile, is_created = Profile.create_profile(pathlib.Path(workspace_dir), welcome_message_enabled, skip_choose)
-        if not profile:
-            self.choose_library()
-            return True
-        self.workspace_dir = workspace_dir
-        DocumentModel.DocumentModel.computation_min_period = 0.2
+            data_dir = pathlib.Path(self.ui.get_data_location())
+            profile_name = pathlib.Path(self.ui.get_persistent_string("profile_name", "Profile"))
+            profile_path = data_dir / profile_name.with_suffix("nsproj")
+        welcome_message_enabled = profile_dir is None
+        profile, is_created = Profile.create_profile(profile_path, welcome_message_enabled)
+        DocumentModel.DocumentModel.computation_min_period = 0.1
         DocumentModel.DocumentModel.computation_min_factor = 1.0
         document_model = DocumentModel.DocumentModel(profile=profile)
         document_model.create_default_data_groups()
         document_model.start_dispatcher()
-        # parse the hardware aliases file
-        alias_path = os.path.join(self.workspace_dir, "aliases.ini")
-        HardwareSource.parse_hardware_aliases_config_file(alias_path)
         # create the document controller
         document_controller = self.create_document_controller(document_model, "library")
-        if self.__resources_path is not None:
-            document_model.create_sample_images(self.__resources_path)
-        workspace_history = self.ui.get_persistent_object("workspace_history", list())
-        if workspace_dir in workspace_history:
-            workspace_history.remove(workspace_dir)
-        workspace_history.insert(0, workspace_dir)
-        self.ui.set_persistent_object("workspace_history", workspace_history)
-        self.ui.set_persistent_string("workspace_location", workspace_dir)
         if welcome_message_enabled:
             logging.info("Welcome to Nion Swift.")
         if is_created and len(document_model.display_items) > 0:
@@ -222,280 +206,7 @@ class Application(UIApplication.Application):
 
     def get_recent_workspace_file_paths(self):
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
-        # workspace_history = ["/Users/cmeyer/Movies/Crap/Test1", "/Users/cmeyer/Movies/Crap/Test7_new"]
-        return [file_path for file_path in workspace_history if file_path != self.workspace_dir and os.path.exists(file_path)]
-
-    def switch_library(self, recent_workspace_file_path, skip_choose=False, fixed_workspace_dir=None):
-        self.exit()
-        self.ui.set_persistent_string("workspace_location", recent_workspace_file_path)
-        self.start(skip_choose=skip_choose, fixed_workspace_dir=fixed_workspace_dir)
-
-    def clear_libraries(self):
-        self.ui.remove_persistent_key("workspace_history")
-
-    def pose_open_library_dialog(self) -> typing.Optional[str]:
-        documents_dir = self.ui.get_document_location()
-        workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Library Folder"), documents_dir)
-        if workspace_dir:
-            path = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
-            if not os.path.exists(path):
-                with open(path, "w") as fp:
-                    json.dump({}, fp)
-            return workspace_dir
-        return None
-
-    def open_library(self):
-        workspace_dir = self.pose_open_library_dialog()
-        if workspace_dir:
-            app.switch_library(workspace_dir)
-
-    def new_library(self):
-
-        class NewLibraryDialog(Dialog.ActionDialog):
-
-            def __init__(self, ui, app):
-                super().__init__(ui, title=_("New Library"), app=app, persistent_id="new_library_dialog")
-
-                self.directory = self.ui.get_persistent_string("library_directory", self.ui.get_document_location())
-
-                library_base_name = _("Nion Swift Library") + " " + datetime.datetime.now().strftime("%Y%m%d")
-                library_base_index = 0
-                library_base_index_str = ""
-                while os.path.exists(os.path.join(self.directory, library_base_name + library_base_index_str)):
-                    library_base_index += 1
-                    library_base_index_str = " " + str(library_base_index)
-
-                self.library_name = library_base_name + library_base_index_str
-
-                def handle_new():
-                    self.library_name = self.__library_name_field.text
-                    workspace_dir = os.path.join(self.directory, self.library_name)
-                    Cache.db_make_directory_if_needed(workspace_dir)
-                    path = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
-                    if not os.path.exists(path):
-                        with open(path, "w") as fp:
-                            json.dump({}, fp)
-                    if os.path.exists(path):
-                        app.switch_library(workspace_dir)
-                        return True
-                    return False
-
-                def handle_new_and_close():
-                    handle_new()
-                    self.request_close()
-                    return False
-
-                column = self.ui.create_column_widget()
-
-                directory_header_row = self.ui.create_row_widget()
-                directory_header_row.add_spacing(13)
-                directory_header_row.add(self.ui.create_label_widget(_("Libraries Folder: "), properties={"font": "bold"}))
-                directory_header_row.add_stretch()
-                directory_header_row.add_spacing(13)
-
-                show_directory_row = self.ui.create_row_widget()
-                show_directory_row.add_spacing(26)
-                directory_label = self.ui.create_label_widget(self.directory)
-                show_directory_row.add(directory_label)
-                show_directory_row.add_stretch()
-                show_directory_row.add_spacing(13)
-
-                choose_directory_row = self.ui.create_row_widget()
-                choose_directory_row.add_spacing(26)
-                choose_directory_button = self.ui.create_push_button_widget(_("Choose..."))
-                choose_directory_row.add(choose_directory_button)
-                choose_directory_row.add_stretch()
-                choose_directory_row.add_spacing(13)
-
-                library_name_header_row = self.ui.create_row_widget()
-                library_name_header_row.add_spacing(13)
-                library_name_header_row.add(self.ui.create_label_widget(_("Library Name: "), properties={"font": "bold"}))
-                library_name_header_row.add_stretch()
-                library_name_header_row.add_spacing(13)
-
-                library_name_row = self.ui.create_row_widget()
-                library_name_row.add_spacing(26)
-                library_name_field = self.ui.create_line_edit_widget(properties={"width": 400})
-                library_name_field.text = self.library_name
-                library_name_field.on_return_pressed = handle_new_and_close
-                library_name_field.on_escape_pressed = self.request_close
-                library_name_row.add(library_name_field)
-                library_name_row.add_stretch()
-                library_name_row.add_spacing(13)
-
-                column.add_spacing(12)
-                column.add(directory_header_row)
-                column.add_spacing(8)
-                column.add(show_directory_row)
-                column.add_spacing(8)
-                column.add(choose_directory_row)
-                column.add_spacing(16)
-                column.add(library_name_header_row)
-                column.add_spacing(8)
-                column.add(library_name_row)
-                column.add_stretch()
-                column.add_spacing(16)
-
-                def choose() -> None:
-                    existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Library Directory"), self.directory)
-                    if existing_directory:
-                        self.directory = existing_directory
-                        directory_label.text = self.directory
-                        self.ui.set_persistent_string("library_directory", self.directory)
-
-                choose_directory_button.on_clicked = choose
-
-                self.add_button(_("Cancel"), lambda: True)
-                self.add_button(_("Create Library"), handle_new)
-
-                self.content.add(column)
-
-                self.__library_name_field = library_name_field
-
-            def show(self):
-                super().show()
-                self.__library_name_field.focused = True
-
-        new_library_dialog = NewLibraryDialog(self.ui, self)
-        new_library_dialog.show()
-
-    def choose_library(self):
-
-        pose_open_library_dialog_fn = self.pose_open_library_dialog
-
-        workspace_history = self.ui.get_persistent_object("workspace_history", list())
-        nslib_paths = [os.path.join(file_path, "Nion Swift Workspace.nslib") for file_path in workspace_history]
-        items = [(path, datetime.datetime.fromtimestamp(os.path.getmtime(path))) for path in nslib_paths if os.path.exists(path)]
-
-        class ChooseLibraryDialog(Dialog.ActionDialog):
-
-            def __init__(self, ui, app):
-                super().__init__(ui, _("Choose Library"))
-
-                current_item_ref = [None]
-
-                def handle_choose():
-                    current_item = current_item_ref[0]
-                    if current_item:
-                        app.switch_library(current_item)
-                        return True
-                    return False
-
-                def handle_new():
-                    workspace_dir = pose_open_library_dialog_fn()
-                    if workspace_dir:
-                        items.insert(0, (workspace_dir, datetime.datetime.now()))
-                        list_widget.items = items
-                        list_widget.set_selected_index(0)
-                        app.switch_library(workspace_dir)
-                        return True
-                    return False
-
-                self.add_button(_("New..."), handle_new)
-                self.add_button(_("Other..."), handle_new)
-                self.add_button(_("Cancel"), lambda: True)
-                self.add_button(_("Choose"), handle_choose)
-
-                path_label = ui.create_label_widget()
-
-                prompt_row = ui.create_row_widget()
-                prompt_row.add_spacing(13)
-                prompt_row.add(ui.create_label_widget(_("Which library do you want Nion Swift to use?"), properties={"stylesheet": "font-weight: bold"}))
-                prompt_row.add_spacing(13)
-                prompt_row.add_stretch()
-
-                explanation1_row = ui.create_row_widget()
-                explanation1_row.add_spacing(13)
-                explanation1_row.add(ui.create_label_widget(_("You can select a library from the list, find another library, or create a new library.")))
-                explanation1_row.add_spacing(13)
-                explanation1_row.add_stretch()
-
-                explanation2_row = ui.create_row_widget()
-                explanation2_row.add_spacing(13)
-                explanation2_row.add(ui.create_label_widget(_("The same library will be used the next time you open Nion Swift.")))
-                explanation2_row.add_spacing(13)
-                explanation2_row.add_stretch()
-
-                def selection_changed(indexes):
-                    if len(indexes) == 1:
-                        item = items[list(indexes)[0]]
-                        current_item_ref[0] = os.path.dirname(item[0])
-                        path_label.text = os.path.dirname(item[0])
-                    else:
-                        current_item_ref[0] = None
-                        path_label.text = None
-
-                def stringify_item(item):
-                    date_utc = item[1]
-                    tz_minutes = Utility.local_utcoffset_minutes(date_utc)
-                    date_local = date_utc + datetime.timedelta(minutes=tz_minutes)
-                    return str(os.path.basename(os.path.dirname(item[0]))) + " (" + date_local.strftime("%c") + ")"
-
-                def item_selected(index):
-                    item = items[index]
-                    current_item_ref[0] = os.path.dirname(item[0])
-                    path_label.text = os.path.dirname(item[0])
-                    handle_choose()
-                    self.request_close()
-
-                list_widget = Widgets.StringListWidget(ui, items=items, selection_style=Selection.Style.single_or_none, item_getter=stringify_item, border_color="#888", properties={"min-height": 200, "min-width": 560})
-                list_widget.on_selection_changed = selection_changed
-                list_widget.on_item_selected = item_selected
-                list_widget.on_cancel = self.request_close
-                if len(items) > 0:
-                    list_widget.set_selected_index(0)
-
-                items_row = ui.create_row_widget()
-                items_row.add_spacing(13)
-                items_row.add(list_widget)
-                items_row.add_spacing(13)
-                items_row.add_stretch()
-
-                path_row = ui.create_row_widget()
-                path_row.add_spacing(13)
-                path_row.add(path_label)
-                path_row.add_spacing(13)
-                path_row.add_stretch()
-
-                column = ui.create_column_widget()
-                column.add_spacing(18)
-                column.add(prompt_row)
-                column.add_spacing(6)
-                column.add(explanation1_row)
-                column.add(explanation2_row)
-                column.add_spacing(12)
-                column.add(items_row)
-                column.add_spacing(6)
-                column.add(path_row)
-                column.add_spacing(6)
-                column.add_stretch()
-                self.content.add(column)
-
-                self.__list_widget = list_widget
-
-            def show(self):
-                super().show()
-                self.__list_widget.focused = True
-
-        if len(items) == 0:
-            # for initial startup (or with no preferences) try to use a default location
-            # to avoid the user having to go through the horrendous choose dialog immediately.
-            try:
-                documents_dir = self.ui.get_document_location()
-                workspace_dir = os.path.join(documents_dir, "Nion Swift Library")
-                Cache.db_make_directory_if_needed(workspace_dir)
-                path = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
-                if not os.path.exists(path):
-                    with open(path, "w") as fp:
-                        json.dump({}, fp)
-                if os.path.exists(path):
-                    app.switch_library(workspace_dir)
-                    return
-            except Exception as e:
-                pass
-
-        choose_library_dialog = ChooseLibraryDialog(self.ui, self)
-        choose_library_dialog.show()
+        return [file_path for file_path in workspace_history if os.path.exists(file_path)]
 
     def create_document_controller(self, document_model, workspace_id, display_item=None):
         self._set_document_model(document_model)  # required to allow API to find document model

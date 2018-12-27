@@ -200,24 +200,14 @@ class AutoMigration:
         self.storage_system = storage_system
 
 
-def create_profile(workspace_dir: pathlib.Path, do_logging: bool, force_create: bool) -> typing.Tuple[typing.Optional[Profile], bool]:
-    library_path = _migrate_library(workspace_dir, do_logging)
-    if not force_create and not os.path.exists(library_path):
-        return None, False
-    create_new_document = not os.path.exists(library_path)
+def create_profile(profile_path: pathlib.Path, do_logging: bool) -> typing.Tuple[typing.Optional[Profile], bool]:
+    create_new_profile = not profile_path.exists()
     if do_logging:
-        if create_new_document:
-            logging.info(f"Creating new document: {library_path}")
+        if create_new_profile:
+            logging.info(f"Creating new profile {profile_path}")
         else:
-            logging.info(f"Using existing document {library_path}")
-    auto_migrations = list()
-    auto_migrations.append(AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Workspace.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data"]))
-    auto_migrations.append(AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Workspace.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data 10"]))
-    auto_migrations.append(AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Workspace.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data 11"]))
-    auto_migrations.append(AutoMigration(pathlib.Path(workspace_dir) / "Nion Swift Library 12.nslib", [pathlib.Path(workspace_dir) / "Nion Swift Data 12"]))
-    # NOTE: when adding an AutoMigration here, also add the corresponding file copy in _migrate_library
-    storage_system = FileStorageSystem.FileStorageSystem(FileStorageSystem.FileLibraryHandler(library_path))
-    cache_filename = f"Nion Swift Cache {DataItem.DataItem.storage_version}.nscache"
-    cache_path = workspace_dir / cache_filename
+            logging.info(f"Using existing profile {profile_path}")
+    storage_system = FileStorageSystem.FileStorageSystem(FileStorageSystem.FileLibraryHandler(profile_path))
+    cache_path = profile_path.parent / pathlib.Path(profile_path.stem + " Cache").with_suffix(".nscache")
     storage_cache = Cache.DbStorageCache(cache_path)
-    return Profile(storage_system=storage_system, storage_cache=storage_cache), create_new_document
+    return Profile(storage_system=storage_system, storage_cache=storage_cache), create_new_profile

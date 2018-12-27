@@ -1344,43 +1344,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_group.title = _("My Data")
             self.append_data_group(data_group)
 
-    def create_sample_images(self, resources_path):
-        if True:
-            data_group = self.get_or_create_data_group(_("Example Data"))
-            handler = ImportExportManager.NDataImportExportHandler("ndata1-io-handler", None, ["ndata1"])
-            samples_dir = os.path.join(resources_path, "SampleImages")
-            #logging.debug("Looking in %s", samples_dir)
-            def is_ndata(file_path):
-                #logging.debug("Checking %s", file_path)
-                base, extension = os.path.splitext(file_path)
-                return extension == ".ndata1" and not os.path.basename(base).startswith(".")
-            if os.path.isdir(samples_dir):
-                sample_paths = [os.path.normpath(os.path.join(samples_dir, d)) for d in os.listdir(samples_dir) if is_ndata(os.path.join(samples_dir, d))]
-            else:
-                sample_paths = []
-            for sample_path in sorted(sample_paths):
-                try:
-                    data_items = handler.read_data_items(None, "ndata1", sample_path)
-                    for data_item in data_items:
-                        if not self.get_data_item_by_uuid(data_item.uuid):
-                            self.append_data_item(data_item)
-                            data_group.append_display_item(self.get_display_item_for_data_item(data_item))
-                except Exception as e:
-                    logging.debug("Error reading %s", sample_path)
-        else:
-            # for testing, add a checkerboard image data item
-            checkerboard_data_item = DataItem.DataItem(Image.create_checkerboard((512, 512)))
-            checkerboard_data_item.title = "Checkerboard"
-            self.append_data_item(checkerboard_data_item)
-            # for testing, add a color image data item
-            color_data_item = DataItem.DataItem(Image.create_color_image((512, 512), 128, 255, 128))
-            color_data_item.title = "Green Color"
-            self.append_data_item(color_data_item)
-            # for testing, add a color image data item
-            lena_data_item = DataItem.DataItem(scipy.misc.lena())
-            lena_data_item.title = "Lena"
-            self.append_data_item(lena_data_item)
-
     # Return a generator over all data items
     def get_flat_data_item_generator(self):
         for data_item in self.data_items:

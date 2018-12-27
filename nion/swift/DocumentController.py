@@ -81,12 +81,7 @@ class DocumentController(Window.Window):
         # to determine when to close it.
         self.document_model = document_model
         self.document_model.add_ref()
-        if app:
-            workspace_dir = app.workspace_dir
-            workspace_name = os.path.splitext(os.path.split(workspace_dir)[1])[0] if workspace_dir else _("Workspace")
-            self.title = "{0} Workspace - {1}".format(_("Nion Swift"), workspace_name)
-        else:
-            self.title = _("Nion Swift")
+        self.title = _("Nion Swift")
         self.__workspace_controller = None
         self.replaced_display_panel_content = None  # used to facilitate display panel functionality to exchange displays
         self.__weak_selected_display_panel = None
@@ -163,7 +158,6 @@ class DocumentController(Window.Window):
         self._view_menu = None
         self._window_menu = None
         self._help_menu = None
-        self._library_menu = None
         self._processing_arithmetic_menu = None
         self._processing_reduce_menu = None
         self._processing_transform_menu = None
@@ -226,26 +220,9 @@ class DocumentController(Window.Window):
 
         self._help_menu = self.add_menu(_("Help"))
 
-        self._library_menu = self.create_sub_menu()
-
-        if self.app:
-            recent_workspace_file_paths = self.app.get_recent_workspace_file_paths()
-            for file_path in recent_workspace_file_paths[0:10]:
-                root_path, file_name = os.path.split(file_path)
-                name, ext = os.path.splitext(file_name)
-                self._library_menu.add_menu_item(name, functools.partial(self.app.switch_library, file_path))
-            if len(recent_workspace_file_paths) > 0:
-                self._library_menu.add_separator()
-            self._library_menu.add_menu_item(_("Choose..."), self.app.choose_library)
-            self._library_menu.add_menu_item(_("Clear"), self.app.clear_libraries)
-
         self._new_window_action = self._file_menu.add_menu_item(_("New Window"), functools.partial(self.new_window_with_data_item, "library"), key_sequence="new")
         self._close_action = self._file_menu.add_menu_item(_("Close Window"), self.request_close, key_sequence="close")
         self._file_menu.add_separator()
-        self._switch_library_action = self._file_menu.add_sub_menu(_("Switch Library"), self._library_menu)
-        if self.app:
-            self._open_library_action = self._file_menu.add_menu_item(_("Open Library..."), self.app.open_library, key_sequence="open")
-            self._new_library_action = self._file_menu.add_menu_item(_("New Library..."), self.app.new_library, key_sequence="Ctrl+Shift+N")
         self._file_menu.add_separator()
         self._import_folder_action = self._file_menu.add_menu_item(_("Import Folder..."), self.__import_folder)
         self._import_action = self._file_menu.add_menu_item(_("Import Data..."), self.import_file)
