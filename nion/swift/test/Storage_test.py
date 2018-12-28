@@ -3003,7 +3003,6 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # auto migrate workspace
             new_data_name = f"Nion Swift Data {DataItem.DataItem.storage_version}"
-            auto_migration = Profile.AutoMigration(paths=[data_path], log_copying=False)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
