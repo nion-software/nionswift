@@ -1,8 +1,6 @@
 # standard libraries
 import logging
-import os
 import pathlib
-import shutil
 import typing
 import uuid
 
@@ -23,7 +21,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     profile_version = 2
 
-    def __init__(self, storage_system=None, projects: typing.Optional[typing.List[Project.Project]] = None, storage_cache=None):
+    def __init__(self, storage_system=None, storage_cache=None, auto_project: bool = True):
         super().__init__()
         self.define_type("profile")
         self.define_relationship("workspaces", WorkspaceLayout.factory)
@@ -31,8 +29,13 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
         self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
+        self.define_property("project_references", list())
         self.storage_system = storage_system if storage_system else FileStorageSystem.FileStorageSystem(FileStorageSystem.MemoryLibraryHandler())
-        self.__projects = projects if projects is not None else [Project.Project(FileStorageSystem.MemoryLibraryHandler())]
+        if auto_project:
+            self.__projects = [Project.Project(FileStorageSystem.MemoryLibraryHandler())]
+        else:
+            self.__projects = list()
+        self.__read_projects()
         self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
         # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
         # there is a single shared object context per profile.
@@ -55,6 +58,11 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
     @property
     def _target_project_storage_system(self) -> FileStorageSystem.FileStorageSystem:
         return self.__projects[0]._project_storage_system
+
+    def __read_projects(self) -> None:
+        for project_reference in self.project_references:
+            assert project_reference["type"] == "project_folder"
+            self.__projects.append(Project.Project(pathlib.Path(project_reference["project_path"])))
 
     def open(self, document_model):
         self.storage_system.reset()  # this makes storage reusable during tests
@@ -138,6 +146,10 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
     def __project_item_loaded(self, item_type: str, item_d: typing.Dict, storage_system) -> None:
         self.__document_model.handle_load_item(item_type, item_d, storage_system)
 
+    def add_project(self, project: Project.Project) -> None:
+        self.__projects.append(project)
+        self.__item_loaded_event_listeners.append(project.item_loaded_event.listen(self.__project_item_loaded))
+
 
 class MemoryProfileContext:
     # used for testing
@@ -162,23 +174,12 @@ class MemoryProfileContext:
     def create_profile(self) -> Profile:
         project = Project.Project(self.__project_handler)
         storage_system = FileStorageSystem.FileStorageSystem(self.__profile_handler)
-        return Profile(storage_system=storage_system, projects=[project], storage_cache=self.storage_cache)
+        profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
+        profile.add_project(project)
+        return profile
 
     def __enter__(self):
         return self
 
     def __exit__(self, type_, value, traceback):
         pass
-
-
-def create_profile(profile_path: pathlib.Path, do_logging: bool) -> typing.Tuple[typing.Optional[Profile], bool]:
-    create_new_profile = not profile_path.exists()
-    if do_logging:
-        if create_new_profile:
-            logging.info(f"Creating new profile {profile_path}")
-        else:
-            logging.info(f"Using existing profile {profile_path}")
-    storage_system = FileStorageSystem.FileStorageSystem(FileStorageSystem.FileLibraryHandler(profile_path))
-    cache_path = profile_path.parent / pathlib.Path(profile_path.stem + " Cache").with_suffix(".nscache")
-    storage_cache = Cache.DbStorageCache(cache_path)
-    return Profile(storage_system=storage_system, storage_cache=storage_cache), create_new_profile

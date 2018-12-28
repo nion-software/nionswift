@@ -82,6 +82,9 @@ class LibraryHandler:
         self.__properties_lock = threading.RLock()
         self.__data_properties_map = dict()
 
+    def _get_identifier(self) -> str:
+        return str()
+
     def _read_properties(self) -> typing.Dict:
         return dict()
 
@@ -105,6 +108,9 @@ class LibraryHandler:
 
     def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
         return None
+
+    def get_identifier(self) -> str:
+        return self._get_identifier()
 
     def reset(self):
         self.__data_properties_map = dict()
@@ -443,6 +449,9 @@ class FileLibraryHandler(LibraryHandler):
     def project_data_path(self) -> pathlib.Path:
         return self.__project_data_path
 
+    def _get_identifier(self) -> str:
+        return str(self.__project_path)
+
     def _read_properties(self) -> typing.Dict:
         properties = dict()
         if self.__project_path and os.path.exists(self.__project_path):
@@ -570,11 +579,11 @@ class FileLibraryHandler(LibraryHandler):
     def _get_migration_stages(self) -> typing.List:
         workspace_dir = self.__project_path.parent
         return [
-            (workspace_dir / "Nion Swift Workspace.nslib", workspace_dir / "Nion Swift Data"),
-            (workspace_dir / "Nion Swift Workspace.nslib", workspace_dir / "Nion Swift Data 10"),
-            (workspace_dir / "Nion Swift Workspace.nslib", workspace_dir / "Nion Swift Data 11"),
-            (workspace_dir / "Nion Swift Library 12.nslib", workspace_dir / "Nion Swift Data 12"),
             (workspace_dir / "Nion Swift Library 13.nslib", workspace_dir / "Nion Swift Data 13"),
+            (workspace_dir / "Nion Swift Library 12.nslib", workspace_dir / "Nion Swift Data 12"),
+            (workspace_dir / "Nion Swift Workspace.nslib", workspace_dir / "Nion Swift Data 11"),
+            (workspace_dir / "Nion Swift Workspace.nslib", workspace_dir / "Nion Swift Data 10"),
+            (workspace_dir / "Nion Swift Workspace.nslib", workspace_dir / "Nion Swift Data"),
         ]
 
     def _read_library_properties(self, migration_stage) -> typing.Dict:
@@ -606,7 +615,7 @@ class FileLibraryHandler(LibraryHandler):
         # ask the storage system to make a storage handler (an instance of a file handler) for the data item
         # this ensures that the storage handler (file format) is the same as before.
         target_storage_handler = self._make_storage_handler(old_data_item, file_handler)
-        if target_storage_handler:
+        if target_storage_handler and storage_handler.reference != target_storage_handler.reference:
             os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
             shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
             target_storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
@@ -670,6 +679,9 @@ class MemoryLibraryHandler(LibraryHandler):
     @property
     def data_properties_map(self) -> typing.Dict:
         return self.__data_properties_map
+
+    def _get_identifier(self) -> str:
+        return "memory"
 
     def _read_properties(self) -> typing.Dict:
         return copy.deepcopy(self.__library_properties)

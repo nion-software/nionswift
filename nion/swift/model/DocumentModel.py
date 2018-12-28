@@ -634,8 +634,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.set_session_manager(self)
         self.data_item_inserted_event.fire(self, data_item, before_index, False)
         self.notify_insert_item("data_items", data_item, before_index)
-        for data_item_reference in self.__data_item_references.values():
-            data_item_reference.data_item_inserted(data_item)
+        # update the data item references
+        data_item_references = self.__profile.data_item_references
+        for key, data_item_uuid in data_item_references.items():
+            data_item = self.get_data_item_by_uuid(data_item_uuid)
+            if data_item:
+                self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, data_item))
         self.__rebind_computations()  # rebind any unresolved that may now be resolved
         self.__transaction_manager._add_item(data_item)
 

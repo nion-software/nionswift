@@ -1,4 +1,5 @@
 # standard libraries
+import logging
 import typing
 import uuid
 
@@ -36,8 +37,8 @@ class Project:
 
     def read(self) -> None:
         # first read the library (for deletions) and the library items from the primary storage systems
+        logging.getLogger("loader").info(f"Loading project {self.__storage_system._library_handler.get_identifier()}")
         properties = self.__storage_system.read_library()
-
         for item_type in ("data_items", "display_items", "data_structures", "connections", "computations"):
             for item_d in properties.get(item_type, list()):
                 self.item_loaded_event.fire(item_type, item_d, self.__storage_system)

@@ -70,7 +70,8 @@ class TempProfileContext:
         storage_cache = Cache.DbStorageCache(cache_path)
         project = Project.Project(FileStorageSystem.FileLibraryHandler(project_path, project_data_path))
         storage_system = FileStorageSystem.FileStorageSystem(FileStorageSystem.FileLibraryHandler(profile_path))
-        profile = Profile.Profile(storage_system=storage_system, projects=[project], storage_cache=storage_cache)
+        profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
+        profile.add_project(project)
         profile.storage_cache = storage_cache
         profile.storage_system = storage_system
         return profile

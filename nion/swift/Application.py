@@ -1,9 +1,7 @@
 # standard libraries
 import asyncio
 import copy
-import datetime
 import gettext
-import json
 import logging
 import os
 import pathlib
@@ -31,16 +29,14 @@ from nion.swift.model import ApplicationData
 from nion.swift.model import Cache
 from nion.swift.model import ColorMaps
 from nion.swift.model import DocumentModel
+from nion.swift.model import FileStorageSystem
 from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
-from nion.swift.model import Utility
+from nion.swift.model import Project
 from nion.ui import Application as UIApplication
-from nion.ui import Dialog
-from nion.ui import Widgets
 from nion.utils import Event
 from nion.utils import Process
-from nion.utils import Selection
 
 _ = gettext.gettext
 
@@ -54,6 +50,7 @@ class Application(UIApplication.Application):
         super().__init__(ui)
 
         logging.getLogger("migration").setLevel(logging.ERROR)
+        logging.getLogger("loader").setLevel(logging.ERROR)
 
         global app
 
@@ -178,14 +175,23 @@ class Application(UIApplication.Application):
             Creates document model, resources path, etc.
         """
         logging.getLogger("migration").setLevel(logging.INFO)
+        logging.getLogger("loader").setLevel(logging.INFO)
         if profile_dir:
-            profile_path = profile_dir / pathlib.Path("Profile").with_suffix("nsproj")
+            profile_path = profile_dir / pathlib.Path("Profile").with_suffix(".nsproj")
         else:
             data_dir = pathlib.Path(self.ui.get_data_location())
             profile_name = pathlib.Path(self.ui.get_persistent_string("profile_name", "Profile"))
-            profile_path = data_dir / profile_name.with_suffix("nsproj")
+            profile_path = data_dir / profile_name.with_suffix(".nsproj")
         welcome_message_enabled = profile_dir is None
-        profile, is_created = Profile.create_profile(profile_path, welcome_message_enabled)
+        profile, is_created = self.__create_profile(profile_path)
+        if True or is_created:
+            for library_path in self.get_recent_library_paths():
+                project_path = pathlib.Path(library_path) / "Project.nsproj"
+                project_data_path = pathlib.Path(library_path) / "Data"
+                project = Project.Project(FileStorageSystem.FileLibraryHandler(project_path, project_data_path))
+                # project.migrate_to_latest()
+                profile.add_project(project)
+                break
         DocumentModel.DocumentModel.computation_min_period = 0.1
         DocumentModel.DocumentModel.computation_min_factor = 1.0
         document_model = DocumentModel.DocumentModel(profile=profile)
@@ -194,7 +200,7 @@ class Application(UIApplication.Application):
         # create the document controller
         document_controller = self.create_document_controller(document_model, "library")
         if welcome_message_enabled:
-            logging.info("Welcome to Nion Swift.")
+            logging.getLogger("loader").info("Welcome to Nion Swift.")
         if is_created and len(document_model.display_items) > 0:
             document_controller.selected_display_panel.set_display_panel_display_item(document_model.display_items[0])
             document_controller.selected_display_panel.perform_action("set_fill_mode")
@@ -204,7 +210,7 @@ class Application(UIApplication.Application):
         # program is really stopping, clean up.
         self.deinitialize()
 
-    def get_recent_workspace_file_paths(self):
+    def get_recent_library_paths(self):
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
         return [file_path for file_path in workspace_history if os.path.exists(file_path)]
 
@@ -222,6 +228,17 @@ class Application(UIApplication.Application):
                 display_panel.set_display_panel_display_item(display_item)
         document_controller.show()
         return document_controller
+
+    def __create_profile(self, profile_path: pathlib.Path) -> typing.Tuple[typing.Optional[Profile.Profile], bool]:
+        create_new_profile = not profile_path.exists()
+        if create_new_profile:
+            logging.getLogger("loader").info(f"Creating new profile {profile_path}")
+        else:
+            logging.getLogger("loader").info(f"Using existing profile {profile_path}")
+        storage_system = FileStorageSystem.FileStorageSystem(FileStorageSystem.FileLibraryHandler(profile_path))
+        cache_path = profile_path.parent / pathlib.Path(profile_path.stem + " Cache").with_suffix(".nscache")
+        storage_cache = Cache.DbStorageCache(cache_path)
+        return Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False), create_new_profile
 
     def __document_controller_did_close(self, document_controller):
         self.__did_close_event_listeners[document_controller].close()
