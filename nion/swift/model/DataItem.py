@@ -385,7 +385,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             if self.__write_delay_data_changed:
                 self.__write_data()
 
-
     def _transaction_state_entered(self):
         self.__in_transaction_state = True
         # first enter the write delay state.
@@ -421,8 +420,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         # this can occur during acquisition. any other cases?
         super().persistent_object_context_changed()
 
-        # if self.__in_transaction_state:
-        #     self.__enter_write_delay_state()
         if self.__data_and_metadata:
             self.__data_and_metadata.unloadable = self.persistent_object_context is not None
 
