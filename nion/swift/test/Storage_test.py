@@ -4100,6 +4100,28 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_pending_data_on_new_data_item_updates_properly(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = FileStorageSystem.FileStorageSystem(lib_name, [workspace_dir])
+        try:
+            document_model = DocumentModel.DocumentModel(storage_system=file_persistent_storage_system)
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                data_item = DataItem.DataItem()
+                with document_model.item_transaction(data_item):
+                    document_model.append_data_item(data_item)
+                    data_item.set_data(numpy.ones((2, 2)))
+                    # simulate situation in the histogram panel where xdata is stored and used later
+                    data_and_metadata = data_item.data_and_metadata  # this xdata contains ability to reload from data item
+                    data_item.set_data(numpy.ones((2, 2)))  # but it is overwritten here and may be unloaded
+                    self.assertIsNotNone(data_and_metadata.data)  # ensure that it isn't actually unloaded
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def test_deleted_data_item_updates_into_deleted_list_and_clears_on_reload(self):
         memory_persistent_storage_system = MemoryStorageSystem.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(storage_system=memory_persistent_storage_system)

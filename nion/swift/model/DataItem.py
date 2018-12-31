@@ -1020,7 +1020,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                 new_data_and_metadata = None
             self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
             if self.__data_and_metadata is not None:
-                if self.persistent_object_context:
+                if self.persistent_object_context and not self.persistent_object_context.is_write_delayed(self):
                     self.persistent_object_context.write_external_data(self, "data", self.__data_and_metadata.data)
                     self.__data_and_metadata.unloadable = True
         finally:
