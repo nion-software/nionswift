@@ -1061,10 +1061,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             display_properties.pop(property_name, None)
         self.display_properties = display_properties
         self.display_property_changed_event.fire(property_name)
+        if property_name in ("displayed_dimensional_scales", "displayed_dimensional_calibrations", "displayed_intensity_calibration"):
+            self.graphics_changed_event.fire(self.graphic_selection)
         if property_name in ("calibration_style_id", ):
             self.display_property_changed_event.fire("displayed_dimensional_scales")
             self.display_property_changed_event.fire("displayed_dimensional_calibrations")
             self.display_property_changed_event.fire("displayed_intensity_calibration")
+            self.graphics_changed_event.fire(self.graphic_selection)
         self.display_changed_event.fire()
 
     def get_display_layer_property(self, index: int, property_name: str, default_value=None):
@@ -1214,6 +1217,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.display_property_changed_event.fire("displayed_dimensional_calibrations")
         self.display_property_changed_event.fire("displayed_intensity_calibration")
         self.display_changed_event.fire()
+        self.graphics_changed_event.fire(self.graphic_selection)
 
     def _description_changed(self):
         self.notify_property_changed("title")
