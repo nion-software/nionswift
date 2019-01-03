@@ -916,6 +916,18 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         self.__header_canvas_item = Panel.HeaderCanvasItem(document_controller, display_close_control=True)
 
+        def header_double_clicked(x, y, modifiers):
+            display_item = self.display_item
+            if display_item:
+                from nion.swift import DisplayEditPopup
+                size = Geometry.IntSize(width=400, height=40)
+                canvas_bounds = self.__header_canvas_item.canvas_bounds
+                pos = Geometry.IntPoint(x=canvas_bounds.center.x - size.width // 2, y=canvas_bounds.top)
+                global_pos = self.__header_canvas_item.map_to_global(pos)
+                DisplayEditPopup.pose_title_edit_popup(document_controller, display_item, global_pos, size)
+
+        self.__header_canvas_item.on_double_clicked = header_double_clicked
+
         self.__footer_canvas_item = CanvasItem.CanvasItemComposition()
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__footer_canvas_item.sizing.collapsible = True

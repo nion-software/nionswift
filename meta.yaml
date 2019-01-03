@@ -24,7 +24,7 @@ requirements:
     - python >=3.6
     - nionutils >=0.3.16
     - niondata >=0.13.6
-    - nionui >=0.3.20
+    - nionui >=0.3.21
     - nionswift-io >=0.13.0
     - scipy
     - numpy

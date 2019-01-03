@@ -5,6 +5,8 @@ Release Notes
 
 Version 0.14.1, UNRELEASED
 --------------------------
+* (2019-01-02) Add title/caption editor when display panel header is double clicked.
+* (2018-12-31) Fix problem starting acquisition when acquisition data item is not yet created.
 * (2018-12-12) Fix memory leak when using API data item refs.
 
 Version 0.14.0, December 12, 2018

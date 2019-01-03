@@ -162,6 +162,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_drag_pressed = None
         self.on_close_clicked = None
         self.on_context_menu_clicked = None
+        self.on_double_clicked = None
         self.__mouse_pressed_position = None
 
     def close(self):
@@ -248,6 +249,11 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_pressed(self, x, y, modifiers):
         self.__mouse_pressed_position = Geometry.IntPoint(y=y, x=x)
         return True
+
+    def mouse_double_clicked(self, x, y, modifiers):
+        if callable(self.on_double_clicked):
+            return self.on_double_clicked(x, y, modifiers)
+        return False
 
     def mouse_position_changed(self, x, y, modifiers):
         pt = Geometry.IntPoint(y=y, x=x)
