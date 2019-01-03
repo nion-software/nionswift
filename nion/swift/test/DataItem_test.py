@@ -787,6 +787,7 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertTrue(graphics_changed_ref[0])
 
     def test_changing_calibration_updates_interval_graphics(self):
+        # note: this only tests whether the display is sent the proper data, not whether it draws properly
         graphics_changed_ref = [False]
         def graphics_changed(s):
             graphics_changed_ref[0] = True
@@ -802,6 +803,29 @@ class TestDataItemClass(unittest.TestCase):
                 graphics_changed_ref[0] = False
                 data_item.set_dimensional_calibration(0, Calibration.Calibration(1, 2, "g"))
                 self.assertTrue(graphics_changed_ref[0])
+
+    def test_line_profile_interval_updates_line_profile_graphic(self):
+        # note: this only tests whether the display is sent the proper data, not whether it draws properly
+        graphics_changed_ref = [False]
+        def graphics_changed(s):
+            graphics_changed_ref[0] = True
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            line_plot_data_item = document_model.get_line_profile_new(display_item)
+            line_plot_display_item = document_model.get_display_item_for_data_item(line_plot_data_item)
+            line_profile_graphic = display_item.graphics[0]
+            with contextlib.closing(display_item.graphics_changed_event.listen(graphics_changed)):
+                interval_graphic = Graphics.IntervalGraphic()
+                line_plot_display_item.add_graphic(interval_graphic)
+                self.assertTrue(graphics_changed_ref[0])
+                self.assertEqual((0.0, 1.0), line_profile_graphic.interval_descriptors[0]["interval"])
+                graphics_changed_ref[0] = False
+                interval_graphic.interval = (0.2, 0.3)
+                self.assertTrue(graphics_changed_ref[0])
+                self.assertEqual((0.2, 0.3), line_profile_graphic.interval_descriptors[0]["interval"])
 
     def test_connecting_data_source_updates_dependent_data_items_property_on_source(self):
         document_model = DocumentModel.DocumentModel()

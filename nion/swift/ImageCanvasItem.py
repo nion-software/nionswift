@@ -124,7 +124,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         if ((self.__displayed_shape is None) != (displayed_shape is None)) or (self.__displayed_shape != displayed_shape):
             self.__displayed_shape = displayed_shape
             needs_update = True
-        graphics_for_compare = [graphic.mime_data_dict() for graphic in (graphics or list())]
+        graphics_for_compare = [graphic.write_to_dict() for graphic in (graphics or list())]
         if graphics_for_compare != self.__graphics_for_compare:
             self.__graphics = graphics
             self.__graphics_for_compare = graphics_for_compare
