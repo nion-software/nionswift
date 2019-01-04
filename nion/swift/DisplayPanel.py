@@ -1571,7 +1571,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.show_context_menu(menu, gx, gy)
 
     def __handle_context_menu_for_display(self, display_item, x, y, gx, gy):
-        menu = self.__document_controller.create_context_menu_for_display(display_item)
+        menu = self.__document_controller.create_context_menu_for_display(display_item, use_selection=True)
         return self.show_context_menu(menu, gx, gy)
 
     def perform_action(self, fn, *args, **keywords):
@@ -1662,7 +1662,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def show_display_context_menu(self, gx, gy) -> bool:
         document_controller = self.__document_controller
-        menu = document_controller.create_context_menu_for_display(self.__display_item, container=document_controller.document_model)
+        menu = document_controller.create_context_menu_for_display(self.__display_item, container=document_controller.document_model, use_selection=False)
         return self.show_context_menu(menu, gx, gy)
 
     def begin_mouse_tracking(self):

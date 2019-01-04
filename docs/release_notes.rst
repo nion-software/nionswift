@@ -5,6 +5,7 @@ Release Notes
 
 Version 0.14.1, UNRELEASED
 --------------------------
+* (2019-01-03) Fix handling of delete from display panel when multiple items in data panel also selected.
 * (2019-01-03) Fix problem so interval graphics update properly on associated line profile.
 * (2019-01-02) Fix problem so interval graphics update if only calibration changed.
 * (2019-01-02) Add title/caption editor when display panel header is double clicked.

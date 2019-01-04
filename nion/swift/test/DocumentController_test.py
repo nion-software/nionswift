@@ -611,6 +611,42 @@ class TestDocumentControllerClass(unittest.TestCase):
             delete_item.callback()
             self.assertEqual(len(document_model.data_items), 0)
 
+    def test_delete_by_display_panel_context_menu_only_deletes_data_item_in_display_panel(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(source_data_item)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
+            extra_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(extra_data_item)
+            document_controller.selection.set(0)
+            document_controller.selection.add(1)
+            context_menu = document_controller.create_context_menu_for_display(source_display_item, use_selection=False)
+            context_menu_items = context_menu.items
+            delete_item = next(x for x in context_menu_items if x.title == "Delete Data Item")
+            delete_item.callback()
+            self.assertEqual(len(document_model.data_items), 1)
+            self.assertEqual(len(document_controller.selection.indexes), 1)
+
+    def test_delete_by_data_panel_context_menu_only_deletes_all_selected_data_items(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(source_data_item)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
+            extra_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(extra_data_item)
+            document_controller.selection.set(0)
+            document_controller.selection.add(1)
+            context_menu = document_controller.create_context_menu_for_display(source_display_item, use_selection=True)
+            context_menu_items = context_menu.items
+            delete_item = next(x for x in context_menu_items if x.title == "Delete Data Item")
+            delete_item.callback()
+            self.assertEqual(len(document_model.data_items), 0)
+            self.assertEqual(len(document_controller.selection.indexes), 0)
+
     def test_putting_data_item_in_selected_empty_display_updates_selected_data_item_binding(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

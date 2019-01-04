@@ -726,7 +726,7 @@ class DocumentController(Window.Window):
             self.__filtered_display_items_model.filter = display_filter
 
     @property
-    def selected_display_items(self) -> typing.Sequence[DisplayItem.DisplayItem]:
+    def selected_display_items(self) -> typing.List[DisplayItem.DisplayItem]:
         selected_display_items = list()
         display_items = self.__filtered_display_items_model.display_items
         for index in self.selection.ordered_indexes:
@@ -734,7 +734,7 @@ class DocumentController(Window.Window):
         return selected_display_items
 
     @property
-    def selected_data_items(self) -> typing.Sequence[DataItem.DataItem]:
+    def selected_data_items(self) -> typing.List[DataItem.DataItem]:
         selected_display_items = list()
         for display_item in self.selected_display_items:
             for data_item in display_item.data_items:
@@ -1578,7 +1578,11 @@ class DocumentController(Window.Window):
             display_items = [document_model.display_items[index] for index in self.__display_item_indexes]
             for display_item in display_items:
                 if display_item in document_model.display_items:
+                    selected_display_items = self.__document_controller.selected_display_items
+                    if display_item in selected_display_items:
+                        selected_display_items.remove(display_item)
                     self.__undelete_logs.append(document_model.remove_display_item(display_item))
+                    self.__document_controller.select_display_items_in_data_panel(selected_display_items)
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -2316,7 +2320,9 @@ class DocumentController(Window.Window):
         else:
             return receive_files_on_thread(file_paths, data_group, index, functools.partial(receive_files_complete, index))
 
-    def create_context_menu_for_display(self, display_item: DisplayItem.DisplayItem, container=None):
+    def create_context_menu_for_display(self, display_item: DisplayItem.DisplayItem, container=None, *, use_selection: bool=True):
+        selected_display_items = self.selected_display_items if use_selection else [display_item]
+
         menu = self.create_context_menu()
 
         def show_in_new_window():
@@ -2338,7 +2344,6 @@ class DocumentController(Window.Window):
             # without queueing, it originally led to a crash (tested in Qt 5.4.1 on Windows 7).
 
             def export_files():
-                selected_display_items = self.selected_display_items
                 if display_item in selected_display_items:
                     self.export_files(selected_display_items)
                 else:
@@ -2349,7 +2354,6 @@ class DocumentController(Window.Window):
         if data_item and len(self.document_model.get_display_items_for_data_item(data_item)) == 1:
 
             def delete_data_item():
-                selected_display_items = self.selected_display_items
                 # if the display item is not in the selected display items,
                 # only delete that specific display item. otherwise, it is
                 # part of the group, so delete all selected display items.
@@ -2364,7 +2368,6 @@ class DocumentController(Window.Window):
         elif display_item:
 
             def delete_display_item():
-                selected_display_items = self.selected_display_items
                 # if the display item is not in the selected display items,
                 # only delete that specific display item. otherwise, it is
                 # part of the group, so delete all selected display items.
