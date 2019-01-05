@@ -1096,8 +1096,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def populate_display_layers(self) -> None:
         if len(self.display_layers) == 0:
+            # create basic display layers here
             while len(self.display_layers) < len(self.display_data_channels):
-                self.add_display_layer(data_index=len(self.display_layers))
+                self.__add_display_layer_auto(dict(), len(self.display_layers))
 
     def append_display_data_channel_for_data_item(self, data_item: DataItem.DataItem) -> None:
         self.populate_display_layers()
@@ -1346,15 +1347,18 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         if display_layer is not None:
             display_layer = dict(display_layer)
             data_index = self.display_data_channels.index(display_data_channel)
-            # this fill color code breaks encapsulation. i'm leaving it here as a convenience for now.
-            # eventually there should be a connection to a display controller based on the display type which can be
-            # used to set defaults for the layers.
-            display_layer["data_index"] = data_index
-            existing_colors = [display_layer_.get("fill_color") for display_layer_ in self.display_layers]
-            for color in ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00"):
-                if not color in existing_colors:
-                    display_layer.setdefault("fill_color", color)
-            self.add_display_layer(**display_layer)
+            self.__add_display_layer_auto(display_layer, data_index)
+
+    def __add_display_layer_auto(self, display_layer: typing.Dict, data_index: int) -> None:
+        # this fill color code breaks encapsulation. i'm leaving it here as a convenience for now.
+        # eventually there should be a connection to a display controller based on the display type which can be
+        # used to set defaults for the layers.
+        display_layer["data_index"] = data_index
+        existing_colors = [display_layer_.get("fill_color") for display_layer_ in self.display_layers]
+        for color in ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00"):
+            if not color in existing_colors:
+                display_layer.setdefault("fill_color", color)
+        self.add_display_layer(**display_layer)
 
     def insert_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel) -> None:
         self.insert_model_item(self, "display_data_channels", before_index, display_data_channel)

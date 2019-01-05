@@ -164,7 +164,23 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual(3, len(display_item_copy.display_layers))
             self.assertEqual(display_item.display_layers, display_item_copy.display_layers)
 
-    # git show cc4bda5372baaaefa168c57db30074f3b26d64e4
+    def test_add_layer_to_line_plot_with_auto_layer_color_sets_both_colors(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.remove_display_layer(0)
+            self.assertEqual(0, len(display_item.display_layers))
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            self.assertEqual(2, len(display_item.display_layers))
+            self.assertIn("data_index", display_item.display_layers[0])
+            self.assertIn("data_index", display_item.display_layers[1])
+            self.assertIn("fill_color", display_item.display_layers[0])
+            self.assertIn("fill_color", display_item.display_layers[1])
+
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs
     # test_adding_data_item_twice_to_composite_item_fails
