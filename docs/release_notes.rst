@@ -5,6 +5,7 @@ Release Notes
 
 Version 0.14.1, UNRELEASED
 --------------------------
+* (2019-01-05) Enable line plot legend automatically when adding 2nd layer (but not otherwise).
 * (2019-01-05) Fix problem with new line plot layer coloring after migrating data from old versions.
 * (2019-01-03) Fix handling of delete from display panel when multiple items in data panel also selected.
 * (2019-01-03) Fix problem so interval graphics update properly on associated line profile.

@@ -1359,6 +1359,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             if not color in existing_colors:
                 display_layer.setdefault("fill_color", color)
         self.add_display_layer(**display_layer)
+        if len(self.display_layers) == 2 and self.get_display_property("legend_position") is None:
+            self.set_display_property("legend_position", "top-right")
 
     def insert_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel) -> None:
         self.insert_model_item(self, "display_data_channels", before_index, display_data_channel)

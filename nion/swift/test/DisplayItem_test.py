@@ -181,6 +181,25 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertIn("fill_color", display_item.display_layers[0])
             self.assertIn("fill_color", display_item.display_layers[1])
 
+    def test_second_layer_to_line_plot_enables_caption(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            data_item3 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            self.assertIsNone(display_item.get_display_property("legend_position"))
+            # check that legend is automatically enabled for 2nd layer
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            self.assertEqual("top-right", display_item.get_display_property("legend_position"))
+            # check that legend is not automatically enabled for 3rd layer
+            display_item.set_display_property("legend_position", None)
+            display_item.append_display_data_channel_for_data_item(data_item3)
+            self.assertIsNone(display_item.get_display_property("legend_position"))
+
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs
     # test_adding_data_item_twice_to_composite_item_fails
