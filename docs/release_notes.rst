@@ -3,8 +3,8 @@
 Release Notes
 =============
 
-Version 0.14.1, UNRELEASED
---------------------------
+Version 0.14.1, January 7, 2019
+-------------------------------
 * (2019-01-05) Adjust auto display intervals to only use data within intervals rather than extending by 10%.
 * (2019-01-05) Enable line plot legend automatically when adding 2nd layer (but not otherwise).
 * (2019-01-05) Fix problem with new line plot layer coloring after migrating data from old versions.
