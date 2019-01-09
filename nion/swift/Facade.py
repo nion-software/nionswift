@@ -508,6 +508,49 @@ class CheckBoxWidget:
     def on_check_state_changed(self, value):
         self.__check_box_widget.on_check_state_changed = value
 
+class ProgressBarWidget:
+
+    def __init__(self, ui):
+        self.__ui = ui
+        # pass some sizing to prevent ProgressBar being collapsed by a stretch
+        self.__progress_bar_widget = self.__ui.create_progress_bar_widget(properties={"height": 18, "min-width": 64})
+
+    @property
+    def _widget(self):
+        return self.__progress_bar_widget
+
+    @property
+    def value(self):
+        return self.__progress_bar_widget.value
+
+    @value.setter
+    def value(self, value):
+        self.__progress_bar_widget.value = value
+
+    @property
+    def minimum(self):
+        return self.__progress_bar_widget.minimum
+
+    @minimum.setter
+    def minimum(self, value):
+        self.__progress_bar_widget.minimum = value
+
+    @property
+    def maximum(self):
+        return self.__progress_bar_widget.maximum
+
+    @maximum.setter
+    def maximum(self, value):
+        self.__progress_bar_widget.maximum = value
+
+    @property
+    def on_value_changed(self):
+        return self.__progress_bar_widget.on_value_changed
+
+    @on_value_changed.setter
+    def on_value_changed(self, value):
+        self.__progress_bar_widget.on_value_changed = value
+
 
 class UserInterface:
 
@@ -585,6 +628,13 @@ class UserInterface:
         text_edit_widget = TextEditWidget(self.__ui)
         text_edit_widget.text = text
         return text_edit_widget
+
+    def create_progress_bar_widget(self, value=None, minimum=None, maximum=None):
+        progress_bar_widget = ProgressBarWidget(self.__ui)
+        progress_bar_widget.minimum = minimum if minimum is not None else 0
+        progress_bar_widget.maximum = maximum if maximum is not None else 100
+        progress_bar_widget.value = value if value is not None else 0
+        return progress_bar_widget
 
     @property
     def data_file_path(self):
