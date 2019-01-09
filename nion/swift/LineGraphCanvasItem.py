@@ -379,9 +379,9 @@ def draw_frame(drawing_context, plot_height, plot_origin_x, plot_origin_y, plot_
     with drawing_context.saver():
         drawing_context.begin_path()
         drawing_context.rect(plot_origin_x, plot_origin_y, plot_width, plot_height)
-    drawing_context.line_width = 1
-    drawing_context.stroke_style = '#888'
-    drawing_context.stroke()
+        drawing_context.line_width = 1
+        drawing_context.stroke_style = '#888'
+        drawing_context.stroke()
 
 
 def draw_marker(drawing_context, p, fill=None, stroke=None):

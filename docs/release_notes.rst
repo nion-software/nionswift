@@ -3,6 +3,11 @@
 Release Notes
 =============
 
+Version 0.14.2, UNRELEASED
+--------------------------
+* (2019-01-09) Fix line plot frame drawing.
+* (2019-01-09) Add a progress bar widget.
+
 Version 0.14.1, January 7, 2019
 -------------------------------
 * (2019-01-05) Adjust auto display intervals to only use data within intervals rather than extending by 10%.
