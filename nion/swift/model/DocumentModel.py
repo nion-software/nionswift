@@ -1027,6 +1027,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     dependencies.append((source, item))
 
     def __cascade_delete(self, master_item, safe: bool=False) -> typing.Optional[typing.Sequence]:
+        with self.transaction_context():
+            return self.__cascade_delete_inner(master_item, safe=safe)
+
+    def __cascade_delete_inner(self, master_item, safe: bool=False) -> typing.Optional[typing.Sequence]:
         """Cascade delete an item.
 
         Returns an undelete log that can be used to undo the cascade deletion.
@@ -1362,6 +1366,22 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         display_items.append(display_item)
             return display_items
         return list()
+
+    def transaction_context(self):
+        """Return a context object for a document-wide transaction."""
+        class DocumentModelTransaction:
+            def __init__(self, document_model):
+                self.__document_model = document_model
+
+            def __enter__(self):
+                self.__document_model.persistent_object_context.enter_write_delay(self.__document_model)
+                return self
+
+            def __exit__(self, type, value, traceback):
+                self.__document_model.persistent_object_context.exit_write_delay(self.__document_model)
+                self.__document_model.persistent_object_context.rewrite_item(self.__document_model)
+
+        return DocumentModelTransaction(self)
 
     def item_transaction(self, item) -> Transaction:
         return self.__transaction_manager.item_transaction(item)
