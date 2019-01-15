@@ -3,8 +3,8 @@
 Release Notes
 =============
 
-Version 0.14.2, UNRELEASED
---------------------------
+Version 0.14.2, January 15, 2019
+--------------------------------
 * (2019-01-14) Improve performance of deletes (by using transactions).
 * (2019-01-09) Fix line plot frame drawing.
 * (2019-01-09) Add a progress bar widget.

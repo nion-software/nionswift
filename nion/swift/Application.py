@@ -63,7 +63,7 @@ class Application(UIApplication.Application):
 
         self.ui.persistence_root = "3"  # sets of preferences
         self.__resources_path = resources_path
-        self.version_str = "0.13.9"
+        self.version_str = "0.14.2"
         self.workspace_dir = None
 
         self.document_model_available_event = Event.Event()
