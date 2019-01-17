@@ -531,7 +531,7 @@ class DocumentController(Window.Window):
 
                 column.add_spacing(26)
                 column.add(make_label_row("Nion Swift {0} {1}".format(version_str, root_dir)))
-                column.add(make_label_row("Copyright 2012-2018 Nion Co. All Rights Reserved."))
+                column.add(make_label_row("Copyright 2012-2019 Nion Co. All Rights Reserved."))
                 column.add_spacing(26)
                 column.add(make_label_row(sys.base_prefix))
                 conda_path = pathlib.Path(sys.base_prefix) / "conda-meta"

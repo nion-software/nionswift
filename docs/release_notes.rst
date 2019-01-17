@@ -3,8 +3,8 @@
 Release Notes
 =============
 
-Version 0.14.3, UNRELEASED
---------------------------
+Version 0.14.3, January 17, 2019
+--------------------------------
 * (2019-01-17) Fix issue of orphaned data items with no display making acquisition impossible.
 
 Version 0.14.2, January 15, 2019
