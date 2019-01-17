@@ -957,6 +957,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 for data_item in item.data_items:
                     if data_item and len(self.get_display_items_for_data_item(data_item)) == 1:
                         self.__build_cascade(data_item, items, dependencies)
+            elif isinstance(item, DisplayItem.DisplayDataChannel):
+                # delete data items whose only display item channel is being deleted
+                if item.data_item and len(self.get_display_items_for_data_item(item.data_item)) == 1:
+                    self.__build_cascade(item.data_item, items, dependencies)
             # outputs of a computation are deleted.
             elif isinstance(item, Symbolic.Computation):
                 for output in item._outputs:

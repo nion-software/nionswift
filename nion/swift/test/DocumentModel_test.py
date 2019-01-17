@@ -2209,6 +2209,30 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.remove_data_item(data_item2)
             self.assertEqual(1, len(display_item.display_data_channels))
 
+    def test_deleting_last_display_item_for_data_item_also_deletes_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            # make two data items and add display for 2nd to first
+            # this results in two display items, the first with both data items;
+            # the second with just the 2nd data item.
+            data_item1 = DataItem.DataItem(numpy.ones((2,)))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.ones((2,)))
+            document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item1.append_display_data_channel_for_data_item(data_item2)
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertIn(data_item1, document_model.data_items)
+            # remove the first data item from the first display; now the first data item
+            # is not displayed anywhere and should be cascade deleted. the correct result
+            # should be two display items, both displaying the 2nd data item. the first data
+            # item should be removed from the document.
+            display_item1.remove_display_data_channel(display_item1.display_data_channels[0])
+            self.assertNotIn(data_item1, document_model.data_items)
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.get_display_items_for_data_item(data_item2)))
+
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)
