@@ -125,13 +125,13 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
             self.persistent_object_context.subscribe(self.source_uuid, source_registered, source_unregistered)
 
             for property_name, value in self.__properties.items():
-                if isinstance(value, dict) and value.get("type") in {"data_item", "data_source", "graphic", "structure"} and "uuid" in value:
+                if isinstance(value, dict) and value.get("type") in {"data_item", "display_item", "data_source", "graphic", "structure"} and "uuid" in value:
                     self.persistent_object_context.subscribe(uuid.UUID(value["uuid"]), functools.partial(reference_registered, property_name), functools.partial(reference_unregistered, property_name))
         else:
             source_unregistered()
 
             for property_name, value in self.__properties.items():
-                if isinstance(value, dict) and value.get("type") in {"data_source", "graphic", "structure"} and "uuid" in value:
+                if isinstance(value, dict) and value.get("type") in {"data_item", "display_item", "data_source", "graphic", "structure"} and "uuid" in value:
                     reference_unregistered(property_name)
 
     def set_property_value(self, property: str, value) -> None:
@@ -180,8 +180,6 @@ def get_object_specifier(object, object_type: str=None) -> typing.Optional[typin
     if object_type in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
         assert isinstance(object, DisplayItem.DisplayDataChannel)
         return {"version": 1, "type": object_type, "uuid": str(object.uuid)}
-    assert not isinstance(object, DataItem.DataItem)
-    assert not isinstance(object, DisplayItem.DisplayItem)
     if isinstance(object, DisplayItem.DisplayDataChannel):
         # should be "data_source" but requires file format change
         return {"version": 1, "type": "data_source", "uuid": str(object.uuid)}
@@ -189,4 +187,6 @@ def get_object_specifier(object, object_type: str=None) -> typing.Optional[typin
         return {"version": 1, "type": "graphic", "uuid": str(object.uuid)}
     elif isinstance(object, DataStructure):
         return {"version": 1, "type": "structure", "uuid": str(object.uuid)}
+    elif isinstance(object, DisplayItem.DisplayItem):
+        return {"version": 1, "type": "display_item", "uuid": str(object.uuid)}
     return None
