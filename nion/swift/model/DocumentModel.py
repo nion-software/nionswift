@@ -273,6 +273,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __init__(self, *, profile: Profile.Profile = None):
         super().__init__()
 
+        self.about_to_close_event = Event.Event()
+
         self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
         self.data_item_inserted_event = Event.Event()
         self.data_item_removed_event = Event.Event()
@@ -420,6 +422,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return super().write_to_dict()
 
     def close(self):
+        # notify listeners
+        self.about_to_close_event.fire()
+
         # stop computations
         with self.__computation_queue_lock:
             self.__computation_pending_queue.clear()
