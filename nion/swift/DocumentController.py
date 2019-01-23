@@ -979,54 +979,57 @@ class DocumentController(Window.Window):
         self.task_created_event.fire(task)
         return task_context_manager
 
-    def open_preferences(self):
+    def is_dialog_type_open(self, dialog_class) -> bool:
         for dialog_weakref in self.__dialogs:
-            if isinstance(dialog_weakref(), PreferencesDialog.PreferencesDialog):
-                return
+            if isinstance(dialog_weakref(), dialog_class):
+                return True
+        return False
 
-        preferences_dialog = PreferencesDialog.PreferencesDialog(self.ui, self.app)
-        preferences_dialog.show()
-
+    def register_dialog(self, dialog: Window.Window) -> None:
         def close_preferences():
-            self.__dialogs.remove(weakref.ref(preferences_dialog))
+            self.__dialogs.remove(weakref.ref(dialog))
+        dialog.on_close = close_preferences
+        self.__dialogs.append(weakref.ref(dialog))
 
-        preferences_dialog.on_close = close_preferences
-
-        self.__dialogs.append(weakref.ref(preferences_dialog))
+    def open_preferences(self):
+        if not self.is_dialog_type_open(PreferencesDialog.PreferencesDialog):
+            preferences_dialog = PreferencesDialog.PreferencesDialog(self.ui, self.app)
+            preferences_dialog.show()
+            self.register_dialog(preferences_dialog)
 
     def new_interactive_script_dialog(self):
         interactive_dialog = ScriptsDialog.RunScriptDialog(self)
         interactive_dialog.show()
-        self.__dialogs.append(weakref.ref(interactive_dialog))
+        self.register_dialog(interactive_dialog)
 
     def new_console_dialog(self):
         console_dialog = ConsoleDialog.ConsoleDialog(self)
         console_dialog.show()
-        self.__dialogs.append(weakref.ref(console_dialog))
+        self.register_dialog(console_dialog)
 
     def new_edit_computation_dialog(self, data_item=None):
         if not data_item:
             data_item = self.selected_data_item
         if data_item:
-            interactive_dialog = ComputationPanel.EditComputationDialog(self, data_item)
-            interactive_dialog.show()
-            self.__dialogs.append(weakref.ref(interactive_dialog))
+            edit_computation_dialog = ComputationPanel.EditComputationDialog(self, data_item)
+            edit_computation_dialog.show()
+            self.register_dialog(edit_computation_dialog)
 
     def new_display_editor_dialog(self, display_item: DisplayItem.DisplayItem=None):
         if not display_item:
             display_item = self.selected_display_item
         if display_item:
-            interactive_dialog = DisplayEditorPanel.DisplayEditorDialog(self, display_item)
-            interactive_dialog.show()
-            self.__dialogs.append(weakref.ref(interactive_dialog))
+            edit_display_dialog = DisplayEditorPanel.DisplayEditorDialog(self, display_item)
+            edit_display_dialog.show()
+            self.register_dialog(edit_display_dialog)
 
     def new_recorder_dialog(self, data_item=None):
         if not data_item:
             data_item = self.selected_data_item
         if data_item:
-            interactive_dialog = RecorderPanel.RecorderDialog(self, data_item)
-            interactive_dialog.show()
-            self.__dialogs.append(weakref.ref(interactive_dialog))
+            recorder_dialog = RecorderPanel.RecorderDialog(self, data_item)
+            recorder_dialog.show()
+            self.register_dialog(recorder_dialog)
 
     def __deep_copy(self):
         self._dispatch_any_to_focus_widget("handle_deep_copy")

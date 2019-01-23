@@ -40,10 +40,6 @@ class PopupWindow(Window.Window):
             ui_handler.init_handler()
         if ui_handler and hasattr(ui_handler, "init_popup"):
             ui_handler.init_popup(request_close)
-        def close_handler():
-            if ui_handler and hasattr(ui_handler, "close"):
-                ui_handler.close()
-        self.on_close = close_handler
 
         # TODO: select all works, but edit commands don't work
         # TODO: tabs don't work
@@ -52,9 +48,18 @@ class PopupWindow(Window.Window):
 
         self.__ui_handler = ui_handler
 
+    def about_to_close(self, geometry: str, state: str) -> None:
+        # do this by overriding about_to_close because on_close is reserved for other purposes.
+        ui_handler = self.__ui_handler
+        if ui_handler and hasattr(ui_handler, "close"):
+            ui_handler.close()
+        super().about_to_close(geometry, state)
+
     def show(self, *, size: Geometry.IntSize=None, position: Geometry.IntPoint=None) -> None:
         super().show(size=size, position=position)
-        self.__ui_handler.did_show()
+        ui_handler = self.__ui_handler
+        if ui_handler and hasattr(ui_handler, "did_show"):
+            self.__ui_handler.did_show()
 
     def close(self) -> None:
         super().close()
