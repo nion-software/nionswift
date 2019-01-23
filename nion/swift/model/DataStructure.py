@@ -23,6 +23,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         super().__init__()
         self.__container_weak_ref = None
         self.about_to_be_removed_event = Event.Event()
+        self.about_to_cascade_delete_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
         self.__properties = dict()
@@ -62,6 +63,11 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
     @property
     def container(self):
         return self.__container_weak_ref()
+
+    def prepare_cascade_delete(self) -> typing.List:
+        cascade_items = list()
+        self.about_to_cascade_delete_event.fire(cascade_items)
+        return cascade_items
 
     def about_to_be_inserted(self, container):
         assert self.__container_weak_ref is None

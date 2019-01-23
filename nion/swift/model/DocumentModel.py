@@ -742,6 +742,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # first handle the case where a data item that is the only target of a graphic cascades to the graphic.
             # this is the only case where a target causes a source to be deleted.
             items.append(item)
+            for cascade_item in item.prepare_cascade_delete():
+                self.__build_cascade(cascade_item, items, dependencies)
             sources = self.__dependency_tree_target_to_source_map.get(weakref.ref(item), list())
             if isinstance(item, DataItem.DataItem):
                 for source in sources:

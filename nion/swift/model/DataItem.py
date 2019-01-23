@@ -237,6 +237,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__suspendable_storage_cache = None
         self.r_var = None
         self.about_to_be_removed_event = Event.Event()
+        self.about_to_cascade_delete_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
         if data is not None:
@@ -283,6 +284,11 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def about_to_close(self):
         pass
+
+    def prepare_cascade_delete(self) -> typing.List:
+        cascade_items = list()
+        self.about_to_cascade_delete_event.fire(cascade_items)
+        return cascade_items
 
     def about_to_be_inserted(self, container):
         assert self.__container_weak_ref is None
