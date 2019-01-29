@@ -28,9 +28,15 @@ class PopupWindow(Window.Window):
             # event loops simultaneously.
             parent_window.queue_task(self.request_close)
 
+        # make and attach closer for the handler; put handler into container closer
+        self.__closer = Declarative.Closer()
+        if ui_handler and hasattr(ui_handler, "close"):
+            ui_handler._closer = Declarative.Closer()
+            self.__closer.push_closeable(ui_handler)
+
         finishes = list()
 
-        self.widget = Declarative.construct(parent_window.ui, None, ui_widget, ui_handler, finishes)
+        self.widget = Declarative.construct(parent_window.ui, self, ui_widget, ui_handler, finishes)
 
         self.attach_widget(self.widget)
 
@@ -48,13 +54,6 @@ class PopupWindow(Window.Window):
 
         self.__ui_handler = ui_handler
 
-    def about_to_close(self, geometry: str, state: str) -> None:
-        # do this by overriding about_to_close because on_close is reserved for other purposes.
-        ui_handler = self.__ui_handler
-        if ui_handler and hasattr(ui_handler, "close"):
-            ui_handler.close()
-        super().about_to_close(geometry, state)
-
     def show(self, *, size: Geometry.IntSize=None, position: Geometry.IntPoint=None) -> None:
         super().show(size=size, position=position)
         ui_handler = self.__ui_handler
@@ -62,6 +61,7 @@ class PopupWindow(Window.Window):
             self.__ui_handler.did_show()
 
     def close(self) -> None:
+        self.__closer.close()
         super().close()
 
 
