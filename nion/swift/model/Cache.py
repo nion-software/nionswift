@@ -364,7 +364,7 @@ class DbStorageCache:
         pass
 
     def __run(self, cache_filename):
-        self.conn = sqlite3.connect(cache_filename)
+        self.conn = sqlite3.connect(str(cache_filename))
         self.conn.execute("PRAGMA synchronous = OFF")
         self.__create()
         self.__started_event.set()
