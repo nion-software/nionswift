@@ -595,6 +595,21 @@ it will most likely break in future versions.
    ...     data_item_copy.set_metadata_value(session_key, data_item.get_metadata_value(session_key))
    ...
 
+Storing Persistent Settings Files
+---------------------------------
+You can store configuration files in a location provided by the API.
+
+.. note::
+  By convention, you should log the settings file location so that the user has direct access to them.
+
+.. note::
+  By convention, the settings files are stored in JSON format.
+
+The following code shows how to access the configuration location::
+
+    >>> config_file = api.application.configuration_location / pathlib.Path("my_settings.json")
+    >>> logging.info("My plug-in configuration file: " + str(config_file))
+
 ..
     Configuring Live Operations
     ---------------------------
