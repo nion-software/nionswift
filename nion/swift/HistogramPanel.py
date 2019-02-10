@@ -742,52 +742,9 @@ class TargetRegionStream(Stream.AbstractStream):
             self.value_stream.fire(None)
 
 
-class StreamPropertyStream(Stream.AbstractStream):
-    # TODO: add a display_data_changed to Display class and use it here
-
+class StreamPropertyStream(Stream.ConcatStream):
     def __init__(self, stream, property_name, cmp=None):
-        super().__init__()
-        # outgoing messages
-        self.value_stream = Event.Event()
-        # references
-        self.__stream = stream.add_ref()
-        # initialize
-        self.__property_name = property_name
-        self.__property_changed_event_listener = None
-        self.__value = None
-        self.__cmp = cmp if cmp else operator.eq
-        # listen for display changes
-        self.__stream_listener = stream.value_stream.listen(self.__stream_changed)
-        self.__stream_changed(stream.value)
-
-    def close(self):
-        self.__stream_changed(None)
-        self.__stream_listener.close()
-        self.__stream_listener = None
-        self.__stream.remove_ref()
-        self.__stream = None
-        super().close()
-
-    @property
-    def value(self):
-        return self.__value
-
-    def __stream_changed(self, item):
-        def property_changed(key):
-            if key == self.__property_name:
-                new_value = getattr(item, self.__property_name)
-                if not self.__cmp(new_value, self.__value):
-                    self.__value = new_value
-                    self.value_stream.fire(self.__value)
-        if self.__property_changed_event_listener:
-            self.__property_changed_event_listener.close()
-            self.__property_changed_event_listener = None
-        if item:
-            self.__property_changed_event_listener = item.property_changed_event.listen(property_changed)
-            property_changed(self.__property_name)
-        else:
-            self.__value = None
-            self.value_stream.fire(None)
+        super().__init__(stream, lambda x: Stream.PropertyChangedEventStream(x, property_name, cmp))
 
 
 class DisplayDataChannelTransientsStream(Stream.AbstractStream):
