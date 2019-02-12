@@ -144,3 +144,16 @@ For instance, if you have a menu item in an extension, the menu item might call 
 can't step through the code that creates the menu item (since it is part of the extension architecture), you could at
 least load the library that implements ``perform_action`` and run code that directly invokes that function for
 debugging.
+
+Plug-in Checklist
+-----------------
+A list of items that make a well defined plug-in package.
+
+- Available on PyPI
+- Has setup script
+- Available on conda
+- Settings stored using API paths
+- JSON settings
+- Settings location logging.info
+- Settings are isolated; don't read other settings
+- Clean install/uninstall with pip
