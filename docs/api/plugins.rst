@@ -145,6 +145,23 @@ can't step through the code that creates the menu item (since it is part of the 
 least load the library that implements ``perform_action`` and run code that directly invokes that function for
 debugging.
 
+Designing Python Packages to Extend Swift
+-----------------------------------------
+Questions to help define a plug-in package.
+
+- What actions can the user perform?
+- What is presented to user?
+- Custom UI?
+- Custom workspace layout?
+- How saved?
+- How restored?
+- How initialized?
+- What happens dynamically?
+- How are deletes handled?
+- Copy/paste/clone/snapshot?
+- Any required configuration?
+- How tested?
+
 Plug-in Checklist
 -----------------
 A list of items that make a well defined plug-in package.
