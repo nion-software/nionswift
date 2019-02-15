@@ -184,13 +184,14 @@ class Application(UIApplication.Application):
             profile_path = data_dir / profile_name.with_suffix(".nsproj")
         welcome_message_enabled = profile_dir is None
         profile, is_created = self.__create_profile(profile_path)
-        if True or is_created:
+        if is_created:
             for library_path in self.get_recent_library_paths():
+                logging.getLogger("loader").info(f"Adding project {library_path}")
                 project_path = pathlib.Path(library_path) / "Project.nsproj"
                 project_data_path = pathlib.Path(library_path) / "Data"
-                project = Project.Project(FileStorageSystem.FileLibraryHandler(project_path, project_data_path))
-                # project.migrate_to_latest()
-                profile.add_project(project)
+                library_handler = FileStorageSystem.FileLibraryHandler(project_path, project_data_path)
+                library_handler.migrate_to_latest()
+                profile.add_project_folder(project_path, project_data_path)
                 break
         DocumentModel.DocumentModel.computation_min_period = 0.1
         DocumentModel.DocumentModel.computation_min_factor = 1.0

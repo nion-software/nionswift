@@ -82,6 +82,10 @@ class LibraryHandler:
         self.__properties_lock = threading.RLock()
         self.__data_properties_map = dict()
 
+    @property
+    def project_reference(self) -> typing.Dict:
+        return dict()
+
     def _get_identifier(self) -> str:
         return str()
 
@@ -218,7 +222,9 @@ class LibraryHandler:
         def data_item_created(data_item_properties: typing.Mapping) -> str:
             return data_item_properties.get("created", "1900-01-01T00:00:00.000000")
 
-        properties_copy["data_items"] = sorted(properties_copy.get("data_items", list()), key=data_item_created)
+        data_items_copy = sorted(properties_copy.get("data_items", list()), key=data_item_created)
+        if len(data_items_copy) > 0:
+            properties_copy["data_items"] = data_items_copy
 
         return properties_copy
 
@@ -231,7 +237,7 @@ class LibraryHandler:
     def _find_data_items(self, migration_stage) -> typing.List:
         return list()
 
-    def _migrate_data_item(self, reader_info) -> typing.Optional[ReaderInfo]:
+    def _migrate_data_item(self, reader_info: ReaderInfo, index: int, count: int) -> typing.Optional[ReaderInfo]:
         pass
 
     def _migrate_library_properties(self, library_properties: typing.Dict, reader_info_list: typing.List[ReaderInfo]) -> None:
@@ -275,7 +281,7 @@ class LibraryHandler:
                         data_item_uuid = uuid.UUID(properties["uuid"])
                         if not data_item_uuid in data_item_uuids:
                             if not str(data_item_uuid) in deletions:
-                                new_reader_info = self._migrate_data_item(reader_info)
+                                new_reader_info = self._migrate_data_item(reader_info, index, count)
                                 if new_reader_info:
                                     reader_info_list.append(new_reader_info)
                                     data_item_uuids.add(data_item_uuid)
@@ -442,6 +448,10 @@ class FileLibraryHandler(LibraryHandler):
         super().__init__()
 
     @property
+    def project_reference(self) -> typing.Dict:
+        return {"type": "project_folder", "project_path": str(self.__project_path), "project_data_path": str(self.__project_data_path)}
+
+    @property
     def _project_path(self) -> pathlib.Path:
         return self.__project_path
 
@@ -600,7 +610,7 @@ class FileLibraryHandler(LibraryHandler):
     def _find_data_items(self, migration_stage) -> typing.List:
         return self.__find_storage_handlers(migration_stage[1])
 
-    def _migrate_data_item(self, reader_info) -> typing.Optional[ReaderInfo]:
+    def _migrate_data_item(self, reader_info: ReaderInfo, index: int, count: int) -> typing.Optional[ReaderInfo]:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
         properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
@@ -619,8 +629,7 @@ class FileLibraryHandler(LibraryHandler):
             os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
             shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
             target_storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
-            logging.getLogger("migration").info(f"Copying data item ({0}/{0}) {data_item_uuid} to new library.")
-            # logging.info(f"Copying data item ({0}/{0}) {data_item_uuid} to {target_storage_handler.reference}.")
+            logging.getLogger("migration").info(f"Copying data item ({index + 1}/{count}) {data_item_uuid} to new library.")
             return ReaderInfo(properties, [False], self._is_storage_handler_large_format(target_storage_handler), target_storage_handler, target_storage_handler.reference)
         logging.getLogger("migration").warning(f"Unable to copy data item {data_item_uuid} to new library.")
         return None
@@ -677,8 +686,24 @@ class MemoryLibraryHandler(LibraryHandler):
         self._test_data_read_event = data_read_event or Event.Event()
 
     @property
+    def project_reference(self) -> typing.Dict:
+        return { "type": "memory" }
+
+    @property
+    def library_properties(self) -> typing.Dict:
+        return self.__library_properties
+
+    @property
     def data_properties_map(self) -> typing.Dict:
         return self.__data_properties_map
+
+    @property
+    def data_map(self) -> typing.Dict:
+        return self.__data_map
+
+    @property
+    def trash_map(self) -> typing.Dict:
+        return self.__trash_map
 
     def _get_identifier(self) -> str:
         return "memory"
@@ -737,7 +762,7 @@ class MemoryLibraryHandler(LibraryHandler):
     def _find_data_items(self, migration_stage) -> typing.List:
         return self._find_storage_handlers()
 
-    def _migrate_data_item(self, reader_info) -> typing.Optional[ReaderInfo]:
+    def _migrate_data_item(self, reader_info: ReaderInfo, index: int, count: int) -> typing.Optional[ReaderInfo]:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
         properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
@@ -746,7 +771,7 @@ class MemoryLibraryHandler(LibraryHandler):
         return reader_info
 
     def _migrate_library_properties(self, library_properties: typing.Dict, reader_info_list: typing.List[ReaderInfo]) -> None:
-        self.__library_properties = library_properties
+        self._write_properties(library_properties)
 
         data_properties_map = dict()
 
@@ -762,7 +787,8 @@ class MemoryLibraryHandler(LibraryHandler):
 
         data_properties_map = {k: v for k, v in sorted(data_properties_map.items(), key=data_item_created)}
 
-        self.__data_properties_map = data_properties_map
+        self.__data_properties_map.clear()
+        self.__data_properties_map.update(data_properties_map)
 
 
 class FileStorageSystem:
@@ -931,3 +957,17 @@ class FileStorageSystem:
         self.__write_delay_count -= 1
         if self.__write_delay_count == 0:
             self.__write_properties(None)
+
+def make_library_handler(profile_context, d: typing.Dict) -> typing.Optional[LibraryHandler]:
+    if d.get("type") == "project_folder":
+        project_path = pathlib.Path(d.get("project_path"))
+        project_data_path = pathlib.Path(d.get("project_data_path"))
+        return FileLibraryHandler(project_path, project_data_path)
+    if d.get("type") == "memory":
+        # the profile context must be valid here.
+        library_properties = profile_context.project_properties
+        data_properties_map = profile_context.data_properties_map
+        data_map = profile_context.data_map
+        trash_map = profile_context.trash_map
+        return MemoryLibraryHandler(library_properties=library_properties, data_properties_map=data_properties_map, data_map=data_map, trash_map=trash_map)
+    return None

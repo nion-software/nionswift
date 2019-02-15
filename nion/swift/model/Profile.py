@@ -35,7 +35,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             self.__projects = [Project.Project(FileStorageSystem.MemoryLibraryHandler())]
         else:
             self.__projects = list()
-        self.__read_projects()
         self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
         # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
         # there is a single shared object context per profile.
@@ -46,6 +45,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         for project in self.__projects:
             self.__item_loaded_event_listeners.append(project.item_loaded_event.listen(self.__project_item_loaded))
         self.__document_model = None
+        self.profile_context = None
 
     @property
     def projects(self) -> typing.List[Project.Project]:
@@ -58,11 +58,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
     @property
     def _target_project_storage_system(self) -> FileStorageSystem.FileStorageSystem:
         return self.__projects[0]._project_storage_system
-
-    def __read_projects(self) -> None:
-        for project_reference in self.project_references:
-            assert project_reference["type"] == "project_folder"
-            self.__projects.append(Project.Project(pathlib.Path(project_reference["project_path"])))
 
     def open(self, document_model):
         self.storage_system.reset()  # this makes storage reusable during tests
@@ -116,6 +111,12 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             self.finish_reading()
         self.storage_system.set_property(self, "uuid", str(self.uuid))
         self.storage_system.set_property(self, "version", Profile.profile_version)
+        for project_reference in self.project_references:
+            # note: storage system is passed for use during testing
+            library_handler = FileStorageSystem.make_library_handler(self.profile_context, project_reference)
+            if library_handler:
+                project = Project.Project(library_handler)
+                self.__append_project(project)
 
     def read_projects(self) -> None:
         for project in self.__projects:
@@ -146,7 +147,16 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
     def __project_item_loaded(self, item_type: str, item_d: typing.Dict, storage_system) -> None:
         self.__document_model.handle_load_item(item_type, item_d, storage_system)
 
-    def add_project(self, project: Project.Project) -> None:
+    def add_project_reference(self, project_reference: typing.Dict) -> None:
+        project_references = self.project_references
+        project_references.append(project_reference)
+        self._set_persistent_property_value("project_references", project_references)
+
+    def add_project_folder(self, project_path: pathlib.Path, project_data_path: pathlib.Path) -> None:
+        project_reference = {"type": "project_folder", "project_path": str(project_path), "project_data_path": str(project_data_path)}
+        self.add_project_reference(project_reference)
+
+    def __append_project(self, project):
         self.__projects.append(project)
         self.__item_loaded_event_listeners.append(project.item_loaded_event.listen(self.__project_item_loaded))
 
@@ -165,18 +175,31 @@ class MemoryProfileContext:
         self.data_map = dict()
         self.trash_map = dict()
         self._test_data_read_event = Event.Event()
-        self.__project_handler = FileStorageSystem.MemoryLibraryHandler(library_properties=self.project_properties,
-                                                                        data_properties_map=self.data_properties_map,
-                                                                        data_map=self.data_map,
-                                                                        trash_map=self.trash_map,
-                                                                        data_read_event=self._test_data_read_event)
+        self.__profile = None
 
     def create_profile(self) -> Profile:
-        project = Project.Project(self.__project_handler)
-        storage_system = FileStorageSystem.FileStorageSystem(self.__profile_handler)
-        profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
-        profile.add_project(project)
-        return profile
+        if not self.__profile:
+            project_handler = FileStorageSystem.MemoryLibraryHandler(library_properties=self.project_properties,
+                                                                     data_properties_map=self.data_properties_map,
+                                                                     data_map=self.data_map,
+                                                                     trash_map=self.trash_map,
+                                                                     data_read_event=self._test_data_read_event)
+            project = Project.Project(project_handler)
+            project_reference = project.project_reference
+            project.close()
+            storage_system = FileStorageSystem.FileStorageSystem(self.__profile_handler)
+            profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
+            profile.add_project_reference(project_reference)
+            profile.storage_system = storage_system
+            profile.profile_context = self
+            self.__profile = profile
+            return profile
+        else:
+            storage_system = FileStorageSystem.FileStorageSystem(self.__profile_handler)
+            profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
+            profile.storage_system = storage_system
+            profile.profile_context = self
+            return profile
 
     def __enter__(self):
         return self

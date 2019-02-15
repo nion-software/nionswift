@@ -20,10 +20,19 @@ class Project:
     def __init__(self, library_handler: FileStorageSystem.LibraryHandler):
         super().__init__()
 
+        self.__library_handler = library_handler
         self.__storage_system = FileStorageSystem.FileStorageSystem(library_handler)
 
         self.item_loaded_event = Event.Event()
         self.item_unloaded_event = Event.Event()
+
+    @property
+    def project_reference(self) -> typing.Dict:
+        return self.__library_handler.project_reference
+
+    @property
+    def _library_handler(self) -> FileStorageSystem.LibraryHandler:
+        return self.__library_handler
 
     @property
     def _project_storage_system(self) -> FileStorageSystem.FileStorageSystem:

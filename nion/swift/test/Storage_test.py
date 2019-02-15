@@ -61,20 +61,31 @@ class TempProfileContext:
         Cache.db_make_directory_if_needed(self.workspace_dir)
         Cache.db_make_directory_if_needed(self.profiles_dir)
         Cache.db_make_directory_if_needed(self.projects_dir)
+        self.__profile = None
 
     def create_profile(self, *, profile_name: str = None, project_name: str = None, project_data_name: str = None) -> Profile.Profile:
-        profile_path = self.profiles_dir / pathlib.Path(profile_name or "Profile").with_suffix(".nsprof")
-        project_path = self.projects_dir / pathlib.Path(project_name or "Project").with_suffix(".nsproj")
-        project_data_path = self.projects_dir / pathlib.Path(project_data_name or "Data")
-        cache_path = self.profiles_dir / "ProfileCache.cache"
-        storage_cache = Cache.DbStorageCache(cache_path)
-        project = Project.Project(FileStorageSystem.FileLibraryHandler(project_path, project_data_path))
-        storage_system = FileStorageSystem.FileStorageSystem(FileStorageSystem.FileLibraryHandler(profile_path))
-        profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
-        profile.add_project(project)
-        profile.storage_cache = storage_cache
-        profile.storage_system = storage_system
-        return profile
+        if not self.__profile:
+            profile_path = self.profiles_dir / pathlib.Path(profile_name or "Profile").with_suffix(".nsprof")
+            project_path = self.projects_dir / pathlib.Path(project_name or "Project").with_suffix(".nsproj")
+            project_data_path = self.projects_dir / pathlib.Path(project_data_name or "Data")
+            cache_path = self.profiles_dir / "ProfileCache.cache"
+            storage_cache = Cache.DbStorageCache(cache_path)
+            storage_system = FileStorageSystem.FileStorageSystem(FileStorageSystem.FileLibraryHandler(profile_path))
+            profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
+            profile.add_project_folder(project_path, project_data_path)
+            profile.storage_cache = storage_cache
+            profile.storage_system = storage_system
+            self.__profile = profile
+            return profile
+        else:
+            profile_path = self.profiles_dir / pathlib.Path(profile_name or "Profile").with_suffix(".nsprof")
+            cache_path = self.profiles_dir / "ProfileCache.cache"
+            storage_cache = Cache.DbStorageCache(cache_path)
+            storage_system = FileStorageSystem.FileStorageSystem(FileStorageSystem.FileLibraryHandler(profile_path))
+            profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
+            profile.storage_cache = storage_cache
+            profile.storage_system = storage_system
+            return profile
 
     @property
     def _file_handlers(self):
@@ -3151,6 +3162,8 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8,8)), item_uuid=uuid.UUID(src_uuid_str))
             data_item.title = "Title"
             profile = profile_context.create_profile()
+            profile.read()
+            profile.read_projects()
             with contextlib.closing(profile):
                 handler = profile.projects[0]._project_storage_system._library_handler._make_storage_handler(data_item)
                 handler.write_properties(data_item.write_to_dict(), datetime.datetime.utcnow())
