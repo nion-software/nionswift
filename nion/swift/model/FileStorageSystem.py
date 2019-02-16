@@ -488,15 +488,12 @@ class FileLibraryHandler(LibraryHandler):
 
     def _prune(self) -> None:
         trash_dir = self.__project_data_path / "trash"
-        for root, dirs, files in os.walk(trash_dir):
-            if pathlib.Path(root).name == "trash":
-                for file in files:
-                    # the date is not a reliable way of determining the age since a user may trash an old file. for now,
-                    # we just delete anything in the trash at startup. future version may have an index file for
-                    # tracking items in the trash. when items are again retained in the trash, update the disabled
-                    # test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload
-                    file_path = pathlib.Path(root) / pathlib.Path(file)
-                    file_path.unlink()
+        for file_path in trash_dir.rglob("*"):
+            # the date is not a reliable way of determining the age since a user may trash an old file. for now,
+            # we just delete anything in the trash at startup. future version may have an index file for
+            # tracking items in the trash. when items are again retained in the trash, update the disabled
+            # test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload
+            file_path.unlink()
 
     def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler=None):
         # if there are two handlers, first is small, second is large
@@ -506,14 +503,14 @@ class FileLibraryHandler(LibraryHandler):
         return file_handler.make(self.__project_data_path / self.__get_base_path(data_item))
 
     def _remove_storage_handler(self, storage_handler, *, safe: bool=False) -> None:
-        file_path = storage_handler.reference
-        file_name = os.path.split(file_path)[1]
+        file_path = pathlib.Path(storage_handler.reference)
+        file_name = file_path.parts[-1]
         trash_dir = self.__project_data_path / "trash"
-        new_file_path = os.path.join(trash_dir, file_name)
+        new_file_path = trash_dir / file_name
         storage_handler.close()  # moving files in the storage handler requires it to be closed.
         # TODO: move this functionality to the storage handler.
         if safe and not os.path.exists(new_file_path):
-            os.makedirs(trash_dir, exist_ok=True)
+            trash_dir.mkdir(exist_ok=True)
             shutil.move(file_path, new_file_path)
         storage_handler.remove()
 
@@ -544,15 +541,14 @@ class FileLibraryHandler(LibraryHandler):
                 return file_handler
         return None
 
-    def __find_storage_handlers(self, directory, *, skip_trash=True) -> typing.List:
+    def __find_storage_handlers(self, directory: pathlib.Path, *, skip_trash=True) -> typing.List:
         storage_handlers = list()
         if directory and directory.exists():
             absolute_file_paths = set()
-            for root, dirs, files in os.walk(directory):
-                if not skip_trash or pathlib.Path(root).name != "trash":
-                    for data_file in files:
-                        if not data_file.startswith("."):
-                            absolute_file_paths.add(os.path.join(root, data_file))
+            for file_path in directory.rglob("*"):
+                if not skip_trash or file_path.parent.name != "trash":
+                    if not file_path.name.startswith("."):
+                        absolute_file_paths.add(str(file_path))
             for file_handler in self._file_handlers:
                 for data_file in filter(file_handler.is_matching, absolute_file_paths):
                     try:
