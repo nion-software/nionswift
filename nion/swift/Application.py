@@ -2,11 +2,13 @@
 import asyncio
 import copy
 import gettext
+import json
 import logging
 import os
 import pathlib
 import sys
 import typing
+import uuid
 
 # third party libraries
 # None
@@ -188,10 +190,11 @@ class Application(UIApplication.Application):
             for library_path in self.get_recent_library_paths():
                 logging.getLogger("loader").info(f"Adding project {library_path}")
                 project_path = pathlib.Path(library_path) / "Project.nsproj"
-                project_data_path = pathlib.Path(library_path) / "Data"
-                library_handler = FileStorageSystem.FileLibraryHandler(project_path, project_data_path)
+                project_data_json = json.dumps({"version": 2, "uuid": str(uuid.uuid4()), "project_data_folders": ["Data"]})
+                project_path.write_text(project_data_json, "utf-8")
+                library_handler = FileStorageSystem.FileLibraryHandler(project_path)
                 library_handler.migrate_to_latest()
-                profile.add_project_folder(project_path, project_data_path)
+                profile.add_project_folder(project_path)
                 break
         DocumentModel.DocumentModel.computation_min_period = 0.1
         DocumentModel.DocumentModel.computation_min_factor = 1.0

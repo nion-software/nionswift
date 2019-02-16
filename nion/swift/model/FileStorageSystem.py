@@ -449,15 +449,11 @@ class FileLibraryHandler(LibraryHandler):
 
     @property
     def project_reference(self) -> typing.Dict:
-        return {"type": "project_folder", "project_path": str(self.__project_path), "project_data_path": str(self.__project_data_path)}
+        return {"type": "project_index", "project_path": str(self.__project_path)}
 
     @property
     def _project_path(self) -> pathlib.Path:
         return self.__project_path
-
-    @property
-    def project_data_path(self) -> pathlib.Path:
-        return self.__project_data_path
 
     def _get_identifier(self) -> str:
         return str(self.__project_path)
@@ -470,6 +466,13 @@ class FileLibraryHandler(LibraryHandler):
                     properties = json.load(fp)
             except Exception:
                 os.replace(self.__project_path, self.__project_path.with_suffix(".bak"))
+        project_data_folder_paths = list()
+        for project_data_folder in properties.get("project_data_folders", list()):
+            project_data_folder_path = pathlib.Path(project_data_folder)
+            if not project_data_folder_path.is_absolute():
+                project_data_folder_path = self.__project_path.parent / project_data_folder_path
+            project_data_folder_paths.append(project_data_folder_path)
+        self.__project_data_path = project_data_folder_paths[0] if len(project_data_folder_paths) > 0 else None
         return properties
 
     def _write_properties(self, properties: typing.Dict) -> None:
@@ -477,7 +480,14 @@ class FileLibraryHandler(LibraryHandler):
             # atomically overwrite
             temp_filepath = self.__project_path.with_suffix(".temp")
             with temp_filepath.open("w") as fp:
-                json.dump(Utility.clean_dict(properties), fp)
+                properties = Utility.clean_dict(properties)
+                project_data_paths = list()
+                for project_data_path in [self.__project_data_path] if self.__project_data_path else []:
+                    if project_data_path.parent == self.__project_path.parent:
+                        project_data_path = project_data_path.relative_to(project_data_path.parent)
+                    project_data_paths.append(project_data_path)
+                properties["project_data_folders"] = [str(project_data_path) for project_data_path in project_data_paths]
+                json.dump(properties, fp)
             os.replace(temp_filepath, self.__project_path)
 
     def _find_storage_handlers(self) -> typing.List:
@@ -955,10 +965,9 @@ class FileStorageSystem:
             self.__write_properties(None)
 
 def make_library_handler(profile_context, d: typing.Dict) -> typing.Optional[LibraryHandler]:
-    if d.get("type") == "project_folder":
+    if d.get("type") == "project_index":
         project_path = pathlib.Path(d.get("project_path"))
-        project_data_path = pathlib.Path(d.get("project_data_path"))
-        return FileLibraryHandler(project_path, project_data_path)
+        return FileLibraryHandler(project_path)
     if d.get("type") == "memory":
         # the profile context must be valid here.
         library_properties = profile_context.project_properties

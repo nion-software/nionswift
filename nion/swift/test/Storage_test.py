@@ -67,12 +67,13 @@ class TempProfileContext:
         if not self.__profile:
             profile_path = self.profiles_dir / pathlib.Path(profile_name or "Profile").with_suffix(".nsprof")
             project_path = self.projects_dir / pathlib.Path(project_name or "Project").with_suffix(".nsproj")
-            project_data_path = self.projects_dir / pathlib.Path(project_data_name or "Data")
+            project_data_json = json.dumps({"version": 2, "uuid": str(uuid.uuid4()), "project_data_folders": ["Data"]})
+            project_path.write_text(project_data_json, "utf-8")
             cache_path = self.profiles_dir / "ProfileCache.cache"
             storage_cache = Cache.DbStorageCache(cache_path)
             storage_system = FileStorageSystem.FileStorageSystem(FileStorageSystem.FileLibraryHandler(profile_path))
             profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
-            profile.add_project_folder(project_path, project_data_path)
+            profile.add_project_folder(project_path)
             profile.storage_cache = storage_cache
             profile.storage_system = storage_system
             self.__profile = profile
@@ -3014,7 +3015,6 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # auto migrate workspace
-            new_data_name = f"Nion Swift Data {DataItem.DataItem.storage_version}"
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
@@ -3124,7 +3124,6 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # auto migrate workspace
-            new_data_name = f"Nion Swift Data {DataItem.DataItem.storage_version}"
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
