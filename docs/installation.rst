@@ -107,6 +107,13 @@ above), then run the following command. ::
     $ conda activate nionswift
     $ conda update -c nion --all
 
+Troubleshooting Windows Installation
+++++++++++++++++++++++++++++++++++++
+Nion Swift running with `nionswift-tool` requires a PATH environment variable that does not include directories
+containing Qt libraries. As a workaround or if you cannot remove the other Qt installation from your PATH environment
+variable, you can uninstall `nionswift-tool` and install PyQt5 using `conda install pyqt5` and try running Nion Swift
+again.
+
 MacOS
 -----
 Nion Swift for macOS requires macOS 10.11 or later. We recommend using the latest version of macOS.
@@ -145,6 +152,13 @@ If you already have a conda environment, install Nion Swift using the command::
 Launch Nion Swift from your Terminal conda environment using::
 
     $ nionswift
+
+Troubleshooting Linux Installation
+++++++++++++++++++++++++++++++++++
+Nion Swift running with `nionswift-tool` requires a PATH environment variable that does not include directories
+containing Qt libraries. As a workaround or if you cannot remove the other Qt installation from your PATH environment
+variable, you can uninstall `nionswift-tool` and install PyQt5 using `conda install pyqt5` and try running Nion Swift
+again.
 
 Installing Nion Swift Extensions
 --------------------------------
