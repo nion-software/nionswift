@@ -119,6 +119,7 @@ class :py:class:`nion.typeshed.API_1_0.Display`
 
 **Properties**
    - :py:attr:`data_item <nion.typeshed.API_1_0.Display.data_item>`
+   - :py:attr:`data_items <nion.typeshed.API_1_0.Display.data_items>`
    - :py:attr:`display_type <nion.typeshed.API_1_0.Display.display_type>`
    - :py:attr:`graphics <nion.typeshed.API_1_0.Display.graphics>`
    - :py:attr:`selected_graphics <nion.typeshed.API_1_0.Display.selected_graphics>`
@@ -283,5 +284,6 @@ class :py:class:`nion.typeshed.API_1_0.Library`
 **Properties**
    - :py:attr:`data_item_count <nion.typeshed.API_1_0.Library.data_item_count>`
    - :py:attr:`data_items <nion.typeshed.API_1_0.Library.data_items>`
+   - :py:attr:`display_items <nion.typeshed.API_1_0.Library.display_items>`
    - :py:attr:`uuid <nion.typeshed.API_1_0.Library.uuid>`
 

@@ -1,3 +1,6 @@
+### this file is partially generated, but the generated portion is copied from Classes.py
+### see comment below
+
 import threading
 
 
@@ -367,6 +370,10 @@ class Display:
         return get_property(self, 'data_item')
 
     @property
+    def data_items(self):
+        return get_property(self, 'data_items')
+
+    @property
     def display_type(self):
         return get_property(self, 'display_type')
 
@@ -431,6 +438,9 @@ class Library:
     def get_data_item_for_hardware_source(self, hardware_source, channel_id=None, processor_id=None, create_if_needed=False, large_format=False):
         return call_method(self, 'get_data_item_for_hardware_source', hardware_source, channel_id=channel_id, processor_id=processor_id, create_if_needed=create_if_needed, large_format=large_format)
 
+    def get_data_item_for_reference_key(self, data_item_reference_key=None, create_if_needed=False, large_format=False):
+        return call_method(self, 'get_data_item_for_reference_key', data_item_reference_key=data_item_reference_key, create_if_needed=create_if_needed, large_format=large_format)
+
     def get_dependent_data_items(self, data_item):
         return call_method(self, 'get_dependent_data_items', data_item)
 
@@ -462,6 +472,10 @@ class Library:
     @property
     def data_items(self):
         return get_property(self, 'data_items')
+
+    @property
+    def display_items(self):
+        return get_property(self, 'display_items')
 
     @property
     def uuid(self):

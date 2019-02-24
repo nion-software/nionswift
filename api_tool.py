@@ -4,6 +4,7 @@
 # python api_tool.py --classes hardware_source_public --level release > ./nion/typeshed/HardwareSource_1_0.py
 # python api_tool.py --classes nionlib_public --level release --proxy > ./nionlib/Classes.py
 # python api_tool.py --classes nionlib_public --level release --summary > ./docs/api/quick.rst
+# FacadeQueued.py is partially generated (bottom section copied from Classes.py)
 
 import argparse
 import importlib

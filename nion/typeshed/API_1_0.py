@@ -602,11 +602,15 @@ class DisplayPanel:
 
 class Display:
 
-    def get_graphic_by_id(self, graphic_id: str) -> Graphic:
+    def get_graphic_by_id(self, graphic_id: str) -> typing.Union[nion.swift.Facade.Graphic, NoneType]:
         ...
 
     @property
-    def data_item(self) -> DataItem:
+    def data_item(self) -> typing.Union[nion.swift.Facade.DataItem, NoneType]:
+        ...
+
+    @property
+    def data_items(self) -> typing.List[DataItem]:
         ...
 
     @property
@@ -878,6 +882,18 @@ class Library:
         """Return the list of data items.
 
         :return: The list of :py:class:`nion.swift.Facade.DataItem` objects.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        ...
+
+    @property
+    def display_items(self) -> typing.List[Display]:
+        """Return the list of display items.
+
+        :return: The list of :py:class:`nion.swift.Facade.Display` objects.
 
         .. versionadded:: 1.0
 

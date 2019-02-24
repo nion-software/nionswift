@@ -290,6 +290,10 @@ class Display:
         return get_property(self, 'data_item')
 
     @property
+    def data_items(self):
+        return get_property(self, 'data_items')
+
+    @property
     def display_type(self):
         return get_property(self, 'display_type')
 
@@ -388,6 +392,10 @@ class Library:
     @property
     def data_items(self):
         return get_property(self, 'data_items')
+
+    @property
+    def display_items(self):
+        return get_property(self, 'display_items')
 
     @property
     def uuid(self):

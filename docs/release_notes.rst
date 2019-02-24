@@ -5,6 +5,7 @@ Release Notes
 
 Version 0.14.4, UNRELEASED
 --------------------------
+* (2019-02-24) Add 'data_item' and 'data_items' methods to Display API.
 * (2019-01-18) Fix issue with line plot log display in inspector.
 
 Version 0.14.3, January 17, 2019

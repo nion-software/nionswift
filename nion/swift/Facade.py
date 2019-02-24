@@ -1414,7 +1414,7 @@ class DisplayPanel(metaclass=SharedInstance):
 
 class Display(metaclass=SharedInstance):
 
-    release = ["uuid", "display_type", "selected_graphics", "graphics", "data_item", "get_graphic_by_id"]
+    release = ["uuid", "display_type", "selected_graphics", "graphics", "data_item", "data_items", "get_graphic_by_id"]
 
     def __init__(self, display_item):
         self.__display_item = display_item
@@ -1458,12 +1458,13 @@ class Display(metaclass=SharedInstance):
         return [Graphic(graphic) for graphic in self.__display_item.graphics]
 
     @property
-    def data_item(self) -> DataItem:
-        raise AttributeError()
+    def data_item(self) -> typing.Optional[DataItem]:
+        data_item = self.__display_item.data_item
+        return DataItem(data_item) if data_item else None
 
     @property
-    def data_item_list(self):
-        raise AttributeError()
+    def data_items(self) -> typing.List[DataItem]:
+        return [DataItem(data_item) for data_item in self.__display_item.data_items]
 
     def add_point_graphic(self, y: float, x: float) -> Graphic:
         graphic = Graphics.PointGraphic()
