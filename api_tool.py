@@ -117,6 +117,8 @@ def annotation_to_str(annotation):
         return "typing.Tuple[{}]".format(", ".join(annotation_to_str(tuple_param) for tuple_param in annotation.__args__))
     if annotation_name == "Union":
         return "typing.Union[{}]".format(", ".join(annotation_to_str(union_param) for union_param in annotation.__union_params__))
+    if isinstance(annotation, typing._GenericAlias) and annotation.__origin__ == typing.Union and len(annotation.__args__) == 2 and annotation.__args__[1] == type(None):
+        return "typing.Optional[{}]".format(annotation_to_str(annotation.__args__[0]))
     if isinstance(annotation, type):
         class_ = annotation.__class__
         if class_ is not None:

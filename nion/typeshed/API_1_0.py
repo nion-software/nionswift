@@ -602,11 +602,11 @@ class DisplayPanel:
 
 class Display:
 
-    def get_graphic_by_id(self, graphic_id: str) -> typing.Union[nion.swift.Facade.Graphic, NoneType]:
+    def get_graphic_by_id(self, graphic_id: str) -> typing.Optional[Graphic]:
         ...
 
     @property
-    def data_item(self) -> typing.Union[nion.swift.Facade.DataItem, NoneType]:
+    def data_item(self) -> typing.Optional[DataItem]:
         ...
 
     @property
