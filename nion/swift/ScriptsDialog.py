@@ -390,13 +390,9 @@ class RunScriptDialog(Dialog.ActionDialog):
         def perform():
             def accepted(text):
                 value_ref[0] = text
-                self.__message_column.remove_all()
-                self.__message_column.add(self.__make_cancel_row())
                 accept_event.set()
 
             def rejected():
-                self.__message_column.remove_all()
-                self.__message_column.add(self.__make_cancel_row())
                 accept_event.set()
 
             self.__message_column.remove_all()
@@ -407,6 +403,10 @@ class RunScriptDialog(Dialog.ActionDialog):
             self.__q.append(perform)
             self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
         accept_event.wait()
+        def update_message_column():
+            self.__message_column.remove_all()
+            self.__message_column.add(self.__make_cancel_row())
+        self.document_controller.add_task(str(id(self)), update_message_column)
         if value_ref[0] is None:
             raise Exception("Cancel")
         return value_ref[0]
@@ -446,14 +446,10 @@ class RunScriptDialog(Dialog.ActionDialog):
         def perform():
             def accepted():
                 result_ref[0] = True
-                self.__message_column.remove_all()
-                self.__message_column.add(self.__make_cancel_row())
                 accept_event.set()
 
             def rejected():
                 result_ref[0] = False
-                self.__message_column.remove_all()
-                self.__message_column.add(self.__make_cancel_row())
                 accept_event.set()
 
             self.__message_column.remove_all()
@@ -464,6 +460,10 @@ class RunScriptDialog(Dialog.ActionDialog):
             self.__q.append(perform)
             self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
         accept_event.wait()
+        def update_message_column():
+            self.__message_column.remove_all()
+            self.__message_column.add(self.__make_cancel_row())
+        self.document_controller.add_task(str(id(self)), update_message_column)
         return result_ref[0]
 
     def confirm_ok_cancel(self, prompt: str) -> bool:
