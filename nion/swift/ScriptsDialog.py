@@ -306,6 +306,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                 g["input"] = self.get_string
 
                 print_fn = self.print
+                self.__cancelled = False # Reset cancelled flag to make "Run again" work after a script was cancelled
                 class StdoutCatcher:
                     def __init__(self):
                         pass
