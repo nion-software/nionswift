@@ -5,6 +5,7 @@ Release Notes
 
 Version 0.14.4, UNRELEASED
 --------------------------
+* (2019-03-19) Fix issues with prompts and Cancel button in Run Script dialog.
 * (2019-03-13) Fix titles of Subtract, Multiply, Divide arithmetic processing results.
 * (2019-03-12) Fix history/auto-complete issues in Console windows.
 * (2019-02-24) Add 'data_item' and 'data_items' methods to Display API.
