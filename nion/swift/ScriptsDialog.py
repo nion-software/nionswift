@@ -390,15 +390,18 @@ class RunScriptDialog(Dialog.ActionDialog):
         def perform():
             def accepted(text):
                 value_ref[0] = text
+                self.__message_column.remove_all()
                 self.__message_column.add(self.__make_cancel_row())
                 accept_event.set()
 
             def rejected():
+                self.__message_column.remove_all()
                 self.__message_column.add(self.__make_cancel_row())
                 accept_event.set()
 
             self.__message_column.remove_all()
             pose_get_string_message_box(self.ui, self.__message_column, prompt, str(default_str), accepted, rejected)
+            self.__message_column.add(self.__make_cancel_row())
 
         with self.__lock:
             self.__q.append(perform)
@@ -443,16 +446,19 @@ class RunScriptDialog(Dialog.ActionDialog):
         def perform():
             def accepted():
                 result_ref[0] = True
+                self.__message_column.remove_all()
                 self.__message_column.add(self.__make_cancel_row())
                 accept_event.set()
 
             def rejected():
                 result_ref[0] = False
+                self.__message_column.remove_all()
                 self.__message_column.add(self.__make_cancel_row())
                 accept_event.set()
 
             self.__message_column.remove_all()
             pose_confirmation_message_box(self.ui, self.__message_column, prompt, accepted, rejected, accepted_text, rejected_text, display_rejected)
+            self.__message_column.add(self.__make_cancel_row())
 
         with self.__lock:
             self.__q.append(perform)
