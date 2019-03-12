@@ -174,7 +174,6 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                 self.__last_position = copy.deepcopy(self.__cursor_position)
 
         if is_cursor_on_last_line and key.is_delete:
-            partial_command = self.__get_partial_command()
             if not partial_command:
                 return True
 
@@ -199,12 +198,13 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             return True
 
         if is_cursor_on_last_line and is_cursor_on_last_column and key.is_tab:
-            partial_command = self.__get_partial_command()
             terms = list()
             completer = rlcompleter.Completer(namespace=self.console.locals)
             index = 0
             delims = " \t\n`~!@#$%^&*()-=+[{]}\\|;:\'\",<>/?"
-            rx = "[" + re.escape("".join(delims)) + "]"
+            rx = "([" + re.escape(delims) + "])"
+            # the parenthesis around rx make it a group. This will cause split to keep the characters in rx in the
+            # list, so that we can reconstruct the original string later
             split_commands = re.split(rx, partial_command)
             if len(split_commands) > 0:
                 completion_term = split_commands[-1]
@@ -213,7 +213,8 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                     if term is None:
                         break
                     index += 1
-                    if not term.startswith(completion_term + "__"):
+                    # for some reason rlcomplete returns "\t" when completing "", so exclude that case here
+                    if not term.startswith(completion_term + "__") and term != "\t":
                         terms.append(term)
                 if len(terms) == 1:
                     completed_command = partial_command[:partial_command.rfind(completion_term)] + terms[0]
@@ -231,7 +232,8 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                     self.__text_edit_widget.append_text("   ".join(terms) + "\n")
                     self.__text_edit_widget.move_cursor_position("end")
                     self.__text_edit_widget.set_text_color("white")
-                    self.__text_edit_widget.insert_text("{}{}".format(prompt, common_prefix))
+                    last_command = "".join(split_commands[:-1])
+                    self.__text_edit_widget.insert_text("{}{}".format(prompt, last_command + common_prefix))
                     self.__text_edit_widget.move_cursor_position("end")
                     self.__last_position = copy.deepcopy(self.__cursor_position)
             return True
