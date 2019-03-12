@@ -122,7 +122,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         if len(result) > 0:
             self.__text_edit_widget.set_text_color("red" if error_code else "green")
             self.__text_edit_widget.append_text(result[:-1])
-            self.__text_edit_widget.set_text_color("white")
+        self.__text_edit_widget.set_text_color("white")
         self.__text_edit_widget.append_text(prompt)
         self.__text_edit_widget.move_cursor_position("end")
         self.__last_position = copy.deepcopy(self.__cursor_position)
@@ -140,6 +140,9 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
     def __key_pressed(self, key):
         is_cursor_on_last_line = self.__cursor_position.block_number == self.__last_position.block_number
+        prompt = self.continuation_prompt if self.__incomplete else self.prompt
+        partial_command = self.__get_partial_command()
+        is_cursor_on_last_column = len(partial_command.strip()) and self.__cursor_position.column_number == len(prompt + partial_command)
 
         if is_cursor_on_last_line and key.is_up_arrow:
             if self.__history_point is None:
@@ -195,7 +198,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             self.__last_position = copy.deepcopy(self.__cursor_position)
             return True
 
-        if is_cursor_on_last_line and key.is_tab:
+        if is_cursor_on_last_line and is_cursor_on_last_column and key.is_tab:
             partial_command = self.__get_partial_command()
             terms = list()
             completer = rlcompleter.Completer(namespace=self.console.locals)
@@ -231,8 +234,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                     self.__text_edit_widget.insert_text("{}{}".format(prompt, common_prefix))
                     self.__text_edit_widget.move_cursor_position("end")
                     self.__last_position = copy.deepcopy(self.__cursor_position)
-                return True
-
+            return True
         return False
 
     def __cursor_position_changed(self, cursor_position):
