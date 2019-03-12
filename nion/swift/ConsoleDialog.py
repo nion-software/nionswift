@@ -77,6 +77,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
         self.__history = list()
         self.__history_point = None
+        self.__command_cache = ""
 
     def close(self):
         super().close()
@@ -128,6 +129,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         self.__last_position = copy.deepcopy(self.__cursor_position)
         if command: self.__history.append(command)
         self.__history_point = None
+        self.__command_cache = ""
         return True
 
     def __get_partial_command(self):
@@ -142,11 +144,11 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         is_cursor_on_last_line = self.__cursor_position.block_number == self.__last_position.block_number
         prompt = self.continuation_prompt if self.__incomplete else self.prompt
         partial_command = self.__get_partial_command()
-        is_cursor_on_last_column = len(partial_command.strip()) and self.__cursor_position.column_number == len(prompt + partial_command)
-
+        is_cursor_on_last_column = partial_command.strip() and self.__cursor_position.column_number == len(prompt + partial_command)
         if is_cursor_on_last_line and key.is_up_arrow:
             if self.__history_point is None:
                 self.__history_point = len(self.__history)
+                self.__command_cache = partial_command
             self.__history_point = max(0, self.__history_point - 1)
             if self.__history_point < len(self.__history):
                 line = self.__history[self.__history_point]
@@ -165,7 +167,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                     line = self.__history[self.__history_point]
                 else:
                     self.__history_point = None
-                    line = ""
+                    line = self.__command_cache
                 self.__text_edit_widget.move_cursor_position("start_para", "move")
                 self.__text_edit_widget.move_cursor_position("end_para", "keep")
                 prompt = self.continuation_prompt if self.__incomplete else self.prompt
