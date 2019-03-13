@@ -2693,11 +2693,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [bins_param]}
             vs["add"] = {"title": _("Add"), "expression": "{src1} + {src2}",
                 "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
-            vs["subtract"] = {"title": _("Add"), "expression": "{src1} - {src2}",
+            vs["subtract"] = {"title": _("Subtract"), "expression": "{src1} - {src2}",
                 "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
-            vs["multiply"] = {"title": _("Add"), "expression": "{src1} * {src2}",
+            vs["multiply"] = {"title": _("Multiply"), "expression": "{src1} * {src2}",
                 "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
-            vs["divide"] = {"title": _("Add"), "expression": "{src1} / {src2}",
+            vs["divide"] = {"title": _("Divide"), "expression": "{src1} / {src2}",
                 "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
             vs["invert"] = {"title": _("Negate"), "expression": "xd.invert({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
             vs["convert-to-scalar"] = {"title": _("Scalar"), "expression": "{src}",
