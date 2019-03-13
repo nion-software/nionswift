@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns="http://www.w3.org/2000/svg"
+   width="24"
+   height="24"
+   viewPort="0 0 24 24">
+  <clipPath id="c"><rect x="2" y="2" width="20" height="20" /></clipPath>
+  <g clip-path="url(#c)">
+    <circle
+       style="fill:none;stroke:#000;stroke-width:1.5"
+       cx="7"
+       cy="5"
+       r="2" />
+    <circle
+       style="fill:none;stroke:#000;stroke-width:1.5"
+       cx="13"
+       cy="6"
+       r="2" />
+    <circle
+       style="fill:none;stroke:#000;stroke-width:1.5"
+       cx="19"
+       cy="7"
+       r="2" />
+
+    <circle
+       style="fill:none;stroke:#000;stroke-width:1.5"
+       cx="6"
+       cy="11"
+       r="2" />
+    <circle
+       style="fill:none;stroke:#000;stroke-width:1.5"
+       cx="12"
+       cy="12"
+       r="2" />
+    <circle
+       style="fill:none;stroke:#000;stroke-width:1.5"
+       cx="18"
+       cy="13"
+       r="2" />
+
+    <circle
+       style="fill:none;stroke:#000;stroke-width:1.5"
+       cx="5"
+       cy="17"
+       r="2" />
+    <circle
+       style="fill:none;stroke:#000;stroke-width:1.5"
+       cx="11"
+       cy="18"
+       r="2" />
+    <circle
+       style="fill:none;stroke:#000;stroke-width:1.5"
+       cx="17"
+       cy="19"
+       r="2" />
+  </g>
+</svg>

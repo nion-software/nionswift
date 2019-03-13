@@ -124,6 +124,7 @@ class TestGraphicsClass(unittest.TestCase):
                 ("spot", Graphics.SpotGraphic),
                 ("wedge", Graphics.WedgeGraphic),
                 ("ring", Graphics.RingGraphic),
+                ("lattice", Graphics.LatticeGraphic),
             ]
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))

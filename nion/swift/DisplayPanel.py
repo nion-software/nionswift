@@ -1817,6 +1817,14 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
+    def create_lattice(self, u_pos):
+        self.__display_item.graphic_selection.clear()
+        region = Graphics.LatticeGraphic()
+        region.u_pos = u_pos
+        self.__display_item.add_graphic(region)
+        self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
+        return region
+
 
 class DisplayPanelManager(metaclass=Utility.Singleton):
     """ Acts as a broker for significant events occurring regarding display panels. Listeners can attach themselves to

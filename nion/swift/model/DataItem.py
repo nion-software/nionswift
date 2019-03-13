@@ -1178,7 +1178,7 @@ class DataSource:
         def graphic_inserted(key, value, before_index):
             if key == "graphics":
                 property_changed_listener = None
-                if isinstance(self.__graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                if isinstance(self.__graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                     property_changed_listener = value.property_changed_event.listen(filter_property_changed)
                     self.__changed_event.fire()
                 self.__graphic_property_changed_listeners.insert(before_index, property_changed_listener)
@@ -1192,7 +1192,7 @@ class DataSource:
         self.__graphic_removed_event_listener = self.__display_item.item_removed_event.listen(graphic_removed) if self.__display_item else None
         for graphic in self.__display_item.graphics if self.__display_item else list():
             property_changed_listener = None
-            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                 property_changed_listener = graphic.property_changed_event.listen(filter_property_changed)
             self.__graphic_property_changed_listeners.append(property_changed_listener)
 
@@ -1286,7 +1286,7 @@ class DataSource:
             shape = xdata.data_shape
             mask = numpy.zeros(shape)
             for graphic in self.__display_item.graphics:
-                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                     mask = numpy.logical_or(mask, graphic.get_mask(shape))
             return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
         return xdata
@@ -1296,6 +1296,6 @@ class DataSource:
         shape = self.display_xdata.data_shape
         mask = numpy.zeros(shape)
         for graphic in self.__display_item.graphics:
-            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                 mask = numpy.logical_or(mask, graphic.get_mask(shape))
         return DataAndMetadata.DataAndMetadata.from_data(mask)

@@ -354,6 +354,7 @@ class DocumentController(Window.Window):
         self._processing_fourier_menu.add_menu_item(_("Add Spot Mask"), self.add_spot_graphic)
         self._processing_fourier_menu.add_menu_item(_("Add Angle Mask"), self.add_angle_graphic)
         self._processing_fourier_menu.add_menu_item(_("Add Band Pass Mask"), self.add_band_pass_graphic)
+        self._processing_fourier_menu.add_menu_item(_("Add Lattice Mask"), self.add_lattice_graphic)
 
         self._processing_filter_menu = self.create_sub_menu()
         self._processing_menu.add_sub_menu(_("Filter"), self._processing_filter_menu)
@@ -1473,6 +1474,17 @@ class DocumentController(Window.Window):
             graphic = Graphics.RingGraphic()
             graphic.radius_1 = 0.15
             graphic.radius_2 = 0.25
+            command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
+            command.perform()
+            self.push_undo_command(command)
+            display_item.graphic_selection.set(display_item.graphics.index(graphic))
+            return graphic
+        return None
+
+    def add_lattice_graphic(self):
+        display_item = self.selected_display_item
+        if display_item:
+            graphic = Graphics.LatticeGraphic()
             command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)

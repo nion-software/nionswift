@@ -1302,7 +1302,7 @@ class DataItem(metaclass=SharedInstance):
         shape = display_data_channel.display_data_shape
         mask = numpy.zeros(shape)
         for graphic in self.__display_item.graphics:
-            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                 mask = numpy.logical_or(mask, graphic.get_mask(shape))
         return DataAndMetadata.DataAndMetadata.from_data(mask)
 

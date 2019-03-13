@@ -1,5 +1,6 @@
 # standard libraries
 import copy
+import functools
 import gettext
 import math
 import weakref
@@ -83,7 +84,7 @@ def extend_line(origin, point, pixels):
     return origin + delta_extended
 
 
-def adjust_rectangle_like(mapping, rotation, is_center_constant_by_default, original, current, part, modifiers, constraints):
+def adjust_rectangle_like(mapping, rotation, is_center_constant_by_default, original, current, part, modifiers, constraints) -> typing.Tuple[Geometry.FloatRect, float]:
     # NOTE: all sizes/points are assumed to be in image coordinates
     o = mapping.map_point_widget_to_image(original)
     p = mapping.map_point_widget_to_image(current)
@@ -2130,6 +2131,318 @@ class RingGraphic(Graphic):
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
 
 
+class LatticeGraphic(Graphic):
+    def __init__(self):
+        super().__init__("lattice-graphic")
+        self.title = _("Lattice")
+        self.define_property("u_pos", (0.5, 0.75), validate=lambda value: tuple(value), changed=self._property_changed)
+        self.define_property("v_pos", (0.25, 0.5), validate=lambda value: tuple(value), changed=self._property_changed)
+        self.define_property("u_count", 1, changed=self._property_changed)
+        self.define_property("v_count", 1, changed=self._property_changed)
+        self.define_property("radius", 0.1, changed=self._property_changed)
+
+    def mime_data_dict(self) -> dict:
+        d = super().mime_data_dict()
+        d["u_pos"] = self.u_pos
+        d["v_pos"] = self.v_pos
+        d["radius"] = self.radius
+        return d
+
+    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
+        super().read_from_mime_data(graphic_dict, is_same_source)
+        self.u_pos = graphic_dict.get("u_pos", self.u_pos)
+        self.v_pos = graphic_dict.get("v_pos", self.v_pos)
+        self.radius = graphic_dict.get("radius", self.radius)
+
+    # test is required for Graphic interface
+    def test(self, mapping, get_font_metrics_fn, test_point: typing.Tuple[float], move_only: bool) -> typing.Tuple[str, bool]:
+        # first convert to widget coordinates since test distances
+        # are specified in widget coordinates
+        start = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(x=0.5, y=0.5))
+        u_end = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint.make(self.u_pos))
+        v_end = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint.make(self.v_pos))
+        # print(f"test {u_end} {v_end} {test_point}")
+
+        radius = self.radius
+        size = mapping.map_size_image_norm_to_widget(Geometry.FloatSize(width=radius * 2, height=radius * 2))
+        u_bounds = Geometry.FloatRect.from_center_and_size(u_end, size)
+        v_bounds = Geometry.FloatRect.from_center_and_size(v_end, size)
+
+        # test u, v centers
+        if self.test_point(u_bounds.center, test_point, 4):
+            return "u-all", True
+        if self.test_point(v_bounds.center, test_point, 4):
+            return "v-all", True
+
+        # test u-corners
+        if self.test_point(u_bounds.top_left, test_point, 4):
+            return "u-top-left", True
+        if self.test_point(u_bounds.top_right, test_point, 4):
+            return "u-top-right", True
+        if self.test_point(u_bounds.bottom_left, test_point, 4):
+            return "u-bottom-left", True
+        if self.test_point(u_bounds.bottom_right, test_point, 4):
+            return "u-bottom-right", True
+
+        # test v-corners
+        if self.test_point(v_bounds.top_left, test_point, 4):
+            return "v-top-left", True
+        if self.test_point(v_bounds.top_right, test_point, 4):
+            return "v-top-right", True
+        if self.test_point(v_bounds.bottom_left, test_point, 4):
+            return "v-bottom-left", True
+        if self.test_point(v_bounds.bottom_right, test_point, 4):
+            return "v-bottom-right", True
+
+        # test u-boundary
+        if self.test_line(u_bounds.top_left, u_bounds.top_right, test_point, 4):
+            return "u-all", True
+        if self.test_line(u_bounds.bottom_left, u_bounds.bottom_right, test_point, 4):
+            return "u-all", True
+        if self.test_line(u_bounds.top_left, u_bounds.bottom_left, test_point, 4):
+            return "u-all", True
+        if self.test_line(u_bounds.top_right, u_bounds.bottom_right, test_point, 4):
+            return "u-all", True
+
+        # test v-boundary
+        if self.test_line(v_bounds.top_left, v_bounds.top_right, test_point, 4):
+            return "v-all", True
+        if self.test_line(v_bounds.bottom_left, v_bounds.bottom_right, test_point, 4):
+            return "v-all", True
+        if self.test_line(v_bounds.top_left, v_bounds.bottom_left, test_point, 4):
+            return "v-all", True
+        if self.test_line(v_bounds.top_right, v_bounds.bottom_right, test_point, 4):
+            return "v-all", True
+
+        # test u, v interiors
+        if self.test_inside_bounds(u_bounds, test_point, 4):
+            return "u-all", True
+        if self.test_inside_bounds(v_bounds, test_point, 4):
+            return "v-all", True
+
+        # start point
+        if self.test_point(start, test_point, 4):
+            return "all", True
+
+        # along the lines
+        if self.test_line(start, u_end, test_point, 4):
+            return "all", True
+        if self.test_line(start, v_end, test_point, 4):
+            return "all", True
+
+        # label
+        if self.test_label(get_font_metrics_fn, mapping, test_point):
+            return "all", False
+
+        # didn't find anything
+        return None, None
+
+    def begin_drag(self):
+        return self.u_pos, self.v_pos, self.radius
+
+    def end_drag(self, part_data):
+        self.__first_drag = False
+
+    def adjust_part(self, mapping, original, current, part, modifiers):
+        p_image = mapping.map_point_widget_to_image(current)
+        p_norm = Geometry.FloatPoint.make(mapping.map_point_widget_to_image_norm(current))
+        o_norm = Geometry.FloatPoint.make(mapping.map_point_widget_to_image_norm(original))
+        delta = p_norm - o_norm
+        start_image = mapping.map_point_image_norm_to_image((0.5, 0.5))
+        constraints = self._constraints
+
+        radius = part[3]
+        size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
+
+        if part[0] == "u-all" and not "shape" in constraints:
+            dy = p_image[0] - start_image[0]
+            dx = p_image[1] - start_image[1]
+            if modifiers.shift:
+                angle_degrees = math.degrees(math.atan2(abs(dy), abs(dx)))
+                if angle_degrees > 60:
+                    p_image = (p_image[0], start_image[1])
+                elif angle_degrees > 30:
+                    if angle_degrees > 45:
+                        if dx * dy > 0:
+                            p_image = (p_image[0], start_image[1] + dy)
+                        else:
+                            p_image = (p_image[0], start_image[1] - dy)
+                    else:
+                        if dx * dy > 0:
+                            p_image = (start_image[0] + dx, p_image[1])
+                        else:
+                            p_image = (start_image[0] - dx, p_image[1])
+                else:
+                    p_image = (start_image[0], p_image[1])
+                u_pos = mapping.map_point_image_to_image_norm(p_image)
+            else:
+                u_pos = Geometry.FloatPoint.make(part[1]) + delta
+            if "bounds" in constraints:
+                u_pos = min(max(u_pos[0], 0.0), 1.0), min(max(u_pos[1], 0.0), 1.0)
+            self.u_pos = u_pos
+        elif part[0] == "v-all" and not "shape" in constraints:
+            dy = p_image[0] - start_image[0]
+            dx = p_image[1] - start_image[1]
+            if modifiers.shift:
+                angle_degrees = math.degrees(math.atan2(abs(dy), abs(dx)))
+                if angle_degrees > 60:
+                    p_image = (p_image[0], start_image[1])
+                elif angle_degrees > 30:
+                    if angle_degrees > 45:
+                        if dx * dy > 0:
+                            p_image = (p_image[0], start_image[1] + dy)
+                        else:
+                            p_image = (p_image[0], start_image[1] - dy)
+                    else:
+                        if dx * dy > 0:
+                            p_image = (start_image[0] + dx, p_image[1])
+                        else:
+                            p_image = (start_image[0] - dx, p_image[1])
+                else:
+                    p_image = (start_image[0], p_image[1])
+                v_pos = mapping.map_point_image_to_image_norm(p_image)
+            else:
+                v_pos = Geometry.FloatPoint.make(part[2]) + delta
+            if "bounds" in constraints:
+                v_pos = min(max(v_pos[0], 0.0), 1.0), min(max(v_pos[1], 0.0), 1.0)
+            self.v_pos = v_pos
+        elif part[0].startswith("u-") and not "shape" in constraints:
+            part_constraints = constraints.union({"position", "square"})
+            u_bounds = Geometry.FloatRect.from_center_and_size(part[1], size)
+            sub_part = part[0][2:], u_bounds, 0
+            part_bounds, _ = adjust_rectangle_like(mapping, 0.0, False, original, current, sub_part, modifiers, part_constraints)
+            part_bounds = Geometry.FloatRect.make(part_bounds)
+            self.radius = abs(part_bounds.height / 2)
+        elif part[0].startswith("v-") and not "shape" in constraints:
+            part_constraints = constraints.union({"position", "square"})
+            v_bounds = Geometry.FloatRect.from_center_and_size(part[2], size)
+            sub_part = part[0][2:], v_bounds, 0
+            part_bounds, _ = adjust_rectangle_like(mapping, 0.0, False, original, current, sub_part, modifiers, part_constraints)
+            part_bounds = Geometry.FloatRect.make(part_bounds)
+            self.radius = abs(part_bounds.height / 2)
+
+        return None, None
+
+    def get_mask(self, data_shape: typing.Sequence[int]) -> numpy.ndarray:
+        try:
+            mask = numpy.zeros(data_shape)
+
+            start = Geometry.FloatPoint(x=0.5, y=0.5)
+            u_pos = Geometry.FloatPoint.make(self.u_pos)
+            v_pos = Geometry.FloatPoint.make(self.v_pos)
+            radius = self.radius
+            size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
+
+            bounds = Geometry.FloatRect.from_tlbr(0, 0, 1, 1).inset(-radius, -radius)
+            mx = 0
+            drawn = True
+            while drawn and mx < 32:
+                drawn = False
+                for ui in range(-mx, mx + 1):
+                    for vi in range(-mx, mx + 1):
+                        if ui == -mx or ui == mx or vi == -mx or vi == mx:
+                            p = start + ui * (u_pos - start) + vi * (v_pos - start)
+                            if bounds.contains_point(p):
+
+                                bounds_int = ((int(data_shape[0] * (p[0] - radius)), int(data_shape[1] * (p[1] - radius))),
+                                              (int(data_shape[0] * size[0]), int(data_shape[1] * size[1])))
+
+                                if bounds_int[1][0] > 0 and bounds_int[1][1] > 0:
+                                    a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
+                                    y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
+                                    mask_eq1 = x * x / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + y * y / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
+
+                                    mask[mask_eq1] = 1
+
+                                drawn = True
+                mx += 1
+
+            return mask
+        except Exception as e:
+            print(e)
+
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+        start = Geometry.FloatPoint(x=0.5, y=0.5)
+        u_pos = Geometry.FloatPoint.make(self.u_pos)
+        v_pos = Geometry.FloatPoint.make(self.v_pos)
+        radius = self.radius
+        size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
+        start_widget = mapping.map_point_image_norm_to_widget(start)
+        u_pos_widget = mapping.map_point_image_norm_to_widget(u_pos)
+        v_pos_widget = mapping.map_point_image_norm_to_widget(v_pos)
+        size_widget = mapping.map_size_image_norm_to_widget(size)
+        with ctx.saver():
+            ctx.begin_path()
+            ctx.move_to(start_widget[1], start_widget[0])
+            ctx.line_to(u_pos_widget[1], u_pos_widget[0])
+            draw_arrow(ctx, start_widget, u_pos_widget)
+            ctx.line_width = 1
+            ctx.stroke_style = self.color
+            ctx.stroke()
+            ctx.fill_style = "rgba(255, 0, 127, 0.1)"
+            self.draw_ellipse(ctx, u_pos_widget.x, u_pos_widget.y, size_widget[1], size_widget[0])
+        with ctx.saver():
+            ctx.begin_path()
+            ctx.move_to(start_widget[1], start_widget[0])
+            ctx.line_to(v_pos_widget[1], v_pos_widget[0])
+            draw_arrow(ctx, start_widget, v_pos_widget)
+            ctx.line_width = 1
+            ctx.stroke_style = self.color
+            ctx.stroke()
+            ctx.fill_style = "rgba(255, 0, 127, 0.1)"
+            self.draw_ellipse(ctx, v_pos_widget.x, v_pos_widget.y, size_widget[1], size_widget[0])
+
+        # uv_pos = u_pos + (v_pos - start)
+        # uv_pos_widget = mapping.map_point_image_norm_to_widget(uv_pos)
+        # with ctx.saver():
+        #     ctx.begin_path()
+        #     ctx.move_to(start_widget[1], start_widget[0])
+        #     ctx.line_to(uv_pos_widget[1], uv_pos_widget[0])
+        #     draw_arrow(ctx, start_widget, uv_pos_widget)
+        #     ctx.line_width = 1
+        #     ctx.stroke_style = self.color
+        #     ctx.stroke()
+
+        bounds = Geometry.FloatRect.from_tlbr(0, 0, 1, 1).inset(-radius, -radius)
+        with ctx.saver():
+            ctx.line_width = 1
+            ctx.stroke_style = self.color
+            ctx.fill_style = "rgba(255, 0, 127, 0.1)"
+            mx = 0
+            drawn = True
+            while drawn and mx < 32:
+                drawn = False
+                for ui in range(-mx, mx + 1):
+                    for vi in range(-mx, mx + 1):
+                        if (ui == 1 and vi == 0) or (ui == 0 and vi == 1):
+                            continue
+                        if ui == -mx or ui == mx or vi == -mx or vi == mx:
+                            p = start + ui * (u_pos - start) + vi * (v_pos - start)
+                            if bounds.contains_point(p):
+                                p_widget = mapping.map_point_image_norm_to_widget(p)
+                                self.draw_ellipse(ctx, p_widget.x, p_widget.y, size_widget[1], size_widget[0])
+                                drawn = True
+                mx += 1
+
+        if is_selected:
+            self.draw_marker(ctx, start_widget)
+            self.draw_marker(ctx, u_pos_widget)
+            self.draw_marker(ctx, v_pos_widget)
+            self.draw_marker(ctx, (u_pos_widget.y - size_widget.y/2, u_pos_widget.x - size_widget.x/2))
+            self.draw_marker(ctx, (u_pos_widget.y - size_widget.y/2, u_pos_widget.x + size_widget.x/2))
+            self.draw_marker(ctx, (u_pos_widget.y + size_widget.y/2, u_pos_widget.x + size_widget.x/2))
+            self.draw_marker(ctx, (u_pos_widget.y + size_widget.y/2, u_pos_widget.x - size_widget.x/2))
+            self.draw_marker(ctx, (v_pos_widget.y - size_widget.y/2, v_pos_widget.x - size_widget.x/2))
+            self.draw_marker(ctx, (v_pos_widget.y - size_widget.y/2, v_pos_widget.x + size_widget.x/2))
+            self.draw_marker(ctx, (v_pos_widget.y + size_widget.y/2, v_pos_widget.x + size_widget.x/2))
+            self.draw_marker(ctx, (v_pos_widget.y + size_widget.y/2, v_pos_widget.x - size_widget.x/2))
+        self.draw_label(ctx, get_font_metrics_fn, mapping)
+
+    def label_position(self, mapping, font_metrics, padding):
+        p1 = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        return Geometry.FloatPoint(y=p1.y, x=p1.x)
+
+
 def factory(lookup_id):
     build_map = {
         "line-graphic": LineGraphic,
@@ -2141,7 +2454,8 @@ def factory(lookup_id):
         "channel-graphic": ChannelGraphic,
         "spot-graphic": SpotGraphic,
         "wedge-graphic": WedgeGraphic,
-        "ring-graphic": RingGraphic
+        "ring-graphic": RingGraphic,
+        "lattice-graphic": LatticeGraphic,
     }
     type = lookup_id("type")
     return build_map[type]() if type in build_map else MissingGraphic(type)

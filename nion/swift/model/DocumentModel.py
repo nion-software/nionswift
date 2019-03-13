@@ -1721,7 +1721,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                 shape = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
                                 mask = numpy.zeros(shape)
                                 for graphic in display_item.graphics:
-                                    if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                                    if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                                         mask = numpy.logical_or(mask, graphic.get_mask(shape))
                                 return DataAndMetadata.DataAndMetadata.from_data(mask)
                             return None
@@ -1731,7 +1731,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                             display_item = self._display_data_channel.container
                             objects = {data_item, display_item}
                             for graphic in display_item.graphics:
-                                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                                     objects.add(graphic)
                             return objects
                     if display_data_channel:
@@ -1753,7 +1753,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                     shape = xdata.data_shape
                                     mask = numpy.zeros(shape)
                                     for graphic in display_item.graphics:
-                                        if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                                        if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                                             mask = numpy.logical_or(mask, graphic.get_mask(shape))
                                     return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
                                 return xdata
@@ -1764,7 +1764,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                             display_item = self._display_data_channel.container
                             objects = {data_item, display_item}
                             for graphic in display_item.graphics:
-                                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                                     objects.add(graphic)
                             return objects
                     if display_data_channel:
@@ -2863,7 +2863,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         if data_item and display_item:
             has_mask = False
             for graphic in display_item.graphics:
-                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                     has_mask = True
                     break
             if not has_mask:
