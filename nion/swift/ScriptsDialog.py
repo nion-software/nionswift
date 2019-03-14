@@ -406,7 +406,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         def update_message_column():
             self.__message_column.remove_all()
             self.__message_column.add(self.__make_cancel_row())
-        self.document_controller.add_task(str(id(self)), update_message_column)
+        self.document_controller.queue_task(update_message_column)
         if value_ref[0] is None:
             raise Exception("Cancel")
         return value_ref[0]
@@ -463,7 +463,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         def update_message_column():
             self.__message_column.remove_all()
             self.__message_column.add(self.__make_cancel_row())
-        self.document_controller.add_task(str(id(self)), update_message_column)
+        self.document_controller.queue_task(update_message_column)
         return result_ref[0]
 
     def confirm_ok_cancel(self, prompt: str) -> bool:
