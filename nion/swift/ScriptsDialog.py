@@ -223,7 +223,10 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.__output_queue = collections.deque()
 
     def close(self):
-        self.document_controller.clear_task(str(id(self)))
+        self.document_controller.clear_task("ui_" + str(id(self)))
+        self.document_controller.clear_task("run_" + str(id(self)))
+        self.document_controller.clear_task("show_" + str(id(self)))
+        self.document_controller.clear_task("print_" + str(id(self)))
         super().close()
 
     @property
@@ -333,7 +336,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                     self.__q.append(functools.partial(self.run_script, script_path))
                 else:
                     self.__q.append(self.request_close)
-                self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
+                self.document_controller.add_task("run_" + str(id(self)), self.__handle_output_and_q)
 
         self.__thread = threading.Thread(target=func_continue)
         self.__thread.start()
@@ -352,7 +355,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                     self.__q.append(functools.partial(self.run_script, script_path))
                 else:
                     self.__q.append(self.request_close)
-                self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
+                self.document_controller.add_task("run_" + str(id(self)), self.__handle_output_and_q)
 
         self.__thread = threading.Thread(target=func_run, args=(func,))
         self.__thread.start()
@@ -371,7 +374,7 @@ class RunScriptDialog(Dialog.ActionDialog):
     def print(self, text):
         with self.__lock:
             self.__output_queue.append(str(text))
-            self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
+            self.document_controller.add_task("print_" + str(id(self)), self.__handle_output_and_q)
 
     def print_debug(self, text):
         self.print(text)
@@ -401,12 +404,12 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         with self.__lock:
             self.__q.append(perform)
-            self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
+            self.document_controller.add_task("ui_" + str(id(self)), self.__handle_output_and_q)
         accept_event.wait()
         def update_message_column():
             self.__message_column.remove_all()
             self.__message_column.add(self.__make_cancel_row())
-        self.document_controller.queue_task(update_message_column)
+        self.document_controller.add_task("ui_" + str(id(self)), update_message_column)
         if value_ref[0] is None:
             raise Exception("Cancel")
         return value_ref[0]
@@ -435,7 +438,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         with self.__lock:
             self.__q.append(perform)
-            self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
+            self.document_controller.add_task("show_" + str(id(self)), self.__handle_output_and_q)
         accept_event.wait()
 
     def __accept_reject(self, prompt, accepted_text, rejected_text, display_rejected):
@@ -458,12 +461,12 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         with self.__lock:
             self.__q.append(perform)
-            self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
+            self.document_controller.add_task("ui_" + str(id(self)), self.__handle_output_and_q)
         accept_event.wait()
         def update_message_column():
             self.__message_column.remove_all()
             self.__message_column.add(self.__make_cancel_row())
-        self.document_controller.queue_task(update_message_column)
+        self.document_controller.add_task("ui_" + str(id(self)), update_message_column)
         return result_ref[0]
 
     def confirm_ok_cancel(self, prompt: str) -> bool:
