@@ -648,8 +648,8 @@ class TargetDataItemStream(Stream.AbstractStream):
     def __focused_display_item_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
         data_item = display_item.data_item if display_item else None
         if data_item != self.__value:
-            self.value_stream.fire(data_item)
             self.__value = data_item
+            self.value_stream.fire(data_item)
 
 
 class TargetDisplayItemStream(Stream.AbstractStream):
@@ -678,8 +678,8 @@ class TargetDisplayItemStream(Stream.AbstractStream):
 
     def __focused_display_item_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
         if display_item != self.__value:
-            self.value_stream.fire(display_item)
             self.__value = display_item
+            self.value_stream.fire(display_item)
 
 
 class TargetRegionStream(Stream.AbstractStream):
