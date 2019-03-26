@@ -691,6 +691,45 @@ class Workspace:
         self.__message_boxes[message_box_id] = message_box_widget
         return message_box_widget
 
+    def pose_tool_tip_box(self, caption, timeout, message_box_id=None):
+        import threading
+        import time
+        message_box_id = message_box_id if message_box_id else str(uuid.uuid4())
+        if message_box_id in self.__message_boxes:
+            return None
+        accepted_text = '\u274C'
+        message_box_widget = self.ui.create_column_widget()  # properties={"stylesheet": "background: #FFD"}
+        lock = threading.Lock()
+        def remove_box():
+            with lock:
+                if message_box_id in self.__message_boxes:
+                    self.message_column.remove(message_box_widget)
+                    del self.__message_boxes[message_box_id]
+
+        def accept_button_clicked():
+            remove_box()
+
+        def wait_for_timeout():
+            time.sleep(timeout)
+            self.document_controller.queue_task(remove_box)
+
+        accepted_button = self.ui.create_push_button_widget(accepted_text)
+        accepted_button.on_clicked = accept_button_clicked
+        caption_row = self.ui.create_row_widget()
+        caption_row.add_spacing(12)
+        caption_row.add(self.ui.create_label_widget(caption))
+        caption_row.add_spacing(12)
+        caption_row.add(accepted_button)
+        caption_row.add_stretch()
+        message_box_widget.add_spacing(6)
+        message_box_widget.add(caption_row)
+        message_box_widget.add_spacing(4)
+        self.message_column.add(message_box_widget)
+        self.__message_boxes[message_box_id] = message_box_widget
+        threading.Thread(target=wait_for_timeout, daemon=True).start()
+        message_box_widget.remove_now = remove_box
+        return message_box_widget
+
     def handle_drag_enter(self, display_panel, mime_data):
         if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
             return "copy"
