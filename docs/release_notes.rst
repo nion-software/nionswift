@@ -5,6 +5,7 @@ Release Notes
 
 Version 0.14.4, UNRELEASED
 --------------------------
+* (2019-04-01) Improve acquisition performance by eliminating unnecessary copy.
 * (2019-03-19) Fix potential issue with histogram not showing current data.
 * (2019-03-19) Fix issues with prompts and Cancel button in Run Script dialog.
 * (2019-03-13) Fix titles of Subtract, Multiply, Divide arithmetic processing results.

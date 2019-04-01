@@ -522,7 +522,7 @@ class DataChannel:
             else:
                 master_data = numpy.copy(data)
         else:
-            master_data = numpy.copy(data)
+            master_data = data  # numpy.copy(data). assume data does not need a copy.
 
         data_descriptor = data_and_metadata.data_descriptor
         intensity_calibration = data_and_metadata.intensity_calibration if data_and_metadata else None
