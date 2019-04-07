@@ -168,9 +168,11 @@ A list of items that make a well defined plug-in package.
 
 - Available on PyPI
 - Has setup script
-- Available on conda
+- Available on conda, plus feedstock.
+- Automated testing
 - Settings stored using API paths
 - JSON settings
 - Settings location logging.info
 - Settings are isolated; don't read other settings
 - Clean install/uninstall with pip
+- Avoid committing large files to GitHub projects (use Git LFS instead).
