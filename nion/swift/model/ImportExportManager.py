@@ -280,7 +280,7 @@ def convert_data_element_to_data_and_metadata_1(data_element) -> DataAndMetadata
         spatial_calibrations (optional list of spatial calibration dicts, scale, offset, units)
         intensity_calibration (optional intensity calibration dict, scale, offset, units)
         metadata (optional)
-        properties (get stored into metdata.hardware_source)
+        properties (get stored into metadata.hardware_source)
         one of either timestamp or datetime_modified
         if datetime_modified (dst, tz) it is converted and used as timestamp
             then timezone gets stored into metadata.description.timezone.
