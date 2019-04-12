@@ -13,6 +13,25 @@ import typing
 from nion.ui import Dialog
 from nion.ui import Widgets
 
+# 3rd party libraries
+_has_jedi = False
+try:
+    import jedi
+    from jedi import Interpreter
+    # adjust jedi settings
+    jedi.settings.add_bracket_after_function = True
+    jedi.settings.case_insensitive_completion = False
+    jedi.settings.no_completion_duplicates = True
+    jedi.settings.fast_parser = False
+    # workaround for the @property bug (see jedi issues #1299, #1305, #1259)
+    from jedi.evaluate.compiled import access
+    access.ALLOWED_DESCRIPTOR_ACCESS += (property,)
+except:
+    pass
+else:
+    _has_jedi = True
+
+
 _ = gettext.gettext
 
 
@@ -98,6 +117,25 @@ class ConsoleWidgetStateController:
 
         return completed_command, terms
 
+    def complete_command_with_jedi(self, command: str) -> typing.Tuple[str, typing.List[str]]:
+        terms = list()
+        completions = list()
+        completed_command = command
+        script = Interpreter(command, [self.__console.locals])
+        completions_raw = script.completions()
+        if len(completions_raw) > 0:
+            for completion in completions_raw:
+                if not completion.name.startswith("__") and not completion.complete.startswith("_"):
+                    completions.append(completion)
+            if len(completions) == 1:
+                completed_command = command + completions[0].complete
+            elif len(completions) > 1:
+                comps = [completion.complete for completion in completions]
+                common_prefix = ConsoleWidgetStateController.get_common_prefix(comps)
+                completed_command = command + common_prefix
+                terms = [completion.name_with_symbols for completion in completions]
+        return completed_command, terms
+
     def move_back_in_history(self, current_line: str) -> str:
         line = ""
         if self.__history_point is None:
@@ -171,7 +209,10 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         locals.update({'__name__': None, '__console__': None, '__doc__': None, '_stdout': stdout})
 
         self.__state_controller = ConsoleWidgetStateController(locals)
-
+        lib_string = "jedi" if _has_jedi else "rlcomplete"
+        jedi_tip = (" For better completion results, you can install 'jedi' in your environment "
+                    "(e.g. by running 'conda install jedi' in an anaconda prompt).") if not _has_jedi else " Congratulations!"
+        self.__text_edit_widget.append_text("Using '{}' for auto-completions.{}".format(lib_string, jedi_tip))
         self.__text_edit_widget.append_text(self.prompt)
         self.__text_edit_widget.move_cursor_position("end")
         self.__last_position = copy.deepcopy(self.__cursor_position)
@@ -271,7 +312,10 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             return True
 
         if is_cursor_on_last_line and is_cursor_on_last_column and key.is_tab:
-            completed_command, terms = self.__state_controller.complete_command(partial_command)
+            if _has_jedi:
+                completed_command, terms = self.__state_controller.complete_command_with_jedi(partial_command)
+            else:
+                completed_command, terms = self.__state_controller.complete_command(partial_command)
             if not terms:
                 self.__text_edit_widget.move_cursor_position("start_para", "move")
                 self.__text_edit_widget.move_cursor_position("end_para", "keep")
