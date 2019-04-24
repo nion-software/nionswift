@@ -1073,6 +1073,21 @@ class TestStorageClass(unittest.TestCase):
                 # verify
                 self.assertEqual(len(read_display_item.graphics), 1)
 
+    def test_unknown_graphics_load_properly(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                rect_graphic = Graphics.RectangleGraphic()
+                rect_graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
+                display_item.add_graphic(rect_graphic)
+            profile_context.project_properties["display_items"][0]["graphics"][0]["type"] = "magical-graphic"
+            # read it back
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model.close()
+
     def test_reloaded_regions_load_properly(self):
         with create_memory_profile_context() as profile_context:
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())

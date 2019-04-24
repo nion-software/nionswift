@@ -3,6 +3,10 @@
 Release Notes
 =============
 
+Version 0.14.5, Unreleased
+--------------------------
+* (2019-04-24) Gracefully handle unknown graphic types for future compatibility.
+
 Version 0.14.4, April 19, 2019
 ------------------------------
 * (2019-04-01) Improve acquisition performance by eliminating unnecessary copy.

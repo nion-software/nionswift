@@ -584,6 +584,14 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         raise NotImplementedError()
 
 
+class MissingGraphic(Graphic):
+    def __init__(self, type):
+        super().__init__(type)
+
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+        pass
+
+
 class RectangleTypeGraphic(Graphic):
     def __init__(self, type, title):
         super().__init__(type)
@@ -2136,4 +2144,4 @@ def factory(lookup_id):
         "ring-graphic": RingGraphic
     }
     type = lookup_id("type")
-    return build_map[type]() if type in build_map else None
+    return build_map[type]() if type in build_map else MissingGraphic(type)
