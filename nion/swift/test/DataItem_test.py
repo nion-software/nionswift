@@ -526,6 +526,16 @@ class TestDataItemClass(unittest.TestCase):
                 data_ref.data_updated()
             self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).data_range, (1, 1))
 
+    def test_bool_data_has_int_display_range_and_limits(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.bool))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_data_channels[0].auto_display_limits()
+            self.assertEqual(type(0), type(display_item.display_data_channels[0].display_limits[0]))
+            self.assertEqual(type(0), type(display_item.display_data_channels[0].get_calculated_display_values(True).data_range[0]))
+
     def test_removing_dependent_data_item_with_graphic(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):

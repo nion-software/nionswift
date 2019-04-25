@@ -5,6 +5,7 @@ Release Notes
 
 Version 0.14.5, Unreleased
 --------------------------
+* (2019-04-25) Improve handling of data items with bool data type.
 * (2019-04-24) Gracefully handle unknown graphic types for future compatibility.
 
 Version 0.14.4, April 19, 2019

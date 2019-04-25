@@ -298,6 +298,10 @@ class DisplayValues:
                 if self.__data_range is not None:
                     if math.isnan(self.__data_range[0]) or math.isnan(self.__data_range[1]) or math.isinf(self.__data_range[0]) or math.isinf(self.__data_range[1]):
                         self.__data_range = (0.0, 0.0)
+                    if numpy.issubdtype(type(self.__data_range[0]), numpy.bool_):
+                        self.__data_range = (int(self.__data_range[0]), self.__data_range[1])
+                    if numpy.issubdtype(type(self.__data_range[1]), numpy.bool_):
+                        self.__data_range = (self.__data_range[0], int(self.__data_range[1]))
             return self.__data_range
 
     @property
@@ -548,6 +552,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
     def __validate_display_limits(self, value):
         if value is not None:
+            value = list(int(v) if numpy.issubdtype(type(v), numpy.bool_) else v for v in value)
             if len(value) == 0:
                 return None
             elif len(value) == 1:
