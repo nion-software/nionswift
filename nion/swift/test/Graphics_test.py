@@ -1130,6 +1130,24 @@ class TestGraphicsClass(unittest.TestCase):
             display_item.dimensional_scales = (1,)
             self.assertEqual(interval_graphic.interval, (0.25, 0.75))
 
+    def test_setting_interval_to_non_floats_throws_execption(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((100, ), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            interval_graphic = Graphics.IntervalGraphic()
+            interval_graphic.interval = (0.25, 0.75)
+            display_item.add_graphic(interval_graphic)
+            with self.assertRaises(Exception):
+                interval_graphic.interval = (numpy.array([1, 2]), numpy.array([3, 4]))
+            with self.assertRaises(Exception):
+                interval_graphic.start = numpy.array([1, 2])
+            with self.assertRaises(Exception):
+                interval_graphic.end = numpy.array([3, 4])
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

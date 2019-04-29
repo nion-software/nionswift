@@ -1380,9 +1380,9 @@ class IntervalGraphic(Graphic):
             properties["start"] = value[0]
             properties["end"] = value[1]
 
-        def validate_interval(interval):
+        def validate_interval(interval) -> typing.Tuple[float, float]:
             if interval is not None:
-                return tuple(interval)
+                return float(interval[0]), float(interval[1])
             return (0.0, 1.0)
 
         # interval is stored in image normalized coordinates
