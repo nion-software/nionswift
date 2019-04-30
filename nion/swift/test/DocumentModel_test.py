@@ -40,7 +40,7 @@ class TestDocumentModelClass(unittest.TestCase):
         pass
 
     def test_remove_data_items_on_document_model(self):
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile())
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(auto_project=True))
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem()
             data_item1.title = 'title'
@@ -56,7 +56,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(data_item2 in document_model.data_items)
 
     def test_removing_data_item_should_remove_from_groups_too(self):
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile())
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(auto_project=True))
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem()
             data_item1.title = 'title'

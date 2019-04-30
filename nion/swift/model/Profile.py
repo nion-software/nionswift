@@ -21,7 +21,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     profile_version = 2
 
-    def __init__(self, storage_system=None, storage_cache=None, auto_project: bool = True):
+    def __init__(self, storage_system=None, storage_cache=None, *, auto_project: bool = True):
         super().__init__()
         self.define_type("profile")
         self.define_relationship("workspaces", WorkspaceLayout.factory)
@@ -30,16 +30,21 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
         self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
         self.define_property("project_references", list())
+
         self.storage_system = storage_system if storage_system else FileStorageSystem.FileStorageSystem(FileStorageSystem.MemoryLibraryHandler())
+
         if auto_project:
             self.__projects = [Project.Project(FileStorageSystem.MemoryLibraryHandler())]
         else:
             self.__projects = list()
+
         self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
+
         # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
         # there is a single shared object context per profile.
         self.persistent_object_context = Persistence.PersistentObjectContext()
         self.persistent_object_context._set_persistent_storage_for_object(self, self.storage_system)
+
         # attach project listeners
         self.__item_loaded_event_listeners = list()
         for project in self.__projects:

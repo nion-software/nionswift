@@ -296,7 +296,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__thread_pool = ThreadPool.ThreadPool()
         self.__computation_thread_pool = ThreadPool.ThreadPool()
 
-        self.__profile = profile if profile else Profile.Profile()
+        self.__profile = profile if profile else Profile.Profile(auto_project=True)
         self.__profile.open(self)
 
         # the persistent object context allows reading/writing of objects to the persistent storage specific to them.

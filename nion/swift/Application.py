@@ -159,33 +159,34 @@ class Application(UIApplication.Application):
         self.__document_model = document_model
 
     def start(self, *, profile_dir: pathlib.Path = None):
-        """
-            Start the application.
+        """Start the application.
 
-            Looks for workspace_location persistent string. If it doesn't find it, uses a default
-            workspace location.
+        Creates the profile object using profile_path parameter (for testing), the profile path constructed from the
+        name stored in preferences, or a default profile path.
 
-            Then checks to see if that workspace exists. If not and if skip_choose has not been
-            set to True, asks the user for a workspace location. User may choose new folder or
-            existing location. This works by putting up the dialog which will either call start
-            again or exit.
+        Attaches recent projects if profile is freshly created. The recent projects will initially be disabled and
+        will require the user to explicitly upgrade them.
 
-            Creates workspace in location if it doesn't exist.
+        Creates the document model with the profile.
 
-            Migrates database to latest version.
-
-            Creates document model, resources path, etc.
+        Creates the document window (aka document controller) with the document model.
         """
         logging.getLogger("migration").setLevel(logging.INFO)
         logging.getLogger("loader").setLevel(logging.INFO)
+
+        # determine the profile_path
         if profile_dir:
             profile_path = profile_dir / pathlib.Path("Profile").with_suffix(".nsproj")
         else:
             data_dir = pathlib.Path(self.ui.get_data_location())
             profile_name = pathlib.Path(self.ui.get_persistent_string("profile_name", "Profile"))
             profile_path = data_dir / profile_name.with_suffix(".nsproj")
-        welcome_message_enabled = profile_dir is None
+
+        # create or load the profile object
         profile, is_created = self.__create_profile(profile_path)
+
+        # if it was created, it probably means it is migrating from an old version. so add all recent projects.
+        # they will initially be disabled and the user will have to explicitly upgrade them.
         if is_created:
             for library_path in self.get_recent_library_paths():
                 logging.getLogger("loader").info(f"Adding project {library_path}")
@@ -195,19 +196,25 @@ class Application(UIApplication.Application):
                 library_handler = FileStorageSystem.FileLibraryHandler(project_path)
                 library_handler.migrate_to_latest()
                 profile.add_project_folder(project_path)
+                # TODO: remove this 'break' once all items can be handled
                 break
+
+        # configure the document model object.
         DocumentModel.DocumentModel.computation_min_period = 0.1
         DocumentModel.DocumentModel.computation_min_factor = 1.0
         document_model = DocumentModel.DocumentModel(profile=profile)
         document_model.create_default_data_groups()
         document_model.start_dispatcher()
+
         # create the document controller
         document_controller = self.create_document_controller(document_model, "library")
-        if welcome_message_enabled:
+        if profile_dir is None:
+            # output log message unless we passed a profile_dir for testing.
             logging.getLogger("loader").info("Welcome to Nion Swift.")
         if is_created and len(document_model.display_items) > 0:
             document_controller.selected_display_panel.set_display_panel_display_item(document_model.display_items[0])
             document_controller.selected_display_panel.perform_action("set_fill_mode")
+
         return True
 
     def stop(self):
