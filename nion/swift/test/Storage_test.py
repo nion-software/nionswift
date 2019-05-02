@@ -3161,7 +3161,7 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8,8)), item_uuid=uuid.UUID(src_uuid_str))
             data_item.title = "Title"
             profile = profile_context.create_profile()
-            profile.read()
+            profile.read_profile()
             profile.read_projects()
             with contextlib.closing(profile):
                 handler = profile.projects[0]._project_storage_system._library_handler._make_storage_handler(data_item)

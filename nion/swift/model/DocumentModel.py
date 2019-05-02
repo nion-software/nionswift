@@ -7,7 +7,6 @@ import functools
 import gettext
 import logging
 import numbers
-import os.path
 import threading
 import time
 import typing
@@ -41,6 +40,7 @@ from nion.utils import Observable
 from nion.utils import Persistence
 from nion.utils import Recorder
 from nion.utils import ReferenceCounting
+from nion.utils import Selection
 from nion.utils import ThreadPool
 
 _ = gettext.gettext
@@ -328,7 +328,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.session_id = None
         self.start_new_session()
         self.__prune()
-        self.__profile.read()
+        self.__profile.read_profile()
         self.__profile.read_projects()
 
         for data_group in self.data_groups:
@@ -548,6 +548,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     @property
     def profile(self) -> Profile.Profile:
         return self.__profile
+
+    @property
+    def projects_model(self):
+        return self.__profile.projects_model
+
+    @property
+    def projects_selection(self) -> Selection.IndexedSelection:
+        return self.__profile.projects_selection
 
     def _get_persistent_storage_for_new_object(self, object):
         if isinstance(object, (DataItem.DataItem, DisplayItem.DisplayItem, DataStructure.DataStructure, Connection.Connection, Symbolic.Computation)):

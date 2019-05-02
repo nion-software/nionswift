@@ -1,5 +1,5 @@
 # standard libraries
-import logging
+import copy
 import pathlib
 import typing
 import uuid
@@ -13,8 +13,10 @@ from nion.swift.model import Project
 from nion.swift.model import WorkspaceLayout
 from nion.utils import Converter
 from nion.utils import Event
+from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import Persistence
+from nion.utils import Selection
 
 
 class Profile(Observable.Observable, Persistence.PersistentObject):
@@ -52,6 +54,30 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.__document_model = None
         self.profile_context = None
 
+        # the projects model is a property model where the value is the current list of projects.
+        self.projects_model = Model.PropertyModel(copy.copy(self.__projects))
+
+        # two selection models are provided: one where the value is the ordered list of selected projects; the other
+        # is a single selected project.
+        self.selected_projects_model = Model.PropertyModel(set())
+        self.selected_project_model = Model.PropertyModel(None)
+
+        # the projects selection is the common object to represent the user's selected projects, if any.
+        self.projects_selection = Selection.IndexedSelection(Selection.Style.multiple)
+
+        # define a function to track changes to the selection object and update the selection models.
+        def update_selected_projects_models():
+            indexes = self.projects_selection.ordered_indexes
+            self.selected_project_model.value = self.__projects[list(indexes)[0]] if len(indexes) == 1 else None
+            selected_projects = list()
+            for index in indexes:
+                if 0 <= index < len(self.__projects):
+                    selected_projects.append(self.__projects[index])
+            self.selected_projects_model.value = selected_projects
+
+        # connect the listener
+        self.__projects_selection_changed_event_listener = self.projects_selection.changed_event.listen(update_selected_projects_models)
+
     @property
     def projects(self) -> typing.List[Project.Project]:
         return self.__projects
@@ -75,6 +101,8 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         for item_loaded_event_listener in self.__item_loaded_event_listeners:
             item_loaded_event_listener.close()
         self.__item_loaded_event_listeners.clear()
+        self.__projects_selection_changed_event_listener.close()
+        self.__projects_selection_changed_event_listener = None
 
     def transaction_context(self):
         """Return a context object for a document-wide transaction."""
@@ -107,7 +135,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         for project in self.__projects:
             project.prune()
 
-    def read(self) -> None:
+    def read_profile(self) -> None:
         properties = self.storage_system.read_library()
         self.begin_reading()
         try:
@@ -125,7 +153,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def read_projects(self) -> None:
         for project in self.__projects:
-            project.read()
+            project.read_project()
 
     @property
     def data_item_variables(self):
@@ -163,6 +191,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def __append_project(self, project):
         self.__projects.append(project)
+        self.projects_model.value = copy.copy(self.__projects)
         self.__item_loaded_event_listeners.append(project.item_loaded_event.listen(self.__project_item_loaded))
 
 

@@ -44,7 +44,7 @@ class Project:
     def close(self) -> None:
         pass
 
-    def read(self) -> None:
+    def read_project(self) -> None:
         # first read the library (for deletions) and the library items from the primary storage systems
         logging.getLogger("loader").info(f"Loading project {self.__storage_system._library_handler.get_identifier()}")
         properties = self.__storage_system.read_library()
@@ -60,4 +60,4 @@ class Project:
 
     def migrate_to_latest(self) -> None:
         self.__storage_system.migrate_to_latest()
-        self.read()
+        self.read_project()

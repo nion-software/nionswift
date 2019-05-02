@@ -35,7 +35,6 @@ from nion.swift.model import FileStorageSystem
 from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
-from nion.swift.model import Project
 from nion.ui import Application as UIApplication
 from nion.utils import Event
 from nion.utils import Process
