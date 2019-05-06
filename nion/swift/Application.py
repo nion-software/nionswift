@@ -450,7 +450,7 @@ class Application(UIApplication.Application):
                     handle_choose()
                     self.request_close()
 
-                list_widget = Widgets.StringListWidget(ui, items, Selection.Style.single_or_none, stringify_item, properties={"min-height": 200, "min-width": 560})
+                list_widget = Widgets.StringListWidget(ui, items=items, selection_style=Selection.Style.single_or_none, item_getter=stringify_item, border_color="#888", properties={"min-height": 200, "min-width": 560})
                 list_widget.on_selection_changed = selection_changed
                 list_widget.on_item_selected = item_selected
                 list_widget.on_cancel = self.request_close

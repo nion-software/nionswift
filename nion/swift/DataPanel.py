@@ -229,16 +229,16 @@ class DataListController:
             def paint_item(self, drawing_context, display_item_adapter, rect, is_selected):
                 display_item_adapter.draw_list_item(drawing_context, rect)
 
-            def on_context_menu_event(self, index, x, y, gx, gy):
+            def context_menu_event(self, index, x, y, gx, gy):
                 return self.__data_list_controller.context_menu_event(index, x, y, gx, gy)
 
-            def on_delete_pressed(self):
+            def delete_pressed(self):
                 self.__data_list_controller._delete_pressed()
 
-            def on_key_pressed(self, key):
+            def key_pressed(self, key):
                 return self.__data_list_controller._key_pressed(key)
 
-            def on_drag_started(self, index, x, y, modifiers):
+            def drag_started(self, index, x, y, modifiers):
                 self.__data_list_controller.drag_started(index, x, y, modifiers)
 
         self.__list_canvas_item = ListCanvasItem.ListCanvasItem(ListCanvasItemDelegate(self), self.__selection)

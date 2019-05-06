@@ -168,7 +168,7 @@ class RunScriptDialog(Dialog.ActionDialog):
             run_clicked()
             return True
 
-        list_widget = Widgets.StringListWidget(ui, items, Selection.Style.single_or_none, properties={"min-height": 200, "min-width": 560})
+        list_widget = Widgets.StringListWidget(ui, items=items, selection_style=Selection.Style.single_or_none, border_color="#888", properties={"min-height": 200, "min-width": 560})
         list_widget.on_selection_changed = selected_changed
         list_widget.on_item_selected = item_selected
 
