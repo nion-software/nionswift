@@ -21,8 +21,6 @@ from nion.utils import Selection
 
 class Profile(Observable.Observable, Persistence.PersistentObject):
 
-    profile_version = 2
-
     def __init__(self, storage_system=None, storage_cache=None, *, auto_project: bool = True):
         super().__init__()
         self.define_type("profile")
@@ -36,7 +34,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.storage_system = storage_system if storage_system else FileStorageSystem.FileStorageSystem(FileStorageSystem.MemoryLibraryHandler())
 
         if auto_project:
-            self.__projects = [Project.Project(FileStorageSystem.MemoryLibraryHandler())]
+            self.__projects = [Project.Project(FileStorageSystem.MemoryLibraryHandler(), {"type": "memory"})]
         else:
             self.__projects = list()
 
@@ -137,18 +135,18 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def read_profile(self) -> None:
         properties = self.storage_system.read_library()
-        self.begin_reading()
-        try:
-            self.read_from_dict(properties)
-        finally:
-            self.finish_reading()
-        self.storage_system.set_property(self, "uuid", str(self.uuid))
-        self.storage_system.set_property(self, "version", Profile.profile_version)
+        if properties.get("version", 0) == FileStorageSystem.PROFILE_VERSION:
+            self.begin_reading()
+            try:
+                self.read_from_dict(properties)
+            finally:
+                self.finish_reading()
+            self.storage_system.set_property(self, "uuid", str(self.uuid))
+            self.storage_system.set_property(self, "version", FileStorageSystem.PROFILE_VERSION)
         for project_reference in self.project_references:
-            # note: storage system is passed for use during testing
-            library_handler = FileStorageSystem.make_library_handler(self.profile_context, project_reference)
-            if library_handler:
-                project = Project.Project(library_handler)
+            # note: project context is passed for use during testing
+            project = Project.make_project(self.profile_context, project_reference)
+            if project:
                 self.__append_project(project)
 
     def read_projects(self) -> None:
@@ -189,6 +187,10 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         project_reference = {"type": "project_index", "project_path": str(project_path)}
         self.add_project_reference(project_reference)
 
+    def add_legacy_project_folder(self, project_path: pathlib.Path) -> None:
+        project_reference = {"type": "legacy_project", "project_path": str(project_path)}
+        self.add_project_reference(project_reference)
+
     def __append_project(self, project):
         self.__projects.append(project)
         self.projects_model.value = copy.copy(self.__projects)
@@ -204,7 +206,7 @@ class MemoryProfileContext:
         self.profile_properties = dict()
         self.__profile_handler = FileStorageSystem.MemoryLibraryHandler(library_properties=self.profile_properties)
 
-        self.project_properties = dict()
+        self.project_properties = {"version": FileStorageSystem.PROJECT_VERSION}
         self.data_properties_map = dict()
         self.data_map = dict()
         self.trash_map = dict()
@@ -213,17 +215,9 @@ class MemoryProfileContext:
 
     def create_profile(self) -> Profile:
         if not self.__profile:
-            project_handler = FileStorageSystem.MemoryLibraryHandler(library_properties=self.project_properties,
-                                                                     data_properties_map=self.data_properties_map,
-                                                                     data_map=self.data_map,
-                                                                     trash_map=self.trash_map,
-                                                                     data_read_event=self._test_data_read_event)
-            project = Project.Project(project_handler)
-            project_reference = project.project_reference
-            project.close()
             storage_system = FileStorageSystem.FileStorageSystem(self.__profile_handler)
             profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
-            profile.add_project_reference(project_reference)
+            profile.add_project_reference({"type": "memory"})
             profile.storage_system = storage_system
             profile.profile_context = self
             self.__profile = profile

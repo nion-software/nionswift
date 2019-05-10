@@ -11,13 +11,17 @@ import typing
 import uuid
 
 from nion.swift.model import DataItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import HDF5Handler
 from nion.swift.model import Migration
 from nion.swift.model import NDataHandler
 from nion.swift.model import Utility
 from nion.utils import Event
 
+
+# define the versions that get stored in the JSON files
+PROFILE_VERSION = 2
+PROJECT_VERSION = 3
+PROJECT_VERSION_0_14 = 2
 
 ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "large_format", "storage_handler", "identifier"])
 
@@ -96,6 +100,10 @@ class LibraryHandler:
         pass
 
     def _find_storage_handlers(self) -> typing.List:
+        """Find storage handlers.
+
+        Subclasses should override this method.
+        """
         return list()
 
     def _is_storage_handler_large_format(self, storage_handler) -> bool:
@@ -170,10 +178,9 @@ class LibraryHandler:
         return self._find_storage_handlers()
 
     def read_library(self) -> typing.Dict:
-        """Read data items from the data reference handler and return as a list.
+        """Read data items from the data reference handler and return as a dict.
 
-        Data items will have persistent_object_context set upon return, but caller will need to call finish_reading
-        on each of the data items.
+        The dict may contain keys for data_items, display_items, data_structures, connections, and computations.
         """
         self.__properties = self._read_properties()
 
@@ -192,6 +199,7 @@ class LibraryHandler:
                 traceback.print_exc()
                 traceback.print_stack()
 
+        # to allow later writing back to storage, associate the data items with their storage adapters
         for reader_info in reader_info_list:
             storage_handler = reader_info.storage_handler
             properties = reader_info.properties
@@ -201,22 +209,25 @@ class LibraryHandler:
 
         properties_copy = self.properties_copy
 
+        # ensure unique connections
         connections_list = properties_copy.get("connections", list())
         assert len(connections_list) == len({connection.get("uuid") for connection in connections_list})
 
+        # ensure unique computations
         computations_list = properties_copy.get("computations", list())
         assert len(computations_list) == len({computation.get("uuid") for computation in computations_list})
 
-        if properties_copy.get("version", 0) < 1:
-            properties_copy["version"] = DocumentModel.DocumentModel.library_version
+        # TODO: if version is not current, this project will need an upgrade, which must be done explicitly by the user.
 
-        assert properties_copy["version"] == DocumentModel.DocumentModel.library_version
+        # TODO: version 2 is from 0.14.
+
+        if properties_copy.get("version", 0) < 1:
+            properties_copy["version"] = PROJECT_VERSION_0_14
 
         for reader_info in reader_info_list:
             data_item_properties = Utility.clean_dict(reader_info.properties if reader_info.properties else dict())
             if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
                 data_item_properties["__large_format"] = reader_info.large_format
-                data_item_properties["__identifier"] = reader_info.identifier
                 properties_copy.setdefault("data_items", list()).append(data_item_properties)
 
         def data_item_created(data_item_properties: typing.Mapping) -> str:
@@ -381,11 +392,11 @@ class LibraryHandler:
                 for result_dict in computation_dict.get("results", list()):
                     fix_specifier(result_dict["specifier"])
 
-            library_properties["version"] = DocumentModel.DocumentModel.library_version
+            library_properties["version"] = PROJECT_VERSION
 
         # TODO: add consistency checks: no duplicated items [by uuid] such as connections or computations or data items
 
-        assert library_properties["version"] == DocumentModel.DocumentModel.library_version
+        assert library_properties["version"] == PROJECT_VERSION
 
         self._migrate_library_properties(library_properties, reader_info_list)
 
@@ -592,15 +603,18 @@ class FileLibraryHandler(LibraryHandler):
         path_components.append(encoded_base_path)
         return pathlib.Path(*path_components)
 
-    def _get_migration_stages(self) -> typing.List:
-        workspace_dir = self.__project_path.parent
+    @staticmethod
+    def _get_migration_paths(library_path: pathlib.Path) -> typing.List[typing.Tuple[pathlib.Path, pathlib.Path]]:
         return [
-            (workspace_dir / "Nion Swift Library 13.nslib", workspace_dir / "Nion Swift Data 13"),
-            (workspace_dir / "Nion Swift Library 12.nslib", workspace_dir / "Nion Swift Data 12"),
-            (workspace_dir / "Nion Swift Workspace.nslib", workspace_dir / "Nion Swift Data 11"),
-            (workspace_dir / "Nion Swift Workspace.nslib", workspace_dir / "Nion Swift Data 10"),
-            (workspace_dir / "Nion Swift Workspace.nslib", workspace_dir / "Nion Swift Data"),
+            (library_path / "Nion Swift Library 13.nslib", library_path / "Nion Swift Data 13"),
+            (library_path / "Nion Swift Library 12.nslib", library_path / "Nion Swift Data 12"),
+            (library_path / "Nion Swift Workspace.nslib", library_path / "Nion Swift Data 11"),
+            (library_path / "Nion Swift Workspace.nslib", library_path / "Nion Swift Data 10"),
+            (library_path / "Nion Swift Workspace.nslib", library_path / "Nion Swift Data"),
         ]
+
+    def _get_migration_stages(self) -> typing.List[typing.Tuple[pathlib.Path, pathlib.Path]]:
+        return self._get_migration_paths(self.__project_path.parent)
 
     def _read_library_properties(self, migration_stage) -> typing.Dict:
         properties = dict()
@@ -785,7 +799,6 @@ class MemoryLibraryHandler(LibraryHandler):
             data_item_properties = Utility.clean_dict(reader_info.properties if reader_info.properties else dict())
             if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
                 data_item_properties["__large_format"] = reader_info.large_format
-                data_item_properties["__identifier"] = reader_info.identifier
                 data_properties_map[reader_info.identifier] = data_item_properties
 
         def data_item_created(data_item_properties: typing.Mapping) -> str:
@@ -968,7 +981,13 @@ def make_library_handler(profile_context, d: typing.Dict) -> typing.Optional[Lib
     if d.get("type") == "project_index":
         project_path = pathlib.Path(d.get("project_path"))
         return FileLibraryHandler(project_path)
-    if d.get("type") == "memory":
+    elif d.get("type") == "legacy_project":
+        project_path = pathlib.Path(d.get("project_path"))
+        for project_file, project_dir in FileLibraryHandler._get_migration_paths(project_path):
+            if project_file.exists():
+                return FileLibraryHandler(project_file)
+        return None
+    elif d.get("type") == "memory":
         # the profile context must be valid here.
         library_properties = profile_context.project_properties
         data_properties_map = profile_context.data_properties_map

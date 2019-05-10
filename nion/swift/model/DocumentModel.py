@@ -272,7 +272,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     computation_min_period = 0.0
     computation_min_factor = 0.0
-    library_version = 2
 
     def __init__(self, *, profile: Profile.Profile = None):
         super().__init__()
