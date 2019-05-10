@@ -22,6 +22,7 @@ from nion.swift import InfoPanel
 from nion.swift import Inspector
 from nion.swift import MetadataPanel
 from nion.swift import Panel
+from nion.swift import ProjectPanel
 from nion.swift import SessionPanel
 from nion.swift import Task
 from nion.swift import Test
@@ -84,6 +85,7 @@ class Application(UIApplication.Application):
 
         workspace_manager = Workspace.WorkspaceManager()
         workspace_manager.register_panel(SessionPanel.SessionPanel, "session-panel", _("Session"), ["left", "right"], "right", {"min-width": 320, "height": 80})
+        workspace_manager.register_panel(ProjectPanel.ProjectPanel, "project-panel", _("Projects"), ["left", "right"], "left", {"min-width": 320, "min-height": 200})
         workspace_manager.register_panel(DataPanel.DataPanel, "data-panel", _("Data Panel"), ["left", "right"], "left", {"min-width": 320, "height": 400})
         workspace_manager.register_panel(HistogramPanel.HistogramPanel, "histogram-panel", _("Histogram"), ["left", "right"], "right", {"min-width": 320, "height": 140})
         workspace_manager.register_panel(InfoPanel.InfoPanel, "info-panel", _("Info"), ["left", "right"], "right", {"min-width": 320, "height": 60})
