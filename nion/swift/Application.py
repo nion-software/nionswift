@@ -182,7 +182,7 @@ class Application(UIApplication.Application):
             profile_path = data_dir / profile_name.with_suffix(".nsproj")
 
         # create or load the profile object
-        profile, is_created = self.__create_profile(profile_path)
+        profile, is_created = self.__establish_profile(profile_path)
 
         # if it was created, it probably means it is migrating from an old version. so add all recent projects.
         # they will initially be disabled and the user will have to explicitly upgrade them.
@@ -239,7 +239,7 @@ class Application(UIApplication.Application):
         document_controller.show()
         return document_controller
 
-    def __create_profile(self, profile_path: pathlib.Path) -> typing.Tuple[typing.Optional[Profile.Profile], bool]:
+    def __establish_profile(self, profile_path: pathlib.Path) -> typing.Tuple[typing.Optional[Profile.Profile], bool]:
         create_new_profile = not profile_path.exists()
         if create_new_profile:
             logging.getLogger("loader").info(f"Creating new profile {profile_path}")

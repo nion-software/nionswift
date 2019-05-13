@@ -35,7 +35,7 @@ class Project:
 
     @property
     def project_reference(self) -> typing.Dict:
-        return self.__library_handler.project_reference
+        return copy.deepcopy(self.__project_reference)
 
     @property
     def project_reference_parts(self) -> typing.Tuple[str]:

@@ -86,10 +86,6 @@ class LibraryHandler:
         self.__properties_lock = threading.RLock()
         self.__data_properties_map = dict()
 
-    @property
-    def project_reference(self) -> typing.Dict:
-        return dict()
-
     def _get_identifier(self) -> str:
         return str()
 
@@ -108,6 +104,9 @@ class LibraryHandler:
 
     def _is_storage_handler_large_format(self, storage_handler) -> bool:
         return False
+
+    def _create_work_project_files(self) -> typing.Dict:
+        return dict()
 
     def _prune(self) -> None:
         pass
@@ -459,10 +458,6 @@ class FileLibraryHandler(LibraryHandler):
         super().__init__()
 
     @property
-    def project_reference(self) -> typing.Dict:
-        return {"type": "project_index", "project_path": str(self.__project_path)}
-
-    @property
     def _project_path(self) -> pathlib.Path:
         return self.__project_path
 
@@ -471,7 +466,7 @@ class FileLibraryHandler(LibraryHandler):
 
     def _read_properties(self) -> typing.Dict:
         properties = dict()
-        if self.__project_path and os.path.exists(self.__project_path):
+        if self.__project_path and self.__project_path.exists():
             try:
                 with self.__project_path.open("r") as fp:
                     properties = json.load(fp)
@@ -506,6 +501,17 @@ class FileLibraryHandler(LibraryHandler):
 
     def _is_storage_handler_large_format(self, storage_handler) -> bool:
         return isinstance(storage_handler, HDF5Handler.HDF5Handler)
+
+    def _create_work_project_files(self) -> typing.Dict:
+        project_path = self.__project_path.parent / "Work.nsproj"
+        suffix = str()
+        if project_path.exists():
+            suffix = f" {datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            project_path =  self.__project_path.parent / f"Work{suffix}.nsproj"
+        logging.getLogger("loader").warning(f"Created work project {project_path.parent / project_path.stem}")
+        project_data_json = json.dumps({"version": PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": [f"Work Data{suffix}"]})
+        project_path.write_text(project_data_json, "utf-8")
+        return {"type": "project_index", "uuid": str(uuid.uuid4()), "project_path": str(project_path)}
 
     def _prune(self) -> None:
         trash_dir = self.__project_data_path / "trash"
@@ -704,10 +710,6 @@ class MemoryLibraryHandler(LibraryHandler):
         self.__trash_map = trash_map if trash_map is not None else dict()
         super().__init__()
         self._test_data_read_event = data_read_event or Event.Event()
-
-    @property
-    def project_reference(self) -> typing.Dict:
-        return { "type": "memory" }
 
     @property
     def library_properties(self) -> typing.Dict:
@@ -976,6 +978,7 @@ class FileStorageSystem:
         self.__write_delay_count -= 1
         if self.__write_delay_count == 0:
             self.__write_properties(None)
+
 
 def make_library_handler(profile_context, d: typing.Dict) -> typing.Optional[LibraryHandler]:
     if d.get("type") == "project_index":

@@ -52,7 +52,7 @@ def memory_usage_resource():
 
 class TempProfileContext:
 
-    def __init__(self, base_directory: pathlib.Path):
+    def __init__(self, base_directory: pathlib.Path, no_remove: bool = False):
         self.workspace_dir = base_directory / "__Test"
         self.profiles_dir = base_directory / "__Test" / "Profiles"
         self.projects_dir = base_directory / "__Test" / "Projects"
@@ -62,6 +62,7 @@ class TempProfileContext:
         Cache.db_make_directory_if_needed(self.profiles_dir)
         Cache.db_make_directory_if_needed(self.projects_dir)
         self.__profile = None
+        self.__no_remove = no_remove
 
     def create_profile(self, *, profile_name: str = None, project_name: str = None, project_data_name: str = None) -> Profile.Profile:
         if not self.__profile:
@@ -76,6 +77,7 @@ class TempProfileContext:
             profile.add_project_folder(project_path)
             profile.storage_cache = storage_cache
             profile.storage_system = storage_system
+            profile.work_project_reference_uuid = uuid.UUID(profile.project_references[0].get("uuid"))
             self.__profile = profile
             return profile
         else:
@@ -96,16 +98,18 @@ class TempProfileContext:
         return self
 
     def __exit__(self, type_, value, traceback):
-        # import logging
-        # logging.debug("rmtree %s", self.workspace_dir)
-        shutil.rmtree(self.workspace_dir)
+        if self.__no_remove:
+            import logging
+            logging.debug("rmtree %s", self.workspace_dir)
+        else:
+            shutil.rmtree(self.workspace_dir)
 
 
-def create_temp_profile_context():
-    return TempProfileContext(pathlib.Path.cwd())
+def create_temp_profile_context(no_remove: bool = False) -> TempProfileContext:
+    return TempProfileContext(pathlib.Path.cwd(), no_remove=no_remove)
 
 
-def create_memory_profile_context():
+def create_memory_profile_context() -> Profile.MemoryProfileContext:
     return Profile.MemoryProfileContext()
 
 
@@ -4028,6 +4032,38 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(2, len(display_item.display_data_channels))
                 self.assertEqual(0, display_item.get_display_layer_property(0, "data_index"))
                 self.assertEqual(1, display_item.get_display_layer_property(1, "data_index"))
+
+    def test_work_project_is_created_if_not_found(self):
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.work_project_reference_uuid = None
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+
+    def test_work_project_is_created_if_not_valid(self):
+        with create_temp_profile_context() as profile_context:
+            # create a normal profile
+            profile = profile_context.create_profile()
+            profile.work_project_reference_uuid = None
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+            # corrupt it (old version)
+            work_project_path = pathlib.Path(profile._work_project.project_reference["project_path"])
+            work_project_data_json = json.dumps({"version": 2, "uuid": str(uuid.uuid4())})
+            work_project_path.write_text(work_project_data_json, "utf-8")
+            # load normal profile
+            profile = profile_context.create_profile()
+            profile.work_project_reference_uuid = None
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+            # confirm a new work project was created
+            self.assertNotEqual(work_project_path, pathlib.Path(profile._work_project.project_reference["project_path"]))
 
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
