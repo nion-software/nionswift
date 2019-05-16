@@ -3,6 +3,11 @@
 Hardware Guide
 ==============
 
+There are two API's available for hardware control: high level functions that are device independent are described in
+this document and lower level functions that are more device specific.
+
+If you need lower level functions that are device specific, refer to `Nion Swift Instrumentation <https://nionswift-instrumentation.readthedocs.io/en/latest/>`_.
+
 Instrument Control
 ------------------
 You can access and control instruments, devices, and hardware sources via the instrument control API.

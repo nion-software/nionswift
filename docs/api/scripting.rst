@@ -18,6 +18,8 @@ If you are using ``nionlib`` you may need to add the following lines to your cod
    from nion.data import xdata_1_0 as xd
    api = nionlib.get_api('~1.0')
 
+If you are developing scripts using instrumentation and acquisition, refer to `Nion Swift Instrumentation <https://nionswift-instrumentation.readthedocs.io/en/latest/>`_.
+
 .. contents::
 
 Opening the Python Console
