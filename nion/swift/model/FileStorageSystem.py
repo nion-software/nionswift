@@ -248,7 +248,7 @@ class LibraryHandler:
         return list()
 
     def _migrate_data_item(self, reader_info: ReaderInfo, index: int, count: int) -> typing.Optional[ReaderInfo]:
-        pass
+        return None
 
     def _migrate_library_properties(self, library_properties: typing.Dict, reader_info_list: typing.List[ReaderInfo]) -> None:
         pass
@@ -259,31 +259,58 @@ class LibraryHandler:
         reader_info_list = list()
         library_updates = dict()
         deletions = list()
+
+        # iterate through migration stages from newest to oldest, reading data items, updating them to the latest
+        # version, and copying them to the new library. migration stages are the high level directories representing
+        # different library versions up to 13. after version 13, files are stored in project files which have their own
+        # versioning.
         for migration_stage in self._get_migration_stages():
+
+            # find all data items for the given migration stage and return a list of storage handlers.
+            # examples of storage handlers are NDataHandler and HDF5Handler. these give low level access to the file.
             storage_handlers = self._find_data_items(migration_stage)
-            new_reader_info_list = list()
+
+            # next, construct a list of ReaderInfo objects. ReaderInfo stores the properties portion of the data item,
+            # whether it has been changed during migration, whether it is a large format file, its storage handler,
+            # and an identifier key. this loop skips files that cannot be read but prints an error message.
+            preliminary_reader_info_list = list()
             for storage_handler in storage_handlers:
                 try:
                     large_format = self._is_storage_handler_large_format(storage_handler)
                     properties = Migration.transform_to_latest(storage_handler.read_properties())
                     reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
-                    new_reader_info_list.append(reader_info)
+                    preliminary_reader_info_list.append(reader_info)
                 except Exception as e:
                     logging.debug("Error reading %s", storage_handler.reference)
                     import traceback
                     traceback.print_exc()
                     traceback.print_stack()
+
+            # now read the library properties which contains the data item deletions. data item deletions exist to
+            # facilitate switching between library versions. if the user deletes an item in a newer library, that item
+            # is marked as deleted so that if migration is performed again, that deleted item will not be re-migrated.
             new_library_properties = self._read_library_properties(migration_stage)
             for deletion in copy.deepcopy(new_library_properties.get("data_item_deletions", list())):
                 if not deletion in deletions:
                     deletions.append(deletion)
+
+            # set library properties to one from the first/newest migration stage encountered with library properties.
             if library_properties is None:
                 library_properties = copy.deepcopy(new_library_properties)
+
+            # next, for each item in the list of ReaderInfo objects, migrate it to the latest version. doing this may
+            # produce additional library updates in preliminary_library_updates. these are changes to the library that
+            # must be made in order to move information that at one point was stored in the data item files into the
+            # library. an example is a computation, which was originally stored in the data item file itself.
             preliminary_library_updates = dict()
-            Migration.migrate_to_latest(new_reader_info_list, preliminary_library_updates)
-            count = len(new_reader_info_list)
-            for index, reader_info in enumerate(new_reader_info_list):
-                storage_handler = reader_info.storage_handler
+            Migration.migrate_to_latest(preliminary_reader_info_list, preliminary_library_updates)
+
+            # finally, for each item in the preliminary_reader_info_list, confirm that it is the latest version and then
+            # check whether it has a unique UUID that hasn't been deleted, and, if so, try to copy the data item to its
+            # new location. if successful, mark the data item as having been added to the new library and add any
+            # preliminary library updates to the library updates list to be applied later.
+            count = len(preliminary_reader_info_list)
+            for index, reader_info in enumerate(preliminary_reader_info_list):
                 properties = reader_info.properties
                 try:
                     version = properties.get("version", 0)
@@ -299,13 +326,16 @@ class LibraryHandler:
                                     if library_update:
                                         library_updates[data_item_uuid] = library_update
                 except Exception as e:
-                    logging.debug("Error reading %s", storage_handler.reference)
+                    logging.debug(f"Error reading {reader_info.storage_handler.reference}")
                     import traceback
                     traceback.print_exc()
                     traceback.print_stack()
 
         assert len(reader_info_list) == len(data_item_uuids)
 
+        # for each data item represented by a ReaderInfo object, apply its library updates. this will include
+        # connections, computations, and display items. for instance, before version 13, the data item and display item
+        # were both stored in the data item file; this migrates the display portion to the library properties.
         for reader_info in reader_info_list:
             properties = reader_info.properties
             properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
@@ -323,75 +353,8 @@ class LibraryHandler:
         computations_list = library_properties.get("computations", list())
         assert len(computations_list) == len({computation.get("uuid") for computation in computations_list})
 
-        # migrations
-
-        if library_properties.get("version", 0) < 2:
-            for data_group_properties in library_properties.get("data_groups", list()):
-                data_group_properties.pop("data_groups")
-                display_item_references = data_group_properties.setdefault("display_item_references", list())
-                data_item_uuid_strs = data_group_properties.pop("data_item_uuids", list())
-                for data_item_uuid_str in data_item_uuid_strs:
-                    for display_item_properties in library_properties.get("display_items", list()):
-                        data_item_references = [d.get("data_item_reference", None) for d in display_item_properties.get("display_data_channels", list())]
-                        if data_item_uuid_str in data_item_references:
-                            display_item_references.append(display_item_properties["uuid"])
-            data_item_uuid_to_display_item_uuid_map = dict()
-            data_item_uuid_to_display_item_dict_map = dict()
-            display_to_display_item_map = dict()
-            display_to_display_data_channel_map = dict()
-            for display_item_properties in library_properties.get("display_items", list()):
-                display_to_display_item_map[display_item_properties["display"]["uuid"]] = display_item_properties["uuid"]
-                display_to_display_data_channel_map[display_item_properties["display"]["uuid"]] = display_item_properties["display_data_channels"][0]["uuid"]
-                data_item_references = [d.get("data_item_reference", None) for d in display_item_properties.get("display_data_channels", list())]
-                for data_item_uuid_str in data_item_references:
-                    data_item_uuid_to_display_item_uuid_map.setdefault(data_item_uuid_str, display_item_properties["uuid"])
-                    data_item_uuid_to_display_item_dict_map.setdefault(data_item_uuid_str, display_item_properties)
-                display_item_properties.pop("display", None)
-            for workspace_properties in library_properties.get("workspaces", list()):
-                def replace1(d):
-                    if "children" in d:
-                        for dd in d["children"]:
-                            replace1(dd)
-                    if "data_item_uuid" in d:
-                        data_item_uuid_str = d.pop("data_item_uuid")
-                        display_item_uuid_str = data_item_uuid_to_display_item_uuid_map.get(data_item_uuid_str)
-                        if display_item_uuid_str:
-                            d["display_item_uuid"] = display_item_uuid_str
-                replace1(workspace_properties["layout"])
-            for connection_dict in library_properties.get("connections", list()):
-                source_uuid_str = connection_dict["source_uuid"]
-                if connection_dict["type"] == "interval-list-connection":
-                    connection_dict["source_uuid"] = display_to_display_item_map.get(source_uuid_str, None)
-                if connection_dict["type"] == "property-connection" and connection_dict["source_property"] == "slice_interval":
-                    connection_dict["source_uuid"] = display_to_display_data_channel_map.get(source_uuid_str, None)
-
-            def fix_specifier(specifier_dict):
-                if specifier_dict.get("type") in ("data_item", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
-                    if specifier_dict.get("uuid") in data_item_uuid_to_display_item_dict_map:
-                        specifier_dict["uuid"] = data_item_uuid_to_display_item_dict_map[specifier_dict["uuid"]]["display_data_channels"][0]["uuid"]
-                    else:
-                        specifier_dict.pop("uuid", None)
-                if specifier_dict.get("type") == "data_item":
-                    specifier_dict["type"] = "data_source"
-                if specifier_dict.get("type") == "data_item_object":
-                    specifier_dict["type"] = "data_item"
-                if specifier_dict.get("type") == "region":
-                    specifier_dict["type"] = "graphic"
-
-            for computation_dict in library_properties.get("computations", list()):
-                for variable_dict in computation_dict.get("variables", list()):
-                    if "specifier" in variable_dict:
-                        specifier_dict = variable_dict["specifier"]
-                        if specifier_dict is not None:
-                            fix_specifier(specifier_dict)
-                    if "secondary_specifier" in variable_dict:
-                        specifier_dict = variable_dict["secondary_specifier"]
-                        if specifier_dict is not None:
-                            fix_specifier(specifier_dict)
-                for result_dict in computation_dict.get("results", list()):
-                    fix_specifier(result_dict["specifier"])
-
-            library_properties["version"] = PROJECT_VERSION
+        # migrate the library properties
+        Migration.migrate_library_to_latest(library_properties)
 
         # TODO: add consistency checks: no duplicated items [by uuid] such as connections or computations or data items
 
