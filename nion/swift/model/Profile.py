@@ -35,7 +35,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_property("project_references", list())
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
 
-        self.storage_system = storage_system if storage_system else FileStorageSystem.StorageSystem(FileStorageSystem.MemoryLibraryHandler())
+        self.storage_system = storage_system if storage_system else FileStorageSystem.MemoryPersistentStorageSystem()
 
         if auto_project:
             self.__projects = [Project.Project(FileStorageSystem.MemoryLibraryHandler(), {"type": "memory", "uuid": str(uuid.uuid4())})]
@@ -99,7 +99,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         return self.__work_project
 
     def open(self, document_model):
-        self.storage_system.reset()  # this makes storage reusable during tests
         for project in self.__projects:
             project.open()
         self.__document_model = document_model
@@ -189,7 +188,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
                 project_path.write_text(project_data_json, "utf-8")
                 return {"type": "project_index", "uuid": str(uuid.uuid4()), "project_path": str(project_path)}
 
-            project_path = self.storage_system.storage_system_handler._project_path
+            project_path = self.storage_system.path
             work_project_reference = create_work_project_files(project_path)
 
             if work_project_reference:
@@ -256,7 +255,7 @@ class MemoryProfileContext:
         self.storage_cache = Cache.DictStorageCache()
 
         self.profile_properties = dict()
-        self.__profile_handler = FileStorageSystem.MemoryLibraryHandler(library_properties=self.profile_properties)
+        self.__storage_system = FileStorageSystem.MemoryPersistentStorageSystem(library_properties=self.profile_properties)
 
         self.project_properties = {"version": FileStorageSystem.PROJECT_VERSION}
         self.data_properties_map = dict()
@@ -267,7 +266,7 @@ class MemoryProfileContext:
 
     def create_profile(self) -> Profile:
         if not self.__profile:
-            storage_system = FileStorageSystem.StorageSystem(self.__profile_handler)
+            storage_system = self.__storage_system
             profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
             project_reference_uuid = uuid.uuid4()
             project_reference = {"type": "memory", "uuid": str(project_reference_uuid)}
@@ -278,7 +277,7 @@ class MemoryProfileContext:
             self.__profile = profile
             return profile
         else:
-            storage_system = FileStorageSystem.StorageSystem(self.__profile_handler)
+            storage_system = self.__storage_system
             profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
             profile.storage_system = storage_system
             profile.profile_context = self

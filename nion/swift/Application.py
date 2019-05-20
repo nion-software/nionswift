@@ -245,7 +245,7 @@ class Application(UIApplication.Application):
             logging.getLogger("loader").info(f"Creating new profile {profile_path}")
         else:
             logging.getLogger("loader").info(f"Using existing profile {profile_path}")
-        storage_system = FileStorageSystem.StorageSystem(FileStorageSystem.FileLibraryHandler(profile_path))
+        storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
         cache_path = profile_path.parent / pathlib.Path(profile_path.stem + " Cache").with_suffix(".nscache")
         storage_cache = Cache.DbStorageCache(cache_path)
         return Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False), create_new_profile

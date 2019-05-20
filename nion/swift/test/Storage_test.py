@@ -71,7 +71,7 @@ class TempProfileContext:
             project_path.write_text(project_data_json, "utf-8")
             cache_path = self.profiles_dir / "ProfileCache.cache"
             storage_cache = Cache.DbStorageCache(cache_path)
-            storage_system = FileStorageSystem.StorageSystem(FileStorageSystem.FileLibraryHandler(profile_path))
+            storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
             profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
             profile.add_project_folder(project_path)
             profile.storage_cache = storage_cache
@@ -83,7 +83,7 @@ class TempProfileContext:
             profile_path = self.profiles_dir / pathlib.Path(profile_name or "Profile").with_suffix(".nsprof")
             cache_path = self.profiles_dir / "ProfileCache.cache"
             storage_cache = Cache.DbStorageCache(cache_path)
-            storage_system = FileStorageSystem.StorageSystem(FileStorageSystem.FileLibraryHandler(profile_path))
+            storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
             profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
             profile.storage_cache = storage_cache
             profile.storage_system = storage_system

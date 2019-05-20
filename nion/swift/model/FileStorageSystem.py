@@ -801,7 +801,7 @@ class MemoryLibraryHandler(LibraryHandler):
         self.__data_properties_map.update(data_properties_map)
 
 
-class PersistentStorageSystem(Persistence.PersistentStorageInterface):
+class AbstractPersistentStorageSystem(Persistence.PersistentStorageInterface):
     """A storage system uses a storage system handler to read/write persistent objects and properties from storage."""
 
     def __init__(self):
@@ -955,7 +955,112 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
             self.__write_properties_if_not_delayed(None)
 
 
-class StorageSystem(PersistentStorageSystem):
+class PersistentStorageSystem(AbstractPersistentStorageSystem):
+
+    def __init__(self):
+        super().__init__()
+        self.__properties = self._read_properties()
+        self.__properties_lock = threading.RLock()
+
+    @abc.abstractmethod
+    def _read_properties(self) -> typing.Dict: ...
+
+    @abc.abstractmethod
+    def _write_properties(self) -> None: ...
+
+    def _get_properties(self) -> typing.Dict:
+        return self.__properties
+
+    def _update_modified(self, storage_dict: typing.Dict, object) -> None:
+        with self.__properties_lock:
+            storage_dict["modified"] = object.modified.isoformat()
+
+    def _insert_item(self, storage_dict: typing.Dict, name: str, before_index: int, item) -> None:
+        with self.__properties_lock:
+            item_list = storage_dict.setdefault(name, list())
+            item_dict = item.write_to_dict()
+            item_list.insert(before_index, item_dict)
+
+    def _remove_item(self, storage_dict: typing.Dict, name: str, index: int) -> None:
+        with self.__properties_lock:
+            item_list = storage_dict[name]
+            del item_list[index]
+
+    def _set_item(self, storage_dict: typing.Dict, name: str, item) -> None:
+        with self.__properties_lock:
+            item_dict = item.write_to_dict()
+            storage_dict[name] = item_dict
+
+    def _clear_item(self, storage_dict: typing.Dict, name: str) -> None:
+        with self.__properties_lock:
+            storage_dict.pop(name, None)
+
+    def _set_property(self, storage_dict: typing.Dict, name: str, value) -> None:
+        with self.__properties_lock:
+            storage_dict[name] = value
+
+    def _clear_property(self, storage_dict: typing.Dict, name: str) -> None:
+        with self.__properties_lock:
+            storage_dict.pop(name, None)
+
+    def _set_write_delayed(self, item, write_delayed: bool) -> None:
+        pass
+
+    def _read_library(self) -> typing.Dict:
+        with self.__properties_lock:
+            properties_copy = self._read_properties()
+
+        if properties_copy.get("version", 0) < 1:
+            properties_copy["version"] = PROJECT_VERSION_0_14
+
+        return properties_copy
+
+
+class FilePersistentStorageSystem(PersistentStorageSystem):
+
+    def __init__(self, path: pathlib.Path):
+        self.__path = path
+        super().__init__()
+
+    @property
+    def path(self) -> pathlib.Path:
+        return self.__path
+
+    def _read_properties(self) -> typing.Dict:
+        properties = dict()
+        if self.__path and self.__path.exists():
+            try:
+                with self.__path.open("r") as fp:
+                    properties = json.load(fp)
+            except Exception:
+                os.replace(self.__path, self.__path.with_suffix(".bak"))
+        return properties
+
+    def _write_properties(self) -> None:
+        if self.__path:
+            # atomically overwrite
+            temp_filepath = self.__path.with_suffix(".temp")
+            with temp_filepath.open("w") as fp:
+                properties = Utility.clean_dict(self._get_properties())
+                json.dump(properties, fp)
+            os.replace(temp_filepath, self.__path)
+
+
+class MemoryPersistentStorageSystem(PersistentStorageSystem):
+
+    def __init__(self, *, library_properties: typing.Dict = None):
+        self.__library_properties = library_properties if library_properties is not None else dict()
+        super().__init__()
+
+    def _read_properties(self) -> typing.Dict:
+        return copy.deepcopy(self.__library_properties)
+
+    def _write_properties(self) -> None:
+        self.__library_properties.clear()
+        self.__library_properties.update(copy.deepcopy(self._get_properties()))
+
+
+class StorageSystem(AbstractPersistentStorageSystem):
     """A storage system uses a storage system handler to read/write persistent objects and properties from storage."""
 
     def __init__(self, storage_system_handler: StorageSystemHandlerInterface):
