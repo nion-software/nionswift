@@ -38,7 +38,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.storage_system = storage_system if storage_system else FileStorageSystem.MemoryPersistentStorageSystem()
 
         if auto_project:
-            self.__projects = [Project.Project(FileStorageSystem.MemoryLibraryHandler(), {"type": "memory", "uuid": str(uuid.uuid4())})]
+            self.__projects = [Project.Project(FileStorageSystem.MemoryProjectStorageSystem(), {"type": "memory", "uuid": str(uuid.uuid4())})]
             self.__work_project = self.__projects[0]
         else:
             self.__projects = list()
@@ -87,7 +87,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         return self.__projects
 
     @property
-    def _profile_storage_system(self) -> FileStorageSystem.StorageSystem:
+    def _profile_storage_system(self) -> FileStorageSystem.PersistentStorageSystem:
         return self.storage_system
 
     @property

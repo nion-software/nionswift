@@ -192,8 +192,8 @@ class Application(UIApplication.Application):
                 project_path = pathlib.Path(library_path) / "Project.nsproj"
                 project_data_json = json.dumps({"version": 2, "uuid": str(uuid.uuid4()), "project_data_folders": ["Data"]})
                 project_path.write_text(project_data_json, "utf-8")
-                library_handler = FileStorageSystem.FileLibraryHandler(project_path)
-                library_handler.migrate_to_latest()
+                storage_system = FileStorageSystem.FileProjectStorageSystem(project_path)
+                storage_system.migrate_to_latest()
                 profile.add_project_folder(project_path)
                 # TODO: remove this 'break' once all items can be handled
                 break

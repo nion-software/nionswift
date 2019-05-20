@@ -3196,7 +3196,7 @@ class TestStorageClass(unittest.TestCase):
             profile.read_profile()
             profile.read_projects()
             with contextlib.closing(profile):
-                handler = profile.projects[0]._project_storage_system._library_handler._make_storage_handler(data_item)
+                handler = profile.projects[0]._project_storage_system._make_storage_handler(data_item)
                 handler.write_properties(data_item.write_to_dict(), datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # read the document and migrate

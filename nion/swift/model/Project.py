@@ -21,14 +21,13 @@ class Project:
 
     PROJECT_VERSION = 3
 
-    def __init__(self, library_handler: FileStorageSystem.LibraryHandler, project_reference: typing.Dict):
+    def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystem, project_reference: typing.Dict):
         super().__init__()
 
         self.__project_reference = copy.deepcopy(project_reference)
         self.__project_state = None
 
-        self.__library_handler = library_handler
-        self.__storage_system = FileStorageSystem.ProjectStorageSystem(library_handler)
+        self.__storage_system = storage_system
 
         self.item_loaded_event = Event.Event()
         self.item_unloaded_event = Event.Event()
@@ -40,17 +39,13 @@ class Project:
     @property
     def project_reference_parts(self) -> typing.Tuple[str]:
         if self.__project_reference.get("type") == "legacy_project":
-            return pathlib.Path(self._library_handler._get_identifier()).parent.parts
+            return pathlib.Path(self.__storage_system.get_identifier()).parent.parts
         else:
-            return pathlib.Path(self._library_handler._get_identifier()).parts
+            return pathlib.Path(self.__storage_system.get_identifier()).parts
 
     @property
     def project_state(self) -> str:
         return self.__project_state
-
-    @property
-    def _library_handler(self) -> FileStorageSystem.LibraryHandler:
-        return self.__library_handler
 
     @property
     def _project_storage_system(self) -> FileStorageSystem.ProjectStorageSystem:
@@ -64,7 +59,7 @@ class Project:
 
     def read_project(self) -> None:
         # first read the library (for deletions) and the library items from the primary storage systems
-        logging.getLogger("loader").info(f"Loading project {self.__storage_system._library_handler.get_identifier()}")
+        logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")
         properties = self.__storage_system.read_library()
         if properties.get("version", 0) == FileStorageSystem.PROJECT_VERSION:
             for item_type in ("data_items", "display_items", "data_structures", "connections", "computations"):
@@ -87,7 +82,7 @@ class Project:
 
 
 def make_project(profile_context, project_reference: typing.Dict) -> typing.Optional[Project]:
-    library_handler = FileStorageSystem.make_library_handler(profile_context, project_reference)
-    if library_handler:
-        return Project(library_handler, project_reference)
+    storage_system = FileStorageSystem.make_storage_system(profile_context, project_reference)
+    if storage_system:
+        return Project(storage_system, project_reference)
     return None
