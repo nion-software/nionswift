@@ -1,3 +1,4 @@
+import abc
 import collections
 import copy
 import datetime
@@ -16,6 +17,7 @@ from nion.swift.model import Migration
 from nion.swift.model import NDataHandler
 from nion.swift.model import Utility
 from nion.utils import Event
+from nion.utils import Persistence
 
 
 # define the versions that get stored in the JSON files
@@ -24,6 +26,45 @@ PROJECT_VERSION = 3
 PROJECT_VERSION_0_14 = 2
 
 ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "large_format", "storage_handler", "identifier"])
+
+
+class StorageSystemHandlerInterface(abc.ABC):
+
+    @abc.abstractmethod
+    def reset(self) -> None: ...
+
+    @abc.abstractmethod
+    def write_properties(self) -> None: ...
+
+    @abc.abstractmethod
+    def get_properties(self) -> typing.Dict: ...
+
+    @abc.abstractmethod
+    def update_modified(self, storage_dict: typing.Dict, modified: datetime.datetime) -> None: ...
+
+    @abc.abstractmethod
+    def insert_item(self, storage_dict: typing.Dict, name: str, before_index: int, item) -> None: ...
+
+    @abc.abstractmethod
+    def remove_item(self, storage_dict: typing.Dict, name: str, index: int) -> None: ...
+
+    @abc.abstractmethod
+    def set_item(self, storage_dict: typing.Dict, name: str, item) -> None: ...
+
+    @abc.abstractmethod
+    def clear_item(self, storage_dict: typing.Dict, name: str) -> None: ...
+
+    @abc.abstractmethod
+    def set_property(self, storage_dict: typing.Dict, name: str, value) -> None: ...
+
+    @abc.abstractmethod
+    def clear_property(self, storage_dict: typing.Dict, name: str) -> None: ...
+
+    @abc.abstractmethod
+    def set_write_delayed(self, data_item: DataItem.DataItem, write_delayed: bool) -> None: ...
+
+    @abc.abstractmethod
+    def read_library(self) -> typing.Dict: ...
 
 
 class DataItemStorageAdapter:
@@ -79,7 +120,7 @@ class DataItemStorageAdapter:
         return self.__storage_handler.read_data()
 
 
-class LibraryHandler:
+class LibraryHandler(StorageSystemHandlerInterface):
 
     def __init__(self):
         self.__properties = self._read_properties()
@@ -105,9 +146,6 @@ class LibraryHandler:
     def _is_storage_handler_large_format(self, storage_handler) -> bool:
         return False
 
-    def _create_work_project_files(self) -> typing.Dict:
-        return dict()
-
     def _prune(self) -> None:
         pass
 
@@ -129,8 +167,7 @@ class LibraryHandler:
     def write_properties(self) -> None:
         self._write_properties(self.__properties)
 
-    @property
-    def properties(self) -> typing.Dict:
+    def get_properties(self) -> typing.Dict:
         return self.__properties
 
     @property
@@ -465,17 +502,6 @@ class FileLibraryHandler(LibraryHandler):
     def _is_storage_handler_large_format(self, storage_handler) -> bool:
         return isinstance(storage_handler, HDF5Handler.HDF5Handler)
 
-    def _create_work_project_files(self) -> typing.Dict:
-        project_path = self.__project_path.parent / "Work.nsproj"
-        suffix = str()
-        if project_path.exists():
-            suffix = f" {datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            project_path =  self.__project_path.parent / f"Work{suffix}.nsproj"
-        logging.getLogger("loader").warning(f"Created work project {project_path.parent / project_path.stem}")
-        project_data_json = json.dumps({"version": PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": [f"Work Data{suffix}"]})
-        project_path.write_text(project_data_json, "utf-8")
-        return {"type": "project_index", "uuid": str(uuid.uuid4()), "project_path": str(project_path)}
-
     def _prune(self) -> None:
         trash_dir = self.__project_data_path / "trash"
         for file_path in trash_dir.rglob("*"):
@@ -775,61 +801,80 @@ class MemoryLibraryHandler(LibraryHandler):
         self.__data_properties_map.update(data_properties_map)
 
 
-class FileStorageSystem:
-    """The file storage system which tracks libraries and items within those libraries.
+class PersistentStorageSystem(Persistence.PersistentStorageInterface):
+    """A storage system uses a storage system handler to read/write persistent objects and properties from storage."""
 
-    The JSON-compatible dict for each library is managed by this object. It is loaded and kept in
-    memory and written out when necessary.
-    """
-
-    def __init__(self, library_handler: LibraryHandler):
-        self.__library_handler = library_handler
+    def __init__(self):
         self.__write_delay_counts = dict()
         self.__write_delay_count = 0
 
-    def reset(self):
-        self.__library_handler.reset()
+    @abc.abstractmethod
+    def _write_properties(self) -> None: ...
 
-    def get_auto_migrations(self) -> typing.List:
-        return list()
+    @abc.abstractmethod
+    def _get_properties(self) -> typing.Dict: ...
 
-    @property
-    def _library_handler(self) -> LibraryHandler:
-        return self.__library_handler
+    @abc.abstractmethod
+    def _update_modified(self, storage_dict: typing.Dict, object) -> None: ...
 
-    def __write_properties(self, object):
-        if self.__write_delay_counts.get(object, 0) == 0:
-            persistent_object_parent = object.persistent_object_parent if object else None
-            if object and isinstance(object, DataItem.DataItem):
-                self.__library_handler.rewrite_data_item_properties(object)
-            elif not persistent_object_parent:
-                if self.__write_delay_count == 0:
-                    self.__library_handler.write_properties()
-            else:
-                self.__write_properties(persistent_object_parent.parent)
+    @abc.abstractmethod
+    def _insert_item(self, storage_dict: typing.Dict, name: str, before_index: int, item) -> None: ...
 
-    @property
-    def library_storage_properties(self) -> typing.Dict:
-        """Get the properties; used for testing."""
-        return self.__library_handler.properties_copy
+    @abc.abstractmethod
+    def _remove_item(self, storage_dict: typing.Dict, name: str, index: int) -> None: ...
 
-    def get_properties(self, object):
+    @abc.abstractmethod
+    def _set_item(self, storage_dict: typing.Dict, name: str, item) -> None: ...
+
+    @abc.abstractmethod
+    def _clear_item(self, storage_dict: typing.Dict, name: str) -> None: ...
+
+    @abc.abstractmethod
+    def _set_property(self, storage_dict: typing.Dict, name: str, value) -> None: ...
+
+    @abc.abstractmethod
+    def _clear_property(self, storage_dict: typing.Dict, name: str) -> None: ...
+
+    @abc.abstractmethod
+    def _set_write_delayed(self, item, write_delayed: bool) -> None: ...
+
+    @abc.abstractmethod
+    def _read_library(self) -> typing.Dict: ...
+
+    def __write_properties_if_not_delayed(self, item):
+        if self.__write_delay_counts.get(item, 0) == 0:
+            self._write_item_properties(item)
+
+    def _write_item_properties(self, item):
+        persistent_object_parent = item.persistent_object_parent if item else None
+        if not persistent_object_parent:
+            if self.__write_delay_count == 0:
+                self._write_properties()
+        else:
+            self.__write_properties_if_not_delayed(persistent_object_parent.parent)
+
+    def get_properties(self, object) -> typing.Dict:
         return self.__get_storage_dict(object)
 
-    def __get_storage_dict(self, object):
+    def _get_storage_dict(self, item) -> typing.Optional[typing.Dict]:
+        return None
+
+    def __get_storage_dict(self, item):
         """Return the storage dict for the object. The storage dict is a fragment of the properties dict."""
-        persistent_object_parent = object.persistent_object_parent
-        if isinstance(object, DataItem.DataItem):
-            return self.__library_handler.get_data_item_properties(object)
+        # first give subclasses a chance to handle directly.
+        storage_dict = self._get_storage_dict(item)
+        if storage_dict:
+            return storage_dict
+        persistent_object_parent = item.persistent_object_parent
         if not persistent_object_parent:
-            return self.__library_handler.properties
+            return self._get_properties()
         else:
             parent_storage_dict = self.__get_storage_dict(persistent_object_parent.parent)
-            return object.get_accessor_in_parent()(parent_storage_dict)
+            return item.get_accessor_in_parent()(parent_storage_dict)
 
     def __update_modified_and_get_storage_dict(self, object):
         storage_dict = self.__get_storage_dict(object)
-        self.__library_handler.update_modified(storage_dict, object.modified)
+        self._update_modified(storage_dict, object)
         persistent_object_parent = object.persistent_object_parent
         parent = persistent_object_parent.parent if persistent_object_parent else None
         if parent:
@@ -837,45 +882,227 @@ class FileStorageSystem:
         return storage_dict
 
     def insert_item(self, parent, name: str, before_index: int, item) -> None:
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
+        self._insert_item(storage_dict, name, before_index, item)
+        item.persistent_object_context = parent.persistent_object_context
+        self.__write_properties_if_not_delayed(parent)
+
+    def remove_item(self, parent, name: str, index: int, item) -> None:
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
+        self._remove_item(storage_dict, name, index)
+        self.__write_properties_if_not_delayed(parent)
+        item.persistent_object_context = None
+
+    def set_item(self, parent, name, item):
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
+        if item:
+            self._set_item(storage_dict, name, item)
+            item.persistent_object_context = parent.persistent_object_context
+        else:
+            self._clear_item(storage_dict, name)
+        self.__write_properties_if_not_delayed(parent)
+
+    def set_property(self, object, name, value):
+        storage_dict = self.__update_modified_and_get_storage_dict(object)
+        self._set_property(storage_dict, name, value)
+        self.__write_properties_if_not_delayed(object)
+
+    def clear_property(self, object, name):
+        storage_dict = self.__update_modified_and_get_storage_dict(object)
+        self._clear_property(storage_dict, name)
+        self.__write_properties_if_not_delayed(object)
+
+    def get_storage_property(self, item, name: str) -> typing.Optional[str]:
+        return None
+
+    def read_external_data(self, item, name):
+        return None
+
+    def write_external_data(self, item, name, value) -> None:
+        pass
+
+    def enter_write_delay(self, object) -> None:
+        count = self.__write_delay_counts.setdefault(object, 0)
+        if count == 0:
+            self._set_write_delayed(object, True)
+        self.__write_delay_counts[object] = count + 1
+
+    def exit_write_delay(self, object) -> None:
+        count = self.__write_delay_counts.get(object, 1)
+        count -= 1
+        if count == 0:
+            self._set_write_delayed(object, False)
+            self.__write_delay_counts.pop(object)
+        else:
+            self.__write_delay_counts[object] = count
+
+    def is_write_delayed(self, data_item) -> bool:
+        return self.__write_delay_counts.get(data_item, 0) > 0
+
+    def rewrite_item(self, item) -> None:
+        self.__write_properties_if_not_delayed(item)
+
+    def read_library(self) -> typing.Dict:
+        return self._read_library()
+
+    def enter_transaction(self):
+        self.__write_delay_count += 1
+        return self
+
+    def exit_transaction(self):
+        self.__write_delay_count -= 1
+        if self.__write_delay_count == 0:
+            self.__write_properties_if_not_delayed(None)
+
+
+class StorageSystem(PersistentStorageSystem):
+    """A storage system uses a storage system handler to read/write persistent objects and properties from storage."""
+
+    def __init__(self, storage_system_handler: StorageSystemHandlerInterface):
+        super().__init__()
+        self.__storage_system_handler = storage_system_handler
+        self.__write_delay_counts = dict()
+        self.__write_delay_count = 0
+
+    @property
+    def storage_system_handler(self) -> StorageSystemHandlerInterface:
+        return self.__storage_system_handler
+
+    def reset(self) -> None:
+        self.__storage_system_handler.reset()
+
+    def _write_properties(self) -> None:
+        self.__storage_system_handler.write_properties()
+
+    def _get_properties(self) -> typing.Dict:
+        return self.__storage_system_handler.get_properties()
+
+    def _update_modified(self, storage_dict: typing.Dict, object) -> None:
+        self.__storage_system_handler.update_modified(storage_dict, object.modified)
+
+    def _insert_item(self, storage_dict: typing.Dict, name: str, before_index: int, item) -> None:
+        self.__storage_system_handler.insert_item(storage_dict, name, before_index, item)
+
+    def _remove_item(self, storage_dict: typing.Dict, name: str, index: int) -> None:
+        self.__storage_system_handler.remove_item(storage_dict, name, index)
+
+    def _set_item(self, storage_dict: typing.Dict, name: str, item) -> None:
+        self.__storage_system_handler.set_item(storage_dict, name, item)
+
+    def _clear_item(self, storage_dict: typing.Dict, name: str) -> None:
+        self.__storage_system_handler.clear_item(storage_dict, name)
+
+    def _set_property(self, storage_dict: typing.Dict, name: str, value) -> None:
+        self.__storage_system_handler.set_property(storage_dict, name, value)
+
+    def _clear_property(self, storage_dict: typing.Dict, name: str) -> None:
+        self.__storage_system_handler.clear_property(storage_dict, name)
+
+    def _set_write_delayed(self, item, write_delayed: bool) -> None:
+        self.__storage_system_handler.set_write_delayed(item, write_delayed)
+
+    def _read_library(self) -> typing.Dict:
+        return self.__storage_system_handler.read_library()
+
+
+class ProjectStorageSystemHandlerInterface(StorageSystemHandlerInterface):
+
+    @abc.abstractmethod
+    def get_data_item_properties(self, data_item: DataItem.DataItem) -> typing.Dict: ...
+
+    @abc.abstractmethod
+    def insert_data_item(self, data_item: DataItem.DataItem, is_write_delayed: bool) -> None: ...
+
+    @abc.abstractmethod
+    def delete_data_item(self, data_item: DataItem.DataItem, *, safe: bool=False) -> None: ...
+
+    @abc.abstractmethod
+    def remove_data_item(self, data_item: DataItem.DataItem) -> None: ...
+
+    @abc.abstractmethod
+    def get_data_item_property(self, data_item: DataItem.DataItem, name: str) -> typing.Optional[str]: ...
+
+    @abc.abstractmethod
+    def read_data_item_data(self, data_item: DataItem.DataItem): ...
+
+    @abc.abstractmethod
+    def write_data_item_data(self, data_item: DataItem.DataItem, data) -> None: ...
+
+    @abc.abstractmethod
+    def rewrite_data_item_properties(self, data_item: DataItem.DataItem) -> None: ...
+
+    @abc.abstractmethod
+    def restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]: ...
+
+    @abc.abstractmethod
+    def prune(self) -> None: ...
+
+    @abc.abstractmethod
+    def find_data_items(self) -> typing.List: ...
+
+    @abc.abstractmethod
+    def migrate_to_latest(self) -> None: ...
+
+
+class ProjectStorageSystem(StorageSystem):
+    """Subclass storage system to provide special handling of data items."""
+
+    def __init__(self, storage_system_handler: LibraryHandler):
+        super().__init__(storage_system_handler)
+        self.__library_handler = storage_system_handler
+
+    @property
+    def _library_handler(self) -> LibraryHandler:
+        return self.__library_handler
+
+    def _write_item_properties(self, item):
+        if item and isinstance(item, DataItem.DataItem):
+            self.__library_handler.rewrite_data_item_properties(item)
+        else:
+            super()._write_item_properties(item)
+
+    def _get_storage_dict(self, item) -> typing.Optional[typing.Dict]:
+        if isinstance(item, DataItem.DataItem):
+            return self.__library_handler.get_data_item_properties(item)
+        return super()._get_storage_dict(item)
+
+    def insert_item(self, parent, name: str, before_index: int, item) -> None:
         if isinstance(item, DataItem.DataItem):
             item.persistent_object_context = parent.persistent_object_context
             is_write_delayed = item and self.is_write_delayed(item)
             self.__library_handler.insert_data_item(item, is_write_delayed)
         else:
-            storage_dict = self.__update_modified_and_get_storage_dict(parent)
-            self.__library_handler.insert_item(storage_dict, name, before_index, item)
-            item.persistent_object_context = parent.persistent_object_context
-            self.__write_properties(parent)
+            super().insert_item(parent, name, before_index, item)
 
-    def remove_item(self, parent, name, index, item):
+    def remove_item(self, parent, name: str, index: int, item) -> None:
         if isinstance(item, DataItem.DataItem):
-            self.delete_item(item, safe=True)
+            self.__library_handler.delete_data_item(item, safe=True)
             item.persistent_object_context = None
             self.__library_handler.remove_data_item(item)
         else:
-            storage_dict = self.__update_modified_and_get_storage_dict(parent)
-            self.__library_handler.remove_item(storage_dict, name, index)
-            self.__write_properties(parent)
-            item.persistent_object_context = None
+            super().remove_item(parent, name, index, item)
 
-    def set_item(self, parent, name, item):
-        storage_dict = self.__update_modified_and_get_storage_dict(parent)
-        if item:
-            self.__library_handler.set_item(storage_dict, name, item)
-            item.persistent_object_context = parent.persistent_object_context
+    def get_storage_property(self, item, name: str) -> typing.Optional[str]:
+        if isinstance(item, DataItem.DataItem):
+            return self.__library_handler.get_data_item_property(item, name)
+        return super().get_storage_property(item, name)
+
+    def read_external_data(self, item, name):
+        if isinstance(item, DataItem.DataItem) and name == "data":
+            return self.__library_handler.read_data_item_data(item)
+        return super().read_external_data(item, name)
+
+    def write_external_data(self, item, name, value) -> None:
+        if isinstance(item, DataItem.DataItem) and name == "data":
+            self.__library_handler.write_data_item_data(item, value)
         else:
-            self.__library_handler.clear_item(storage_dict, name)
-        self.__write_properties(parent)
+            super().write_external_data(item, name, value)
 
-    def set_property(self, object, name, value):
-        storage_dict = self.__update_modified_and_get_storage_dict(object)
-        self.__library_handler.set_property(storage_dict, name, value)
-        self.__write_properties(object)
-
-    def clear_property(self, object, name):
-        storage_dict = self.__update_modified_and_get_storage_dict(object)
-        self.__library_handler.clear_property(storage_dict, name)
-        self.__write_properties(object)
+    def rewrite_item(self, item) -> None:
+        if isinstance(item, DataItem.DataItem):
+            self.__library_handler.rewrite_data_item_properties(item)
+        else:
+            super().rewrite_item(item)
 
     def restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
         return self.__library_handler.restore_item(data_item_uuid)
@@ -883,64 +1110,11 @@ class FileStorageSystem:
     def prune(self) -> None:
         self.__library_handler.prune()
 
-    def get_storage_property(self, data_item: DataItem.DataItem, name: str) -> typing.Optional[str]:
-        return self.__library_handler.get_data_item_property(data_item, name)
-
-    def read_external_data(self, item, name):
-        if isinstance(item, DataItem.DataItem) and name == "data":
-            return self.__library_handler.read_data_item_data(item)
-        return None
-
-    def write_external_data(self, item, name, value) -> None:
-        if isinstance(item, DataItem.DataItem) and name == "data":
-            self.__library_handler.write_data_item_data(item, value)
-
-    def delete_item(self, data_item, safe: bool=False) -> None:
-        self.__library_handler.delete_data_item(data_item, safe=safe)
-
-    def enter_write_delay(self, object) -> None:
-        count = self.__write_delay_counts.setdefault(object, 0)
-        if count == 0:
-            self.__library_handler.set_write_delayed(object, True)
-        self.__write_delay_counts[object] = count + 1
-
-    def exit_write_delay(self, object) -> None:
-        count = self.__write_delay_counts.get(object, 1)
-        count -= 1
-        if count == 0:
-            self.__library_handler.set_write_delayed(object, False)
-            self.__write_delay_counts.pop(object)
-        else:
-            self.__write_delay_counts[object] = count
-
-    def is_write_delayed(self, data_item) -> bool:
-        if isinstance(data_item, DataItem.DataItem):
-            return self.__write_delay_counts.get(data_item, 0) > 0
-        return False
-
-    def rewrite_item(self, item) -> None:
-        if isinstance(item, DataItem.DataItem):
-            self.__library_handler.rewrite_data_item_properties(item)
-        else:
-            self.__write_properties(item)
-
     def find_data_items(self) -> typing.List:
         return self.__library_handler.find_data_items()
 
-    def read_library(self) -> typing.Dict:
-        return self.__library_handler.read_library()
-
     def migrate_to_latest(self) -> None:
         self.__library_handler.migrate_to_latest()
-
-    def _enter_transaction(self):
-        self.__write_delay_count += 1
-        return self
-
-    def _exit_transaction(self):
-        self.__write_delay_count -= 1
-        if self.__write_delay_count == 0:
-            self.__write_properties(None)
 
 
 def make_library_handler(profile_context, d: typing.Dict) -> typing.Optional[LibraryHandler]:

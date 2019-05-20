@@ -28,7 +28,7 @@ class Project:
         self.__project_state = None
 
         self.__library_handler = library_handler
-        self.__storage_system = FileStorageSystem.FileStorageSystem(library_handler)
+        self.__storage_system = FileStorageSystem.ProjectStorageSystem(library_handler)
 
         self.item_loaded_event = Event.Event()
         self.item_unloaded_event = Event.Event()
@@ -53,7 +53,7 @@ class Project:
         return self.__library_handler
 
     @property
-    def _project_storage_system(self) -> FileStorageSystem.FileStorageSystem:
+    def _project_storage_system(self) -> FileStorageSystem.ProjectStorageSystem:
         return self.__storage_system
 
     def open(self) -> None:

@@ -1,5 +1,7 @@
 # standard libraries
 import copy
+import datetime
+import json
 import logging
 import pathlib
 import typing
@@ -33,7 +35,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_property("project_references", list())
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
 
-        self.storage_system = storage_system if storage_system else FileStorageSystem.FileStorageSystem(FileStorageSystem.MemoryLibraryHandler())
+        self.storage_system = storage_system if storage_system else FileStorageSystem.StorageSystem(FileStorageSystem.MemoryLibraryHandler())
 
         if auto_project:
             self.__projects = [Project.Project(FileStorageSystem.MemoryLibraryHandler(), {"type": "memory", "uuid": str(uuid.uuid4())})]
@@ -85,11 +87,11 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         return self.__projects
 
     @property
-    def _profile_storage_system(self) -> FileStorageSystem.FileStorageSystem:
+    def _profile_storage_system(self) -> FileStorageSystem.StorageSystem:
         return self.storage_system
 
     @property
-    def _target_project_storage_system(self) -> typing.Optional[FileStorageSystem.FileStorageSystem]:
+    def _target_project_storage_system(self) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         return self.__work_project._project_storage_system if self.__work_project else None
 
     @property
@@ -119,14 +121,14 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             def __enter__(self):
                 self.__profile._profile_storage_system.enter_write_delay(self.__profile)
                 for project in self.__profile.projects:
-                    project._project_storage_system._enter_transaction()
+                    project._project_storage_system.enter_transaction()
                 return self
 
             def __exit__(self, type, value, traceback):
                 self.__profile._profile_storage_system.exit_write_delay(self.__profile)
                 self.__profile._profile_storage_system.rewrite_item(self.__profile)
                 for project in self.__profile.projects:
-                    project._project_storage_system._exit_transaction()
+                    project._project_storage_system.exit_transaction()
 
         return Transaction(self)
 
@@ -175,8 +177,21 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         # if existing one cannot be found, attempt to create one
         if not self.__work_project:
-            library_handler = self.storage_system._library_handler
-            work_project_reference = library_handler._create_work_project_files()
+
+            def create_work_project_files(project_path: pathlib.Path) -> typing.Dict:
+                project_path = project_path.parent / "Work.nsproj"
+                suffix = str()
+                if project_path.exists():
+                    suffix = f" {datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    project_path =  project_path.parent / f"Work{suffix}.nsproj"
+                logging.getLogger("loader").warning(f"Created work project {project_path.parent / project_path.stem}")
+                project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": [f"Work Data{suffix}"]})
+                project_path.write_text(project_data_json, "utf-8")
+                return {"type": "project_index", "uuid": str(uuid.uuid4()), "project_path": str(project_path)}
+
+            project_path = self.storage_system.storage_system_handler._project_path
+            work_project_reference = create_work_project_files(project_path)
+
             if work_project_reference:
                 self.add_project_reference(work_project_reference)
                 project = Project.make_project(self.profile_context, work_project_reference)
@@ -252,7 +267,7 @@ class MemoryProfileContext:
 
     def create_profile(self) -> Profile:
         if not self.__profile:
-            storage_system = FileStorageSystem.FileStorageSystem(self.__profile_handler)
+            storage_system = FileStorageSystem.StorageSystem(self.__profile_handler)
             profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
             project_reference_uuid = uuid.uuid4()
             project_reference = {"type": "memory", "uuid": str(project_reference_uuid)}
@@ -263,7 +278,7 @@ class MemoryProfileContext:
             self.__profile = profile
             return profile
         else:
-            storage_system = FileStorageSystem.FileStorageSystem(self.__profile_handler)
+            storage_system = FileStorageSystem.StorageSystem(self.__profile_handler)
             profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
             profile.storage_system = storage_system
             profile.profile_context = self
