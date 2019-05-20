@@ -144,7 +144,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def read_profile(self) -> None:
         # read the properties from the storage system
-        properties = self.storage_system.read_library()
+        properties = self.storage_system.read_properties()
 
         # if the properties match the current version, read the properties.
         if properties.get("version", 0) == FileStorageSystem.PROFILE_VERSION:
@@ -266,18 +266,19 @@ class MemoryProfileContext:
 
     def create_profile(self) -> Profile:
         if not self.__profile:
-            storage_system = self.__storage_system
-            profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
             project_reference_uuid = uuid.uuid4()
             project_reference = {"type": "memory", "uuid": str(project_reference_uuid)}
-            profile.add_project_reference(project_reference)
+            library_properties = {"version": FileStorageSystem.PROFILE_VERSION, "project_references": [project_reference], "work_project_reference_uuid": str(project_reference_uuid)}
+            storage_system = self.__storage_system
+            storage_system.set_library_properties(library_properties)
+            profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
             profile.storage_system = storage_system
             profile.profile_context = self
-            profile.work_project_reference_uuid = project_reference_uuid
             self.__profile = profile
             return profile
         else:
             storage_system = self.__storage_system
+            storage_system.reload_properties()
             profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
             profile.storage_system = storage_system
             profile.profile_context = self

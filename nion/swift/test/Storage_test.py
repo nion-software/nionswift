@@ -66,6 +66,8 @@ class TempProfileContext:
     def create_profile(self, *, profile_name: str = None, project_name: str = None, project_data_name: str = None) -> Profile.Profile:
         if not self.__profile:
             profile_path = self.profiles_dir / pathlib.Path(profile_name or "Profile").with_suffix(".nsprof")
+            profile_json = json.dumps({"version": FileStorageSystem.PROFILE_VERSION, "uuid": str(uuid.uuid4())})
+            profile_path.write_text(profile_json, "utf-8")
             project_path = self.projects_dir / pathlib.Path(project_name or "Project").with_suffix(".nsproj")
             project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": ["Data"]})
             project_path.write_text(project_data_json, "utf-8")
@@ -91,7 +93,7 @@ class TempProfileContext:
 
     @property
     def _file_handlers(self):
-        return FileStorageSystem.FileLibraryHandler._file_handlers
+        return FileStorageSystem.FileProjectStorageSystem._file_handlers
 
     def __enter__(self):
         return self
@@ -645,7 +647,7 @@ class TestStorageClass(unittest.TestCase):
             profile_context.profile_properties['data_groups'][0]['display_item_references'][1] = profile_context.profile_properties['data_groups'][0]['display_item_references'][0]
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
-                self.assertEqual(len(document_model.data_groups[0].display_items), 1)
+                self.assertEqual(1, len(document_model.data_groups[0].display_items))
 
     def test_insert_item_with_transaction(self):
         with create_memory_profile_context() as profile_context:
