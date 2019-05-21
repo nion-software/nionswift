@@ -36,11 +36,11 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
 
         self.storage_system = storage_system if storage_system else FileStorageSystem.MemoryPersistentStorageSystem()
-        self.storage_system.reload_properties()
+        self.storage_system.load_properties()
 
         if auto_project:
             project_storage_system = FileStorageSystem.MemoryProjectStorageSystem()
-            project_storage_system.reload_properties()
+            project_storage_system.load_properties()
             self.__projects = [Project.Project(project_storage_system, {"type": "memory", "uuid": str(uuid.uuid4())})]
             self.__work_project = self.__projects[0]
         else:
@@ -259,7 +259,7 @@ class MemoryProfileContext:
 
         self.profile_properties = dict()
         self.__storage_system = FileStorageSystem.MemoryPersistentStorageSystem(library_properties=self.profile_properties)
-        self.__storage_system.reload_properties()
+        self.__storage_system.load_properties()
 
         self.project_properties = {"version": FileStorageSystem.PROJECT_VERSION}
         self.data_properties_map = dict()
@@ -282,7 +282,7 @@ class MemoryProfileContext:
             return profile
         else:
             storage_system = self.__storage_system
-            storage_system.reload_properties()
+            storage_system.load_properties()
             profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
             profile.storage_system = storage_system
             profile.profile_context = self

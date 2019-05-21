@@ -29,15 +29,7 @@ ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", 
 
 
 class DataItemStorageAdapter:
-    """Persistent storage for writing data item properties, relationships, and data to its storage handler.
-
-    The storage_handler must respond to these methods:
-        close()
-        read_data()
-        write_properties(properties, file_datetime)
-        write_data(data, file_datetime)
-        remove()
-    """
+    """Persistent storage for writing data item properties, relationships, and data to its storage handler."""
 
     def __init__(self, storage_handler, properties):
         self.__storage_handler = storage_handler
@@ -191,62 +183,49 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem") -> 
     source_project_storage_system._migrate_library_properties(library_properties, reader_info_list)
 
 
-class AbstractPersistentStorageSystem(Persistence.PersistentStorageInterface):
-    """A storage system uses a storage system handler to read/write persistent objects and properties from storage."""
+class PersistentStorageSystem(Persistence.PersistentStorageInterface):
+    """Abstract base class for persistent storage which implements the persistent storage interface.
+
+    Subclasses must implement _read_properties and _write_properties to read/write to persistent storage.
+
+    The `load_properties` method must be called after instantiating the subclass.
+    """
 
     def __init__(self):
+        super().__init__()
+        self.__properties = dict()
+        self.__properties_lock = threading.RLock()
         self.__write_delay_counts = dict()
         self.__write_delay_count = 0
 
     @abc.abstractmethod
-    def _write_properties(self) -> None: ...
-    """Write internal properties, retrieved using _get_properties, to persistent storage."""
+    def _write_properties(self) -> None:
+        """Write internal properties, retrieved using _get_properties, to persistent storage."""
+        ...
 
     @abc.abstractmethod
-    def _get_properties(self) -> typing.Dict: ...
-    """Return the internal properties. Callers should not modify and it is ok to not return a copy."""
+    def _read_properties(self) -> typing.Dict:
+        """Read internal properties from persistent storage."""
+        ...
 
-    @abc.abstractmethod
-    def _read_properties(self) -> typing.Dict: ...
-    """Read internal properties from persistent storage."""
+    def load_properties(self) -> None:
+        """Read properties and store them in internal storage. Should be called immediately after instantiation."""
+        with self.__properties_lock:
+            self.__properties = self._read_properties()
 
-    @abc.abstractmethod
-    def _update_modified(self, storage_dict: typing.Dict, object) -> None: ...
-    """Update modified time on object in internal storage."""
+    def _get_properties(self) -> typing.Dict:
+        """Return the internal properties. Callers should not modify and it is ok to not return a copy."""
+        return self.__properties
 
-    @abc.abstractmethod
-    def _insert_item(self, storage_dict: typing.Dict, name: str, before_index: int, item) -> None: ...
-    """Insert item in internal storage."""
+    def _set_write_delayed(self, item, write_delayed: bool) -> None:
+        """Set item to have write delay state in internal storage."""
+        pass
 
-    @abc.abstractmethod
-    def _remove_item(self, storage_dict: typing.Dict, name: str, index: int) -> None: ...
-    """Remove item from internal storage."""
-
-    @abc.abstractmethod
-    def _set_item(self, storage_dict: typing.Dict, name: str, item) -> None: ...
-    """Set item in internal storage."""
-
-    @abc.abstractmethod
-    def _clear_item(self, storage_dict: typing.Dict, name: str) -> None: ...
-    """Clear item in internal storage."""
-
-    @abc.abstractmethod
-    def _set_property(self, storage_dict: typing.Dict, name: str, value) -> None: ...
-    """Set property in internal storage."""
-
-    @abc.abstractmethod
-    def _clear_property(self, storage_dict: typing.Dict, name: str) -> None: ...
-    """Clear property in internal storage."""
-
-    @abc.abstractmethod
-    def _set_write_delayed(self, item, write_delayed: bool) -> None: ...
-    """Set item to have write delay state in internal storage."""
-
-    def __write_properties_if_not_delayed(self, item):
+    def __write_properties_if_not_delayed(self, item) -> None:
         if self.__write_delay_counts.get(item, 0) == 0:
             self._write_item_properties(item)
 
-    def _write_item_properties(self, item):
+    def _write_item_properties(self, item) -> None:
         persistent_object_parent = item.persistent_object_parent if item else None
         if not persistent_object_parent:
             if self.__write_delay_count == 0:
@@ -260,7 +239,7 @@ class AbstractPersistentStorageSystem(Persistence.PersistentStorageInterface):
     def _get_storage_dict(self, item) -> typing.Optional[typing.Dict]:
         return None
 
-    def __get_storage_dict(self, item):
+    def __get_storage_dict(self, item) -> typing.Dict:
         """Return the storage dict for the object. The storage dict is a fragment of the properties dict."""
         # first give subclasses a chance to handle directly.
         storage_dict = self._get_storage_dict(item)
@@ -273,9 +252,11 @@ class AbstractPersistentStorageSystem(Persistence.PersistentStorageInterface):
             parent_storage_dict = self.__get_storage_dict(persistent_object_parent.parent)
             return item.get_accessor_in_parent()(parent_storage_dict)
 
-    def __update_modified_and_get_storage_dict(self, object):
+    def __update_modified_and_get_storage_dict(self, object) -> typing.Dict:
+        # update modified time on object and all parent objects in internal storage
         storage_dict = self.__get_storage_dict(object)
-        self._update_modified(storage_dict, object)
+        with self.__properties_lock:
+            storage_dict["modified"] = object.modified.isoformat()
         persistent_object_parent = object.persistent_object_parent
         parent = persistent_object_parent.parent if persistent_object_parent else None
         if parent:
@@ -283,43 +264,57 @@ class AbstractPersistentStorageSystem(Persistence.PersistentStorageInterface):
         return storage_dict
 
     def insert_item(self, parent, name: str, before_index: int, item) -> None:
+        # insert item in internal storage
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
-        self._insert_item(storage_dict, name, before_index, item)
+        with self.__properties_lock:
+            item_list = storage_dict.setdefault(name, list())
+            item_list.insert(before_index, item.write_to_dict())
         item.persistent_object_context = parent.persistent_object_context
         self.__write_properties_if_not_delayed(parent)
 
     def remove_item(self, parent, name: str, index: int, item) -> None:
+        # remove item from internal storage
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
-        self._remove_item(storage_dict, name, index)
+        with self.__properties_lock:
+            item_list = storage_dict[name]
+            del item_list[index]
         self.__write_properties_if_not_delayed(parent)
         item.persistent_object_context = None
 
-    def set_item(self, parent, name, item):
+    def set_item(self, parent, name: str, item) -> None:
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         if item:
-            self._set_item(storage_dict, name, item)
+            # set the item and update its persistent context
+            with self.__properties_lock:
+                storage_dict[name] = item.write_to_dict()
             item.persistent_object_context = parent.persistent_object_context
         else:
-            self._clear_item(storage_dict, name)
+            # clear the item
+            with self.__properties_lock:
+                storage_dict.pop(name, None)
         self.__write_properties_if_not_delayed(parent)
 
-    def set_property(self, object, name, value):
+    def set_property(self, object, name: str, value) -> None:
+        # set property in internal storage
         storage_dict = self.__update_modified_and_get_storage_dict(object)
-        self._set_property(storage_dict, name, value)
+        with self.__properties_lock:
+            storage_dict[name] = value
         self.__write_properties_if_not_delayed(object)
 
-    def clear_property(self, object, name):
+    def clear_property(self, object, name: str) -> None:
+        # clear property in internal storage
         storage_dict = self.__update_modified_and_get_storage_dict(object)
-        self._clear_property(storage_dict, name)
+        with self.__properties_lock:
+            storage_dict.pop(name, None)
         self.__write_properties_if_not_delayed(object)
 
     def get_storage_property(self, item, name: str) -> typing.Optional[str]:
         return None
 
-    def read_external_data(self, item, name):
+    def read_external_data(self, item, name: str) -> typing.Any:
         return None
 
-    def write_external_data(self, item, name, value) -> None:
+    def write_external_data(self, item, name: str, value) -> None:
         pass
 
     def enter_write_delay(self, object) -> None:
@@ -337,8 +332,8 @@ class AbstractPersistentStorageSystem(Persistence.PersistentStorageInterface):
         else:
             self.__write_delay_counts[object] = count
 
-    def is_write_delayed(self, data_item) -> bool:
-        return self.__write_delay_counts.get(data_item, 0) > 0
+    def is_write_delayed(self, item) -> bool:
+        return self.__write_delay_counts.get(item, 0) > 0
 
     def rewrite_item(self, item) -> None:
         self.__write_properties_if_not_delayed(item)
@@ -346,71 +341,17 @@ class AbstractPersistentStorageSystem(Persistence.PersistentStorageInterface):
     def read_properties(self) -> typing.Dict:
         return self._get_properties()
 
-    def enter_transaction(self):
+    def enter_transaction(self) -> None:
         self.__write_delay_count += 1
-        return self
 
-    def exit_transaction(self):
+    def exit_transaction(self) -> None:
         self.__write_delay_count -= 1
         if self.__write_delay_count == 0:
             self.__write_properties_if_not_delayed(None)
 
 
-class PersistentStorageSystem(AbstractPersistentStorageSystem):
-
-    def __init__(self):
-        super().__init__()
-        self.__properties = dict()
-        self.__properties_lock = threading.RLock()
-
-    def reload_properties(self) -> None:
-        with self.__properties_lock:
-            self.__properties = self._read_properties()
-
-    @property
-    def _properties_lock(self) -> threading.RLock:
-        return self.__properties_lock
-
-    def _get_properties(self) -> typing.Dict:
-        return self.__properties
-
-    def _update_modified(self, storage_dict: typing.Dict, object) -> None:
-        with self.__properties_lock:
-            storage_dict["modified"] = object.modified.isoformat()
-
-    def _insert_item(self, storage_dict: typing.Dict, name: str, before_index: int, item) -> None:
-        with self.__properties_lock:
-            item_list = storage_dict.setdefault(name, list())
-            item_dict = item.write_to_dict()
-            item_list.insert(before_index, item_dict)
-
-    def _remove_item(self, storage_dict: typing.Dict, name: str, index: int) -> None:
-        with self.__properties_lock:
-            item_list = storage_dict[name]
-            del item_list[index]
-
-    def _set_item(self, storage_dict: typing.Dict, name: str, item) -> None:
-        with self.__properties_lock:
-            item_dict = item.write_to_dict()
-            storage_dict[name] = item_dict
-
-    def _clear_item(self, storage_dict: typing.Dict, name: str) -> None:
-        with self.__properties_lock:
-            storage_dict.pop(name, None)
-
-    def _set_property(self, storage_dict: typing.Dict, name: str, value) -> None:
-        with self.__properties_lock:
-            storage_dict[name] = value
-
-    def _clear_property(self, storage_dict: typing.Dict, name: str) -> None:
-        with self.__properties_lock:
-            storage_dict.pop(name, None)
-
-    def _set_write_delayed(self, item, write_delayed: bool) -> None:
-        pass
-
-
 class FilePersistentStorageSystem(PersistentStorageSystem):
+    """File based persistent storage system."""
 
     def __init__(self, path: pathlib.Path):
         self.__path = path
@@ -441,6 +382,7 @@ class FilePersistentStorageSystem(PersistentStorageSystem):
 
 
 class MemoryPersistentStorageSystem(PersistentStorageSystem):
+    """File based persistent storage system. Useful for testing."""
 
     def __init__(self, *, library_properties: typing.Dict = None):
         self.__library_properties = library_properties if library_properties is not None else dict()
@@ -456,16 +398,14 @@ class MemoryPersistentStorageSystem(PersistentStorageSystem):
     def set_library_properties(self, library_properties: typing.Dict) -> None:
         self.__library_properties.clear()
         self.__library_properties.update(library_properties)
-        self.reload_properties()
+        self.load_properties()
 
 
 class ProjectStorageSystem(PersistentStorageSystem):
-    """Subclass storage system to provide special handling of data items."""
+    """Persistent storage system to provide special handling of data items."""
 
     def __init__(self):
         super().__init__()
-        self.__write_delay_counts = dict()
-        self.__write_delay_count = 0
         self.__storage_adapter_map = dict()
 
     @abc.abstractmethod
@@ -513,34 +453,6 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
     def reset(self) -> None:
         self.__storage_adapter_map = dict()
-
-    def _insert_item(self, storage_dict: typing.Dict, name: str, before_index: int, item) -> None:
-        with self._properties_lock:
-            item_list = storage_dict.setdefault(name, list())
-            item_dict = item.write_to_dict()
-            item_list.insert(before_index, item_dict)
-
-    def _remove_item(self, storage_dict: typing.Dict, name: str, index: int) -> None:
-        with self._properties_lock:
-            item_list = storage_dict[name]
-            del item_list[index]
-
-    def _set_item(self, storage_dict: typing.Dict, name: str, item) -> None:
-        with self._properties_lock:
-            item_dict = item.write_to_dict()
-            storage_dict[name] = item_dict
-
-    def _clear_item(self, storage_dict: typing.Dict, name: str) -> None:
-        with self._properties_lock:
-            storage_dict.pop(name, None)
-
-    def _set_property(self, storage_dict: typing.Dict, name: str, value) -> None:
-        with self._properties_lock:
-            storage_dict[name] = value
-
-    def _clear_property(self, storage_dict: typing.Dict, name: str) -> None:
-        with self._properties_lock:
-            storage_dict.pop(name, None)
 
     def _set_write_delayed(self, item, write_delayed: bool) -> None:
         storage = self.__storage_adapter_map.get(item.uuid)
@@ -632,12 +544,12 @@ class ProjectStorageSystem(PersistentStorageSystem):
             return self.__get_data_item_property(item, name)
         return super().get_storage_property(item, name)
 
-    def read_external_data(self, item, name):
+    def read_external_data(self, item, name: str) -> typing.Any:
         if isinstance(item, DataItem.DataItem) and name == "data":
             return self.__read_data_item_data(item)
         return super().read_external_data(item, name)
 
-    def write_external_data(self, item, name, value) -> None:
+    def write_external_data(self, item, name: str, value) -> None:
         if isinstance(item, DataItem.DataItem) and name == "data":
             self.__write_data_item_data(item, value)
         else:
@@ -711,8 +623,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         self.__project_path = project_path
         self.__project_data_path = project_data_path
 
-    def reload_properties(self) -> None:
-        super().reload_properties()
+    def load_properties(self) -> None:
+        super().load_properties()
         project_data_folder_paths = list()
         for project_data_folder in self._get_properties().get("project_data_folders", list()):
             project_data_folder_path = pathlib.Path(project_data_folder)
@@ -1049,9 +961,9 @@ def make_storage_system(profile_context, d: typing.Dict) -> typing.Optional[Proj
     if d.get("type") == "project_index":
         project_path = pathlib.Path(d.get("project_path"))
         return FileProjectStorageSystem(project_path)
-    elif d.get("type") == "legacy_project":
-        project_path = pathlib.Path(d.get("project_path"))
-        for project_file, project_dir in FileProjectStorageSystem._get_migration_paths(project_path):
+    elif d.get("type") == "project_folder":
+        project_folder_path = pathlib.Path(d.get("project_folder_path"))
+        for project_file, project_dir in FileProjectStorageSystem._get_migration_paths(project_folder_path):
             if project_file.exists():
                 return FileProjectStorageSystem(project_file)
         return None

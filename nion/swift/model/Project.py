@@ -78,13 +78,13 @@ class Project:
 
     def migrate_to_latest(self) -> None:
         self.__storage_system.migrate_to_latest()
-        self.__storage_system.reload_properties()
+        self.__storage_system.load_properties()
         self.read_project()
 
 
 def make_project(profile_context, project_reference: typing.Dict) -> typing.Optional[Project]:
     project_storage_system = FileStorageSystem.make_storage_system(profile_context, project_reference)
-    project_storage_system.reload_properties()
+    project_storage_system.load_properties()
     if project_storage_system:
         return Project(project_storage_system, project_reference)
     return None
