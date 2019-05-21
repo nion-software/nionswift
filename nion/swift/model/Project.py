@@ -33,12 +33,16 @@ class Project:
         self.item_unloaded_event = Event.Event()
 
     @property
+    def needs_upgrade(self) -> bool:
+        return self.__project_reference.get("type") == "project_folder"
+
+    @property
     def project_reference(self) -> typing.Dict:
         return copy.deepcopy(self.__project_reference)
 
     @property
     def project_reference_parts(self) -> typing.Tuple[str]:
-        if self.__project_reference.get("type") == "legacy_project":
+        if self.__project_reference.get("type") == "project_folder":
             return pathlib.Path(self.__storage_system.get_identifier()).parent.parts
         else:
             return pathlib.Path(self.__storage_system.get_identifier()).parts

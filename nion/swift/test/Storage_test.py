@@ -76,7 +76,7 @@ class TempProfileContext:
             storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
             storage_system.load_properties()
             profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
-            profile.add_project_folder(project_path)
+            profile.add_project_index(project_path)
             profile.storage_cache = storage_cache
             profile.storage_system = storage_system
             profile.work_project_reference_uuid = uuid.UUID(profile.project_references[0].get("uuid"))

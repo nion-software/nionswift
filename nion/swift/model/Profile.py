@@ -237,12 +237,12 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         project_references.append(project_reference)
         self._set_persistent_property_value("project_references", project_references)
 
-    def add_project_folder(self, project_path: pathlib.Path) -> None:
+    def add_project_index(self, project_path: pathlib.Path) -> None:
         project_reference = {"type": "project_index", "uuid": str(uuid.uuid4()), "project_path": str(project_path)}
         self.add_project_reference(project_reference)
 
-    def add_legacy_project_folder(self, project_path: pathlib.Path) -> None:
-        project_reference = {"type": "legacy_project", "uuid": str(uuid.uuid4()), "project_path": str(project_path)}
+    def add_project_folder(self, project_path: pathlib.Path) -> None:
+        project_reference = {"type": "project_folder", "uuid": str(uuid.uuid4()), "project_folder_path": str(project_path)}
         self.add_project_reference(project_reference)
 
     def __append_project(self, project):
