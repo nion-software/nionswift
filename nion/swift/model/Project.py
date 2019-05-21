@@ -60,7 +60,7 @@ class Project:
     def read_project(self) -> None:
         # first read the library (for deletions) and the library items from the primary storage systems
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")
-        properties = self.__storage_system.read_library()
+        properties = self.__storage_system.read_project_properties()  # combines library and data item properties
         if properties.get("version", 0) == FileStorageSystem.PROJECT_VERSION:
             for item_type in ("data_items", "display_items", "data_structures", "connections", "computations"):
                 for item_d in properties.get(item_type, list()):
@@ -78,11 +78,13 @@ class Project:
 
     def migrate_to_latest(self) -> None:
         self.__storage_system.migrate_to_latest()
+        self.__storage_system.reload_properties()
         self.read_project()
 
 
 def make_project(profile_context, project_reference: typing.Dict) -> typing.Optional[Project]:
-    storage_system = FileStorageSystem.make_storage_system(profile_context, project_reference)
-    if storage_system:
-        return Project(storage_system, project_reference)
+    project_storage_system = FileStorageSystem.make_storage_system(profile_context, project_reference)
+    project_storage_system.reload_properties()
+    if project_storage_system:
+        return Project(project_storage_system, project_reference)
     return None

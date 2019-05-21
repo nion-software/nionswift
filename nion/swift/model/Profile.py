@@ -36,9 +36,12 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
 
         self.storage_system = storage_system if storage_system else FileStorageSystem.MemoryPersistentStorageSystem()
+        self.storage_system.reload_properties()
 
         if auto_project:
-            self.__projects = [Project.Project(FileStorageSystem.MemoryProjectStorageSystem(), {"type": "memory", "uuid": str(uuid.uuid4())})]
+            project_storage_system = FileStorageSystem.MemoryProjectStorageSystem()
+            project_storage_system.reload_properties()
+            self.__projects = [Project.Project(project_storage_system, {"type": "memory", "uuid": str(uuid.uuid4())})]
             self.__work_project = self.__projects[0]
         else:
             self.__projects = list()
@@ -256,6 +259,7 @@ class MemoryProfileContext:
 
         self.profile_properties = dict()
         self.__storage_system = FileStorageSystem.MemoryPersistentStorageSystem(library_properties=self.profile_properties)
+        self.__storage_system.reload_properties()
 
         self.project_properties = {"version": FileStorageSystem.PROJECT_VERSION}
         self.data_properties_map = dict()

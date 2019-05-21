@@ -28,45 +28,6 @@ PROJECT_VERSION_0_14 = 2
 ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "large_format", "storage_handler", "identifier"])
 
 
-class StorageSystemHandlerInterface(abc.ABC):
-
-    @abc.abstractmethod
-    def reset(self) -> None: ...
-
-    @abc.abstractmethod
-    def write_properties(self) -> None: ...
-
-    @abc.abstractmethod
-    def get_properties(self) -> typing.Dict: ...
-
-    @abc.abstractmethod
-    def update_modified(self, storage_dict: typing.Dict, modified: datetime.datetime) -> None: ...
-
-    @abc.abstractmethod
-    def insert_item(self, storage_dict: typing.Dict, name: str, before_index: int, item) -> None: ...
-
-    @abc.abstractmethod
-    def remove_item(self, storage_dict: typing.Dict, name: str, index: int) -> None: ...
-
-    @abc.abstractmethod
-    def set_item(self, storage_dict: typing.Dict, name: str, item) -> None: ...
-
-    @abc.abstractmethod
-    def clear_item(self, storage_dict: typing.Dict, name: str) -> None: ...
-
-    @abc.abstractmethod
-    def set_property(self, storage_dict: typing.Dict, name: str, value) -> None: ...
-
-    @abc.abstractmethod
-    def clear_property(self, storage_dict: typing.Dict, name: str) -> None: ...
-
-    @abc.abstractmethod
-    def set_write_delayed(self, data_item: DataItem.DataItem, write_delayed: bool) -> None: ...
-
-    @abc.abstractmethod
-    def read_library(self) -> typing.Dict: ...
-
-
 class DataItemStorageAdapter:
     """Persistent storage for writing data item properties, relationships, and data to its storage handler.
 
@@ -230,37 +191,6 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem") -> 
     source_project_storage_system._migrate_library_properties(library_properties, reader_info_list)
 
 
-class MemoryStorageHandler:
-
-    def __init__(self, uuid, data_properties_map, data_map, data_read_event):
-        self.__uuid = uuid
-        self.__data_properties_map = data_properties_map
-        self.__data_map = data_map
-        self.__data_read_event = data_read_event
-
-    def close(self):
-        self.__uuid = None
-        self.__data_properties_map = None
-        self.__data_map = None
-
-    @property
-    def reference(self):
-        return str(self.__uuid)
-
-    def read_properties(self):
-        return copy.deepcopy(self.__data_properties_map.get(self.__uuid, dict()))
-
-    def read_data(self):
-        self.__data_read_event.fire(self.__uuid)
-        return self.__data_map.get(self.__uuid)
-
-    def write_properties(self, properties, file_datetime):
-        self.__data_properties_map[self.__uuid] = Utility.clean_dict(properties)
-
-    def write_data(self, data, file_datetime):
-        self.__data_map[self.__uuid] = data.copy()
-
-
 class AbstractPersistentStorageSystem(Persistence.PersistentStorageInterface):
     """A storage system uses a storage system handler to read/write persistent objects and properties from storage."""
 
@@ -270,36 +200,47 @@ class AbstractPersistentStorageSystem(Persistence.PersistentStorageInterface):
 
     @abc.abstractmethod
     def _write_properties(self) -> None: ...
+    """Write internal properties, retrieved using _get_properties, to persistent storage."""
 
     @abc.abstractmethod
     def _get_properties(self) -> typing.Dict: ...
+    """Return the internal properties. Callers should not modify and it is ok to not return a copy."""
+
+    @abc.abstractmethod
+    def _read_properties(self) -> typing.Dict: ...
+    """Read internal properties from persistent storage."""
 
     @abc.abstractmethod
     def _update_modified(self, storage_dict: typing.Dict, object) -> None: ...
+    """Update modified time on object in internal storage."""
 
     @abc.abstractmethod
     def _insert_item(self, storage_dict: typing.Dict, name: str, before_index: int, item) -> None: ...
+    """Insert item in internal storage."""
 
     @abc.abstractmethod
     def _remove_item(self, storage_dict: typing.Dict, name: str, index: int) -> None: ...
+    """Remove item from internal storage."""
 
     @abc.abstractmethod
     def _set_item(self, storage_dict: typing.Dict, name: str, item) -> None: ...
+    """Set item in internal storage."""
 
     @abc.abstractmethod
     def _clear_item(self, storage_dict: typing.Dict, name: str) -> None: ...
+    """Clear item in internal storage."""
 
     @abc.abstractmethod
     def _set_property(self, storage_dict: typing.Dict, name: str, value) -> None: ...
+    """Set property in internal storage."""
 
     @abc.abstractmethod
     def _clear_property(self, storage_dict: typing.Dict, name: str) -> None: ...
+    """Clear property in internal storage."""
 
     @abc.abstractmethod
     def _set_write_delayed(self, item, write_delayed: bool) -> None: ...
-
-    @abc.abstractmethod
-    def _read_library(self) -> typing.Dict: ...
+    """Set item to have write delay state in internal storage."""
 
     def __write_properties_if_not_delayed(self, item):
         if self.__write_delay_counts.get(item, 0) == 0:
@@ -405,9 +346,6 @@ class AbstractPersistentStorageSystem(Persistence.PersistentStorageInterface):
     def read_properties(self) -> typing.Dict:
         return self._get_properties()
 
-    def read_library(self) -> typing.Dict:
-        return self._read_library()
-
     def enter_transaction(self):
         self.__write_delay_count += 1
         return self
@@ -422,22 +360,12 @@ class PersistentStorageSystem(AbstractPersistentStorageSystem):
 
     def __init__(self):
         super().__init__()
-        self.__properties = self._read_properties()
+        self.__properties = dict()
         self.__properties_lock = threading.RLock()
-
-    @abc.abstractmethod
-    def _read_properties(self) -> typing.Dict: ...
-
-    @abc.abstractmethod
-    def _write_properties(self) -> None: ...
 
     def reload_properties(self) -> None:
         with self.__properties_lock:
             self.__properties = self._read_properties()
-
-    def read_library(self) -> typing.Dict:
-        self.reload_properties()  # TODO: figure out why this is required
-        return self._read_library()
 
     @property
     def _properties_lock(self) -> threading.RLock:
@@ -481,9 +409,6 @@ class PersistentStorageSystem(AbstractPersistentStorageSystem):
     def _set_write_delayed(self, item, write_delayed: bool) -> None:
         pass
 
-    def _read_library(self) -> typing.Dict:
-        return self._read_properties()
-
 
 class FilePersistentStorageSystem(PersistentStorageSystem):
 
@@ -526,7 +451,7 @@ class MemoryPersistentStorageSystem(PersistentStorageSystem):
 
     def _write_properties(self) -> None:
         self.__library_properties.clear()
-        self.__library_properties.update(copy.deepcopy(self._get_properties()))
+        self.__library_properties.update(self._get_properties())
 
     def set_library_properties(self, library_properties: typing.Dict) -> None:
         self.__library_properties.clear()
@@ -622,7 +547,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         if storage:
             storage.set_write_delayed(item, write_delayed)
 
-    def _read_library(self) -> typing.Dict:
+    def read_project_properties(self) -> typing.Dict:
         """Read data items from the data reference handler and return as a dict.
 
         The dict may contain keys for data_items, display_items, data_structures, connections, and computations.
@@ -782,9 +707,12 @@ class FileProjectStorageSystem(ProjectStorageSystem):
     _file_handlers = [NDataHandler.NDataHandler, HDF5Handler.HDF5Handler]
 
     def __init__(self, project_path: pathlib.Path, project_data_path: pathlib.Path = None):
+        super().__init__()
         self.__project_path = project_path
         self.__project_data_path = project_data_path
-        super().__init__()
+
+    def reload_properties(self) -> None:
+        super().reload_properties()
         project_data_folder_paths = list()
         for project_data_folder in self._get_properties().get("project_data_folders", list()):
             project_data_folder_path = pathlib.Path(project_data_folder)
@@ -990,14 +918,45 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         return storage_handlers
 
 
+class MemoryStorageHandler:
+
+    def __init__(self, uuid, data_properties_map, data_map, data_read_event):
+        self.__uuid = uuid
+        self.__data_properties_map = data_properties_map
+        self.__data_map = data_map
+        self.__data_read_event = data_read_event
+
+    def close(self):
+        self.__uuid = None
+        self.__data_properties_map = None
+        self.__data_map = None
+
+    @property
+    def reference(self):
+        return str(self.__uuid)
+
+    def read_properties(self):
+        return copy.deepcopy(self.__data_properties_map.get(self.__uuid, dict()))
+
+    def read_data(self):
+        self.__data_read_event.fire(self.__uuid)
+        return self.__data_map.get(self.__uuid)
+
+    def write_properties(self, properties, file_datetime):
+        self.__data_properties_map[self.__uuid] = Utility.clean_dict(properties)
+
+    def write_data(self, data, file_datetime):
+        self.__data_map[self.__uuid] = data.copy()
+
+
 class MemoryProjectStorageSystem(ProjectStorageSystem):
 
     def __init__(self, *, library_properties: typing.Dict = None, data_properties_map: typing.Dict = None, data_map: typing.Dict = None, trash_map: typing.Dict = None, data_read_event: Event.Event = None):
+        super().__init__()
         self.__library_properties = library_properties if library_properties is not None else dict()
         self.__data_properties_map = data_properties_map if data_properties_map is not None else dict()
         self.__data_map = data_map if data_map is not None else dict()
         self.__trash_map = trash_map if trash_map is not None else dict()
-        super().__init__()
         self._test_data_read_event = data_read_event or Event.Event()
 
     def _read_properties(self) -> typing.Dict:
@@ -1058,7 +1017,7 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
 
     def _migrate_library_properties(self, library_properties: typing.Dict, reader_info_list: typing.List[ReaderInfo]) -> None:
         self.__library_properties.clear()
-        self.__library_properties.update(copy.deepcopy(library_properties))
+        self.__library_properties.update(library_properties)
 
         data_properties_map = dict()
 

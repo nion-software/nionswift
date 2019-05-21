@@ -74,6 +74,7 @@ class TempProfileContext:
             cache_path = self.profiles_dir / "ProfileCache.cache"
             storage_cache = Cache.DbStorageCache(cache_path)
             storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
+            storage_system.reload_properties()
             profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
             profile.add_project_folder(project_path)
             profile.storage_cache = storage_cache
@@ -86,6 +87,7 @@ class TempProfileContext:
             cache_path = self.profiles_dir / "ProfileCache.cache"
             storage_cache = Cache.DbStorageCache(cache_path)
             storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
+            storage_system.reload_properties()
             profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
             profile.storage_cache = storage_cache
             profile.storage_system = storage_system
