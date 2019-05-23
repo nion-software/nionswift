@@ -5,7 +5,6 @@ import copy
 import datetime
 import functools
 import gettext
-import logging
 import numbers
 import threading
 import time
@@ -313,7 +312,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_item_references = dict()
         self.__computation_queue_lock = threading.RLock()
         self.__computation_pending_queue = list()  # type: typing.List[ComputationQueueItem]
-        self.__computation_active_item = None  # type: ComputationQueueItem
+        self.__computation_active_item = None  # type: typing.Optional[ComputationQueueItem]
         self.define_type("library")
         self.define_relationship("data_items", data_item_factory)
         self.define_relationship("display_items", display_item_factory, insert=self.__inserted_display_item)
@@ -459,13 +458,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 computation.update_script(self._processing_descriptions)
                 self.__computation_changed(computation)
                 computation.bind(self)
-
-    def write_to_dict(self):
-        # this should not be used in regular operation of the application since it is
-        # incredibly inefficient (writing # data items). it is left here, with a warning,
-        #  as a useful debugging tool.
-        logging.warning("Writing library to dict (please report as bug).")
-        return super().write_to_dict()
 
     def close(self):
         # notify listeners
@@ -1360,13 +1352,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def get_flat_data_group_generator(self):
         return DataGroup.get_flat_data_group_generator_in_container(self)
 
-    def get_data_group_by_uuid(self, uuid):
+    def get_data_group_by_uuid(self, uuid: uuid.UUID):
         for data_group in DataGroup.get_flat_data_group_generator_in_container(self):
             if data_group.uuid == uuid:
                 return data_group
         return None
 
-    def get_data_group_or_document_model_by_uuid(self, uuid) -> typing.Optional[typing.Union["DocumentModel", DataGroup.DataGroup]]:
+    def get_data_group_or_document_model_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[typing.Union["DocumentModel", DataGroup.DataGroup]]:
         if self.uuid == uuid:
             return self
         for data_group in DataGroup.get_flat_data_group_generator_in_container(self):
@@ -1377,18 +1369,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def get_data_item_count(self):
         return len(list(self.get_flat_data_item_generator()))
 
-    # temporary method to find the container of a data item. this goes away when
-    # data items get stored in a flat table.
-    def get_data_item_data_group(self, data_item):
-        for data_group in self.get_flat_data_group_generator():
-            if data_item in DataGroup.get_flat_data_item_generator_in_container(data_group):
-                return data_group
-        return None
-
     # access data item by key (title, uuid, index)
     def get_data_item_by_key(self, key):
         if isinstance(key, numbers.Integral):
-            return list(self.get_flat_data_item_generator())[key]
+            return list(self.get_flat_data_item_generator())[int(key)]
         if isinstance(key, uuid.UUID):
             return self.get_data_item_by_uuid(key)
         return self.get_data_item_by_title(str(key))
@@ -1906,6 +1890,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 def list_item_removed(self, object) -> typing.List[dict]:
                     base_objects = self.base_objects
                     if object in base_objects:
+                        index = 0
                         for index, bound_item in enumerate(self.__bound_items):
                             for base_object in bound_item.base_objects:
                                 if base_object in base_objects:
@@ -2429,7 +2414,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def make_data_item_with_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
         return self.__make_computation(processing_id, inputs, region_list_map)
 
-    def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None, parameters: typing.Mapping[str, typing.Any]=None) -> DataItem.DataItem:
+    def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None, parameters: typing.Mapping[str, typing.Any]=None) -> typing.Optional[DataItem.DataItem]:
         """Create a new data item with computation specified by processing_id, inputs, and region_list_map.
 
         The region_list_map associates a list of graphics corresponding to the required regions with a computation source (key).
@@ -2685,7 +2670,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     @classmethod
     def unregister_processing_descriptions(cls, processing_ids: typing.Sequence[str]):
-        assert len(set(cls.__get_builtin_processing_descriptions().keys()).intersection(set(processing_ids))) == len(processing_ids)
+        assert len(set(cls._processing_descriptions.keys()).intersection(set(processing_ids))) == len(processing_ids)
         for processing_id in processing_ids:
             cls._processing_descriptions.pop(processing_id)
 
