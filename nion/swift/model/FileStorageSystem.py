@@ -239,6 +239,16 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
     def _get_storage_dict(self, item) -> typing.Optional[typing.Dict]:
         return None
 
+    def __get_item_accessor_in_parent(self, item) -> typing.Optional[typing.Callable[[typing.Dict], typing.Dict]]:
+        persistent_object_parent = item.persistent_object_parent
+        assert persistent_object_parent
+        if persistent_object_parent.item_name:
+            return lambda storage_dict: storage_dict.get(persistent_object_parent.item_name, dict())
+        if persistent_object_parent.relationship_name:
+            index = getattr(persistent_object_parent.parent, persistent_object_parent.relationship_name).index(item)
+            return lambda storage_dict: storage_dict[persistent_object_parent.relationship_name][index]
+        return None
+
     def __get_storage_dict(self, item) -> typing.Dict:
         """Return the storage dict for the object. The storage dict is a fragment of the properties dict."""
         # first give subclasses a chance to handle directly.
@@ -250,7 +260,7 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
             return self._get_properties()
         else:
             parent_storage_dict = self.__get_storage_dict(persistent_object_parent.parent)
-            return item.get_accessor_in_parent()(parent_storage_dict)
+            return self.__get_item_accessor_in_parent(item)(parent_storage_dict)
 
     def __update_modified_and_get_storage_dict(self, object) -> typing.Dict:
         # update modified time on object and all parent objects in internal storage
