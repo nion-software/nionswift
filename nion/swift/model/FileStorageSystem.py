@@ -641,7 +641,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
             if not project_data_folder_path.is_absolute():
                 project_data_folder_path = self.__project_path.parent / project_data_folder_path
             project_data_folder_paths.append(project_data_folder_path)
-        self.__project_data_path = project_data_folder_paths[0] if len(project_data_folder_paths) > 0 else None
+        self.__project_data_path = project_data_folder_paths[0] if len(project_data_folder_paths) > 0 else self.__project_data_path
 
     @property
     def project_path(self) -> pathlib.Path:
@@ -975,13 +975,13 @@ def make_storage_system(profile_context, d: typing.Dict) -> typing.Optional[Proj
         project_folder_path = pathlib.Path(d.get("project_folder_path"))
         for project_file, project_dir in FileProjectStorageSystem._get_migration_paths(project_folder_path):
             if project_file.exists():
-                return FileProjectStorageSystem(project_file)
+                return FileProjectStorageSystem(project_file, project_dir)
         return None
     elif d.get("type") == "memory":
         # the profile context must be valid here.
-        library_properties = profile_context.project_properties
-        data_properties_map = profile_context.data_properties_map
-        data_map = profile_context.data_map
-        trash_map = profile_context.trash_map
+        library_properties = d.get("project_properties", profile_context.project_properties)
+        data_properties_map = d.get("data_properties_map", profile_context.data_properties_map)
+        data_map = d.get("data_map", profile_context.data_map)
+        trash_map = d.get("trash_map", profile_context.trash_map)
         return MemoryProjectStorageSystem(library_properties=library_properties, data_properties_map=data_properties_map, data_map=data_map, trash_map=trash_map)
     return None

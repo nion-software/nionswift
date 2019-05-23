@@ -195,9 +195,9 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             work_project_reference = create_work_project_files(project_path)
 
             if work_project_reference:
-                self.add_project_reference(work_project_reference)
                 project = Project.make_project(self.profile_context, work_project_reference)
                 if project:
+                    self.add_project_reference(work_project_reference)
                     self.__append_project(project)
                     self.work_project_reference_uuid = uuid.UUID(work_project_reference["uuid"])
                     self.__work_project = project
@@ -237,13 +237,26 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         project_references.append(project_reference)
         self._set_persistent_property_value("project_references", project_references)
 
-    def add_project_index(self, project_path: pathlib.Path) -> None:
+    def add_project_index(self, project_path: pathlib.Path) -> typing.Dict:
+        # add a project reference for the project index. does not create or add project.
+        # must be called before read_projects, where project will be created.
         project_reference = {"type": "project_index", "uuid": str(uuid.uuid4()), "project_path": str(project_path)}
         self.add_project_reference(project_reference)
+        return project_reference
 
-    def add_project_folder(self, project_path: pathlib.Path) -> None:
+    def add_project_folder(self, project_path: pathlib.Path) -> typing.Dict:
+        # add a project reference for the project folder. does not create or add project.
+        # must be called before read_projects, where project will be created.
         project_reference = {"type": "project_folder", "uuid": str(uuid.uuid4()), "project_folder_path": str(project_path)}
         self.add_project_reference(project_reference)
+        return project_reference
+
+    def add_project_memory(self) -> typing.Dict:
+        # add a project reference for a memory based project. does not create or add project.
+        # must be called before read_projects, where project will be created.
+        project_reference = {"type": "memory", "uuid": str(uuid.uuid4())}
+        self.add_project_reference(project_reference)
+        return project_reference
 
     def __append_project(self, project):
         self.__projects.append(project)
@@ -261,23 +274,26 @@ class MemoryProfileContext:
         self.__storage_system = FileStorageSystem.MemoryPersistentStorageSystem(library_properties=self.profile_properties)
         self.__storage_system.load_properties()
 
+        # these are used in make_storage_system to populate the memory storage system
+        # an alternative is to provide them in the memory profile reference as keys
         self.project_properties = {"version": FileStorageSystem.PROJECT_VERSION}
         self.data_properties_map = dict()
         self.data_map = dict()
         self.trash_map = dict()
+
         self._test_data_read_event = Event.Event()
         self.__profile = None
 
     def create_profile(self) -> Profile:
         if not self.__profile:
-            project_reference_uuid = uuid.uuid4()
-            project_reference = {"type": "memory", "uuid": str(project_reference_uuid)}
-            library_properties = {"version": FileStorageSystem.PROFILE_VERSION, "project_references": [project_reference], "work_project_reference_uuid": str(project_reference_uuid)}
+            library_properties = {"version": FileStorageSystem.PROFILE_VERSION}
             storage_system = self.__storage_system
             storage_system.set_library_properties(library_properties)
             profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
             profile.storage_system = storage_system
             profile.profile_context = self
+            project_reference_uuid = uuid.UUID(profile.add_project_memory()["uuid"])
+            profile.work_project_reference_uuid = project_reference_uuid
             self.__profile = profile
             return profile
         else:
