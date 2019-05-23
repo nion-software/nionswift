@@ -26,6 +26,7 @@ class Project:
 
         self.__project_reference = copy.deepcopy(project_reference)
         self.__project_state = None
+        self.__project_version = 0
 
         self.__storage_system = storage_system
 
@@ -52,7 +53,11 @@ class Project:
         return self.__project_state
 
     @property
-    def _project_storage_system(self) -> FileStorageSystem.ProjectStorageSystem:
+    def project_version(self) -> int:
+        return self.__project_version
+
+    @property
+    def project_storage_system(self) -> FileStorageSystem.ProjectStorageSystem:
         return self.__storage_system
 
     def open(self) -> None:
@@ -65,7 +70,8 @@ class Project:
         # first read the library (for deletions) and the library items from the primary storage systems
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")
         properties = self.__storage_system.read_project_properties()  # combines library and data item properties
-        if properties.get("version", 0) == FileStorageSystem.PROJECT_VERSION:
+        self.__project_version = properties.get("version", 0)
+        if self.__project_version in (FileStorageSystem.PROJECT_VERSION, 2):
             for item_type in ("data_items", "display_items", "data_structures", "connections", "computations"):
                 for item_d in properties.get(item_type, list()):
                     self.item_loaded_event.fire(item_type, item_d, self.__storage_system)

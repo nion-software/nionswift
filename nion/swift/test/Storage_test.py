@@ -3164,7 +3164,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 0)
-                self.assertEqual(len(document_model.profile.projects[0]._project_storage_system.find_data_items()), 0)
+                self.assertEqual(len(document_model.profile.projects[0].project_storage_system.find_data_items()), 0)
 
     def test_auto_migrate_does_not_overwrite_newer_items(self):
         with create_temp_profile_context() as profile_context:
@@ -3200,7 +3200,7 @@ class TestStorageClass(unittest.TestCase):
             profile.read_profile()
             profile.read_projects()
             with contextlib.closing(profile):
-                handler = profile.projects[0]._project_storage_system._make_storage_handler(data_item)
+                handler = profile.projects[0].project_storage_system._make_storage_handler(data_item)
                 handler.write_properties(data_item.write_to_dict(), datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # read the document and migrate
@@ -3208,7 +3208,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
-                self.assertEqual(len(document_model.profile.projects[0]._project_storage_system.find_data_items()), 1)
+                self.assertEqual(len(document_model.profile.projects[0].project_storage_system.find_data_items()), 1)
                 self.assertEqual("Title", document_model.data_items[0].title)
 
     # there is no defined migration for data item references

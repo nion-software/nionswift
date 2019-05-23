@@ -95,7 +95,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def _target_project_storage_system(self) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
-        return self.__work_project._project_storage_system if self.__work_project else None
+        return self.__work_project.project_storage_system if self.__work_project else None
 
     @property
     def _work_project(self) -> typing.Optional[Project.Project]:
@@ -123,14 +123,14 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             def __enter__(self):
                 self.__profile._profile_storage_system.enter_write_delay(self.__profile)
                 for project in self.__profile.projects:
-                    project._project_storage_system.enter_transaction()
+                    project.project_storage_system.enter_transaction()
                 return self
 
             def __exit__(self, type, value, traceback):
                 self.__profile._profile_storage_system.exit_write_delay(self.__profile)
                 self.__profile._profile_storage_system.rewrite_item(self.__profile)
                 for project in self.__profile.projects:
-                    project._project_storage_system.exit_transaction()
+                    project.project_storage_system.exit_transaction()
 
         return Transaction(self)
 
