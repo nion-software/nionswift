@@ -15,12 +15,10 @@ import weakref
 
 # third party libraries
 import numpy
-import scipy
 
 # local libraries
 from nion.data import Core
 from nion.data import DataAndMetadata
-from nion.data import Image
 from nion.swift.model import ApplicationData
 from nion.swift.model import Connection
 from nion.swift.model import DataGroup
@@ -29,12 +27,10 @@ from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
-from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
-from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Persistence
