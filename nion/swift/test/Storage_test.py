@@ -802,7 +802,7 @@ class TestStorageClass(unittest.TestCase):
                 data_item_uuid = data_item.uuid
                 document_model.remove_data_item(data_item, safe=True)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 self.assertEqual(0, len(document_model.data_items))
                 document_model.restore_data_item(data_item_uuid)

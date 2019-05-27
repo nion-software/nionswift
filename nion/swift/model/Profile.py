@@ -26,6 +26,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def __init__(self, storage_system=None, storage_cache=None, *, auto_project: bool = True):
         super().__init__()
+
         self.define_type("profile")
         self.define_relationship("workspaces", WorkspaceLayout.factory)
         self.define_relationship("data_groups", DataGroup.data_group_factory)
@@ -34,6 +35,9 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
         self.define_property("project_references", list())
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
+
+        self.project_inserted_event = Event.Event()
+        self.project_removed_event = Event.Event()
 
         self.storage_system = storage_system if storage_system else FileStorageSystem.MemoryPersistentStorageSystem()
         self.storage_system.load_properties()
@@ -53,6 +57,9 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         # there is a single shared object context per profile.
         self.persistent_object_context = Persistence.PersistentObjectContext()
         self.persistent_object_context._set_persistent_storage_for_object(self, self.storage_system)
+
+        for project in self.__projects:
+            project.persistent_object_context = self.persistent_object_context
 
         # attach project listeners
         self.__item_loaded_event_listeners = list()
@@ -113,6 +120,8 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.__item_loaded_event_listeners.clear()
         self.__projects_selection_changed_event_listener.close()
         self.__projects_selection_changed_event_listener = None
+        for project in self.__projects:
+            project.close()
 
     def transaction_context(self):
         """Return a context object for a document-wide transaction."""
@@ -134,11 +143,11 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         return Transaction(self)
 
-    def restore_data_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
+    def restore_data_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[DataItem.DataItem]:
         for project in self.__projects:
-            d = project.restore_data_item(data_item_uuid)
-            if d is not None:
-                return d
+            data_item = project.restore_data_item(data_item_uuid)
+            if data_item is not None:
+                return data_item
         return None
 
     def prune(self):
@@ -259,9 +268,12 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         return project_reference
 
     def __append_project(self, project):
+        project.persistent_object_context = self.persistent_object_context
+        project_index = len(self.__projects)
         self.__projects.append(project)
         self.projects_model.value = copy.copy(self.__projects)
         self.__item_loaded_event_listeners.append(project.item_loaded_event.listen(self.__project_item_loaded))
+        self.project_inserted_event.fire(project, project_index)
 
 
 class MemoryProfileContext:

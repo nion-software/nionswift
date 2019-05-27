@@ -173,6 +173,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.uuid = item_uuid if item_uuid else self.uuid
         self.large_format = large_format
         self.__container_weak_ref = None
+        self._document_model = None  # used only for Facade
         self.define_type("data-item")
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.

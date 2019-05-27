@@ -927,7 +927,8 @@ class DataItem(metaclass=SharedInstance):
 
     @property
     def __display_item(self) -> DisplayItemModule.DisplayItem:
-        display_item = self.__data_item.container.get_any_display_item_for_data_item(self.__data_item) if self.__data_item.container else None
+        # TODO: remove data item / document model hack (required to access display items)
+        display_item = self.__data_item._document_model.get_any_display_item_for_data_item(self.__data_item) if self.__data_item.container else None
         return display_item
 
     @property

@@ -2262,7 +2262,7 @@ class DocumentController(Window.Window):
             index = self.__data_item_index
             for data_item in self.__data_items:
                 if not document_model.get_data_item_by_uuid(data_item.uuid):
-                    document_model.insert_data_item(index, data_item)
+                    document_model.insert_data_item(index, data_item, auto_display=False)
                     self.__data_item_indexes.append(index)
                     index += 1
             if self.__display_panel and self.__data_items:

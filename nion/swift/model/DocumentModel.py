@@ -28,6 +28,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
+from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
 from nion.utils import Event
@@ -103,6 +104,7 @@ class ComputationQueueItem:
         return pending_data_item_merge
 
 
+# TODO: remove
 def data_item_factory(lookup_id):
     data_item_uuid = uuid.UUID(lookup_id("uuid"))
     large_format = lookup_id("__large_format", False)
@@ -259,8 +261,7 @@ class TransactionManager:
 
 
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, Persistence.PersistentObject, DataItem.SessionManager):
-
-    """The document model manages storage and dependencies between data items and other objects.
+    """Manages storage and dependencies between data items and other objects.
 
     The document model provides a dispatcher object which will run tasks in a thread pool.
     """
@@ -293,6 +294,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__profile = profile if profile else Profile.Profile(auto_project=True)
         self.__profile.open(self)
 
+        self.__project_item_inserted_listeners = list()
+        self.__project_item_removed_listeners = list()
+
+        self.__project_inserted_event_listener = self.__profile.project_inserted_event.listen(self.__project_inserted)
+        self.__project_removed_event_listener = self.__profile.project_removed_event.listen(self.__project_removed)
+
+        for project_index, project in enumerate(self.__profile.projects_model.value):
+            self.__project_inserted(project, project_index)
+
         # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
         # there is a single shared object context per document model. this code establishes that connection.
         self.persistent_object_context = self.__profile.persistent_object_context
@@ -313,8 +323,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_queue_lock = threading.RLock()
         self.__computation_pending_queue = list()  # type: typing.List[ComputationQueueItem]
         self.__computation_active_item = None  # type: typing.Optional[ComputationQueueItem]
+        self.__data_items = list()
         self.define_type("library")
-        self.define_relationship("data_items", data_item_factory)
         self.define_relationship("display_items", display_item_factory, insert=self.__inserted_display_item)
         self.define_relationship("computations", computation_factory, insert=self.__inserted_computation, remove=self.__removed_computation)
         self.define_relationship("data_structures", data_structure_factory, insert=self.__inserted_data_structure, remove=self.__removed_data_structure)
@@ -354,64 +364,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __prune(self):
         self.__profile.prune()
 
-    def __finish_read(self) -> None:
-        # computations and connections
-        data_items = self.data_items
-        for data_item in data_items:
-            self.__uuid_to_data_item[data_item.uuid] = data_item
-            data_item.about_to_be_inserted(self)
-            data_item.set_storage_cache(self.storage_cache)
-        for data_item in data_items:
-            self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
-        for data_item in data_items:
-            data_item.set_session_manager(self)
-        for display_item in self.display_items:
-            display_item.connect_data_items(self.get_data_item_by_uuid)
-            display_item.set_storage_cache(self.storage_cache)
-        # update the computations now that data items and display items are loaded
-        for computation in self.computations:
-            self.__computation_changed(computation)  # ensure the initial mutation is reported
-        # this loop reestablishes dependencies now that everything is loaded.
-        # the change listener for the computation will already have been established via the regular
-        # loading mechanism; but because some data items may not have been loaded at the first time computation
-        # changed was called (during insert computation), this call is made to update the dependencies.
-        for computation in self.computations:
-            computation.update_script(self._processing_descriptions)
-            self.__computation_changed(computation)
-            computation.bind(self)
-        # initialize data item references
-        data_item_references = self.__profile.data_item_references
-        for key, data_item_uuid in data_item_references.items():
-            data_item = self.get_data_item_by_uuid(data_item_uuid)
-            if data_item:
-                self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, data_item))
-        for data_group in self.data_groups:
-            data_group.connect_display_items(self.get_display_item_by_uuid)
-        # handle the reference variable assignments
-        data_item_variables = self.__profile.data_item_variables
-        new_data_item_variables = dict()
-        for r_var, data_item_uuid_str in data_item_variables.items():
-            data_item_uuid = uuid.UUID(data_item_uuid_str)
-            if data_item_uuid in self.__uuid_to_data_item:
-                new_data_item_variables[r_var] = data_item_uuid_str
-                data_item = self.__uuid_to_data_item[data_item_uuid]
-                data_item.set_r_value(r_var, notify_changed=False)
-        if new_data_item_variables != data_item_variables:
-            self.__profile.data_item_variables = new_data_item_variables
-
     def handle_load_item(self, item_type: str, item_d, storage_system):
-        if item_type == "data_items":
-            data_item = DataItem.DataItem()
-            data_item.begin_reading()
-            data_item.read_from_dict(item_d)
-            data_item.finish_reading()
-            data_item_uuids = {data_item.uuid for data_item in self.data_items}
-            if not data_item.uuid in data_item_uuids:
-                self.persistent_object_context._set_persistent_storage_for_object(data_item, storage_system)
-                before_index = len(self.data_items)
-                self.load_item("data_items", before_index, data_item)
-                self.__finish_load_data_item(before_index, data_item, do_write=False)
-        elif item_type == "display_items":
+        if item_type == "display_items":
             display_item = DisplayItem.DisplayItem()
             display_item.begin_reading()
             display_item.read_from_dict(item_d)
@@ -507,15 +461,22 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         self.__thread_pool.close()
         self.__computation_thread_pool.close()
-        for data_item in self.data_items:
-            data_item.about_to_close()
-        for data_item in self.data_items:
-            data_item.about_to_be_removed()
-        for data_item in self.data_items:
-            data_item.close()
         self.storage_cache.close()
         self.__transaction_manager.close()
         self.__transaction_manager = None
+
+        for project_item_inserted_listener in self.__project_item_inserted_listeners:
+            project_item_inserted_listener.close()
+        self.__project_item_inserted_listeners = list()
+
+        for project_item_removed_listener in self.__project_item_removed_listeners:
+            project_item_removed_listener.close()
+        self.__project_item_removed_listeners = list()
+
+        self.__project_inserted_event_listener.close()
+        self.__project_inserted_event_listener = None
+        self.__project_removed_event_listener.close()
+        self.__project_removed_event_listener = None
 
         self.__profile.close()
         self.__profile = None
@@ -531,6 +492,26 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.undefine_properties()
         self.undefine_items()
         self.undefine_relationships()
+
+    def __project_item_inserted(self, project: Project.Project, name: str, item, before_index: int) -> None:
+        if name == "data_items":
+            self.__handle_data_item_inserted(item)
+
+    def __project_item_removed(self, project: Project.Project, name: str, item, index: int) -> None:
+        if name == "data_items":
+            self.__handle_data_item_removed(item)
+
+    def __project_inserted(self, project: Project.Project, before_index: int) -> None:
+        self.__project_item_inserted_listeners.insert(before_index, project.item_inserted_event.listen(functools.partial(self.__project_item_inserted, project)))
+        self.__project_item_removed_listeners.insert(before_index, project.item_removed_event.listen(functools.partial(self.__project_item_removed, project)))
+
+    def __project_removed(self, project: Project.Project, index: int) -> None:
+        self.__project_item_inserted_listeners.pop(index).close()
+        self.__project_item_removed_listeners.pop(index).close()
+
+    @property
+    def data_items(self) -> typing.List[DataItem.DataItem]:
+        return self.__data_items
 
     @property
     def profile(self) -> Profile.Profile:
@@ -592,40 +573,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.set_data_item_computation(data_item_copy, computation_copy)
         return data_item_copy
 
-    def append_data_item(self, data_item, auto_display: bool = True) -> None:
-        self.insert_data_item(len(self.data_items), data_item, auto_display)
-
-    def insert_data_item(self, before_index, data_item, auto_display: bool = True) -> None:
-        """Insert a new data item into document model.
-
-        This method is NOT threadsafe.
-        """
+    def __handle_data_item_inserted(self, data_item: DataItem.DataItem) -> None:
         assert data_item is not None
         assert data_item not in self.data_items
-        assert before_index <= len(self.data_items) and before_index >= 0
         assert data_item.uuid not in self.__uuid_to_data_item
-        # update the session
-        data_item.session_id = self.session_id
-        # insert in internal list
-        self.__insert_data_item(before_index, data_item, do_write=True)
-        # automatically add a display
-        if auto_display:
-            display_item = DisplayItem.DisplayItem(data_item=data_item)
-            self.append_display_item(display_item)
-
-    def __insert_data_item(self, before_index, data_item, do_write):
-        self.insert_item("data_items", before_index, data_item)
-        self.__finish_load_data_item(before_index, data_item, do_write)
-
-    def __finish_load_data_item(self, before_index, data_item, do_write):
-        self.__uuid_to_data_item[data_item.uuid] = data_item
-        data_item.about_to_be_inserted(self)
+        # data item bookkeeping
         data_item.set_storage_cache(self.storage_cache)
-        if do_write:
-            # don't directly write data item, or else write_pending is not cleared on data item
-            # call finish pending write instead
-            data_item._finish_pending_write()  # initially write to disk
+        # insert in internal list
+        before_index = len(self.__data_items)
+        self.__data_items.append(data_item)
+        self.__uuid_to_data_item[data_item.uuid] = data_item
         self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
+        data_item._document_model = self
         data_item.set_session_manager(self)
         self.data_item_inserted_event.fire(self, data_item, before_index, False)
         self.notify_insert_item("data_items", data_item, before_index)
@@ -637,6 +596,52 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, data_item))
         self.__rebind_computations()  # rebind any unresolved that may now be resolved
         self.__transaction_manager._add_item(data_item)
+
+    def __handle_data_item_removed(self, data_item: DataItem.DataItem) -> None:
+        self.__transaction_manager._remove_item(data_item)
+        assert data_item.uuid in self.__uuid_to_data_item
+        library_computation = self.get_data_item_computation(data_item)
+        with self.__computation_queue_lock:
+            computation_pending_queue = self.__computation_pending_queue
+            self.__computation_pending_queue = list()
+            for computation_queue_item in computation_pending_queue:
+                if not computation_queue_item.data_item is data_item and not computation_queue_item.computation is library_computation:
+                    self.__computation_pending_queue.append(computation_queue_item)
+            if self.__computation_active_item and data_item is self.__computation_active_item.data_item:
+                self.__computation_active_item.valid = False
+        # remove data item from any selections
+        self.data_item_will_be_removed_event.fire(data_item)
+        # remove it from the persistent_storage
+        data_item._document_model = None
+        assert data_item is not None
+        assert data_item in self.data_items
+        index = self.data_items.index(data_item)
+        self.__uuid_to_data_item.pop(data_item.uuid, None)
+        if data_item.r_var:
+            data_item_variables = self.__profile.data_item_variables
+            del data_item_variables[data_item.r_var]
+            self.__profile.data_item_variables = data_item_variables
+            data_item.r_var = None
+        # update data item count
+        for data_item_reference in self.__data_item_references.values():
+            data_item_reference.data_item_removed(data_item)
+        self.__data_items.remove(data_item)
+        self.data_item_removed_event.fire(self, data_item, index, False)
+
+    def append_data_item(self, data_item, auto_display: bool = True) -> None:
+        data_item.session_id = self.session_id
+        self.__profile._work_project.append_data_item(data_item)
+        # automatically add a display
+        if auto_display:
+            display_item = DisplayItem.DisplayItem(data_item=data_item)
+            self.append_display_item(display_item)
+
+    def insert_data_item(self, index: int, data_item, auto_display: bool = True) -> None:
+        uuid_order = list(data_item.uuid for data_item in self.__data_items)
+        self.append_data_item(data_item, auto_display=auto_display)
+        uuid_order.insert(index, data_item.uuid)
+        data_item_map = {data_item.uuid: data_item for data_item in self.__data_items}
+        self.__data_items = [data_item_map[data_item_uuid] for data_item_uuid in uuid_order]
 
     def __rebind_computations(self):
         for computation in self.computations:
@@ -654,56 +659,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # remove data item from any computations
         return self.__cascade_delete(data_item, safe=safe)
 
-    def __remove_data_item(self, data_item, *, safe: bool=False) -> typing.Sequence:
-        undelete_log = list()
-        self.__transaction_manager._remove_item(data_item)
-        assert data_item.uuid in self.__uuid_to_data_item
-        library_computation = self.get_data_item_computation(data_item)
-        with self.__computation_queue_lock:
-            computation_pending_queue = self.__computation_pending_queue
-            self.__computation_pending_queue = list()
-            for computation_queue_item in computation_pending_queue:
-                if not computation_queue_item.data_item is data_item and not computation_queue_item.computation is library_computation:
-                    self.__computation_pending_queue.append(computation_queue_item)
-            if self.__computation_active_item and data_item is self.__computation_active_item.data_item:
-                self.__computation_active_item.valid = False
-        # remove data item from any selections
-        self.data_item_will_be_removed_event.fire(data_item)
-        # tell the data item it is about to be removed
-        data_item.about_to_be_removed()
-        # remove it from the persistent_storage
-        assert data_item is not None
-        assert data_item in self.data_items
-        index = self.data_items.index(data_item)
-
-        self.__uuid_to_data_item.pop(data_item.uuid, None)
-        if data_item.r_var:
-            data_item_variables = self.__profile.data_item_variables
-            del data_item_variables[data_item.r_var]
-            self.__profile.data_item_variables = data_item_variables
-            data_item.r_var = None
-        data_item.__storage_cache = None
-        # update data item count
-        for data_item_reference in self.__data_item_references.values():
-            data_item_reference.data_item_removed(data_item)
-        self.data_item_removed_event.fire(self, data_item, index, False)
-        self.notify_remove_item("data_items", data_item, index)
-
-        self.remove_item("data_items", data_item)
-
-        data_item.close()
-        return undelete_log
-
-    def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int=None) -> DataItem.DataItem:
-        before_index = before_index if before_index is not None else len(self.data_items)
-        properties = self.__profile.restore_data_item(data_item_uuid)
-        data_item = data_item_factory(lambda k, dv=None: properties.get(k, dv))
-        data_item.begin_reading()
-        data_item.read_from_dict(properties)
-        # insert in internal list
-        self.__insert_data_item(before_index, data_item, do_write=False)
-        data_item.finish_reading()
-        return data_item
+    def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int=None) -> typing.Optional[DataItem.DataItem]:
+        return self.__profile.restore_data_item(data_item_uuid)
 
     def deepcopy_display_item(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
         display_item_copy = copy.deepcopy(display_item)
@@ -984,15 +941,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     assert False, "Unable to cascade delete type " + str(type(item))
                 assert name
                 # print(container, name, item)
-                if container is self and name == "data_items":
+                if isinstance(container, Project.Project) and name == "data_items":
                     # call the version of __remove_data_item that doesn't cascade again
                     index = getattr(container, name).index(item)
+                    uuid_order = list(data_item.uuid for data_item in self.__data_items)
                     item_dict = item.write_to_dict()
                     # NOTE: __remove_data_item will notify_remove_item
-                    undelete_log.extend(self.__remove_data_item(item, safe=safe))
-                    undelete_log.append({"type": name, "index": index, "properties": item_dict})
+                    container.remove_data_item(item)
+                    undelete_log.extend(dict())
+                    undelete_log.append({"type": name, "index": index, "order": uuid_order, "properties": item_dict})
                 elif container is self and name == "display_items":
-                    # call the version of __remove_data_item that doesn't cascade again
+                    # call the version of __remove_display_item that doesn't cascade again
                     index = getattr(container, name).index(item)
                     item_dict = item.write_to_dict()
                     # NOTE: __remove_display_item will notify_remove_item
@@ -1027,12 +986,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             properties = entry["properties"]
             if name == "data_items":
                 self.restore_data_item(properties["uuid"], index)
+                data_item_map = {data_item.uuid: data_item for data_item in self.__data_items}
+                self.__data_items = [data_item_map[data_item_uuid] for data_item_uuid in entry["order"]]
             elif name == "display_items":
                 item = DisplayItem.DisplayItem()
                 item.begin_reading()
                 item.read_from_dict(properties)
                 item.finish_reading()
-                self.insert_display_item(index, item)
+                self.insert_display_item(index, item, update_session=False)
             elif name == "computations":
                 item = Symbolic.Computation()
                 item.begin_reading()
