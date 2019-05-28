@@ -104,18 +104,6 @@ class ComputationQueueItem:
         return pending_data_item_merge
 
 
-# TODO: remove
-def data_item_factory(lookup_id):
-    data_item_uuid = uuid.UUID(lookup_id("uuid"))
-    large_format = lookup_id("__large_format", False)
-    return DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
-
-
-def display_item_factory(lookup_id):
-    display_item_uuid = uuid.UUID(lookup_id("uuid"))
-    return DisplayItem.DisplayItem(item_uuid=display_item_uuid)
-
-
 def computation_factory(lookup_id):
     return Symbolic.Computation()
 
@@ -292,6 +280,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_thread_pool = ThreadPool.ThreadPool()
 
         self.__profile = profile if profile else Profile.Profile(auto_project=True)
+        self.__profile.about_to_be_inserted(self)
         self.__profile.open(self)
 
         self.__project_item_inserted_listeners = list()
@@ -324,8 +313,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_pending_queue = list()  # type: typing.List[ComputationQueueItem]
         self.__computation_active_item = None  # type: typing.Optional[ComputationQueueItem]
         self.__data_items = list()
+        self.__display_items = list()
         self.define_type("library")
-        self.define_relationship("display_items", display_item_factory, insert=self.__inserted_display_item)
         self.define_relationship("computations", computation_factory, insert=self.__inserted_computation, remove=self.__removed_computation)
         self.define_relationship("data_structures", data_structure_factory, insert=self.__inserted_data_structure, remove=self.__removed_data_structure)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__inserted_connection, remove=self.__removed_connection)
@@ -365,18 +354,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__profile.prune()
 
     def handle_load_item(self, item_type: str, item_d, storage_system):
-        if item_type == "display_items":
-            display_item = DisplayItem.DisplayItem()
-            display_item.begin_reading()
-            display_item.read_from_dict(item_d)
-            display_item.finish_reading()
-            display_item_uuids = {display_item.uuid for display_item in self.display_items}
-            if not display_item.uuid in display_item_uuids:
-                self.persistent_object_context._set_persistent_storage_for_object(display_item, storage_system)
-                before_index = len(self.display_items)
-                self.load_item("display_items", before_index, display_item)
-                self.__finish_load_display_item(before_index, display_item, update_session=False)
-        elif item_type == "data_structures":
+        if item_type == "data_structures":
             data_structure = DataStructure.DataStructure()
             data_structure.begin_reading()
             data_structure.read_from_dict(item_d)
@@ -496,10 +474,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __project_item_inserted(self, project: Project.Project, name: str, item, before_index: int) -> None:
         if name == "data_items":
             self.__handle_data_item_inserted(item)
+        elif name == "display_items":
+            self.__handle_display_item_inserted(item)
 
     def __project_item_removed(self, project: Project.Project, name: str, item, index: int) -> None:
         if name == "data_items":
             self.__handle_data_item_removed(item)
+        elif name == "display_items":
+            self.__handle_display_item_removed(item)
 
     def __project_inserted(self, project: Project.Project, before_index: int) -> None:
         self.__project_item_inserted_listeners.insert(before_index, project.item_inserted_event.listen(functools.partial(self.__project_item_inserted, project)))
@@ -512,6 +494,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     @property
     def data_items(self) -> typing.List[DataItem.DataItem]:
         return self.__data_items
+
+    @property
+    def display_items(self) -> typing.List[DisplayItem.DisplayItem]:
+        return self.__display_items
 
     @property
     def profile(self) -> Profile.Profile:
@@ -628,7 +614,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_items.remove(data_item)
         self.data_item_removed_event.fire(self, data_item, index, False)
 
-    def append_data_item(self, data_item, auto_display: bool = True) -> None:
+    def append_data_item(self, data_item: DataItem.DataItem, auto_display: bool = True) -> None:
         data_item.session_id = self.session_id
         self.__profile._work_project.append_data_item(data_item)
         # automatically add a display
@@ -636,7 +622,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             display_item = DisplayItem.DisplayItem(data_item=data_item)
             self.append_display_item(display_item)
 
-    def insert_data_item(self, index: int, data_item, auto_display: bool = True) -> None:
+    def insert_data_item(self, index: int, data_item: DataItem.DataItem, auto_display: bool = True) -> None:
         uuid_order = list(data_item.uuid for data_item in self.__data_items)
         self.append_data_item(data_item, auto_display=auto_display)
         uuid_order.insert(index, data_item.uuid)
@@ -681,48 +667,45 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.append_display_item(display_item_copy)
         return display_item_copy
 
-    def append_display_item(self, display_item):
-        self.insert_display_item(len(self.display_items), display_item)
-
-    def insert_display_item(self, before_index, display_item, *, update_session: bool = True):
-        self.insert_item("display_items", before_index, display_item)
-        self.__finish_load_display_item(before_index, display_item, update_session=update_session)
-
-    def __finish_load_display_item(self, before_index, display_item, *, update_session: bool = True):
-        self.display_item_inserted_event.fire(self, display_item, before_index, False)
-        display_item.connect_data_items(self.get_data_item_by_uuid)
-        assert not self._is_reading
+    def append_display_item(self, display_item: DisplayItem.DisplayItem, *, update_session: bool = True) -> None:
         if update_session:
             display_item.session_id = self.session_id
-        self.__rebind_computations()  # rebind any unresolved that may now be resolved
-        self.notify_insert_item("display_items", display_item, before_index)
+        self.__profile._work_project.append_display_item(display_item)
+
+    def insert_display_item(self, before_index: int, display_item: DisplayItem.DisplayItem, *, update_session: bool = True) -> None:
+        uuid_order = list(display_item.uuid for display_item in self.__display_items)
+        self.append_display_item(display_item, update_session=update_session)
+        uuid_order.insert(before_index, display_item.uuid)
+        display_item_map = {display_item.uuid: display_item for display_item in self.__display_items}
+        self.__display_items = [display_item_map[display_item_uuid] for display_item_uuid in uuid_order]
 
     def remove_display_item(self, display_item) -> typing.Optional[typing.Sequence]:
         return self.__cascade_delete(display_item)
 
-    def __inserted_display_item(self, name, before_index, display_item):
-        display_item.about_to_be_inserted(self)
+    def __handle_display_item_inserted(self, display_item: DisplayItem.DisplayItem) -> None:
+        assert display_item is not None
+        assert display_item not in self.__display_items
+        # data item bookkeeping
         display_item.set_storage_cache(self.storage_cache)
+        # insert in internal list
+        before_index = len(self.__display_items)
+        self.__display_items.append(display_item)
+        # send notifications
+        self.display_item_inserted_event.fire(self, display_item, before_index, False)
+        self.notify_insert_item("display_items", display_item, before_index)
+        # connect data items and computations
+        display_item.connect_data_items(self.get_data_item_by_uuid)
+        self.__rebind_computations()  # rebind any unresolved that may now be resolved
 
-    def __remove_display_item(self, display_item, *, safe: bool=False) -> typing.Sequence:
-        undelete_log = list()
-        # remove the data item from any groups
-        for data_group in self.get_flat_data_group_generator():
-            if display_item in data_group.display_items:
-                undelete_log.append({"type": "data_group_entry", "data_group_uuid": data_group.uuid, "properties": None, "index": data_group.display_items.index(display_item), "display_item_uuid": display_item.uuid})
-                data_group.remove_display_item(display_item)
+    def __handle_display_item_removed(self, display_item: DisplayItem.DisplayItem) -> None:
         self.display_item_will_be_removed_event.fire(display_item)
-        # tell the display item it is about to be removed
-        display_item.about_to_be_removed()
         # remove it from the persistent_storage
         assert display_item is not None
-        assert display_item in self.display_items
-        index = self.display_items.index(display_item)
+        assert display_item in self.__display_items
+        index = self.__display_items.index(display_item)
         self.display_item_removed_event.fire(self, display_item, index, False)
         self.notify_remove_item("display_items", display_item, index)
-        self.remove_item("display_items", display_item)
-        display_item.close()
-        return undelete_log
+        self.__display_items.remove(display_item)
 
     def insert_model_item(self, container, name, before_index, item):
         container.insert_item(name, before_index, item)
@@ -942,20 +925,24 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 assert name
                 # print(container, name, item)
                 if isinstance(container, Project.Project) and name == "data_items":
-                    # call the version of __remove_data_item that doesn't cascade again
                     index = getattr(container, name).index(item)
                     uuid_order = list(data_item.uuid for data_item in self.__data_items)
                     item_dict = item.write_to_dict()
-                    # NOTE: __remove_data_item will notify_remove_item
+                    # call the version of remove_data_item that doesn't cascade again
+                    # NOTE: remove_data_item will notify_remove_item
                     container.remove_data_item(item)
-                    undelete_log.extend(dict())
                     undelete_log.append({"type": name, "index": index, "order": uuid_order, "properties": item_dict})
-                elif container is self and name == "display_items":
-                    # call the version of __remove_display_item that doesn't cascade again
+                elif isinstance(container, Project.Project) and name == "display_items":
                     index = getattr(container, name).index(item)
                     item_dict = item.write_to_dict()
-                    # NOTE: __remove_display_item will notify_remove_item
-                    undelete_log.extend(self.__remove_display_item(item, safe=safe))
+                    # remove the data item from any groups
+                    for data_group in self.get_flat_data_group_generator():
+                        if item in data_group.display_items:
+                            undelete_log.append({"type": "data_group_entry", "data_group_uuid": data_group.uuid, "properties": None, "index": data_group.display_items.index(item), "display_item_uuid": item.uuid})
+                            data_group.remove_display_item(item)
+                    # call the version of remove_display_item that doesn't cascade again
+                    # NOTE: remove_display_item will notify_remove_item
+                    container.remove_display_item(item)
                     undelete_log.append({"type": name, "index": index, "properties": item_dict})
                 elif container:
                     container_ref = str(container.uuid)

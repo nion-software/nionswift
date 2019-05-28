@@ -6,6 +6,7 @@ import logging
 import pathlib
 import typing
 import uuid
+import weakref
 
 # local libraries
 from nion.swift.model import Cache
@@ -26,6 +27,8 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def __init__(self, storage_system=None, storage_cache=None, *, auto_project: bool = True):
         super().__init__()
+
+        self.__container_weak_ref = None
 
         self.define_type("profile")
         self.define_relationship("workspaces", WorkspaceLayout.factory)
@@ -60,6 +63,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         for project in self.__projects:
             project.persistent_object_context = self.persistent_object_context
+            project.about_to_be_inserted(self)
 
         # attach project listeners
         self.__item_loaded_event_listeners = list()
@@ -122,6 +126,44 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.__projects_selection_changed_event_listener = None
         for project in self.__projects:
             project.close()
+        self.__container_weak_ref = None
+
+    @property
+    def container(self):
+        return self.__container_weak_ref() if self.__container_weak_ref else None
+
+    def about_to_be_inserted(self, container):
+        assert self.__container_weak_ref is None
+        self.__container_weak_ref = weakref.ref(container)
+
+    def about_to_be_removed(self):
+        # called before close and before item is removed from its container
+        self.about_to_be_removed_event.fire()
+        assert not self._about_to_be_removed
+        self._about_to_be_removed = True
+
+    def insert_model_item(self, container, name, before_index, item):
+        """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
+
+        Passing responsibility to this item's container allows the library to easily track dependencies.
+        However, if this item isn't yet in the library hierarchy, then do the operation directly.
+        """
+        if self.__container_weak_ref:
+            self.container.insert_model_item(container, name, before_index, item)
+        else:
+            container.insert_item(name, before_index, item)
+
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+        """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
+
+        Passing responsibility to this item's container allows the library to easily track dependencies.
+        However, if this item isn't yet in the library hierarchy, then do the operation directly.
+        """
+        if self.__container_weak_ref:
+            return self.container.remove_model_item(container, name, item, safe=safe)
+        else:
+            container.remove_item(name, item)
+            return None
 
     def transaction_context(self):
         """Return a context object for a document-wide transaction."""
@@ -269,6 +311,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def __append_project(self, project):
         project.persistent_object_context = self.persistent_object_context
+        project.about_to_be_inserted(self)
         project_index = len(self.__projects)
         self.__projects.append(project)
         self.projects_model.value = copy.copy(self.__projects)
