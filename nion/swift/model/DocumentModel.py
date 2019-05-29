@@ -33,7 +33,6 @@ from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
 from nion.utils import Event
 from nion.utils import Observable
-from nion.utils import Persistence
 from nion.utils import Recorder
 from nion.utils import ReferenceCounting
 from nion.utils import Selection
@@ -240,7 +239,7 @@ class TransactionManager:
             self.__close_transaction_items(old_items)
 
 
-class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, Persistence.PersistentObject, DataItem.SessionManager):
+class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, DataItem.SessionManager):
     """Manages storage and dependencies between data items and other objects.
 
     The document model provides a dispatcher object which will run tasks in a thread pool.
@@ -274,6 +273,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__profile = profile if profile else Profile.Profile(auto_project=True)
         self.__profile.about_to_be_inserted(self)
         self.__profile.open(self)
+
+        self.uuid = self.__profile.uuid
 
         self.__project_item_inserted_listeners = list()
         self.__project_item_removed_listeners = list()
@@ -309,7 +310,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_structures = list()
         self.__computations = list()
         self.__connections = list()
-        self.define_type("library")
         self.session_id = None
         self.start_new_session()
         self.__prune()
@@ -419,11 +419,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def about_to_delete(self):
         # override from ReferenceCounted. several DocumentControllers may retain references
         self.close()
-        # these are here so that the document model gets garbage collected.
-        # TODO: generalize this behavior into a close method on persistent object
-        self.undefine_properties()
-        self.undefine_items()
-        self.undefine_relationships()
 
     def __project_item_inserted(self, project: Project.Project, name: str, item, before_index: int) -> None:
         if name == "data_items":
@@ -458,6 +453,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__project_item_removed_listeners.pop(index).close()
 
     @property
+    def modified_state(self) -> int:
+        return self.__profile.modified_state
+
+    @modified_state.setter
+    def modified_state(self, value: int) -> None:
+        self.__profile.modified_state = value
+
+    @property
     def data_items(self) -> typing.List[DataItem.DataItem]:
         return self.__data_items
 
@@ -488,16 +491,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     @property
     def projects_selection(self) -> Selection.IndexedSelection:
         return self.__profile.projects_selection
-
-    def _get_persistent_storage_for_new_object(self, object):
-        if isinstance(object, (DataItem.DataItem, DisplayItem.DisplayItem, DataStructure.DataStructure, Connection.Connection, Symbolic.Computation)):
-            return self.__profile._target_project_storage_system
-        return self.__profile._profile_storage_system
-
-    def _get_persistent_storage_for_existing_object(self, object):
-        if isinstance(object, (DataItem.DataItem, DisplayItem.DisplayItem, DataStructure.DataStructure, Connection.Connection, Symbolic.Computation)):
-            return self.__profile._target_project_storage_system
-        return self.__profile._profile_storage_system
 
     @property
     def _s2tm(self):
