@@ -104,14 +104,6 @@ class ComputationQueueItem:
         return pending_data_item_merge
 
 
-def computation_factory(lookup_id):
-    return Symbolic.Computation()
-
-
-def data_structure_factory(lookup_id):
-    return DataStructure.DataStructure()
-
-
 class Transaction:
     def __init__(self, transaction_manager: "TransactionManager", item, items):
         self.__transaction_manager = transaction_manager
@@ -314,10 +306,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_active_item = None  # type: typing.Optional[ComputationQueueItem]
         self.__data_items = list()
         self.__display_items = list()
+        self.__data_structures = list()
+        self.__computations = list()
+        self.__connections = list()
         self.define_type("library")
-        self.define_relationship("computations", computation_factory, insert=self.__inserted_computation, remove=self.__removed_computation)
-        self.define_relationship("data_structures", data_structure_factory, insert=self.__inserted_data_structure, remove=self.__removed_data_structure)
-        self.define_relationship("connections", Connection.connection_factory, insert=self.__inserted_connection, remove=self.__removed_connection)
         self.session_id = None
         self.start_new_session()
         self.__prune()
@@ -352,44 +344,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __prune(self):
         self.__profile.prune()
-
-    def handle_load_item(self, item_type: str, item_d, storage_system):
-        if item_type == "data_structures":
-            data_structure = DataStructure.DataStructure()
-            data_structure.begin_reading()
-            data_structure.read_from_dict(item_d)
-            data_structure.finish_reading()
-            data_structure_uuids = {data_structure.uuid for data_structure in self.data_structures}
-            if not data_structure.uuid in data_structure_uuids:
-                self.persistent_object_context._set_persistent_storage_for_object(data_structure, storage_system)
-                before_index = len(self.data_structures)
-                self.load_item("data_structures", before_index, data_structure)
-                self.__finish_load_data_structure(before_index, data_structure)
-        elif item_type == "connections":
-            connection = Connection.connection_factory(item_d.get)
-            connection.begin_reading()
-            connection.read_from_dict(item_d)
-            connection.finish_reading()
-            connection_uuids = {connection.uuid for connection in self.connections}
-            if not connection.uuid in connection_uuids:
-                self.persistent_object_context._set_persistent_storage_for_object(connection, storage_system)
-                before_index = len(self.connections)
-                self.load_item("connections", before_index, connection)
-                self.__finish_load_connection(before_index, connection)
-        elif item_type == "computations":
-            computation = Symbolic.Computation()
-            computation.begin_reading()
-            computation.read_from_dict(item_d)
-            computation.finish_reading()
-            computation_uuids = {computation.uuid for computation in self.computations}
-            if not computation.uuid in computation_uuids:
-                self.persistent_object_context._set_persistent_storage_for_object(computation, storage_system)
-                before_index = len(self.computations)
-                self.load_item("computations", before_index, computation)
-                self.__finish_load_computation(before_index, computation)
-                computation.update_script(self._processing_descriptions)
-                self.__computation_changed(computation)
-                computation.bind(self)
 
     def close(self):
         # notify listeners
@@ -476,12 +430,24 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__handle_data_item_inserted(item)
         elif name == "display_items":
             self.__handle_display_item_inserted(item)
+        elif name == "data_structures":
+            self.__handle_data_structure_inserted(item)
+        elif name == "computations":
+            self.__handle_computation_inserted(item)
+        elif name == "connections":
+            self.__handle_connection_inserted(item)
 
     def __project_item_removed(self, project: Project.Project, name: str, item, index: int) -> None:
         if name == "data_items":
             self.__handle_data_item_removed(item)
         elif name == "display_items":
             self.__handle_display_item_removed(item)
+        elif name == "data_structures":
+            self.__handle_data_structure_removed(item)
+        elif name == "computations":
+            self.__handle_computation_removed(item)
+        elif name == "connections":
+            self.__handle_connection_removed(item)
 
     def __project_inserted(self, project: Project.Project, before_index: int) -> None:
         self.__project_item_inserted_listeners.insert(before_index, project.item_inserted_event.listen(functools.partial(self.__project_item_inserted, project)))
@@ -498,6 +464,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     @property
     def display_items(self) -> typing.List[DisplayItem.DisplayItem]:
         return self.__display_items
+
+    @property
+    def data_structures(self) -> typing.List[DataStructure.DataStructure]:
+        return self.__data_structures
+
+    @property
+    def computations(self) -> typing.List[Symbolic.Computation]:
+        return self.__computations
+
+    @property
+    def connections(self) -> typing.List[Connection.Connection]:
+        return self.__connections
 
     @property
     def profile(self) -> Profile.Profile:
@@ -951,10 +929,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     container_properties = container.save_properties() if hasattr(container, "save_properties") else dict()
                     undelete_log.append({"type": name, "container": container_ref, "index": index, "properties": item_dict, "container_properties": container_properties})
                     container.remove_item(name, item)
-                    # handle top level 'remove item' notifications for data structures, computations, and display items here
-                    # since they're not handled elsewhere.
-                    if container == self and name in ("data_structures", "computations"):
-                        self.notify_remove_item(name, item, index)
         except Exception as e:
             import sys, traceback
             traceback.print_exc()
@@ -2176,57 +2150,81 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return display_item_copy
 
     def append_connection(self, connection: Connection.Connection) -> None:
-        self.insert_connection(len(self.connections), connection)
+        self.__profile._work_project.append_connection(connection)
 
-    def insert_connection(self, before_index, connection):
-        self.insert_item("connections", before_index, connection)
-        self.__finish_load_connection(before_index, connection)
+    def insert_connection(self, before_index: int, connection: Connection.Connection) -> None:
+        uuid_order = list(connection.uuid for connection in self.__connections)
+        self.append_connection(connection)
+        uuid_order.insert(before_index, connection.uuid)
+        connection_map = {connection.uuid: connection for connection in self.__connections}
+        self.__connections = [connection_map[connection_uuid] for connection_uuid in uuid_order]
 
-    def __finish_load_connection(self, before_index, connection):
+    def remove_connection(self, connection: Connection.Connection) -> None:
+        connection.container.remove_connection(connection)
+
+    def __handle_connection_inserted(self, connection: Connection.Connection) -> None:
+        assert connection is not None
+        assert connection not in self.__connections
+        # insert in internal list
+        before_index = len(self.__connections)
+        self.__connections.append(connection)
+        # send notifications
         self.notify_insert_item("connections", connection, before_index)
 
-    def remove_connection(self, connection):
-        index = self.connections.index(connection)
-        self.remove_item("connections", connection)
+    def __handle_connection_removed(self, connection: Connection.Connection) -> None:
+        # remove it from the persistent_storage
+        assert connection is not None
+        assert connection in self.__connections
+        index = self.__connections.index(connection)
         self.notify_remove_item("connections", connection, index)
-
-    def __inserted_connection(self, name, before_index, connection):
-        connection.about_to_be_inserted(self)
-
-    def __removed_connection(self, name, index, connection):
-        connection.about_to_be_removed()
-        connection.close()
+        self.__connections.remove(connection)
 
     def create_data_structure(self, *, structure_type: str=None, source=None):
         return DataStructure.DataStructure(structure_type=structure_type, source=source)
 
-    def append_data_structure(self, data_structure):
-        self.insert_data_structure(len(self.data_structures), data_structure)
+    def append_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
+        self.__profile._work_project.append_data_structure(data_structure)
 
-    def insert_data_structure(self, before_index, data_structure):
-        self.insert_item("data_structures", before_index, data_structure)
-        self.__finish_load_data_structure(before_index, data_structure)
-
-    def __finish_load_data_structure(self, before_index, data_structure):
-        assert not self._is_reading
-        self.__rebind_computations()  # rebind any unresolved that may now be resolved
-        self.notify_insert_item("data_structures", data_structure, before_index)
+    def insert_data_structure(self, before_index: int, data_structure: DataStructure.DataStructure) -> None:
+        uuid_order = list(data_structure.uuid for data_structure in self.__data_structures)
+        self.append_data_structure(data_structure)
+        uuid_order.insert(before_index, data_structure.uuid)
+        data_structure_map = {data_structure.uuid: data_structure for data_structure in self.__data_structures}
+        self.__data_structures = [data_structure_map[data_structure_uuid] for data_structure_uuid in uuid_order]
 
     def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> typing.Optional[typing.Sequence]:
         return self.__cascade_delete(data_structure)
 
-    def __inserted_data_structure(self, name, before_index, data_structure):
-        data_structure.about_to_be_inserted(self)
+    def __handle_data_structure_inserted(self, data_structure: DataStructure.DataStructure) -> None:
+        assert data_structure is not None
+        assert data_structure not in self.__data_structures
+        # insert in internal list
+        before_index = len(self.__data_structures)
+        self.__data_structures.append(data_structure)
+        # listeners
         def rebuild_transactions(): self.__transaction_manager._rebuild_transactions()
         self.__data_structure_listeners[data_structure] = data_structure.referenced_objects_changed_event.listen(rebuild_transactions)
+        # transactions
         self.__transaction_manager._add_item(data_structure)
+        # computation rebinding
+        self.__rebind_computations()  # rebind any unresolved that may now be resolved
+        # send notifications
+        self.notify_insert_item("data_structures", data_structure, before_index)
 
-    def __removed_data_structure(self, name, index, data_structure):
+    def __handle_data_structure_removed(self, data_structure: DataStructure.DataStructure) -> None:
+        # remove it from the persistent_storage
+        assert data_structure is not None
+        assert data_structure in self.__data_structures
+        # listeners
         self.__data_structure_listeners[data_structure].close()
         self.__data_structure_listeners.pop(data_structure, None)
+        # transactions
         self.__transaction_manager._remove_item(data_structure)
-        data_structure.about_to_be_removed()
-        data_structure.close()
+        # notifications
+        index = self.__data_structures.index(data_structure)
+        self.notify_remove_item("data_structures", data_structure, index)
+        # remove from internal list
+        self.__data_structures.remove(data_structure)
 
     def attach_data_structure(self, data_structure, data_item):
         data_structure.source = data_item
@@ -2251,14 +2249,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             elif old_computation:
                 # remove old computation without cascade (it would delete this data item itself)
                 old_computation.valid = False
-                self.remove_item("computations", old_computation)
+                old_computation.container.remove_computation(old_computation)
             if old_computation is not computation:
                 self.__data_item_computation_changed(data_item, old_computation, computation)
 
-    def append_computation(self, computation):
-        self.insert_computation(len(self.computations), computation)
-
-    def insert_computation(self, before_index, computation):
+    def append_computation(self, computation: Symbolic.Computation) -> None:
+        # input/output bookkeeping
         input_items = self.__resolve_computation_inputs(computation)
         output_items = self.__resolve_computation_outputs(computation)
         input_set = set()
@@ -2269,16 +2265,54 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__get_deep_dependent_item_set(output, output_set)
         if input_set.intersection(output_set):
             raise Exception("Computation would result in duplicate dependency.")
-        self.insert_item("computations", before_index, computation)
-        self.__finish_load_computation(before_index, computation)
+        self.__profile._work_project.append_computation(computation)
 
-    def __finish_load_computation(self, before_index, computation):
-        assert not self._is_reading
-        self.__computation_changed(computation)  # ensure the initial mutation is reported
-        self.notify_insert_item("computations", computation, before_index)
+    def insert_computation(self, before_index: int, computation: Symbolic.Computation) -> None:
+        uuid_order = list(computation.uuid for computation in self.__computations)
+        self.append_computation(computation)
+        uuid_order.insert(before_index, computation.uuid)
+        computation_map = {computation.uuid: computation for computation in self.__computations}
+        self.__computations = [computation_map[computation_uuid] for computation_uuid in uuid_order]
 
     def remove_computation(self, computation: Symbolic.Computation, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         return self.__cascade_delete(computation, safe=safe)
+
+    def __handle_computation_inserted(self, computation: Symbolic.Computation) -> None:
+        assert computation is not None
+        assert computation not in self.__computations
+        # insert in internal list
+        before_index = len(self.__computations)
+        self.__computations.append(computation)
+        # listeners
+        self.__computation_changed_listeners[computation] = computation.computation_mutated_event.listen(functools.partial(self.__computation_changed, computation))
+        self.__computation_output_changed_listeners[computation] = computation.computation_output_changed_event.listen(functools.partial(self.__computation_update_dependencies, computation))
+        # send notifications
+        self.__computation_changed(computation)  # ensure the initial mutation is reported
+        self.notify_insert_item("computations", computation, before_index)
+
+    def __handle_computation_removed(self, computation: Symbolic.Computation) -> None:
+        # remove it from the persistent_storage
+        assert computation is not None
+        assert computation in self.__computations
+        # remove it from any computation queues
+        with self.__computation_queue_lock:
+            computation_pending_queue = self.__computation_pending_queue
+            self.__computation_pending_queue = list()
+            for computation_queue_item in computation_pending_queue:
+                if not computation_queue_item.computation is computation:
+                    self.__computation_pending_queue.append(computation_queue_item)
+            if self.__computation_active_item and computation is self.__computation_active_item.computation:
+                self.__computation_active_item.valid = False
+        computation_changed_listener = self.__computation_changed_listeners.pop(computation, None)
+        if computation_changed_listener: computation_changed_listener.close()
+        computation_output_changed_listener = self.__computation_output_changed_listeners.pop(computation, None)
+        if computation_output_changed_listener: computation_output_changed_listener.close()
+        computation.unbind()
+        # notifications
+        index = self.__computations.index(computation)
+        self.notify_remove_item("computations", computation, index)
+        # remove from internal list
+        self.__computations.remove(computation)
 
     def __computation_changed(self, computation):
         # when the computation is mutated, this function is called. it calls the handle computation
@@ -2309,28 +2343,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__establish_computation_dependencies(computation._inputs, input_items, computation._outputs, output_items)
         computation._inputs = input_items
         computation._outputs = output_items
-
-    def __inserted_computation(self, name: str, before_index: int, computation: Symbolic.Computation) -> None:
-        computation.about_to_be_inserted(self)
-        self.__computation_changed_listeners[computation] = computation.computation_mutated_event.listen(functools.partial(self.__computation_changed, computation))
-        self.__computation_output_changed_listeners[computation] = computation.computation_output_changed_event.listen(functools.partial(self.__computation_update_dependencies, computation))
-
-    def __removed_computation(self, name: str, index: int, computation: Symbolic.Computation) -> None:
-        with self.__computation_queue_lock:
-            computation_pending_queue = self.__computation_pending_queue
-            self.__computation_pending_queue = list()
-            for computation_queue_item in computation_pending_queue:
-                if not computation_queue_item.computation is computation:
-                    self.__computation_pending_queue.append(computation_queue_item)
-            if self.__computation_active_item and computation is self.__computation_active_item.computation:
-                self.__computation_active_item.valid = False
-        computation_changed_listener = self.__computation_changed_listeners.pop(computation, None)
-        if computation_changed_listener: computation_changed_listener.close()
-        computation_output_changed_listener = self.__computation_output_changed_listeners.pop(computation, None)
-        if computation_output_changed_listener: computation_output_changed_listener.close()
-        computation.unbind()
-        computation.about_to_be_removed()
-        computation.close()
 
     def __data_item_computation_changed(self, data_item, old_computation, new_computation):
         # when the computation for a data item changes, this method is called to tear down the old listeners and

@@ -7,7 +7,10 @@ import uuid
 import weakref
 
 # local libraries
+from nion.swift.model import Connection
+from nion.swift.model import Symbolic
 from nion.swift.model import DataItem
+from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import FileStorageSystem
 from nion.utils import Event
@@ -34,6 +37,9 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.define_type("project")
         self.define_relationship("data_items", data_item_factory, insert=self.__data_item_inserted, remove=self.__data_item_removed)
         self.define_relationship("display_items", display_item_factory, insert=self.__display_item_inserted, remove=self.__display_item_removed)
+        self.define_relationship("computations", computation_factory, insert=self.__computation_inserted, remove=self.__computation_removed)
+        self.define_relationship("data_structures", data_structure_factory, insert=self.__data_structure_inserted, remove=self.__data_structure_removed)
+        self.define_relationship("connections", Connection.connection_factory, insert=self.__connection_inserted, remove=self.__connection_removed)
 
         self.__project_reference = copy.deepcopy(project_reference)
         self.__project_state = None
@@ -44,9 +50,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.__storage_system = storage_system
 
         self.persistent_storage = self.__storage_system
-
-        self.item_loaded_event = Event.Event()
-        self.item_unloaded_event = Event.Event()
 
     def open(self) -> None:
         self.__storage_system.reset()  # this makes storage reusable during tests
@@ -146,33 +149,82 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.notify_remove_item("display_items", display_item, index)
         display_item.close()
 
+    def __data_structure_inserted(self, name: str, before_index: int, data_structure: DataStructure.DataStructure) -> None:
+        data_structure.about_to_be_inserted(self)
+        self.notify_insert_item("data_structures", data_structure, before_index)
+
+    def __data_structure_removed(self, name: str, index: int, data_structure: DataStructure.DataStructure) -> None:
+        data_structure.about_to_be_removed()
+        self.notify_remove_item("data_structures", data_structure, index)
+        data_structure.close()
+
+    def __computation_inserted(self, name: str, before_index: int, computation: Symbolic.Computation) -> None:
+        computation.about_to_be_inserted(self)
+        self.notify_insert_item("computations", computation, before_index)
+
+    def __computation_removed(self, name: str, index: int, computation: Symbolic.Computation) -> None:
+        computation.about_to_be_removed()
+        self.notify_remove_item("computations", computation, index)
+        computation.close()
+
+    def __connection_inserted(self, name: str, before_index: int, connection: Connection.Connection) -> None:
+        connection.about_to_be_inserted(self)
+        self.notify_insert_item("connections", connection, before_index)
+
+    def __connection_removed(self, name: str, index: int, connection: Connection.Connection) -> None:
+        connection.about_to_be_removed()
+        self.notify_remove_item("connections", connection, index)
+        connection.close()
+
     def read_project(self) -> None:
         # first read the library (for deletions) and the library items from the primary storage systems
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")
         properties = self.__storage_system.read_project_properties()  # combines library and data item properties
         self.__project_version = properties.get("version", 0)
         if self.__project_version in (FileStorageSystem.PROJECT_VERSION, 2):
-            for item_type in ("data_items", ):
-                for item_d in properties.get(item_type, list()):
-                    data_item = DataItem.DataItem()
-                    data_item.begin_reading()
-                    data_item.read_from_dict(item_d)
-                    data_item.finish_reading()
-                    if data_item.uuid not in {data_item.uuid for data_item in self.data_items}:
-                        self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
-                        self.load_item("data_items", len(self.data_items), data_item)
-            for item_type in ("display_items", ):
-                for item_d in properties.get(item_type, list()):
-                    display_item = DisplayItem.DisplayItem()
-                    display_item.begin_reading()
-                    display_item.read_from_dict(item_d)
-                    display_item.finish_reading()
-                    if not display_item.uuid in {display_item.uuid for display_item in self.display_items}:
-                        self.persistent_object_context._set_persistent_storage_for_object(display_item, self.__storage_system)
-                        self.load_item("display_items", len(self.display_items), display_item)
-            for item_type in ("data_structures", "connections", "computations"):
-                for item_d in properties.get(item_type, list()):
-                    self.item_loaded_event.fire(item_type, item_d, self.__storage_system)
+            for item_d in properties.get("data_items", list()):
+                data_item = DataItem.DataItem()
+                data_item.begin_reading()
+                data_item.read_from_dict(item_d)
+                data_item.finish_reading()
+                if data_item.uuid not in {data_item.uuid for data_item in self.data_items}:
+                    self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
+                    self.load_item("data_items", len(self.data_items), data_item)
+            for item_d in properties.get("display_items", list()):
+                display_item = DisplayItem.DisplayItem()
+                display_item.begin_reading()
+                display_item.read_from_dict(item_d)
+                display_item.finish_reading()
+                if not display_item.uuid in {display_item.uuid for display_item in self.display_items}:
+                    self.persistent_object_context._set_persistent_storage_for_object(display_item, self.__storage_system)
+                    self.load_item("display_items", len(self.display_items), display_item)
+            for item_d in properties.get("data_structures", list()):
+                data_structure = DataStructure.DataStructure()
+                data_structure.begin_reading()
+                data_structure.read_from_dict(item_d)
+                data_structure.finish_reading()
+                if not data_structure.uuid in {data_structure.uuid for data_structure in self.data_structures}:
+                    self.persistent_object_context._set_persistent_storage_for_object(data_structure, self.__storage_system)
+                    self.load_item("data_structures", len(self.data_structures), data_structure)
+            for item_d in properties.get("computations", list()):
+                computation = Symbolic.Computation()
+                computation.begin_reading()
+                computation.read_from_dict(item_d)
+                computation.finish_reading()
+                if not computation.uuid in {computation.uuid for computation in self.computations}:
+                    self.persistent_object_context._set_persistent_storage_for_object(computation, self.__storage_system)
+                    self.load_item("computations", len(self.computations), computation)
+                    # TODO: handle update script and bind after reload in document model
+                    computation.update_script(self.container.container._processing_descriptions)
+                    computation.bind(self.container.container)
+            for item_d in properties.get("connections", list()):
+                connection = Connection.connection_factory(item_d.get)
+                connection.begin_reading()
+                connection.read_from_dict(item_d)
+                connection.finish_reading()
+                if not connection.uuid in {connection.uuid for connection in self.connections}:
+                    self.persistent_object_context._set_persistent_storage_for_object(connection, self.__storage_system)
+                    self.load_item("connections", len(self.connections), connection)
             self.__project_state = "loaded"
         else:
             self.__project_state = "needs_upgrade"
@@ -212,6 +264,30 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def remove_display_item(self, display_item: DisplayItem.DisplayItem) -> None:
         self.remove_item("display_items", display_item)
 
+    def append_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
+        assert data_structure.uuid not in {data_structure.uuid for data_structure in self.data_structures}
+        self.persistent_object_context._set_persistent_storage_for_object(data_structure, self.__storage_system)
+        self.append_item("data_structures", data_structure)
+
+    def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
+        self.remove_item("data_structures", data_structure)
+
+    def append_computation(self, computation: Symbolic.Computation) -> None:
+        assert computation.uuid not in {computation.uuid for computation in self.computations}
+        self.persistent_object_context._set_persistent_storage_for_object(computation, self.__storage_system)
+        self.append_item("computations", computation)
+
+    def remove_computation(self, computation: Symbolic.Computation) -> None:
+        self.remove_item("computations", computation)
+
+    def append_connection(self, connection: Connection.Connection) -> None:
+        assert connection.uuid not in {connection.uuid for connection in self.connections}
+        self.persistent_object_context._set_persistent_storage_for_object(connection, self.__storage_system)
+        self.append_item("connections", connection)
+
+    def remove_connection(self, connection: Connection.Connection) -> None:
+        self.remove_item("connections", connection)
+
     def prune(self) -> None:
         self.__storage_system.prune()
 
@@ -230,6 +306,14 @@ def data_item_factory(lookup_id):
 def display_item_factory(lookup_id):
     display_item_uuid = uuid.UUID(lookup_id("uuid"))
     return DisplayItem.DisplayItem(item_uuid=display_item_uuid)
+
+
+def computation_factory(lookup_id):
+    return Symbolic.Computation()
+
+
+def data_structure_factory(lookup_id):
+    return DataStructure.DataStructure()
 
 
 def make_project(profile_context, project_reference: typing.Dict) -> typing.Optional[Project]:

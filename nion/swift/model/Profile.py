@@ -65,10 +65,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             project.persistent_object_context = self.persistent_object_context
             project.about_to_be_inserted(self)
 
-        # attach project listeners
-        self.__item_loaded_event_listeners = list()
-        for project in self.__projects:
-            self.__item_loaded_event_listeners.append(project.item_loaded_event.listen(self.__project_item_loaded))
         self.__document_model = None
         self.profile_context = None
 
@@ -119,9 +115,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def close(self):
         # detach project listeners
-        for item_loaded_event_listener in self.__item_loaded_event_listeners:
-            item_loaded_event_listener.close()
-        self.__item_loaded_event_listeners.clear()
         self.__projects_selection_changed_event_listener.close()
         self.__projects_selection_changed_event_listener = None
         for project in self.__projects:
@@ -278,9 +271,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         del data_item_references[key]
         self._set_persistent_property_value("data_item_references", {k: str(v) for k, v in data_item_references.items()})
 
-    def __project_item_loaded(self, item_type: str, item_d: typing.Dict, storage_system) -> None:
-        self.__document_model.handle_load_item(item_type, item_d, storage_system)
-
     def add_project_reference(self, project_reference: typing.Dict) -> None:
         assert "type" in project_reference
         assert "uuid" in project_reference
@@ -315,7 +305,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         project_index = len(self.__projects)
         self.__projects.append(project)
         self.projects_model.value = copy.copy(self.__projects)
-        self.__item_loaded_event_listeners.append(project.item_loaded_event.listen(self.__project_item_loaded))
         self.project_inserted_event.fire(project, project_index)
 
 

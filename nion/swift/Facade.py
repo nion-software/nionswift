@@ -2100,7 +2100,7 @@ class Computation(metaclass=SharedInstance):
                     object = value.get("object")
                     object_type = value.get("type")
                     if object_type == "data_source":
-                        document_model = self.__computation.container
+                        document_model = self.__computation.container.container.container
                         display_item = document_model.get_display_item_for_data_item(object._data_item)
                         display_data_channel = display_item.display_data_channel
                         specifier_dict = {"version": 1, "type": "data_source", "uuid": str(display_data_channel.uuid)}
