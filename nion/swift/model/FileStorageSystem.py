@@ -233,41 +233,15 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         else:
             self.__write_properties_if_not_delayed(persistent_object_parent.parent)
 
-    def get_properties(self, object) -> typing.Dict:
-        return self.__get_storage_dict(object)
+    def get_properties(self, item: Persistence.PersistentObject) -> typing.Dict:
+        return item.persistent_dict
 
-    def _get_storage_dict(self, item) -> typing.Optional[typing.Dict]:
-        return None
-
-    def __get_item_accessor_in_parent(self, item) -> typing.Optional[typing.Callable[[typing.Dict], typing.Dict]]:
-        persistent_object_parent = item.persistent_object_parent
-        assert persistent_object_parent
-        if persistent_object_parent.item_name:
-            return lambda storage_dict: storage_dict.get(persistent_object_parent.item_name, dict())
-        if persistent_object_parent.relationship_name:
-            index = getattr(persistent_object_parent.parent, persistent_object_parent.relationship_name).index(item)
-            return lambda storage_dict: storage_dict[persistent_object_parent.relationship_name][index]
-        return None
-
-    def __get_storage_dict(self, item) -> typing.Dict:
-        """Return the storage dict for the object. The storage dict is a fragment of the properties dict."""
-        # first give subclasses a chance to handle directly.
-        storage_dict = self._get_storage_dict(item)
-        if storage_dict:
-            return storage_dict
-        persistent_object_parent = item.persistent_object_parent
-        if not persistent_object_parent:
-            return self._get_properties()
-        else:
-            parent_storage_dict = self.__get_storage_dict(persistent_object_parent.parent)
-            return self.__get_item_accessor_in_parent(item)(parent_storage_dict)
-
-    def __update_modified_and_get_storage_dict(self, object) -> typing.Dict:
+    def __update_modified_and_get_storage_dict(self, item: Persistence.PersistentObject) -> typing.Dict:
         # update modified time on object and all parent objects in internal storage
-        storage_dict = self.__get_storage_dict(object)
+        storage_dict = item.persistent_dict
         with self.__properties_lock:
-            storage_dict["modified"] = object.modified.isoformat()
-        persistent_object_parent = object.persistent_object_parent
+            storage_dict["modified"] = item.modified.isoformat()
+        persistent_object_parent = item.persistent_object_parent
         parent = persistent_object_parent.parent if persistent_object_parent else None
         if parent:
             self.__update_modified_and_get_storage_dict(parent)
@@ -278,7 +252,8 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
             item_list = storage_dict.setdefault(name, list())
-            item_list.insert(before_index, item.write_to_dict())
+            item.persistent_dict = item.write_to_dict()
+            item_list.insert(before_index, item.persistent_dict)
         item.persistent_object_context = parent.persistent_object_context
         self.__write_properties_if_not_delayed(parent)
 
@@ -290,18 +265,22 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
             del item_list[index]
         self.__write_properties_if_not_delayed(parent)
         item.persistent_object_context = None
+        item.persistent_dict = None
 
     def set_item(self, parent, name: str, item) -> None:
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         if item:
             # set the item and update its persistent context
             with self.__properties_lock:
-                storage_dict[name] = item.write_to_dict()
+                item.persistent_dict = item.write_to_dict()
+                storage_dict[name] = item.persistent_dict
             item.persistent_object_context = parent.persistent_object_context
         else:
             # clear the item
             with self.__properties_lock:
                 storage_dict.pop(name, None)
+                item.persistent_object_context = None
+                item.persistent_dict = None
         self.__write_properties_if_not_delayed(parent)
 
     def set_property(self, object, name: str, value) -> None:
@@ -464,6 +443,14 @@ class ProjectStorageSystem(PersistentStorageSystem):
     def reset(self) -> None:
         self.__storage_adapter_map = dict()
 
+    def get_persistent_dict(self, name: str, item_uuid: uuid.UUID) -> typing.Dict:
+        if name == "data_items":
+            return self._data_properties_map[item_uuid].properties
+        for item_d in self._get_properties()[name]:
+            if uuid.UUID(item_d["uuid"]) == item_uuid:
+                return item_d
+        assert False
+
     def _set_write_delayed(self, item, write_delayed: bool) -> None:
         storage = self.__storage_adapter_map.get(item.uuid)
         if storage:
@@ -528,13 +515,9 @@ class ProjectStorageSystem(PersistentStorageSystem):
         else:
             super()._write_item_properties(item)
 
-    def _get_storage_dict(self, item) -> typing.Optional[typing.Dict]:
-        if isinstance(item, DataItem.DataItem):
-            return self.__get_data_item_properties(item)
-        return super()._get_storage_dict(item)
-
     def insert_item(self, parent, name: str, before_index: int, item) -> None:
         if isinstance(item, DataItem.DataItem):
+            item.persistent_dict = item.write_to_dict()
             item.persistent_object_context = parent.persistent_object_context
             is_write_delayed = item and self.is_write_delayed(item)
             self.__insert_data_item(item, is_write_delayed)
@@ -594,6 +577,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         self.__storage_adapter_map[item_uuid] = storage_adapter
         if is_write_delayed:
             storage_adapter.set_write_delayed(data_item, True)
+        data_item.persistent_dict = self.get_persistent_dict("data_items", item_uuid)
 
     def __delete_data_item(self, data_item: DataItem.DataItem, *, safe: bool=False) -> None:
         storage = self.__storage_adapter_map.get(data_item.uuid)
@@ -602,6 +586,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
     def __remove_data_item(self, data_item: DataItem.DataItem) -> None:
         assert data_item.uuid in self.__storage_adapter_map
         self.__storage_adapter_map.pop(data_item.uuid).close()
+        data_item.persistent_dict = None
 
     def __get_data_item_property(self, data_item: DataItem.DataItem, name: str) -> typing.Optional[str]:
         if name == "file_path":

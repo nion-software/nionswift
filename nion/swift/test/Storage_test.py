@@ -3127,9 +3127,12 @@ class TestStorageClass(unittest.TestCase):
                 new_data_item_uuid = data_item.uuid
             # auto migrate workspace
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_model.profile.projects[0].migrate_to_latest()
+            # this migrate is not allowed since it is already migrated.
+            # in the future, maybe there will be a "migrate_data_items" but it doesn't exist yet. it's currently all or nothing.
+            # document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 self.assertEqual(2, len(document_model.data_items))
+                self.assertEqual(2, len(document_model.display_items))
                 self.assertIsNotNone(document_model.get_data_item_by_uuid(uuid.UUID(src_uuid_str)))
                 self.assertIsNotNone(document_model.get_data_item_by_uuid(new_data_item_uuid))
 

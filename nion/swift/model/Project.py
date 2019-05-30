@@ -49,7 +49,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
         self.__storage_system = storage_system
 
-        self.persistent_storage = self.__storage_system
+        self.persistent_dict = self.__storage_system._get_properties()
 
     def open(self) -> None:
         self.__storage_system.reset()  # this makes storage reusable during tests
@@ -176,6 +176,12 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.notify_remove_item("connections", connection, index)
         connection.close()
 
+    def _get_relationship_persistent_dict(self, item, key: str, index: int) -> typing.Dict:
+        if key == "data_items":
+            self.__storage_system.get_persistent_dict("data_items", item.uuid)
+        else:
+            return super()._get_relationship_persistent_dict(item, key, index)
+
     def read_project(self) -> None:
         # first read the library (for deletions) and the library items from the primary storage systems
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")
@@ -189,6 +195,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 data_item.finish_reading()
                 if data_item.uuid not in {data_item.uuid for data_item in self.data_items}:
                     self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
+                    data_item.persistent_dict = self.__storage_system.get_persistent_dict("data_items", uuid.UUID(item_d["uuid"]))
                     self.load_item("data_items", len(self.data_items), data_item)
             for item_d in properties.get("display_items", list()):
                 display_item = DisplayItem.DisplayItem()
@@ -197,6 +204,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 display_item.finish_reading()
                 if not display_item.uuid in {display_item.uuid for display_item in self.display_items}:
                     self.persistent_object_context._set_persistent_storage_for_object(display_item, self.__storage_system)
+                    display_item.persistent_dict = self.__storage_system.get_persistent_dict("display_items", uuid.UUID(item_d["uuid"]))
                     self.load_item("display_items", len(self.display_items), display_item)
             for item_d in properties.get("data_structures", list()):
                 data_structure = DataStructure.DataStructure()
@@ -205,6 +213,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 data_structure.finish_reading()
                 if not data_structure.uuid in {data_structure.uuid for data_structure in self.data_structures}:
                     self.persistent_object_context._set_persistent_storage_for_object(data_structure, self.__storage_system)
+                    data_structure.persistent_dict = self.__storage_system.get_persistent_dict("data_structures", uuid.UUID(item_d["uuid"]))
                     self.load_item("data_structures", len(self.data_structures), data_structure)
             for item_d in properties.get("computations", list()):
                 computation = Symbolic.Computation()
@@ -213,6 +222,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 computation.finish_reading()
                 if not computation.uuid in {computation.uuid for computation in self.computations}:
                     self.persistent_object_context._set_persistent_storage_for_object(computation, self.__storage_system)
+                    computation.persistent_dict = self.__storage_system.get_persistent_dict("computations", uuid.UUID(item_d["uuid"]))
                     self.load_item("computations", len(self.computations), computation)
                     # TODO: handle update script and bind after reload in document model
                     computation.update_script(self.container.container._processing_descriptions)
@@ -224,6 +234,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 connection.finish_reading()
                 if not connection.uuid in {connection.uuid for connection in self.connections}:
                     self.persistent_object_context._set_persistent_storage_for_object(connection, self.__storage_system)
+                    connection.persistent_dict = self.__storage_system.get_persistent_dict("connections", uuid.UUID(item_d["uuid"]))
                     self.load_item("connections", len(self.connections), connection)
             self.__project_state = "loaded"
         else:
@@ -294,6 +305,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def migrate_to_latest(self) -> None:
         self.__storage_system.migrate_to_latest()
         self.__storage_system.load_properties()
+        self.persistent_dict = self.__storage_system._get_properties()
         self.read_project()
 
 
