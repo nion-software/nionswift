@@ -59,9 +59,8 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
         # there is a single shared object context per profile.
         self.persistent_object_context = Persistence.PersistentObjectContext()
-        self.persistent_object_context._set_persistent_storage_for_object(self, self.storage_system)
-
         self.persistent_dict = self.storage_system._get_properties()
+        self.persistent_storage = self.storage_system
 
         for project in self.__projects:
             project.persistent_object_context = self.persistent_object_context

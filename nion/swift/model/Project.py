@@ -50,6 +50,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.__storage_system = storage_system
 
         self.persistent_dict = self.__storage_system._get_properties()
+        self.persistent_storage = self.__storage_system
 
     def open(self) -> None:
         self.__storage_system.reset()  # this makes storage reusable during tests
@@ -127,10 +128,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def project_storage_system(self) -> FileStorageSystem.ProjectStorageSystem:
         return self.__storage_system
 
-    def persistent_object_context_changed(self):
-        super().persistent_object_context_changed()
-        self.persistent_object_context._set_persistent_storage_for_object(self, self.__storage_system)
-
     def __data_item_inserted(self, name: str, before_index: int, data_item: DataItem.DataItem) -> None:
         data_item.about_to_be_inserted(self)
         self.notify_insert_item("data_items", data_item, before_index)
@@ -194,8 +191,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 data_item.read_from_dict(item_d)
                 data_item.finish_reading()
                 if data_item.uuid not in {data_item.uuid for data_item in self.data_items}:
-                    self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
                     data_item.persistent_dict = self.__storage_system.get_persistent_dict("data_items", uuid.UUID(item_d["uuid"]))
+                    data_item.persistent_storage = self.__storage_system
                     self.load_item("data_items", len(self.data_items), data_item)
             for item_d in properties.get("display_items", list()):
                 display_item = DisplayItem.DisplayItem()
@@ -203,8 +200,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 display_item.read_from_dict(item_d)
                 display_item.finish_reading()
                 if not display_item.uuid in {display_item.uuid for display_item in self.display_items}:
-                    self.persistent_object_context._set_persistent_storage_for_object(display_item, self.__storage_system)
                     display_item.persistent_dict = self.__storage_system.get_persistent_dict("display_items", uuid.UUID(item_d["uuid"]))
+                    display_item.persistent_storage = self.__storage_system
                     self.load_item("display_items", len(self.display_items), display_item)
             for item_d in properties.get("data_structures", list()):
                 data_structure = DataStructure.DataStructure()
@@ -212,8 +209,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 data_structure.read_from_dict(item_d)
                 data_structure.finish_reading()
                 if not data_structure.uuid in {data_structure.uuid for data_structure in self.data_structures}:
-                    self.persistent_object_context._set_persistent_storage_for_object(data_structure, self.__storage_system)
                     data_structure.persistent_dict = self.__storage_system.get_persistent_dict("data_structures", uuid.UUID(item_d["uuid"]))
+                    data_structure.persistent_storage = self.__storage_system
                     self.load_item("data_structures", len(self.data_structures), data_structure)
             for item_d in properties.get("computations", list()):
                 computation = Symbolic.Computation()
@@ -221,8 +218,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 computation.read_from_dict(item_d)
                 computation.finish_reading()
                 if not computation.uuid in {computation.uuid for computation in self.computations}:
-                    self.persistent_object_context._set_persistent_storage_for_object(computation, self.__storage_system)
                     computation.persistent_dict = self.__storage_system.get_persistent_dict("computations", uuid.UUID(item_d["uuid"]))
+                    computation.persistent_storage = self.__storage_system
                     self.load_item("computations", len(self.computations), computation)
                     # TODO: handle update script and bind after reload in document model
                     computation.update_script(self.container.container._processing_descriptions)
@@ -233,8 +230,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 connection.read_from_dict(item_d)
                 connection.finish_reading()
                 if not connection.uuid in {connection.uuid for connection in self.connections}:
-                    self.persistent_object_context._set_persistent_storage_for_object(connection, self.__storage_system)
                     connection.persistent_dict = self.__storage_system.get_persistent_dict("connections", uuid.UUID(item_d["uuid"]))
+                    connection.persistent_storage = self.__storage_system
                     self.load_item("connections", len(self.connections), connection)
             self.__project_state = "loaded"
         else:
@@ -243,7 +240,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
     def append_data_item(self, data_item: DataItem.DataItem) -> None:
         assert data_item.uuid not in {data_item.uuid for data_item in self.data_items}
-        self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
         self.append_item("data_items", data_item)
         # don't directly write data item, or else write_pending is not cleared on data item
         # call finish pending write instead
@@ -262,14 +258,12 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             data_item.read_from_dict(item_d)
             data_item.finish_reading()
             assert data_item.uuid not in {data_item.uuid for data_item in self.data_items}
-            self.persistent_object_context._set_persistent_storage_for_object(data_item, self.__storage_system)
             self.append_item("data_items", data_item)
             return data_item
         return None
 
     def append_display_item(self, display_item: DisplayItem.DisplayItem) -> None:
         assert display_item.uuid not in {display_item.uuid for display_item in self.display_items}
-        self.persistent_object_context._set_persistent_storage_for_object(display_item, self.__storage_system)
         self.append_item("display_items", display_item)
 
     def remove_display_item(self, display_item: DisplayItem.DisplayItem) -> None:
@@ -277,7 +271,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
     def append_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
         assert data_structure.uuid not in {data_structure.uuid for data_structure in self.data_structures}
-        self.persistent_object_context._set_persistent_storage_for_object(data_structure, self.__storage_system)
         self.append_item("data_structures", data_structure)
 
     def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
@@ -285,7 +278,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
     def append_computation(self, computation: Symbolic.Computation) -> None:
         assert computation.uuid not in {computation.uuid for computation in self.computations}
-        self.persistent_object_context._set_persistent_storage_for_object(computation, self.__storage_system)
         self.append_item("computations", computation)
 
     def remove_computation(self, computation: Symbolic.Computation) -> None:
@@ -293,7 +285,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
     def append_connection(self, connection: Connection.Connection) -> None:
         assert connection.uuid not in {connection.uuid for connection in self.connections}
-        self.persistent_object_context._set_persistent_storage_for_object(connection, self.__storage_system)
         self.append_item("connections", connection)
 
     def remove_connection(self, connection: Connection.Connection) -> None:

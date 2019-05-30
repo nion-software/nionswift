@@ -253,6 +253,7 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         with self.__properties_lock:
             item_list = storage_dict.setdefault(name, list())
             item.persistent_dict = item.write_to_dict()
+            item.persistent_storage = self
             item_list.insert(before_index, item.persistent_dict)
         item.persistent_object_context = parent.persistent_object_context
         self.__write_properties_if_not_delayed(parent)
@@ -266,6 +267,7 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         self.__write_properties_if_not_delayed(parent)
         item.persistent_object_context = None
         item.persistent_dict = None
+        item.persistent_storage = None
 
     def set_item(self, parent, name: str, item) -> None:
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
@@ -273,6 +275,7 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
             # set the item and update its persistent context
             with self.__properties_lock:
                 item.persistent_dict = item.write_to_dict()
+                item.persistent_storage = self
                 storage_dict[name] = item.persistent_dict
             item.persistent_object_context = parent.persistent_object_context
         else:
@@ -281,6 +284,7 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
                 storage_dict.pop(name, None)
                 item.persistent_object_context = None
                 item.persistent_dict = None
+                item.persistent_storage = None
         self.__write_properties_if_not_delayed(parent)
 
     def set_property(self, object, name: str, value) -> None:
@@ -518,6 +522,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
     def insert_item(self, parent, name: str, before_index: int, item) -> None:
         if isinstance(item, DataItem.DataItem):
             item.persistent_dict = item.write_to_dict()
+            item.persistent_storage = self
             item.persistent_object_context = parent.persistent_object_context
             is_write_delayed = item and self.is_write_delayed(item)
             self.__insert_data_item(item, is_write_delayed)
@@ -578,6 +583,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         if is_write_delayed:
             storage_adapter.set_write_delayed(data_item, True)
         data_item.persistent_dict = self.get_persistent_dict("data_items", item_uuid)
+        data_item.persistent_storage = self
 
     def __delete_data_item(self, data_item: DataItem.DataItem, *, safe: bool=False) -> None:
         storage = self.__storage_adapter_map.get(data_item.uuid)
@@ -587,6 +593,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         assert data_item.uuid in self.__storage_adapter_map
         self.__storage_adapter_map.pop(data_item.uuid).close()
         data_item.persistent_dict = None
+        data_item.persistent_storage = None
 
     def __get_data_item_property(self, data_item: DataItem.DataItem, name: str) -> typing.Optional[str]:
         if name == "file_path":
