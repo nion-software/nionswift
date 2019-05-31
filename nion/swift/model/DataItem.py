@@ -215,7 +215,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__write_delay_data_changed = False
         self.__source_file_path = None
         self.__is_live = False
-        self.persistent_object_context = None
         self.__session_manager = None
         self.__source = None
         self.description_changed_event = Event.Event()
@@ -271,13 +270,13 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         memo[id(self)] = data_item_copy
         return data_item_copy
 
-    def close(self):
+    def close(self) -> None:
         self.__data_and_metadata = None
-        self.persistent_object_context = None
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
         self.__container_weak_ref = None
+        super().close()
 
     @property
     def container(self):
@@ -362,11 +361,11 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__write_delay_modified_count = self.modified_count
         self.__write_delay_data_changed = False
         if self.persistent_object_context:
-            self.persistent_object_context.enter_write_delay(self)
+            self.enter_write_delay()
 
     def __exit_write_delay_state(self):
         if self.persistent_object_context:
-            self.persistent_object_context.exit_write_delay(self)
+            self.exit_write_delay()
             self._finish_pending_write()
 
     def write_to_dict(self):
@@ -376,19 +375,19 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def __write_data(self):
         if self.__data_and_metadata:
-            self.persistent_object_context.write_external_data(self, "data", self.__data_and_metadata.data)
+            self.write_external_data("data", self.__data_and_metadata.data)
 
     def _finish_pending_write(self):
         if self.__pending_write:
-            if not self.persistent_object_context.is_write_delayed(self):
+            if not self.is_write_delayed:
                 # write the uuid and version explicitly
-                self.persistent_object_context.property_changed(self, "uuid", str(self.uuid))
-                self.persistent_object_context.property_changed(self, "version", DataItem.writer_version)
+                self.property_changed("uuid", str(self.uuid))
+                self.property_changed("version", DataItem.writer_version)
                 self.__write_data()
                 self.__pending_write = False
         else:
             if self.modified_count > self.__write_delay_modified_count:
-                self.persistent_object_context.rewrite_item(self)
+                self.rewrite()
             if self.__write_delay_data_changed:
                 self.__write_data()
 
@@ -450,7 +449,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             unregistered()
 
     def _test_get_file_path(self):
-        return self.persistent_object_context.get_storage_property(self, "file_path")
+        return self.persistent_storage.get_storage_property(self, "file_path")
 
     def read_from_dict(self, properties):
         self.large_format = properties.get("__large_format", self.large_format)
@@ -509,9 +508,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     @property
     def properties(self):
         """ Used for debugging. """
-        if self.persistent_object_context:
-            return self.persistent_object_context.get_properties(self)
-        return dict()
+        return self.get_storage_properties()
 
     @property
     def is_live(self):
@@ -965,7 +962,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def __load_data(self):
         if self.persistent_object_context:
-            return self.persistent_object_context.read_external_data(self, "data")
+            return self.read_external_data("data")
         return None
 
     def __set_data_metadata_direct(self, data_and_metadata, data_modified=None):
@@ -1025,8 +1022,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                 new_data_and_metadata = None
             self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
             if self.__data_and_metadata is not None:
-                if self.persistent_object_context and not self.persistent_object_context.is_write_delayed(self):
-                    self.persistent_object_context.write_external_data(self, "data", self.__data_and_metadata.data)
+                if self.persistent_object_context and not self.is_write_delayed:
+                    self.write_external_data("data", self.__data_and_metadata.data)
                     self.__data_and_metadata.unloadable = True
         finally:
             self.decrement_data_ref_count()

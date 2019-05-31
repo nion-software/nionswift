@@ -31,11 +31,10 @@ ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", 
 class DataItemStorageAdapter:
     """Persistent storage for writing data item properties, relationships, and data to its storage handler."""
 
-    def __init__(self, storage_handler, properties):
+    def __init__(self, storage_handler, properties: typing.Dict):
         self.__storage_handler = storage_handler
         self.__properties = Migration.transform_to_latest(Utility.clean_dict(copy.deepcopy(properties) if properties else dict()))
         self.__properties_lock = threading.RLock()
-        self.__write_delayed = False
 
     def close(self):
         if self.__storage_handler:
@@ -51,22 +50,14 @@ class DataItemStorageAdapter:
     def _storage_handler(self):
         return self.__storage_handler
 
-    def set_write_delayed(self, item, write_delayed: bool) -> None:
-        self.__write_delayed = write_delayed
-
-    def is_write_delayed(self, item) -> bool:
-        return self.__write_delayed
-
     def rewrite_item(self, item) -> None:
-        if not self.__write_delayed:
-            file_datetime = item.created_local
-            self.__storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(self.__properties)), file_datetime)
+        file_datetime = item.created_local
+        self.__storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(self.__properties)), file_datetime)
 
     def update_data(self, item, data):
-        if not self.__write_delayed:
-            file_datetime = item.created_local
-            if data is not None:
-                self.__storage_handler.write_data(data, file_datetime)
+        file_datetime = item.created_local
+        if data is not None:
+            self.__storage_handler.write_data(data, file_datetime)
 
     def load_data(self, item) -> None:
         assert item.has_data
@@ -217,10 +208,6 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         """Return the internal properties. Callers should not modify and it is ok to not return a copy."""
         return self.__properties
 
-    def _set_write_delayed(self, item, write_delayed: bool) -> None:
-        """Set item to have write delay state in internal storage."""
-        pass
-
     def __write_properties_if_not_delayed(self, item) -> None:
         if self.__write_delay_counts.get(item, 0) == 0:
             self._write_item_properties(item)
@@ -249,25 +236,28 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
 
     def insert_item(self, parent, name: str, before_index: int, item) -> None:
         # insert item in internal storage
+        item.persistent_dict = item.write_to_dict()
+        item.persistent_storage = self
+        item.persistent_object_context = parent.persistent_object_context
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
             item_list = storage_dict.setdefault(name, list())
-            item.persistent_dict = item.write_to_dict()
-            item.persistent_storage = self
             item_list.insert(before_index, item.persistent_dict)
-        item.persistent_object_context = parent.persistent_object_context
         self.__write_properties_if_not_delayed(parent)
 
     def remove_item(self, parent, name: str, index: int, item) -> None:
+        self._remove_item(parent, name, index, item)
+        item.persistent_object_context = None
+        item.persistent_dict = None
+        item.persistent_storage = None
+
+    def _remove_item(self, parent, name: str, index: int, item) -> None:
         # remove item from internal storage
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
             item_list = storage_dict[name]
             del item_list[index]
         self.__write_properties_if_not_delayed(parent)
-        item.persistent_object_context = None
-        item.persistent_dict = None
-        item.persistent_storage = None
 
     def set_item(self, parent, name: str, item) -> None:
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
@@ -312,15 +302,12 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
 
     def enter_write_delay(self, object) -> None:
         count = self.__write_delay_counts.setdefault(object, 0)
-        if count == 0:
-            self._set_write_delayed(object, True)
         self.__write_delay_counts[object] = count + 1
 
     def exit_write_delay(self, object) -> None:
         count = self.__write_delay_counts.get(object, 1)
         count -= 1
         if count == 0:
-            self._set_write_delayed(object, False)
             self.__write_delay_counts.pop(object)
         else:
             self.__write_delay_counts[object] = count
@@ -455,11 +442,6 @@ class ProjectStorageSystem(PersistentStorageSystem):
                 return item_d
         assert False
 
-    def _set_write_delayed(self, item, write_delayed: bool) -> None:
-        storage = self.__storage_adapter_map.get(item.uuid)
-        if storage:
-            storage.set_write_delayed(item, write_delayed)
-
     def read_project_properties(self) -> typing.Dict:
         """Read data items from the data reference handler and return as a dict.
 
@@ -513,46 +495,58 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
         return properties_copy
 
+    # override
     def _write_item_properties(self, item):
         if item and isinstance(item, DataItem.DataItem):
             self.__rewrite_data_item_properties(item)
         else:
             super()._write_item_properties(item)
 
+    # override
     def insert_item(self, parent, name: str, before_index: int, item) -> None:
         if isinstance(item, DataItem.DataItem):
             item.persistent_dict = item.write_to_dict()
             item.persistent_storage = self
             item.persistent_object_context = parent.persistent_object_context
-            is_write_delayed = item and self.is_write_delayed(item)
-            self.__insert_data_item(item, is_write_delayed)
+            storage_handler = self._make_storage_handler(item)
+            item_uuid = item.uuid
+            assert item_uuid not in self.__storage_adapter_map
+            storage_adapter = DataItemStorageAdapter(storage_handler, item.write_to_dict())
+            self.__storage_adapter_map[item_uuid] = storage_adapter
+            item.persistent_dict = self.get_persistent_dict("data_items", item_uuid)
         else:
             super().insert_item(parent, name, before_index, item)
 
-    def remove_item(self, parent, name: str, index: int, item) -> None:
+    # override
+    def _remove_item(self, parent, name: str, index: int, item) -> None:
         if isinstance(item, DataItem.DataItem):
-            self.__delete_data_item(item, safe=True)
-            item.persistent_object_context = None
-            self.__remove_data_item(item)
+            assert item.uuid in self.__storage_adapter_map
+            storage = self.__storage_adapter_map.get(item.uuid)
+            self._remove_storage_handler(storage._storage_handler, safe=True)
+            self.__storage_adapter_map.pop(item.uuid).close()
         else:
-            super().remove_item(parent, name, index, item)
+            super()._remove_item(parent, name, index, item)
 
+    # override
     def get_storage_property(self, item, name: str) -> typing.Optional[str]:
         if isinstance(item, DataItem.DataItem):
             return self.__get_data_item_property(item, name)
         return super().get_storage_property(item, name)
 
+    # override
     def read_external_data(self, item, name: str) -> typing.Any:
         if isinstance(item, DataItem.DataItem) and name == "data":
             return self.__read_data_item_data(item)
         return super().read_external_data(item, name)
 
+    # override
     def write_external_data(self, item, name: str, value) -> None:
         if isinstance(item, DataItem.DataItem) and name == "data":
             self.__write_data_item_data(item, value)
         else:
             super().write_external_data(item, name, value)
 
+    # override
     def rewrite_item(self, item) -> None:
         if isinstance(item, DataItem.DataItem):
             self.__rewrite_data_item_properties(item)
@@ -574,27 +568,6 @@ class ProjectStorageSystem(PersistentStorageSystem):
     def __get_data_item_properties(self, data_item: DataItem.DataItem) -> typing.Dict:
         return self.__storage_adapter_map.get(data_item.uuid).properties
 
-    def __insert_data_item(self, data_item: DataItem.DataItem, is_write_delayed: bool) -> None:
-        storage_handler = self._make_storage_handler(data_item)
-        item_uuid = data_item.uuid
-        assert item_uuid not in self.__storage_adapter_map
-        storage_adapter = DataItemStorageAdapter(storage_handler, data_item.write_to_dict())
-        self.__storage_adapter_map[item_uuid] = storage_adapter
-        if is_write_delayed:
-            storage_adapter.set_write_delayed(data_item, True)
-        data_item.persistent_dict = self.get_persistent_dict("data_items", item_uuid)
-        data_item.persistent_storage = self
-
-    def __delete_data_item(self, data_item: DataItem.DataItem, *, safe: bool=False) -> None:
-        storage = self.__storage_adapter_map.get(data_item.uuid)
-        self._remove_storage_handler(storage._storage_handler, safe=safe)
-
-    def __remove_data_item(self, data_item: DataItem.DataItem) -> None:
-        assert data_item.uuid in self.__storage_adapter_map
-        self.__storage_adapter_map.pop(data_item.uuid).close()
-        data_item.persistent_dict = None
-        data_item.persistent_storage = None
-
     def __get_data_item_property(self, data_item: DataItem.DataItem, name: str) -> typing.Optional[str]:
         if name == "file_path":
             storage = self.__storage_adapter_map.get(data_item.uuid)
@@ -607,10 +580,12 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
     def __write_data_item_data(self, data_item: DataItem.DataItem, data) -> None:
         storage = self.__storage_adapter_map.get(data_item.uuid)
-        storage.update_data(data_item, data)
+        if not self.is_write_delayed(data_item):
+            storage.update_data(data_item, data)
 
     def __rewrite_data_item_properties(self, data_item: DataItem.DataItem) -> None:
-        self.__storage_adapter_map.get(data_item.uuid).rewrite_item(data_item)
+        if not self.is_write_delayed(data_item):
+            self.__storage_adapter_map.get(data_item.uuid).rewrite_item(data_item)
 
     def __restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
         return self._restore_item(data_item_uuid)

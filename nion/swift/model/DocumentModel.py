@@ -285,10 +285,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for project_index, project in enumerate(self.__profile.projects_model.value):
             self.__project_inserted(project, project_index)
 
-        # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
-        # there is a single shared object context per document model. this code establishes that connection.
-        self.persistent_object_context = self.__profile.persistent_object_context
-
         self.storage_cache = self.__profile.storage_cache
         self.__transaction_manager = TransactionManager(self)
         self.__data_structure_listeners = dict()

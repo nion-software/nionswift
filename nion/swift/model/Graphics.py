@@ -364,11 +364,12 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.label_font = "normal 11px serif"
         self.__source = None
 
-    def close(self):
+    def close(self) -> None:
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
         self.__container_weak_ref = None
+        super().close()
 
     @property
     def container(self):

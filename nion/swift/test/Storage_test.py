@@ -866,11 +866,11 @@ class TestStorageClass(unittest.TestCase):
                 with document_model.item_transaction(data_item):
                     display_item.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                     # make sure data does NOT exist during the transaction
-                    self.assertIsNone(data_item.persistent_object_context.read_external_data(data_item, "data"))
+                    self.assertIsNone(data_item.read_external_data("data"))
                 # make sure it DOES exist after the transaction
                 self.assertTrue(os.path.exists(data_file_path))
                 self.assertTrue(os.path.isfile(data_file_path))
-                self.assertIsNotNone(data_item.persistent_object_context.read_external_data(data_item, "data"))
+                self.assertIsNotNone(data_item.read_external_data("data"))
             document_model = None
             storage_cache = None
 

@@ -411,12 +411,13 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self._about_to_be_removed = False
         self._closed = False
 
-    def close(self):
+    def close(self) -> None:
         self.__disconnect_data_item_events()
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
         self.__container_weak_ref = None
+        super().close()
 
     @property
     def container(self):
@@ -850,7 +851,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         if data_item:
             self.append_display_data_channel_for_data_item(data_item)
 
-    def close(self):
+    def close(self) -> None:
         if self.__registration_listener:
             self.__registration_listener.close()
             self.__registration_listener = None
@@ -867,6 +868,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         assert not self._closed
         self._closed = True
         self.__container_weak_ref = None
+        super().close()
 
     def __copy__(self):
         assert False
@@ -1020,7 +1022,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def properties(self):
         """ Used for debugging. """
         if self.persistent_object_context:
-            return self.persistent_object_context.get_properties(self)
+            return self.get_storage_properties()
         return dict()
 
     @property
@@ -1030,16 +1032,16 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def __enter_write_delay_state(self):
         self.__write_delay_modified_count = self.modified_count
         if self.persistent_object_context:
-            self.persistent_object_context.enter_write_delay(self)
+            self.enter_write_delay()
 
     def __exit_write_delay_state(self):
         if self.persistent_object_context:
-            self.persistent_object_context.exit_write_delay(self)
+            self.exit_write_delay()
             self._finish_pending_write()
 
     def _finish_pending_write(self):
         if self.modified_count > self.__write_delay_modified_count:
-            self.persistent_object_context.rewrite_item(self)
+            self.rewrite()
 
     def _transaction_state_entered(self):
         self.__in_transaction_state = True

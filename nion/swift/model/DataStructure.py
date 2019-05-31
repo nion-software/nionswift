@@ -38,11 +38,12 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         if source is not None:
             self.source_uuid = source.uuid
 
-    def close(self):
+    def close(self) -> None:
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
         self.__container_weak_ref = None
+        super().close()
 
     def __getattr__(self, name):
         properties = self.__dict__.get("_DataStructure__properties", dict())

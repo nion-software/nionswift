@@ -503,11 +503,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self._inputs = set()  # used by document model for tracking dependencies
         self._outputs = set()
 
-    def close(self):
+    def close(self) -> None:
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
         self.__container_weak_ref = None
+        super().close()
 
     @property
     def container(self):

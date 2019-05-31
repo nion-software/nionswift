@@ -37,7 +37,7 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
         if parent is not None:
             self.parent_uuid = parent.uuid
 
-    def close(self):
+    def close(self) -> None:
         if self.__registration_listener:
             self.__registration_listener.close()
             self.__registration_listener = None
@@ -45,6 +45,7 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
         assert not self._closed
         self._closed = True
         self.__container_weak_ref = None
+        super().close()
 
     @property
     def container(self):
@@ -93,7 +94,6 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
 
         if self.persistent_object_context:
             self.__registration_listener = self.persistent_object_context.registration_event.listen(change_registration)
-
             self.__parent = self.persistent_object_context.get_registered_object(self.parent_uuid)
 
 
