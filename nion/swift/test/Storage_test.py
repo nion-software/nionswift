@@ -4058,7 +4058,7 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
             # corrupt it (old version)
-            work_project_path = pathlib.Path(profile._work_project.project_reference["project_path"])
+            work_project_path = pathlib.Path(profile.work_project.project_reference["project_path"])
             work_project_data_json = json.dumps({"version": 2, "uuid": str(uuid.uuid4())})
             work_project_path.write_text(work_project_data_json, "utf-8")
             # load normal profile
@@ -4069,7 +4069,7 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
             # confirm a new work project was created
-            self.assertNotEqual(work_project_path, pathlib.Path(profile._work_project.project_reference["project_path"]))
+            self.assertNotEqual(work_project_path, pathlib.Path(profile.work_project.project_reference["project_path"]))
 
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()

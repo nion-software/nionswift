@@ -33,8 +33,7 @@ class DataItemStorageAdapter:
 
     def __init__(self, storage_handler, properties: typing.Dict):
         self.__storage_handler = storage_handler
-        self.__properties = Migration.transform_to_latest(Utility.clean_dict(copy.deepcopy(properties) if properties else dict()))
-        self.__properties_lock = threading.RLock()
+        self.__properties = properties
 
     def close(self):
         if self.__storage_handler:
@@ -43,11 +42,10 @@ class DataItemStorageAdapter:
 
     @property
     def properties(self):
-        with self.__properties_lock:
-            return self.__properties
+        return self.__properties
 
     @property
-    def _storage_handler(self):
+    def storage_handler(self):
         return self.__storage_handler
 
     def rewrite_item(self, item) -> None:
@@ -204,7 +202,7 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         with self.__properties_lock:
             self.__properties = self._read_properties()
 
-    def _get_properties(self) -> typing.Dict:
+    def get_storage_properties(self) -> typing.Dict:
         """Return the internal properties. Callers should not modify and it is ok to not return a copy."""
         return self.__properties
 
@@ -239,17 +237,20 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         item.persistent_dict = item.write_to_dict()
         item.persistent_storage = self
         item.persistent_object_context = parent.persistent_object_context
-        storage_dict = self.__update_modified_and_get_storage_dict(parent)
-        with self.__properties_lock:
-            item_list = storage_dict.setdefault(name, list())
-            item_list.insert(before_index, item.persistent_dict)
-        self.__write_properties_if_not_delayed(parent)
+        self._insert_item(parent, name, before_index, item)
 
     def remove_item(self, parent, name: str, index: int, item) -> None:
         self._remove_item(parent, name, index, item)
         item.persistent_object_context = None
         item.persistent_dict = None
         item.persistent_storage = None
+
+    def _insert_item(self, parent, name: str, before_index: int, item) -> None:
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
+        with self.__properties_lock:
+            item_list = storage_dict.setdefault(name, list())
+            item_list.insert(before_index, item.persistent_dict)
+        self.__write_properties_if_not_delayed(parent)
 
     def _remove_item(self, parent, name: str, index: int, item) -> None:
         # remove item from internal storage
@@ -319,7 +320,7 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         self.__write_properties_if_not_delayed(item)
 
     def read_properties(self) -> typing.Dict:
-        return self._get_properties()
+        return self.get_storage_properties()
 
     def enter_transaction(self) -> None:
         self.__write_delay_count += 1
@@ -356,7 +357,7 @@ class FilePersistentStorageSystem(PersistentStorageSystem):
             # atomically overwrite
             temp_filepath = self.__path.with_suffix(".temp")
             with temp_filepath.open("w") as fp:
-                properties = Utility.clean_dict(self._get_properties())
+                properties = Utility.clean_dict(self.get_storage_properties())
                 json.dump(properties, fp)
             os.replace(temp_filepath, self.__path)
 
@@ -373,7 +374,7 @@ class MemoryPersistentStorageSystem(PersistentStorageSystem):
 
     def _write_properties(self) -> None:
         self.__library_properties.clear()
-        self.__library_properties.update(self._get_properties())
+        self.__library_properties.update(self.get_storage_properties())
 
     def set_library_properties(self, library_properties: typing.Dict) -> None:
         self.__library_properties.clear()
@@ -437,7 +438,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
     def get_persistent_dict(self, name: str, item_uuid: uuid.UUID) -> typing.Dict:
         if name == "data_items":
             return self._data_properties_map[item_uuid].properties
-        for item_d in self._get_properties()[name]:
+        for item_d in self.get_storage_properties()[name]:
             if uuid.UUID(item_d["uuid"]) == item_uuid:
                 return item_d
         assert False
@@ -503,26 +504,22 @@ class ProjectStorageSystem(PersistentStorageSystem):
             super()._write_item_properties(item)
 
     # override
-    def insert_item(self, parent, name: str, before_index: int, item) -> None:
+    def _insert_item(self, parent, name: str, before_index: int, item) -> None:
         if isinstance(item, DataItem.DataItem):
-            item.persistent_dict = item.write_to_dict()
-            item.persistent_storage = self
-            item.persistent_object_context = parent.persistent_object_context
-            storage_handler = self._make_storage_handler(item)
             item_uuid = item.uuid
+            storage_handler = self._make_storage_handler(item)
             assert item_uuid not in self.__storage_adapter_map
-            storage_adapter = DataItemStorageAdapter(storage_handler, item.write_to_dict())
+            storage_adapter = DataItemStorageAdapter(storage_handler, item.persistent_dict)
             self.__storage_adapter_map[item_uuid] = storage_adapter
-            item.persistent_dict = self.get_persistent_dict("data_items", item_uuid)
         else:
-            super().insert_item(parent, name, before_index, item)
+            super()._insert_item(parent, name, before_index, item)
 
     # override
     def _remove_item(self, parent, name: str, index: int, item) -> None:
         if isinstance(item, DataItem.DataItem):
             assert item.uuid in self.__storage_adapter_map
             storage = self.__storage_adapter_map.get(item.uuid)
-            self._remove_storage_handler(storage._storage_handler, safe=True)
+            self._remove_storage_handler(storage.storage_handler, safe=True)
             self.__storage_adapter_map.pop(item.uuid).close()
         else:
             super()._remove_item(parent, name, index, item)
@@ -571,7 +568,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
     def __get_data_item_property(self, data_item: DataItem.DataItem, name: str) -> typing.Optional[str]:
         if name == "file_path":
             storage = self.__storage_adapter_map.get(data_item.uuid)
-            return storage._storage_handler.reference if storage else None
+            return storage.storage_handler.reference if storage else None
         return None
 
     def __read_data_item_data(self, data_item: DataItem.DataItem):
@@ -603,7 +600,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
     def load_properties(self) -> None:
         super().load_properties()
         project_data_folder_paths = list()
-        for project_data_folder in self._get_properties().get("project_data_folders", list()):
+        for project_data_folder in self.get_storage_properties().get("project_data_folders", list()):
             project_data_folder_path = pathlib.Path(project_data_folder)
             if not project_data_folder_path.is_absolute():
                 project_data_folder_path = self.__project_path.parent / project_data_folder_path
@@ -625,7 +622,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         return properties
 
     def _write_properties(self) -> None:
-        self.__write_properties_inner(self._get_properties())
+        self.__write_properties_inner(self.get_storage_properties())
 
     def __write_properties_inner(self, properties: typing.Dict) -> None:
         if self.__project_path:
@@ -853,7 +850,7 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
 
     def _write_properties(self) -> None:
         self.__library_properties.clear()
-        self.__library_properties.update(copy.deepcopy(self._get_properties()))
+        self.__library_properties.update(copy.deepcopy(self.get_storage_properties()))
 
     def _get_identifier(self) -> str:
         return "memory"

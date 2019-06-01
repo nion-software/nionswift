@@ -583,7 +583,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def append_data_item(self, data_item: DataItem.DataItem, auto_display: bool = True) -> None:
         data_item.session_id = self.session_id
-        self.__profile._work_project.append_data_item(data_item)
+        self.__profile.work_project.append_data_item(data_item)
         # automatically add a display
         if auto_display:
             display_item = DisplayItem.DisplayItem(data_item=data_item)
@@ -637,7 +637,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def append_display_item(self, display_item: DisplayItem.DisplayItem, *, update_session: bool = True) -> None:
         if update_session:
             display_item.session_id = self.session_id
-        self.__profile._work_project.append_display_item(display_item)
+        self.__profile.work_project.append_display_item(display_item)
 
     def insert_display_item(self, before_index: int, display_item: DisplayItem.DisplayItem, *, update_session: bool = True) -> None:
         uuid_order = list(display_item.uuid for display_item in self.__display_items)
@@ -2139,7 +2139,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         return display_item_copy
 
     def append_connection(self, connection: Connection.Connection) -> None:
-        self.__profile._work_project.append_connection(connection)
+        self.__profile.work_project.append_connection(connection)
 
     def insert_connection(self, before_index: int, connection: Connection.Connection) -> None:
         uuid_order = list(connection.uuid for connection in self.__connections)
@@ -2172,7 +2172,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         return DataStructure.DataStructure(structure_type=structure_type, source=source)
 
     def append_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
-        self.__profile._work_project.append_data_structure(data_structure)
+        self.__profile.work_project.append_data_structure(data_structure)
 
     def insert_data_structure(self, before_index: int, data_structure: DataStructure.DataStructure) -> None:
         uuid_order = list(data_structure.uuid for data_structure in self.__data_structures)
@@ -2254,7 +2254,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__get_deep_dependent_item_set(output, output_set)
         if input_set.intersection(output_set):
             raise Exception("Computation would result in duplicate dependency.")
-        self.__profile._work_project.append_computation(computation)
+        self.__profile.work_project.append_computation(computation)
 
     def insert_computation(self, before_index: int, computation: Symbolic.Computation) -> None:
         uuid_order = list(computation.uuid for computation in self.__computations)

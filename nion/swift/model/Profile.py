@@ -30,6 +30,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         self.__container_weak_ref = None
 
+        self.define_root_context()
         self.define_type("profile")
         self.define_relationship("workspaces", WorkspaceLayout.factory)
         self.define_relationship("data_groups", DataGroup.data_group_factory)
@@ -56,14 +57,10 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
 
-        # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
-        # there is a single shared object context per profile.
-        self.persistent_object_context = Persistence.PersistentObjectContext()
-        self.persistent_dict = self.storage_system._get_properties()
-        self.persistent_storage = self.storage_system
+        self.set_storage_system(self.storage_system)
 
         for project in self.__projects:
-            project.persistent_object_context = self.persistent_object_context
+            self.update_item_context(project)
             project.about_to_be_inserted(self)
 
         self.__document_model = None
@@ -102,11 +99,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         return self.storage_system
 
     @property
-    def _target_project_storage_system(self) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
-        return self.__work_project.project_storage_system if self.__work_project else None
-
-    @property
-    def _work_project(self) -> typing.Optional[Project.Project]:
+    def work_project(self) -> typing.Optional[Project.Project]:
         return self.__work_project
 
     def open(self, document_model):
@@ -300,8 +293,8 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.add_project_reference(project_reference)
         return project_reference
 
-    def __append_project(self, project):
-        project.persistent_object_context = self.persistent_object_context
+    def __append_project(self, project: Project.Project) -> None:
+        self.update_item_context(project)
         project.about_to_be_inserted(self)
         project_index = len(self.__projects)
         self.__projects.append(project)
