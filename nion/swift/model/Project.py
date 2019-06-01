@@ -236,9 +236,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def append_data_item(self, data_item: DataItem.DataItem) -> None:
         assert data_item.uuid not in {data_item.uuid for data_item in self.data_items}
         self.append_item("data_items", data_item)
-        # don't directly write data item, or else write_pending is not cleared on data item
-        # call finish pending write instead
-        data_item._finish_pending_write()  # initially write to disk
+        data_item.write_data_if_not_delayed()  # initially write to disk
 
     def remove_data_item(self, data_item: DataItem.DataItem) -> None:
         self.remove_item("data_items", data_item)

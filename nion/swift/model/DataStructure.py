@@ -27,18 +27,23 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         self._about_to_be_removed = False
         self._closed = False
         self.__properties = dict()
-        self.__referenced_objects = dict()
+        self.__referenced_object_proxies = dict()
         self.define_type("data_structure")
         self.define_property("structure_type", structure_type)
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("source_uuid", converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
         # properties is handled explicitly
         self.data_structure_changed_event = Event.Event()
         self.referenced_objects_changed_event = Event.Event()
-        self.__source = source
+        self.__source_proxy = self.create_item_proxy(item=source)
         if source is not None:
             self.source_uuid = source.uuid
 
     def close(self) -> None:
+        self.__source_proxy.close()
+        self.__source_proxy = None
+        for referenced_proxy in self.__referenced_object_proxies.values():
+            referenced_proxy.close()
+        self.__referenced_object_proxies.clear()
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
@@ -97,6 +102,12 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
         self.__properties = properties.get("properties")
+        for property_name, value in self.__properties.items():
+            self.__configure_reference_proxy(property_name, value)
+
+    def __configure_reference_proxy(self, property_name, value):
+        if isinstance(value, dict) and value.get("type") in {"data_item", "display_item", "data_source", "graphic", "structure"} and "uuid" in value:
+            self.__referenced_object_proxies[property_name] = self.create_item_proxy(item_uuid=uuid.UUID(value["uuid"]))
 
     def write_to_dict(self):
         properties = super().write_to_dict()
@@ -105,45 +116,22 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def source(self):
-        return self.__source
+        return self.__source_proxy.item
 
     @source.setter
     def source(self, source):
-        self.__source = source
+        self.__source_proxy.item = source
         self.source_uuid = source.uuid if source else None
 
-    def persistent_object_context_changed(self):
-        """ Override from PersistentObject. """
-        super().persistent_object_context_changed()
-
-        def source_registered(source):
-            self.__source = source
-
-        def source_unregistered(source=None):
-            pass
-
-        def reference_registered(property_name, reference):
-            self.__referenced_objects[property_name] = reference
-
-        def reference_unregistered(property_name, reference=None):
-            pass
-
-        if self.persistent_object_context:
-            self.persistent_object_context.subscribe(self.source_uuid, source_registered, source_unregistered)
-
-            for property_name, value in self.__properties.items():
-                if isinstance(value, dict) and value.get("type") in {"data_item", "display_item", "data_source", "graphic", "structure"} and "uuid" in value:
-                    self.persistent_object_context.subscribe(uuid.UUID(value["uuid"]), functools.partial(reference_registered, property_name), functools.partial(reference_unregistered, property_name))
-        else:
-            source_unregistered()
-
-            for property_name, value in self.__properties.items():
-                if isinstance(value, dict) and value.get("type") in {"data_item", "display_item", "data_source", "graphic", "structure"} and "uuid" in value:
-                    reference_unregistered(property_name)
+    def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
+        self.__source_proxy.item_uuid = item_uuid
 
     def set_property_value(self, property: str, value) -> None:
         self.__properties[property] = value
-        self.__referenced_objects.pop(property, None)
+        reference_object_proxy = self.__referenced_object_proxies.pop(property, None)
+        if reference_object_proxy:
+            reference_object_proxy.close()
+        self.__configure_reference_proxy(property, value)
         self.data_structure_changed_event.fire(property)
         self.property_changed_event.fire(property)
         self._update_persistent_property("properties", self.__properties)
@@ -151,7 +139,9 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
     def remove_property_value(self, property: str) -> None:
         if property in self.__properties:
             self.__properties.pop(property)
-            self.__referenced_objects.pop(property, None)
+            reference_object_proxy = self.__referenced_object_proxies.pop(property, None)
+            if reference_object_proxy:
+                reference_object_proxy.close()
             self.data_structure_changed_event.fire(property)
             self.property_changed_event.fire(property)
             self._update_persistent_property("properties", self.__properties)
@@ -161,24 +151,27 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
 
     def set_referenced_object(self, property: str, item) -> None:
         assert item is not None
-        if item != self.__referenced_objects.get(property):
+        if item != self.get_referenced_object(property):
             object_type = "data_item" if isinstance(item, DataItem.DataItem) else None
             self.__properties[property] = get_object_specifier(item, object_type)
+            reference_object_proxy = self.__referenced_object_proxies.pop(property, None)
+            if reference_object_proxy:
+                reference_object_proxy.close()
+            self.__configure_reference_proxy(property, self.__properties[property])
             self.data_structure_changed_event.fire(property)
             self.property_changed_event.fire(property)
             self._update_persistent_property("properties", self.__properties)
-            self.__referenced_objects[property] = item
             self.referenced_objects_changed_event.fire()
 
     def remove_referenced_object(self, property: str) -> None:
         self.remove_property_value(property)
 
     def get_referenced_object(self, property: str):
-        return self.__referenced_objects.get(property)
+        return self.__referenced_object_proxies[property].item if property in self.__referenced_object_proxies else None
 
     @property
     def _referenced_objects(self):
-        return self.__referenced_objects.values()
+        return list(referenced_object_proxy.item for referenced_object_proxy in self.__referenced_object_proxies.values())
 
 
 def get_object_specifier(object, object_type: str=None) -> typing.Optional[typing.Mapping]:

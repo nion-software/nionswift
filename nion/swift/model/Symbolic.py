@@ -480,14 +480,14 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self._about_to_be_removed = False
         self._closed = False
         self.define_type("computation")
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("source_uuid", converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
         self.define_property("original_expression", expression)
         self.define_property("error_text", hidden=True, changed=self.__error_changed)
         self.define_property("label", changed=self.__label_changed)
         self.define_property("processing_id")  # see note above
         self.define_relationship("variables", variable_factory)
         self.define_relationship("results", result_factory)
-        self.__source = None
+        self.__source_proxy = self.create_item_proxy()
         self.__variable_changed_event_listeners = dict()
         self.__variable_needs_rebind_event_listeners = dict()
         self.__result_needs_rebind_event_listeners = dict()
@@ -504,6 +504,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self._outputs = set()
 
     def close(self) -> None:
+        self.__source_proxy.close()
+        self.__source_proxy = None
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
@@ -556,26 +558,15 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def source(self):
-        return self.__source
+        return self.__source_proxy.item
 
     @source.setter
     def source(self, source):
-        self.__source = source
+        self.__source_proxy.item = source
         self.source_uuid = source.uuid if source else None
 
-    def persistent_object_context_changed(self):
-        super().persistent_object_context_changed()
-
-        def registered(source):
-            self.__source = source
-
-        def unregistered(source=None):
-            self.__source = None
-
-        if self.persistent_object_context:
-            self.persistent_object_context.subscribe(self.source_uuid, registered, unregistered)
-        else:
-            unregistered()
+    def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
+        self.__source_proxy.item_uuid = item_uuid
 
     @property
     def error_text(self) -> typing.Optional[str]:

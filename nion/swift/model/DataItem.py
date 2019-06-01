@@ -198,7 +198,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("title", UNTITLED_STR, changed=self.__property_changed)
         self.define_property("caption", changed=self.__property_changed)
         self.define_property("description", changed=self.__property_changed)
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("source_uuid", converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__property_changed)
         self.define_property("session", dict(), changed=self.__property_changed)
         self.define_property("category", "persistent", changed=self.__property_changed)
@@ -216,7 +216,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__source_file_path = None
         self.__is_live = False
         self.__session_manager = None
-        self.__source = None
+        self.__source_proxy = self.create_item_proxy()
         self.description_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
         self.metadata_changed_event = Event.Event()  # see Metadata Note above
@@ -271,6 +271,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         return data_item_copy
 
     def close(self) -> None:
+        self.__source_proxy.close()
+        self.__source_proxy = None
         self.__data_and_metadata = None
         assert self._about_to_be_removed
         assert not self._closed
@@ -373,18 +375,21 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         properties["version"] = DataItem.writer_version
         return properties
 
+    def write_data_if_not_delayed(self) -> None:
+        if not self.is_write_delayed:
+            # write the uuid and version explicitly
+            self.property_changed("uuid", str(self.uuid))
+            self.property_changed("version", DataItem.writer_version)
+            self.__write_data()
+            self.__pending_write = False
+
     def __write_data(self):
         if self.__data_and_metadata:
             self.write_external_data("data", self.__data_and_metadata.data)
 
     def _finish_pending_write(self):
         if self.__pending_write:
-            if not self.is_write_delayed:
-                # write the uuid and version explicitly
-                self.property_changed("uuid", str(self.uuid))
-                self.property_changed("version", DataItem.writer_version)
-                self.__write_data()
-                self.__pending_write = False
+            self.write_data_if_not_delayed()
         else:
             if self.modified_count > self.__write_delay_modified_count:
                 self.rewrite()
@@ -414,12 +419,15 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def source(self):
-        return self.__source
+        return self.__source_proxy.item
 
     @source.setter
     def source(self, source):
-        self.__source = source
+        self.__source_proxy.item = source
         self.source_uuid = source.uuid if source else None
+
+    def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
+        self.__source_proxy.item_uuid = item_uuid
 
     def persistent_object_context_changed(self):
         # handle case where persistent object context is set on an item that is already under transaction.
@@ -431,22 +439,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
         if self.__in_transaction_state:
             self.__enter_write_delay_state()
-
-        def register():
-            if self.__source is not None:
-                pass
-
-        def source_registered(source):
-            self.__source = source
-            register()
-
-        def unregistered(source=None):
-            pass
-
-        if self.persistent_object_context:
-            self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
-        else:
-            unregistered()
 
     def _test_get_file_path(self):
         return self.persistent_storage.get_storage_property(self, "file_path")

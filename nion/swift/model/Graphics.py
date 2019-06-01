@@ -1,8 +1,8 @@
 # standard libraries
 import copy
-import functools
 import gettext
 import math
+import uuid
 import weakref
 
 # third party libraries
@@ -343,6 +343,7 @@ class NullModifiers(object):
 
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
 class Graphic(Observable.Observable, Persistence.PersistentObject):
+
     def __init__(self, type):
         super().__init__()
         self.__container_weak_ref = None
@@ -352,7 +353,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self._closed = False
         self.define_type(type)
         self.define_property("graphic_id", None, changed=self._property_changed, validate=lambda s: str(s) if s else None)
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("source_uuid", converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
         self.define_property("color", "#F80", changed=self._property_changed)
         self.define_property("label", changed=self._property_changed, validate=lambda s: str(s) if s else None)
         self.define_property("is_position_locked", False, changed=self._property_changed)
@@ -362,9 +363,11 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.graphic_changed_event = Event.Event()
         self.label_padding = 4
         self.label_font = "normal 11px serif"
-        self.__source = None
+        self.__source_proxy = self.create_item_proxy()
 
     def close(self) -> None:
+        self.__source_proxy.close()
+        self.__source_proxy = None
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
@@ -431,31 +434,15 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def source(self):
-        return self.__source
+        return self.__source_proxy.item
 
     @source.setter
     def source(self, source):
-        self.__source = source
+        self.__source_proxy.item = source
         self.source_uuid = source.uuid if source else None
 
-    def persistent_object_context_changed(self):
-        super().persistent_object_context_changed()
-
-        def register():
-            if self.__source is not None:
-                pass
-
-        def source_registered(source):
-            self.__source = source
-            register()
-
-        def unregistered(source=None):
-            pass
-
-        if self.persistent_object_context:
-            self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
-        else:
-            unregistered()
+    def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
+        self.__source_proxy.item_uuid = item_uuid
 
     def _property_changed(self, name, value):
         self.notify_property_changed(name)

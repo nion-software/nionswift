@@ -260,7 +260,7 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.remove_data_item(data_item_crop)
             self.assertEqual(0, document_model.transaction_count)
 
-    def test_transaction_propogates_to_data_structure_referenced_objects(self):
+    def test_transaction_propagates_to_data_structure_referenced_objects(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))

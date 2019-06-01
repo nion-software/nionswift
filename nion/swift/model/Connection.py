@@ -6,6 +6,7 @@
 import copy
 import functools
 import typing
+import uuid
 import weakref
 
 # third party libraries
@@ -30,17 +31,15 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
         self.about_to_cascade_delete_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
-        self.__registration_listener = None
         self.define_type(type)
-        self.define_property("parent_uuid", converter=Converter.UuidToStringConverter())
-        self.__parent = parent
+        self.define_property("parent_uuid", converter=Converter.UuidToStringConverter(), changed=self.__parent_uuid_changed)
+        self.__parent_proxy = self.create_item_proxy(item=parent)
         if parent is not None:
             self.parent_uuid = parent.uuid
 
     def close(self) -> None:
-        if self.__registration_listener:
-            self.__registration_listener.close()
-            self.__registration_listener = None
+        self.__parent_proxy.close()
+        self.__parent_proxy = None
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
@@ -77,24 +76,15 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def parent(self):
-        return self.__parent
+        return self.__parent_proxy.item
 
     @parent.setter
     def parent(self, parent):
-        self.__parent = parent
+        self.__parent_proxy.item = parent
         self.parent_uuid = parent.uuid if parent else None
 
-    def persistent_object_context_changed(self):
-        """ Override from PersistentObject. """
-        super().persistent_object_context_changed()
-
-        def change_registration(registered_object, unregistered_object):
-            if registered_object and registered_object.uuid == self.parent_uuid:
-                self.__parent = registered_object
-
-        if self.persistent_object_context:
-            self.__registration_listener = self.persistent_object_context.registration_event.listen(change_registration)
-            self.__parent = self.persistent_object_context.get_registered_object(self.parent_uuid)
+    def __parent_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
+        self.__parent_proxy.item_uuid = item_uuid
 
 
 class PropertyConnection(Connection):
@@ -102,19 +92,52 @@ class PropertyConnection(Connection):
 
     def __init__(self, source=None, source_property=None, target=None, target_property=None, *, parent=None):
         super().__init__("property-connection", parent=parent)
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("source_uuid", converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
         self.define_property("source_property")
-        self.define_property("target_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("target_uuid", converter=Converter.UuidToStringConverter(), changed=self.__target_uuid_changed)
         self.define_property("target_property")
         # these are only set in persistent object context changed
-        self.__source = None
-        self.__target = None
         self.__binding = None
         self.__target_property_changed_listener = None
-        self.__registration_listener = None
+        self.__source_proxy = self.create_item_proxy(item=source)
+        self.__target_proxy = self.create_item_proxy(item=target)
         # suppress messages while we're setting source or target
         self.__suppress = False
-        # but setup if we were passed objects
+        # set up the proxies
+
+        def configure_binding():
+            if self._source and self._target:
+                assert not self.__binding
+                self.__binding = Binding.PropertyBinding(self._source, self.source_property)
+                self.__binding.target_setter = self.__set_target_from_source
+                # while reading, the data item in the display data channel will not be connected;
+                # we still set its value here. when the data item becomes valid, it will update.
+                self.__binding.update_target_direct(self.__binding.get_target_value())
+
+        def release_binding():
+            if self.__binding:
+                self.__binding.close()
+                self.__binding = None
+            if self.__target_property_changed_listener:
+                self.__target_property_changed_listener.close()
+                self.__target_property_changed_listener = None
+
+        self.__source_proxy.on_item_registered = lambda x: configure_binding()
+        self.__source_proxy.on_item_unregistered = lambda x: release_binding()
+
+        def configure_target() -> None:
+            def property_changed(target, property_name):
+                if property_name == self.target_property:
+                    self.__set_source_from_target(getattr(target, property_name))
+
+            assert self.__target_property_changed_listener is None
+            self.__target_property_changed_listener = self._target.property_changed_event.listen(functools.partial(property_changed, self._target))
+            configure_binding()
+
+        self.__target_proxy.on_item_registered = lambda x: configure_target()
+        self.__target_proxy.on_item_unregistered = lambda x: release_binding()
+
+        # but set up if we were passed objects
         if source is not None:
             self.source_uuid = source.uuid
         if source_property:
@@ -124,31 +147,41 @@ class PropertyConnection(Connection):
         if target_property:
             self.target_property = target_property
 
+        if self._target:
+            configure_target()
+
     def close(self):
-        if self.__registration_listener:
-            self.__registration_listener.close()
-            self.__registration_listener = None
         if self.__binding:
             self.__binding.close()
             self.__binding = None
         if self.__target_property_changed_listener:
             self.__target_property_changed_listener.close()
             self.__target_property_changed_listener = None
+        self.__source_proxy.close()
+        self.__source_proxy = None
+        self.__target_proxy.close()
+        self.__target_proxy = None
         super().close()
 
     @property
     def _source(self):
-        return self.__source
+        return self.__source_proxy.item
 
     @property
     def _target(self):
-        return self.__target
+        return self.__target_proxy.item
+
+    def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
+        self.__source_proxy.item_uuid = item_uuid
+
+    def __target_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
+        self.__target_proxy.item_uuid = item_uuid
 
     def __set_target_from_source(self, value):
         assert not self._closed
         if not self.__suppress:
             self.__suppress = True
-            setattr(self.__target, self.target_property, value)
+            setattr(self._target, self.target_property, value)
             self.__suppress = False
 
     def __set_source_from_target(self, value):
@@ -159,65 +192,6 @@ class PropertyConnection(Connection):
                 self.__binding.update_source(value)
             self.__suppress = False
 
-    def persistent_object_context_changed(self):
-        """ Override from PersistentObject. """
-        super().persistent_object_context_changed()
-
-        def register():
-            if self.__source is not None and self.__target is not None:
-                assert not self.__binding
-                self.__binding = Binding.PropertyBinding(self.__source, self.source_property)
-                self.__binding.target_setter = self.__set_target_from_source
-                # while reading, the data item in the display data channel will not be connected;
-                # we still set its value here. when the data item becomes valid, it will update.
-                self.__binding.update_target_direct(self.__binding.get_target_value())
-
-        def source_registered(source):
-            self.__source = source
-            register()
-
-        def target_registered(target):
-            self.__target = target
-
-            def property_changed(target, property_name):
-                if property_name == self.target_property:
-                    self.__set_source_from_target(getattr(target, property_name))
-
-            assert self.__target_property_changed_listener is None
-            self.__target_property_changed_listener = target.property_changed_event.listen(functools.partial(property_changed, target))
-            register()
-
-        def unregistered(item=None):
-            if not item or item == self.__source:
-                self.__source = None
-            if not item or item == self.__target:
-                self.__target = None
-            if self.__binding:
-                self.__binding.close()
-                self.__binding = None
-            if self.__target_property_changed_listener:
-                self.__target_property_changed_listener.close()
-                self.__target_property_changed_listener = None
-
-        def change_registration(registered_object, unregistered_object):
-            if registered_object and registered_object.uuid == self.source_uuid:
-                source_registered(registered_object)
-            if registered_object and registered_object.uuid == self.target_uuid:
-                target_registered(registered_object)
-            if unregistered_object and unregistered_object in (self._source, self._target):
-                unregistered(unregistered_object)
-
-        if self.persistent_object_context:
-            self.__registration_listener = self.persistent_object_context.registration_event.listen(change_registration)
-            source = self.persistent_object_context.get_registered_object(self.source_uuid)
-            target = self.persistent_object_context.get_registered_object(self.target_uuid)
-            if source:
-                source_registered(source)
-            if target:
-                target_registered(target)
-        else:
-            unregistered()
-
 
 class IntervalListConnection(Connection):
     """Binds the intervals on a display to the interval_descriptors on a line profile graphic.
@@ -227,26 +201,14 @@ class IntervalListConnection(Connection):
 
     def __init__(self, display_item=None, line_profile=None, *, parent=None):
         super().__init__("interval-list-connection", parent=parent)
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
-        self.define_property("target_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("source_uuid", converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
+        self.define_property("target_uuid", converter=Converter.UuidToStringConverter(), changed=self.__target_uuid_changed)
         # these are only set in persistent object context changed
-        self.__source = display_item
-        self.__target = line_profile
         self.__item_inserted_event_listener = None
         self.__item_removed_event_listener = None
         self.__interval_mutated_listeners = list()
-        # but setup if we were passed objects
-        if display_item is not None:
-            self.source_uuid = display_item.uuid
-        if line_profile is not None:
-            self.target_uuid = line_profile.uuid
-
-    def close(self):
-        super().close()
-
-    def persistent_object_context_changed(self):
-        """ Override from PersistentObject. """
-        super().persistent_object_context_changed()
+        self.__source_proxy = self.create_item_proxy(item=display_item)
+        self.__target_proxy = self.create_item_proxy(item=line_profile)
 
         def detach():
             for listener in self.__interval_mutated_listeners:
@@ -274,16 +236,14 @@ class IntervalListConnection(Connection):
                 reattach()
 
         def source_registered(source):
-            self.__source = source
             self.__item_inserted_event_listener = self.__source.item_inserted_event.listen(item_inserted)
             self.__item_removed_event_listener = self.__source.item_removed_event.listen(item_removed)
             reattach()
 
         def target_registered(target):
-            self.__target = target
             reattach()
 
-        def unregistered(source=None):
+        def unregistered(item):
             if self.__item_inserted_event_listener:
                 self.__item_inserted_event_listener.close()
                 self.__item_inserted_event_listener = None
@@ -291,11 +251,38 @@ class IntervalListConnection(Connection):
                 self.__item_removed_event_listener.close()
                 self.__item_removed_event_listener = None
 
-        if self.persistent_object_context:
-            self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
-            self.persistent_object_context.subscribe(self.target_uuid, target_registered, unregistered)
-        else:
-            unregistered()
+        self.__source_proxy.on_item_registered = source_registered
+        self.__source_proxy.on_item_unregistered = unregistered
+
+        self.__target_proxy.on_item_registered = target_registered
+        self.__target_proxy.on_item_unregistered = unregistered
+
+        # but setup if we were passed objects
+        if display_item is not None:
+            self.source_uuid = display_item.uuid
+        if line_profile is not None:
+            self.target_uuid = line_profile.uuid
+
+    def close(self):
+        self.__source_proxy.close()
+        self.__source_proxy = None
+        self.__target_proxy.close()
+        self.__target_proxy = None
+        super().close()
+
+    @property
+    def __source(self):
+        return self.__source_proxy.item
+
+    @property
+    def __target(self):
+        return self.__target_proxy.item
+
+    def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
+        self.__source_proxy.item_uuid = item_uuid
+
+    def __target_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
+        self.__target_proxy.item_uuid = item_uuid
 
 
 def connection_factory(lookup_id):
