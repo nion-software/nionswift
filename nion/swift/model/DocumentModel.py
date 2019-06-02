@@ -660,9 +660,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # send notifications
         self.display_item_inserted_event.fire(self, display_item, before_index, False)
         self.notify_insert_item("display_items", display_item, before_index)
-        # connect data items and computations
-        display_item.connect_data_items(self.get_data_item_by_uuid)
-        self.__rebind_computations()  # rebind any unresolved that may now be resolved
 
     def __handle_display_item_removed(self, display_item: DisplayItem.DisplayItem) -> None:
         self.display_item_will_be_removed_event.fire(display_item)
@@ -985,7 +982,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 item.read_from_dict(properties)
                 item.finish_reading()
                 display_item = self.get_display_item_by_uuid(uuid.UUID(entry["container"]))
-                display_item.undelete_display_data_channel(index, item, self.get_data_item_by_uuid)
+                display_item.undelete_display_data_channel(index, item)
                 display_item.restore_properties(entry["container_properties"])
             else:
                 assert False

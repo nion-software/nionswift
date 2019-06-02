@@ -366,7 +366,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.define_property("collection_index", (0, 0, 0), validate=self.__validate_collection_index, changed=self.__property_changed)
         self.define_property("slice_center", 0, validate=self.__validate_slice_center, changed=self.__slice_interval_changed)
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
-        self.define_property("data_item_reference", None)
+        self.define_property("data_item_reference", str(data_item.uuid) if data_item else None, changed=self.__data_item_reference_changed)
 
         # # last display values is the last one to be fully displayed.
         # # when the current display values makes it all the way to display, it will invoke the finalize method.
@@ -378,9 +378,9 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
         self.__slice_interval = None
 
-        self.__data_item = None
-        if data_item:
-            self.data_item_reference = str(data_item.uuid)
+        data_item_uuid = uuid.UUID(self.data_item_reference) if self.data_item_reference else None
+        self.__data_item_proxy = self.create_item_proxy(item_uuid=data_item_uuid, item=data_item)
+
         self.__old_data_shape = None
 
         self.__color_map_data = None
@@ -389,6 +389,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.property_changed_event = Event.Event()
         self.display_values_changed_event = Event.Event()
         self.display_data_will_change_event = Event.Event()
+        self.data_item_proxy_changed_event = Event.Event()
         self.__calculated_display_values_available_event = Event.Event()
 
         self.data_item_will_change_event = Event.Event()
@@ -404,12 +405,30 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.__data_item_data_changed_listener = None
         self.__data_item_description_changed_listener = None
 
-        self.__connect_data_item(data_item)
-
         self.about_to_be_removed_event = Event.Event()
         self.about_to_cascade_delete_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
+
+        self.__last_data_item = None
+
+        def connect_data_item(data_item):
+            self.__disconnect_data_item_events()
+            if self.__last_data_item:
+                for _ in range(self.__display_ref_count):
+                    self.__last_data_item.decrement_data_ref_count()
+            self.__connect_data_item_events()
+            self.__validate_slice_indexes()
+            if self.__data_item:
+                for _ in range(self.__display_ref_count):
+                    self.__data_item.increment_data_ref_count()
+            self.__last_data_item = self.__data_item
+            self.data_item_proxy_changed_event.fire()
+
+        self.__data_item_proxy.on_item_registered = connect_data_item
+
+        if data_item:
+            connect_data_item(data_item)
 
     def close(self) -> None:
         self.__disconnect_data_item_events()
@@ -465,6 +484,14 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.slice_center = display_data_channel.slice_center
         self.slice_width = display_data_channel.slice_width
 
+    @property
+    def __data_item(self) -> DataItem.DataItem:
+        return self.__data_item_proxy.item
+
+    def __data_item_reference_changed(self, name: str, data_item_reference: str) -> None:
+        data_item_uuid = uuid.UUID(data_item_reference) if data_item_reference else None
+        self.__data_item_proxy.item_uuid = data_item_uuid
+
     def __connect_data_item_events(self):
 
         def property_changed(property_name):
@@ -509,28 +536,6 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         if self.__data_item_description_changed_listener:
             self.__data_item_description_changed_listener.close()
             self.__data_item_description_changed_listener = None
-
-    def __connect_data_item(self, data_item):
-        if self.__data_item:
-            self.__disconnect_data_item_events()
-            for _ in range(self.__display_ref_count):
-                self.__data_item.decrement_data_ref_count()
-        self.__data_item = data_item
-        self.__connect_data_item_events()
-        self.__validate_slice_indexes()
-        if self.__data_item:
-            for _ in range(self.__display_ref_count):
-                self.__data_item.increment_data_ref_count()
-
-    def connect_data_item(self, lookup_data_item):
-        data_item = lookup_data_item(uuid.UUID(self.data_item_reference))
-        self.__connect_data_item(data_item)
-
-    def attempt_connect_data_item(self, data_item: DataItem.DataItem) -> bool:
-        if not self.__data_item and self.data_item_reference == str(data_item.uuid):
-            self.__connect_data_item(data_item)
-            return True
-        return False
 
     @property
     def data_item(self) -> DataItem.DataItem:
@@ -807,6 +812,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__display_data_channel_data_item_did_change_event_listeners = list()
         self.__display_data_channel_data_item_changed_event_listeners = list()
         self.__display_data_channel_data_item_description_changed_event_listeners = list()
+        self.__display_data_channel_data_item_proxy_changed_event_listeners = list()
 
         self.display_property_changed_event = Event.Event()
         self.display_changed_event = Event.Event()
@@ -1068,17 +1074,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         if self.__in_transaction_state:
             self.__enter_write_delay_state()
 
-        def register_object(registered_object, unregistered_object):
-            if isinstance(registered_object, DataItem.DataItem):
-                connected = False
-                for display_data_channel in self.display_data_channels:
-                    connected = connected or display_data_channel.attempt_connect_data_item(registered_object)
-                if connected:
-                    self._update_displays()
-
-        if self.persistent_object_context:
-            self.__registration_listener = self.persistent_object_context.registration_event.listen(register_object)
-
     def get_display_property(self, property_name: str, default_value=None):
         return self.display_properties.get(property_name, default_value)
 
@@ -1175,7 +1170,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         if change_count == 0:
             self.__write_delay_data_changed = True
             self.__item_changed()
-            self._update_displays()  # this ensures that the display will validate
+            self.__update_displays()  # this ensures that the display will validate
 
     def increment_display_ref_count(self, amount: int=1):
         """Increment display reference count to indicate this library item is currently displayed."""
@@ -1220,7 +1215,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
                 return display_data_channel
         return None
 
-    def _update_displays(self):
+    def __update_displays(self):
         for display_data_channel in self.display_data_channels:
             display_data_channel.update_display_data()
         xdata_list = [data_item.xdata if data_item else None for data_item in self.data_items]
@@ -1325,11 +1320,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def session_id(self, value: str) -> None:
         self.__set_cascaded_value("session_id", str(value) if value is not None else str())
 
-    def connect_data_items(self, lookup_data_item):
-        for display_data_channel in self.display_data_channels:
-            display_data_channel.connect_data_item(lookup_data_item)
-        self._update_displays()  # this ensures that the display will validate
-
     def __insert_display_data_channel(self, name, before_index, display_data_channel: DisplayDataChannel) -> None:
         display_data_channel.about_to_be_inserted(self)
         display_data_channel.increment_display_ref_count(self._display_ref_count)
@@ -1338,13 +1328,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__display_data_channel_data_item_did_change_event_listeners.insert(before_index, display_data_channel.data_item_did_change_event.listen(self.__data_item_did_change))
         self.__display_data_channel_data_item_changed_event_listeners.insert(before_index, display_data_channel.data_item_changed_event.listen(self.__item_changed))
         self.__display_data_channel_data_item_description_changed_event_listeners.insert(before_index, display_data_channel.data_item_description_changed_event.listen(self._description_changed))
+        self.__display_data_channel_data_item_proxy_changed_event_listeners.insert(before_index, display_data_channel.data_item_proxy_changed_event.listen(self.__update_displays))
         self.notify_insert_item("display_data_channels", display_data_channel, before_index)
 
     def __remove_display_data_channel(self, name, index, display_data_channel: DisplayDataChannel) -> None:
         display_data_channel.decrement_display_ref_count(self._display_ref_count)
         display_data_channel.about_to_be_removed()
         self.__disconnect_display_data_channel(display_data_channel, index)
-        display_data_channel.close()
         # adjust the display layers
         assert not self._is_reading
         display_layers = self.display_layers
@@ -1372,6 +1362,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         del self.__display_data_channel_data_item_changed_event_listeners[index]
         self.__display_data_channel_data_item_description_changed_event_listeners[index].close()
         del self.__display_data_channel_data_item_description_changed_event_listeners[index]
+        self.__display_data_channel_data_item_proxy_changed_event_listeners[index].close()
+        del self.__display_data_channel_data_item_proxy_changed_event_listeners[index]
         self.notify_remove_item("display_data_channels", display_data_channel, index)
 
     def append_display_data_channel(self, display_data_channel: DisplayDataChannel, display_layer: typing.Mapping=None) -> None:
@@ -1415,12 +1407,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def remove_display_data_channel(self, display_data_channel: DisplayDataChannel, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         return self.remove_model_item(self, "display_data_channels", display_data_channel, safe=safe)
 
-    def undelete_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel, lookup_data_item) -> None:
+    def undelete_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel) -> None:
         self.insert_display_data_channel(before_index, display_data_channel)
-        data_item = lookup_data_item(uuid.UUID(display_data_channel.data_item_reference)) if display_data_channel.data_item_reference else None
-        if data_item:
-            if display_data_channel.attempt_connect_data_item(data_item):
-                self._update_displays()
+        self.__update_displays()
 
     @property
     def data_items(self) -> typing.Sequence[DataItem.DataItem]:
@@ -1446,7 +1435,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def __remove_graphic(self, name, index, graphic):
         graphic.about_to_be_removed()
         self.__disconnect_graphic(graphic, index)
-        graphic.close()
 
     def __disconnect_graphic(self, graphic, index):
         graphic_changed_listener = self.__graphic_changed_listeners[index]

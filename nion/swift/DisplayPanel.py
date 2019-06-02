@@ -812,7 +812,6 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         new_display_item = self.__document_model.get_display_item_by_uuid(self.__new_display_item_uuid)
         self.__new_original_legend_position = new_display_item.get_display_property("legend_position")
         new_display_item.copy_display_layer(self.__new_display_layer_index, old_display_item, old_display_layer)
-        new_display_item.connect_data_items(self.__document_model.get_data_item_by_uuid)
         self.__new_display_data_channel_index = len(new_display_item.display_data_channels) - 1
         # remove display layer and then display data channel from old display item
         self.__old_display_layers = copy.deepcopy(old_display_item.display_layers)

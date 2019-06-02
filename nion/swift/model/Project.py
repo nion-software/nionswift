@@ -134,7 +134,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def __data_item_removed(self, name: str, index: int, data_item: DataItem.DataItem) -> None:
         data_item.about_to_be_removed()
         self.notify_remove_item("data_items", data_item, index)
-        data_item.close()
 
     def __display_item_inserted(self, name: str, before_index: int, display_item: DisplayItem.DisplayItem) -> None:
         display_item.about_to_be_inserted(self)
@@ -143,7 +142,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def __display_item_removed(self, name: str, index: int, display_item: DisplayItem.DisplayItem) -> None:
         display_item.about_to_be_removed()
         self.notify_remove_item("display_items", display_item, index)
-        display_item.close()
 
     def __data_structure_inserted(self, name: str, before_index: int, data_structure: DataStructure.DataStructure) -> None:
         data_structure.about_to_be_inserted(self)
@@ -152,7 +150,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def __data_structure_removed(self, name: str, index: int, data_structure: DataStructure.DataStructure) -> None:
         data_structure.about_to_be_removed()
         self.notify_remove_item("data_structures", data_structure, index)
-        data_structure.close()
 
     def __computation_inserted(self, name: str, before_index: int, computation: Symbolic.Computation) -> None:
         computation.about_to_be_inserted(self)
@@ -161,7 +158,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def __computation_removed(self, name: str, index: int, computation: Symbolic.Computation) -> None:
         computation.about_to_be_removed()
         self.notify_remove_item("computations", computation, index)
-        computation.close()
 
     def __connection_inserted(self, name: str, before_index: int, connection: Connection.Connection) -> None:
         connection.about_to_be_inserted(self)
@@ -170,7 +166,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def __connection_removed(self, name: str, index: int, connection: Connection.Connection) -> None:
         connection.about_to_be_removed()
         self.notify_remove_item("connections", connection, index)
-        connection.close()
 
     def _get_relationship_persistent_dict(self, item, key: str, index: int) -> typing.Dict:
         if key == "data_items":
