@@ -1407,7 +1407,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v1_migration(self):
         # construct v1 data item
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["spatial_calibrations"] = [{ "origin": 1.0, "scale": 2.0, "units": "mm" }, { "origin": 1.0, "scale": 2.0, "units": "mm" }]
             data_item_dict["intensity_calibration"] = { "origin": 0.1, "scale": 0.2, "units": "l" }
@@ -1437,7 +1437,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v2_migration(self):
         # construct v2 data item
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["displays"] = [{"graphics": [{"type": "rect-graphic"}]}]
             data_item_dict["operations"] = [{"operation_id": "invert-operation"}]
@@ -1460,7 +1460,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v3_migration(self):
         # construct v3 data item
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
             data_item_dict["intrinsic_spatial_calibrations"] = [{ "origin": 1.0, "scale": 2.0, "units": "mm" }, { "origin": 1.0, "scale": 2.0, "units": "mm" }]
@@ -1486,7 +1486,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v4_migration(self):
         # construct v4 data item
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
             region_uuid_str = str(uuid.uuid4())
@@ -1510,7 +1510,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v5_migration(self):
         # construct v5 data item
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["uuid"] = str(uuid.uuid4())
             data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
@@ -1552,7 +1552,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v6_migration(self):
         # construct v6 data item
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["uuid"] = str(uuid.uuid4())
             data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
@@ -1602,7 +1602,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v7_migration(self):
         # construct v7 data item
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["uuid"] = str(uuid.uuid4())
             data_item_dict["version"] = 7
@@ -1639,7 +1639,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_fft_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
@@ -1692,7 +1692,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_cross_correlate_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
 
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
@@ -1765,7 +1765,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_gaussian_blur_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
@@ -1839,7 +1839,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_median_filter_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
@@ -1893,7 +1893,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_slice_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
@@ -1948,7 +1948,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_crop_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
@@ -2004,7 +2004,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_projection_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
@@ -2077,7 +2077,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_convert_to_scalar_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
@@ -2150,7 +2150,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_resample_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
@@ -2205,7 +2205,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_pick_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
@@ -2268,7 +2268,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_line_profile_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
@@ -2329,7 +2329,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v8_to_v9_unknown_migration(self):
         # construct v8 data items
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_data_item_dict["uuid"] = str(uuid.uuid4())
             src_data_item_dict["version"] = 8
@@ -2374,7 +2374,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v9_to_v10_migration(self):
         # construct v9 data items with regions, make sure they get translated to graphics
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
             data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_dict["uuid"] = str(uuid.uuid4())
             data_item_dict["version"] = 9
@@ -2448,7 +2448,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_items_v9_to_v10_line_profile_migration(self):
         # construct v9 data items with regions, make sure they get translated to graphics
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
 
             data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             data_item_uuid = str(uuid.uuid4())
@@ -2504,7 +2504,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v10_to_v11_created_date_migration(self):
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
 
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
@@ -2534,7 +2534,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v10_to_v11_crop_migration(self):
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
 
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
@@ -2590,7 +2590,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v10_to_v11_gaussian_migration(self):
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
 
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
@@ -2647,7 +2647,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v10_to_v11_cross_correlate_migration(self):
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
 
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
@@ -2725,7 +2725,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v11_to_v12_line_profile_migration(self):
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
 
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
@@ -2778,7 +2778,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v11_to_v12_pick_migration(self):
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
 
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
@@ -2836,7 +2836,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v11_to_v12_computation_reloads_without_duplicating_computation(self):
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
 
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())
@@ -2878,7 +2878,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v12_to_v13(self):
         with create_memory_profile_context() as profile_context:
-            profile_context.project_properties.pop("version", None)  # allow migration
+            profile_context.create_legacy_project()
 
             src_data_item_dict = profile_context.data_properties_map.setdefault("A", dict())
             src_uuid_str = str(uuid.uuid4())

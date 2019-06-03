@@ -286,10 +286,10 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.add_project_reference(project_reference)
         return project_reference
 
-    def add_project_memory(self) -> typing.Dict:
+    def add_project_memory(self, project_uuid: uuid.UUID = None) -> typing.Dict:
         # add a project reference for a memory based project. does not create or add project.
         # must be called before read_projects, where project will be created.
-        project_reference = {"type": "memory", "uuid": str(uuid.uuid4())}
+        project_reference = {"type": "memory", "uuid": str(project_uuid or uuid.uuid4())}
         self.add_project_reference(project_reference)
         return project_reference
 
@@ -312,15 +312,29 @@ class MemoryProfileContext:
         self.__storage_system = FileStorageSystem.MemoryPersistentStorageSystem(library_properties=self.profile_properties)
         self.__storage_system.load_properties()
 
-        # these are used in make_storage_system to populate the memory storage system
-        # an alternative is to provide them in the memory profile reference as keys
-        self.project_properties = {"version": FileStorageSystem.PROJECT_VERSION}
-        self.data_properties_map = dict()
-        self.data_map = dict()
-        self.trash_map = dict()
+        # these contain the data for each project.
+        self.x_project_properties = dict()
+        self.x_data_properties_map = dict()
+        self.x_data_map = dict()
+        self.x_trash_map = dict()
+
+        # these contain the data for the first created project. they also facilitate legacy project testing.
+        self.project_uuid = None
+        self.project_properties = None
+        self.data_properties_map = None
+        self.data_map = None
+        self.trash_map = None
 
         self._test_data_read_event = Event.Event()
         self.__profile = None
+
+    def create_legacy_project(self) -> None:
+        """Create a legacy project."""
+        self.project_uuid = uuid.uuid4()
+        self.project_properties = self.x_project_properties[self.project_uuid] = dict()
+        self.data_properties_map = self.x_data_properties_map[self.project_uuid] = dict()
+        self.data_map = self.x_data_map[self.project_uuid] = dict()
+        self.trash_map = self.x_trash_map[self.project_uuid] = dict()
 
     def create_profile(self) -> Profile:
         if not self.__profile:
@@ -330,7 +344,7 @@ class MemoryProfileContext:
             profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
             profile.storage_system = storage_system
             profile.profile_context = self
-            project_reference_uuid = uuid.UUID(profile.add_project_memory()["uuid"])
+            project_reference_uuid = uuid.UUID(profile.add_project_memory(self.project_uuid)["uuid"])
             profile.work_project_reference_uuid = project_reference_uuid
             self.__profile = profile
             return profile
