@@ -103,11 +103,11 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         super().read_from_dict(properties)
         self.__properties = properties.get("properties")
         for property_name, value in self.__properties.items():
-            self.__configure_reference_proxy(property_name, value)
+            self.__configure_reference_proxy(property_name, value, None)
 
-    def __configure_reference_proxy(self, property_name, value):
+    def __configure_reference_proxy(self, property_name, value, item):
         if isinstance(value, dict) and value.get("type") in {"data_item", "display_item", "data_source", "graphic", "structure"} and "uuid" in value:
-            self.__referenced_object_proxies[property_name] = self.create_item_proxy(item_uuid=uuid.UUID(value["uuid"]))
+            self.__referenced_object_proxies[property_name] = self.create_item_proxy(item_uuid=uuid.UUID(value["uuid"]), item=item)
 
     def write_to_dict(self):
         properties = super().write_to_dict()
@@ -131,7 +131,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         reference_object_proxy = self.__referenced_object_proxies.pop(property, None)
         if reference_object_proxy:
             reference_object_proxy.close()
-        self.__configure_reference_proxy(property, value)
+        self.__configure_reference_proxy(property, value, None)
         self.data_structure_changed_event.fire(property)
         self.property_changed_event.fire(property)
         self._update_persistent_property("properties", self.__properties)
@@ -157,7 +157,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
             reference_object_proxy = self.__referenced_object_proxies.pop(property, None)
             if reference_object_proxy:
                 reference_object_proxy.close()
-            self.__configure_reference_proxy(property, self.__properties[property])
+            self.__configure_reference_proxy(property, self.__properties[property], item)
             self.data_structure_changed_event.fire(property)
             self.property_changed_event.fire(property)
             self._update_persistent_property("properties", self.__properties)
@@ -170,7 +170,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         return self.__referenced_object_proxies[property].item if property in self.__referenced_object_proxies else None
 
     @property
-    def _referenced_objects(self):
+    def referenced_objects(self) -> typing.List:
         return list(referenced_object_proxy.item for referenced_object_proxy in self.__referenced_object_proxies.values())
 
 

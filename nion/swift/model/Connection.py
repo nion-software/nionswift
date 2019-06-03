@@ -92,9 +92,9 @@ class PropertyConnection(Connection):
 
     def __init__(self, source=None, source_property=None, target=None, target_property=None, *, parent=None):
         super().__init__("property-connection", parent=parent)
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
+        self.define_property("source_uuid", source.uuid if source else None, converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
         self.define_property("source_property")
-        self.define_property("target_uuid", converter=Converter.UuidToStringConverter(), changed=self.__target_uuid_changed)
+        self.define_property("target_uuid", target.uuid if target else None, converter=Converter.UuidToStringConverter(), changed=self.__target_uuid_changed)
         self.define_property("target_property")
         # these are only set in persistent object context changed
         self.__binding = None
@@ -139,11 +139,11 @@ class PropertyConnection(Connection):
 
         # but set up if we were passed objects
         if source is not None:
-            self.source_uuid = source.uuid
+            self.__source_proxy.item = source
         if source_property:
             self.source_property = source_property
         if target is not None:
-            self.target_uuid = target.uuid
+            self.__target_proxy.item = target
         if target_property:
             self.target_property = target_property
 
@@ -162,6 +162,10 @@ class PropertyConnection(Connection):
         self.__target_proxy.close()
         self.__target_proxy = None
         super().close()
+
+    @property
+    def connected_items(self) -> typing.List:
+        return [self._source, self._target]
 
     @property
     def _source(self):
@@ -201,8 +205,8 @@ class IntervalListConnection(Connection):
 
     def __init__(self, display_item=None, line_profile=None, *, parent=None):
         super().__init__("interval-list-connection", parent=parent)
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
-        self.define_property("target_uuid", converter=Converter.UuidToStringConverter(), changed=self.__target_uuid_changed)
+        self.define_property("source_uuid", display_item.uuid if display_item else None, converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
+        self.define_property("target_uuid", line_profile.uuid if line_profile else None, converter=Converter.UuidToStringConverter(), changed=self.__target_uuid_changed)
         # these are only set in persistent object context changed
         self.__item_inserted_event_listener = None
         self.__item_removed_event_listener = None
@@ -259,9 +263,11 @@ class IntervalListConnection(Connection):
 
         # but setup if we were passed objects
         if display_item is not None:
-            self.source_uuid = display_item.uuid
+            self.__source_proxy.item = display_item
+            source_registered(display_item)
         if line_profile is not None:
-            self.target_uuid = line_profile.uuid
+            self.__target_proxy.item = line_profile
+            target_registered(line_profile)
 
     def close(self):
         self.__source_proxy.close()
@@ -269,6 +275,10 @@ class IntervalListConnection(Connection):
         self.__target_proxy.close()
         self.__target_proxy = None
         super().close()
+
+    @property
+    def connected_items(self) -> typing.List:
+        return [self.__source, self.__target]
 
     @property
     def __source(self):

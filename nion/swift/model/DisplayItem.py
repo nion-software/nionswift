@@ -438,6 +438,21 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.__container_weak_ref = None
         super().close()
 
+    def __deepcopy__(self, memo):
+        display_data_channel = self.__class__()
+        display_data_channel._set_persistent_property_value("complex_display_type", self._get_persistent_property_value("complex_display_type"))
+        display_data_channel._set_persistent_property_value("display_limits", self._get_persistent_property_value("display_limits"))
+        display_data_channel._set_persistent_property_value("color_map_id", self._get_persistent_property_value("color_map_id"))
+        display_data_channel._set_persistent_property_value("sequence_index", self._get_persistent_property_value("sequence_index"))
+        display_data_channel._set_persistent_property_value("collection_index", self._get_persistent_property_value("collection_index"))
+        display_data_channel._set_persistent_property_value("slice_center", self._get_persistent_property_value("slice_center"))
+        display_data_channel._set_persistent_property_value("slice_width", self._get_persistent_property_value("slice_width"))
+        display_data_channel._set_persistent_property_value("data_item_reference", self._get_persistent_property_value("data_item_reference"))
+        if self.data_item.uuid == uuid.UUID(self._get_persistent_property_value("data_item_reference")):
+            display_data_channel.__data_item_proxy.item = self.data_item
+        memo[id(self)] = display_data_channel
+        return display_data_channel
+
     @property
     def container(self):
         return self.__container_weak_ref() if self.__container_weak_ref else None
@@ -485,7 +500,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.slice_width = display_data_channel.slice_width
 
     @property
-    def __data_item(self) -> DataItem.DataItem:
+    def __data_item(self) -> typing.Optional[DataItem.DataItem]:
         return self.__data_item_proxy.item
 
     def __data_item_reference_changed(self, name: str, data_item_reference: str) -> None:

@@ -10,10 +10,14 @@ import weakref
 
 # local libraries
 from nion.swift.model import Cache
+from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
+from nion.swift.model import DataStructure
+from nion.swift.model import DisplayItem
 from nion.swift.model import FileStorageSystem
 from nion.swift.model import Project
+from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
 from nion.utils import Converter
 from nion.utils import Event
@@ -101,6 +105,46 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
     @property
     def work_project(self) -> typing.Optional[Project.Project]:
         return self.__work_project
+
+    def target_project_for_item(self, item) -> typing.Optional[Project.Project]:
+
+        def get_item_project(item) -> typing.Optional[Project.Project]:
+            container = item.container
+            if isinstance(container, Project.Project):
+                return container
+            return get_item_project(container) if container else None
+
+        if isinstance(item, DisplayItem.DisplayItem):
+            target_projects = set(get_item_project(data_item) for data_item in item.data_items)
+            target_project = list(target_projects)[0] if len(target_projects) == 1 else None
+            if target_project:
+                return target_project
+        elif isinstance(item, DataStructure.DataStructure):
+            target_projects = set(get_item_project(data_structure_item) for data_structure_item in item.referenced_objects)
+            target_project = list(target_projects)[0] if len(target_projects) == 1 else None
+            if target_project:
+                return target_project
+        elif isinstance(item, Symbolic.Computation):
+            target_projects = set()
+            for variable in item.variables:
+                bound_item = variable.bound_item
+                base_objects = getattr(bound_item, "base_objects", list()) if bound_item and not getattr(bound_item, "is_list", False) else list()
+                for variable_item in base_objects:
+                    target_projects.add(get_item_project(variable_item))
+            target_project = list(target_projects)[0] if len(target_projects) == 1 else None
+            if target_project:
+                return target_project
+        elif isinstance(item, Connection.Connection):
+            target_projects = set()
+            for connection_item in item.connected_items:
+                project = get_item_project(connection_item)
+                target_projects.add(project)
+            # target_projects = set(get_item_project(connection_item) for connection_item in item.connected_items)
+            target_project = list(target_projects)[0] if len(target_projects) == 1 else None
+            if target_project:
+                return target_project
+
+        return self.work_project
 
     def open(self, document_model):
         for project in self.__projects:
