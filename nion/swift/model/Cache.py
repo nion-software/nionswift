@@ -447,6 +447,7 @@ class DbStorageCache:
             self.execute("UPDATE cache SET dirty=? WHERE uuid=? AND key=?", (1 if dirty else 0, str(target.uuid), key))
 
     def set_cached_value(self, target, key, value, dirty=False):
+        assert target is not None
         event = threading.Event()
         with self.__queue_lock:
             _queue = self.__queue
@@ -455,6 +456,7 @@ class DbStorageCache:
         # event.wait()
 
     def get_cached_value(self, target, key, default_value=None):
+        assert target is not None
         event = threading.Event()
         result = list()
         with self.__queue_lock:
@@ -465,6 +467,7 @@ class DbStorageCache:
         return result[0] if len(result) > 0 else None
 
     def remove_cached_value(self, target, key):
+        assert target is not None
         event = threading.Event()
         with self.__queue_lock:
             _queue = self.__queue
@@ -473,6 +476,7 @@ class DbStorageCache:
         # event.wait()
 
     def is_cached_value_dirty(self, target, key):
+        assert target is not None
         event = threading.Event()
         result = list()
         with self.__queue_lock:
@@ -483,6 +487,7 @@ class DbStorageCache:
         return result[0]
 
     def set_cached_value_dirty(self, target, key, dirty=True):
+        assert target is not None
         event = threading.Event()
         with self.__queue_lock:
             _queue = self.__queue
