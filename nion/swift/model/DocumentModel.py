@@ -1259,11 +1259,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             data_group.title = _("My Data")
             self.append_data_group(data_group)
 
-    # Return a generator over all data items
-    def get_flat_data_item_generator(self):
-        for data_item in self.data_items:
-            yield data_item
-
     # Return a generator over all data groups
     def get_flat_data_group_generator(self):
         return DataGroup.get_flat_data_group_generator_in_container(self)
@@ -1281,31 +1276,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             if data_group.uuid == uuid:
                 return data_group
         return None
-
-    def get_data_item_count(self):
-        return len(list(self.get_flat_data_item_generator()))
-
-    # access data item by key (title, uuid, index)
-    def get_data_item_by_key(self, key):
-        if isinstance(key, numbers.Integral):
-            return list(self.get_flat_data_item_generator())[int(key)]
-        if isinstance(key, uuid.UUID):
-            return self.get_data_item_by_uuid(key)
-        return self.get_data_item_by_title(str(key))
-
-    # access data items by title
-    def get_data_item_by_title(self, title):
-        for data_item in self.get_flat_data_item_generator():
-            if data_item.title == title:
-                return data_item
-        return None
-
-    # access data items by index
-    def get_data_item_by_index(self, index):
-        return list(self.get_flat_data_item_generator())[index]
-
-    def get_index_for_data_item(self, data_item):
-        return list(self.get_flat_data_item_generator()).index(data_item)
 
     # access data items by uuid
     def get_data_item_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DataItem.DataItem]:

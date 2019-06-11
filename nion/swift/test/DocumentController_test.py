@@ -158,7 +158,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_controller = construct_test_document(self.app)
         with contextlib.closing(document_controller):
             self.assertEqual(len(list(document_controller.document_model.get_flat_data_group_generator())), 7)
-            self.assertEqual(len(list(document_controller.document_model.get_flat_data_item_generator())), 3)
+            self.assertEqual(len(document_controller.document_model.data_items), 3)
             self.assertEqual(document_controller.document_model.display_items[0], document_controller.document_model.data_groups[0].display_items[0])
             self.assertEqual(document_controller.document_model.display_items[1], document_controller.document_model.data_groups[0].display_items[1])
             self.assertEqual(document_controller.document_model.display_items[2], document_controller.document_model.data_groups[1].data_groups[1].data_groups[0].display_items[0])
