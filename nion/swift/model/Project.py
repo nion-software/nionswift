@@ -215,7 +215,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                     self.load_item("computations", len(self.computations), computation)
                     # TODO: handle update script and bind after reload in document model
                     computation.update_script(self.container.container._processing_descriptions)
-                    computation.bind(self.container.container)
             for item_d in properties.get("connections", list()):
                 connection = Connection.connection_factory(item_d.get)
                 connection.begin_reading()

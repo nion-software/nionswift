@@ -522,7 +522,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if computation_copy:
             computation_copy.source = None
             computation_copy._clear_referenced_object("target")
-            computation_copy.bind(self)
             self.set_data_item_computation(data_item_copy, computation_copy)
         return data_item_copy
 
@@ -952,7 +951,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 item.begin_reading()
                 item.read_from_dict(properties)
                 item.finish_reading()
-                item.bind(self)
                 self.insert_computation(index, item, project=project)
             elif name == "object_specifiers":
                 computation = self.get_computation_by_uuid(uuid.UUID(entry["computation_uuid"]))
@@ -1322,9 +1320,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         return data_group
 
     def create_computation(self, expression: str=None) -> Symbolic.Computation:
-        computation = Symbolic.Computation(expression)
-        computation.bind(self)
-        return computation
+        return Symbolic.Computation(expression)
 
     def dispatch_task(self, task, description=None):
         self.__thread_pool.queue_fn(task, description)
@@ -2250,6 +2246,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # insert in internal list
         before_index = len(self.__computations)
         self.__computations.append(computation)
+        computation.bind(self)
         # listeners
         self.__computation_changed_listeners[computation] = computation.computation_mutated_event.listen(functools.partial(self.__computation_changed, computation))
         self.__computation_output_changed_listeners[computation] = computation.computation_output_changed_event.listen(functools.partial(self.__computation_update_dependencies, computation))

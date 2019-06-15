@@ -591,7 +591,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def insert_variable(self, index: int, variable: ComputationVariable) -> None:
         self.insert_item("variables", index, variable)
-        self.__bind_variable(variable)
+        if self.persistent_object_context:
+            self.__bind_variable(variable)
         self.variable_inserted_event.fire(index, variable)
         self.computation_mutated_event.fire()
         self.needs_update = True
@@ -628,7 +629,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def create_result(self, name: str=None, object_specifier: dict=None, specifiers: typing.Sequence[dict]=None, label: str=None) -> ComputationOutput:
         result = ComputationOutput(name, specifier=object_specifier, specifiers=specifiers, label=label)
         self.append_item("results", result)
-        self.__bind_result(result)
+        if self.persistent_object_context:
+            self.__bind_result(result)
         self.computation_mutated_event.fire()
         return result
 
@@ -859,6 +861,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         """
 
         # make a computation context based on the enclosing context.
+        assert self.persistent_object_context
+
         self.__computation_context = ComputationContext(self, context)
 
         # re-bind is not valid. be careful to set the computation after the data item is already in document.

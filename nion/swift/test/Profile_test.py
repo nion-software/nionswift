@@ -94,6 +94,7 @@ class TestProfileClass(unittest.TestCase):
                 self.assertEqual(1, len(document_model.profile.projects[0].data_structures))
                 self.assertEqual(1, len(document_model.profile.projects[1].data_structures))
 
+    @unittest.expectedFailure  # until computation project is handled
     def test_computation_added_to_same_project_as_inputs(self):
         with create_memory_profile_context() as profile_context:
             profile = profile_context.create_profile()
