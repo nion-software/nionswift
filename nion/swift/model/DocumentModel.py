@@ -2844,13 +2844,28 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return self.__make_computation("slice", [(display_item, crop_region)])
 
     def get_pick_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.PointTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("pick-point", [(display_item, crop_region)], {"src": [pick_region]})
+        data_item = self.__make_computation("pick-point", [(display_item, crop_region)], {"src": [pick_region]})
+        if data_item:
+            display_data_channel = display_item.display_data_channels[0]
+            if display_data_channel.slice_center == 0 and display_data_channel.slice_width == 1:
+                display_data_channel.slice_interval = (0.05, 0.15)
+        return data_item
 
     def get_pick_region_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
-        return self.__make_computation("pick-mask-sum", [(display_item, crop_region)], {"src": [pick_region]})
+        data_item = self.__make_computation("pick-mask-sum", [(display_item, crop_region)], {"src": [pick_region]})
+        if data_item:
+            display_data_channel = display_item.display_data_channels[0]
+            if display_data_channel.slice_center == 0 and display_data_channel.slice_width == 1:
+                display_data_channel.slice_interval = (0.05, 0.15)
+        return data_item
 
     def get_pick_region_average_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
-        return self.__make_computation("pick-mask-average", [(display_item, crop_region)], {"src": [pick_region]})
+        data_item = self.__make_computation("pick-mask-average", [(display_item, crop_region)], {"src": [pick_region]})
+        if data_item:
+            display_data_channel = display_item.display_data_channels[0]
+            if display_data_channel.slice_center == 0 and display_data_channel.slice_width == 1:
+                display_data_channel.slice_interval = (0.05, 0.15)
+        return data_item
 
     def get_subtract_region_average_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
         return self.__make_computation("subtract-mask-average", [(display_item, crop_region)], {"src": [pick_region]})

@@ -5,6 +5,7 @@ Release Notes
 
 Version 0.14.5, Unreleased
 --------------------------
+* (2019-06-25) Make default display slice after pick processing be 5% to 15%.
 * (2019-06-25) Fix inspector update bug when deleting data item.
 * (2019-04-25) Add lattice mask tool. No inspector yet.
 * (2019-04-25) Improve handling of data items with bool data type.
