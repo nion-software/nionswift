@@ -1640,11 +1640,12 @@ class CalibratedSizeFloatToStringConverter:
             return Calibration.Calibration()
     def __get_data_size(self):
         index = self.__index
-        dimension_count = len(self.__display_item.dimensional_shape)
+        dimensional_shape = self.__display_item.dimensional_shape
+        dimension_count = len(dimensional_shape) if dimensional_shape else 0
         if index < 0:
             index = dimension_count + index
         if index >= 0 and index < dimension_count:
-            return self.__display_item.dimensional_shape[index]
+            return dimensional_shape[index]
         else:
             return 1.0
     def convert_calibrated_value_to_str(self, calibrated_value):

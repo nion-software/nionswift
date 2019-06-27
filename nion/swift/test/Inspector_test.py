@@ -146,6 +146,22 @@ class TestInspectorClass(unittest.TestCase):
                 data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mmm"))
                 self.assertEqual(units_field.text, "mmm")
 
+    def test_calibration_inspector_handles_deleted_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.add_graphic(Graphics.RectangleGraphic())
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(offset=5.1, scale=1.2, units="mm"))
+            inspector = Inspector.InspectorPanel(document_controller, "x", {})
+            with contextlib.closing(inspector):
+                display_panel = document_controller.selected_display_panel
+                display_panel.set_display_panel_display_item(display_item)
+                document_controller.periodic()
+                document_controller.delete_display_items([display_item])
+
     def test_graphic_inspector_section_follows_spatial_calibration_change(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
