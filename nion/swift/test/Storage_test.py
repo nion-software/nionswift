@@ -3578,14 +3578,14 @@ class TestStorageClass(unittest.TestCase):
                 document_model.get_pick_new(display_item)
                 document_model.recompute_all()
                 # check assumptions
-                self.assertEqual((0.0, 0.01), document_model.get_display_item_for_data_item(document_model.data_items[0]).display_data_channels[0].slice_interval)
-                self.assertEqual((0.0, 0.01), document_model.get_display_item_for_data_item(document_model.data_items[1]).graphics[0].interval)
+                self.assertEqual((0.05, 0.15), document_model.get_display_item_for_data_item(document_model.data_items[0]).display_data_channels[0].slice_interval)
+                self.assertEqual((0.05, 0.15), document_model.get_display_item_for_data_item(document_model.data_items[1]).graphics[0].interval)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 # check initial assumptions
                 self.assertEqual(len(document_model.data_items), 2)
-                self.assertEqual((0.0, 0.01), document_model.get_display_item_for_data_item(document_model.data_items[0]).display_data_channels[0].slice_interval)
-                self.assertEqual((0.0, 0.01), document_model.get_display_item_for_data_item(document_model.data_items[1]).graphics[0].interval)
+                self.assertEqual((0.05, 0.15), document_model.get_display_item_for_data_item(document_model.data_items[0]).display_data_channels[0].slice_interval)
+                self.assertEqual((0.05, 0.15), document_model.get_display_item_for_data_item(document_model.data_items[1]).graphics[0].interval)
                 # check still connected
                 document_model.get_display_item_for_data_item(document_model.data_items[0]).display_data_channels[0].slice_interval = (0.3, 0.5)
                 self.assertEqual((0.3, 0.5), document_model.get_display_item_for_data_item(document_model.data_items[0]).display_data_channels[0].slice_interval)
