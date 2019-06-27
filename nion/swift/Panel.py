@@ -64,6 +64,9 @@ class Panel:
     def queue_task(self, task):
         self.document_controller.queue_task(task)
 
+    def clear_queued_tasks(self):
+        self.document_controller.clear_queued_tasks()
+
     def size_changed(self, width, height):
         pass
 

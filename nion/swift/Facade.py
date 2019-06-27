@@ -2553,7 +2553,7 @@ class DocumentWindow(metaclass=SharedInstance):
 
     release = ["library", "all_display_panels", "get_display_panel_by_id", "display_data_item", "target_display",
                "target_data_item", "show_get_string_message_box", "show_confirmation_message_box",
-               "show_modeless_dialog", "queue_task", "add_data", "create_data_item_from_data",
+               "show_modeless_dialog", "queue_task", "clear_queued_tasks", "add_data", "create_data_item_from_data",
                "create_data_item_from_data_and_metadata", "get_or_create_data_group"]
 
     def __init__(self, document_controller):
@@ -2670,6 +2670,9 @@ class DocumentWindow(metaclass=SharedInstance):
 
     def queue_task(self, fn) -> None:
         self.__document_controller.queue_task(fn)
+
+    def clear_queued_tasks(self) -> None:
+        self.__document_controller.clear_queued_tasks()
 
     def add_data(self, data: numpy.ndarray, title: str=None) -> DataItem:
         """Create a data item in the library from data.
@@ -2881,7 +2884,8 @@ class API_1:
                "create_data_and_metadata_from_data", "create_data_and_metadata_io_handler",
                "create_menu_item", "create_hardware_source", "create_panel", "get_all_hardware_source_ids",
                "get_all_instrument_ids",
-               "get_hardware_source_by_id", "get_instrument_by_id", "application", "library", "queue_task"]
+               "get_hardware_source_by_id", "get_instrument_by_id", "application", "library", "queue_task",
+               "clear_queued_tasks"]
 
     def __init__(self, ui_version, app):
         super().__init__()
@@ -3284,6 +3288,10 @@ class API_1:
     # provisional
     def queue_task(self, fn) -> None:
         self.__app.document_controllers[0].queue_task(fn)
+
+    # provisional
+    def clear_queued_tasks(self) -> None:
+        self.__app.document_controllers[0].clear_queued_tasks()
 
     def raise_requirements_exception(self, reason) -> None:
         raise PlugInManager.RequirementsException(reason)

@@ -925,6 +925,9 @@ class DocumentWindow:
         """
         ...
 
+    def clear_queued_tasks(self) -> None:
+        ...
+
     def create_data_item_from_data(self, data: numpy.ndarray, title: str=None) -> DataItem:
         """Create a data item in the library from data.
 
@@ -1073,6 +1076,9 @@ class API:
     This class cannot be instantiated directly. Use :samp:`api_broker.get_api(version)` to get access an instance of
     this class.
     """
+
+    def clear_queued_tasks(self) -> None:
+        ...
 
     def create_calibration(self, offset: float=None, scale: float=None, units: str=None) -> Calibration.Calibration:
         """Create a calibration object with offset, scale, and units.

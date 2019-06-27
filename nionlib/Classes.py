@@ -411,6 +411,9 @@ class DocumentWindow:
     def add_data(self, data, title=None):
         return call_method(self, 'add_data', data, title=title)
 
+    def clear_queued_tasks(self):
+        call_method(self, 'clear_queued_tasks')
+
     def create_data_item_from_data(self, data, title=None):
         return call_method(self, 'create_data_item_from_data', data, title=title)
 
@@ -479,6 +482,9 @@ class API:
     def __init__(self, proxy, specifier):
         self._proxy = proxy
         self.specifier = specifier
+
+    def clear_queued_tasks(self):
+        call_method(self, 'clear_queued_tasks')
 
     def create_calibration(self, offset=None, scale=None, units=None):
         return call_method(self, 'create_calibration', offset=offset, scale=scale, units=units)
