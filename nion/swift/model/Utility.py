@@ -325,6 +325,7 @@ def sample_stack_all(count=10, interval=0.1):
                     sub_code.append("  %s" % (line.strip()))
             if not "in select" in sub_code[-2] and \
                not "in wait" in sub_code[-2] and \
+               not "in _worker" in sub_code[-2] and \
                not "in print_stack_all" in sub_code[-2] and \
                not "in sample_stack_all" in sub_code[-2] and \
                not "in checkcache" in sub_code[-2] and \
