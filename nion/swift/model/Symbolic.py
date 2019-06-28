@@ -886,6 +886,30 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         for result in self.results:
             self.__unbind_result(result)
 
+    @property
+    def input_items(self) -> typing.Set:
+        input_items = set()
+        for variable in self.variables:
+            item = variable.bound_item
+            if hasattr(item, "base_objects"):
+                input_items.update(item.base_objects)
+        return input_items
+
+    @property
+    def output_items(self) -> typing.Set:
+        # resolve the computation inputs and return the set of input items.
+        try:
+            output_items = set()
+            for result in self.results:
+                item = result.bound_item
+                if isinstance(item, list):
+                    output_items.update(list_item.value for list_item in item)
+                elif item:
+                    output_items.add(item.value)
+            return output_items
+        except Exception as e:
+            print(e)
+
     def _get_variable(self, variable_name) -> ComputationVariable:
         for variable in self.variables:
             if variable.name == variable_name:

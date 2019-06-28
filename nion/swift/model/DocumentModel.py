@@ -1050,39 +1050,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__computation_pending_queue.append(computation_queue_item)
         self.dispatch_task2(self.__recompute)
 
-    def __resolve_computation_inputs(self, computation: Symbolic.Computation) -> typing.Set:
-        # resolve the computation inputs and return the set of input items.
-        input_items = set()
-        for variable in computation.variables:
-            if variable.specifier:
-                object = self.resolve_object_specifier(variable.specifier, variable.secondary_specifier, variable.property_name)
-                if hasattr(object, "base_objects"):
-                    input_items.update(object.base_objects)
-            if variable.object_specifiers:
-                object = self.resolve_object_specifier(variable.specifier, variable.secondary_specifier, variable.property_name, variable.objects_model)
-                if hasattr(object, "base_objects"):
-                    input_items.update(object.base_objects)
-        return input_items
-
-    def __resolve_computation_outputs(self, computation: Symbolic.Computation) -> typing.Set:
-        # resolve the computation inputs and return the set of input items.
-        output_items = set()
-        for result in computation.results:
-            specifier = result.specifier
-            if specifier:
-                object = self.resolve_object_specifier(specifier)
-                if hasattr(object, "value"):
-                    source_item = object.value
-                    output_items.add(source_item)
-            specifiers = result.specifiers
-            if specifiers:
-                for specifier in specifiers:
-                    object = self.resolve_object_specifier(specifier)
-                    if hasattr(object, "value"):
-                        source_item = object.value
-                        output_items.add(source_item)
-        return output_items
-
     def __establish_computation_dependencies(self, old_inputs: typing.Set, new_inputs: typing.Set, old_outputs: typing.Set, new_outputs: typing.Set) -> None:
         # establish dependencies between input and output items.
         with self.__dependency_tree_lock:
@@ -2217,16 +2184,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def append_computation(self, computation: Symbolic.Computation, *, project: Project.Project = None) -> None:
         # input/output bookkeeping
-        input_items = self.__resolve_computation_inputs(computation)
-        output_items = self.__resolve_computation_outputs(computation)
-        input_set = set()
-        for input in input_items:
-            self.__get_deep_dependent_item_set(input, input_set)
-        output_set = set()
-        for output in output_items:
-            self.__get_deep_dependent_item_set(output, output_set)
-        if input_set.intersection(output_set):
-            raise Exception("Computation would result in duplicate dependency.")
+        input_items = computation.input_items
+        output_items = computation.output_items
+        # input_set = set()
+        # for input in input_items:
+        #     self.__get_deep_dependent_item_set(input, input_set)
+        # output_set = set()
+        # for output in output_items:
+        #     self.__get_deep_dependent_item_set(output, output_set)
+        # if input_set.intersection(output_set):
+        #     raise Exception("Computation would result in duplicate dependency.")
         project = project or self.__profile.target_project_for_item(computation)
         project.append_computation(computation)
 
@@ -2302,8 +2269,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # when a computation output is changed, this function is called to establish dependencies.
         # if other parts of the computation are changed (inputs, values, etc.), the __computation_changed
         # will handle the change (and trigger a new computation).
-        input_items = self.__resolve_computation_inputs(computation)
-        output_items = self.__resolve_computation_outputs(computation)
+        input_items = computation.input_items
+        output_items = computation.output_items
         self.__establish_computation_dependencies(computation._inputs, input_items, computation._outputs, output_items)
         computation._inputs = input_items
         computation._outputs = output_items
@@ -2319,7 +2286,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             # changed or mutated method to resolve computation variables and update dependencies between
             # library objects. it also fires the computation_updated_event to allow the user interface
             # to update.
-            input_items = self.__resolve_computation_inputs(new_computation) if new_computation else set()
+            input_items = new_computation.input_items if new_computation else set()
             old_input_items = set(self.__dependency_tree_target_to_source_map.get(weakref.ref(data_item), list()))
             self.__establish_computation_dependencies(old_input_items, input_items, {data_item}, {data_item})
             self.computation_updated_event.fire(data_item, new_computation)
