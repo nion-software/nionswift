@@ -3761,7 +3761,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(document_model.get_dependent_data_items(data_item)[0], dst_data_item)
                 new_data_item = DataItem.DataItem(numpy.ones((2, 2)))
                 document_model.append_data_item(new_data_item)
-                document_model.computations[0].variables[0].specifier = document_model.get_object_specifier(new_data_item)
+                document_model.computations[0].set_input_item("src", Symbolic.make_item(new_data_item))
                 self.assertEqual(document_model.get_dependent_data_items(new_data_item)[0], dst_data_item)
 
     def test_library_computation_does_not_evaluate_with_missing_inputs(self):

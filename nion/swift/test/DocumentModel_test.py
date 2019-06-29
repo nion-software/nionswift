@@ -1220,14 +1220,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
             computation = document_model.create_computation()
-
-            # src_list = [document_model.get_object_specifier(display_item1.display_data_channel, "display_xdata"), document_model.get_object_specifier(display_item2.display_data_channel, "display_xdata")]
-            # src_list[0]["uuid"] = str(uuid.uuid4())
-            # computation.create_objects("src_list", src_list)
-
             src_list = Symbolic.make_item_list([None, display_item2.display_data_channel], type="display_xdata")
             computation.create_input_item("src_list", src_list)
-
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
             document_model.recompute_all()

@@ -2123,13 +2123,13 @@ class Computation(metaclass=SharedInstance):
                         document_model = self.__computation.container.container.container
                         display_item = document_model.get_display_item_for_data_item(object._data_item)
                         display_data_channel = display_item.display_data_channel
-                        specifier_dict = {"version": 1, "type": "data_source", "uuid": str(display_data_channel.uuid)}
+                        input_value = Symbolic.make_item(display_data_channel)
                     else:
-                        specifier_dict = object.specifier.rpc_dict
-                    variable.specifier = specifier_dict
+                        input_value = Symbolic.make_item(object._item)
+                    self.__computation.set_input_item(name, input_value)
                 else:
-                    specifier_dict = value.specifier.rpc_dict if value else None
-                    variable.specifier = specifier_dict
+                    input_value = Symbolic.make_item(value._item)
+                    self.__computation.set_input_item(name, input_value)
                 return
         raise Exception("No variable matching name.")
 
@@ -2148,14 +2148,14 @@ class Computation(metaclass=SharedInstance):
             output_items = Symbolic.make_item_list([v._item for v in value])
             for result in self.__computation.results:
                 if result.name == name:
-                    result.specifiers = [DataStructureModule.get_object_specifier(o.item) for o in output_items.items]
+                    self.__computation.set_output_item(name, output_items)
                     return
             self.__computation.create_output_item(name, output_items)
         else:
             output_item = Symbolic.make_item(value._item) if value else None
             for result in self.__computation.results:
                 if result.name == name:
-                    result.specifier = DataStructureModule.get_object_specifier(output_item.item) if output_item else None
+                    self.__computation.set_output_item(name, output_item)
                     return
             self.__computation.create_output_item(name, output_item)
 

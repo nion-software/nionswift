@@ -939,6 +939,27 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         except Exception as e:
             print(e)
 
+    def set_input_item(self, name: str, input_item: ComputationItem) -> None:
+        for variable in self.variables:
+            if variable.name == name:
+                assert input_item.item
+                assert input_item.type is None
+                assert input_item.secondary_item is None
+                assert input_item.items is None
+                variable.specifier = DataStructure.get_object_specifier(input_item.item)
+
+    def set_output_item(self, name:str, output_item: ComputationItem) -> None:
+        for result in self.results:
+            if result.name == name:
+                if output_item and output_item.items is not None:
+                    result.specifiers = [DataStructure.get_object_specifier(o.item) for o in output_item.items]
+                else:
+                    if output_item:
+                        assert output_item.item
+                        assert output_item.type is None
+                        assert output_item.secondary_item is None
+                    result.specifier = DataStructure.get_object_specifier(output_item.item) if output_item else None
+
     def _get_variable(self, variable_name) -> ComputationVariable:
         for variable in self.variables:
             if variable.name == variable_name:

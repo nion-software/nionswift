@@ -1150,8 +1150,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + 4"))
-            a_specifier = document_model.get_object_specifier(data_item)
-            computation.create_input_item("a", Symbolic.make_item(data_item))
+            a_specifier = computation.create_input_item("a", Symbolic.make_item(data_item)).specifier
             d = computation.write_to_dict()
             read_computation = document_model.create_computation()
             read_computation.read_from_dict(d)
@@ -1206,7 +1205,7 @@ class TestSymbolicClass(unittest.TestCase):
             a = computation.create_input_item("a", Symbolic.make_item(data_item1))
             document_model.append_computation(computation)
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(computation).data, src_data1 + 1))
-            a.specifier = document_model.get_object_specifier(data_item2)
+            computation.set_input_item("a", Symbolic.make_item(data_item2))
             computation.expression = Symbolic.xdata_expression(expression)
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(computation).data, src_data2 + 1))
 
@@ -1228,7 +1227,7 @@ class TestSymbolicClass(unittest.TestCase):
                 needs_update_ref[0] = True
             needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
             with contextlib.closing(needs_update_event_listener):
-                a.specifier = document_model.get_object_specifier(data_item2)
+                computation.set_input_item("a", Symbolic.make_item(data_item2))
             self.assertTrue(needs_update_ref[0])
 
     def test_computation_in_document_recomputes_when_specifier_changes(self):
@@ -1248,7 +1247,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.data, src_data1 + 1))
-            a.specifier = document_model.get_object_specifier(data_item2)
+            computation.set_input_item("a", Symbolic.make_item(data_item2))
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.data, src_data2 + 1))
 
