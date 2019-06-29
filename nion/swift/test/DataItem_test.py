@@ -26,6 +26,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Profile
+from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.ui import TestUI
 from nion.utils import Recorder
@@ -135,7 +136,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item2a = DataItem.DataItem()
             data_item2a.ensure_data_source()
             computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
-            computation.create_object("src", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
             document_model.set_data_item_computation(data_item2a, computation)
@@ -150,7 +151,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item2a = DataItem.DataItem()
             data_item2a.ensure_data_source()
             computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
-            computation.create_object("src", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
             document_model.set_data_item_computation(data_item2a, computation)
@@ -170,7 +171,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item2a = DataItem.DataItem()
             data_item2a.ensure_data_source()
             computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
-            computation.create_object("src", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
             document_model.set_data_item_computation(data_item2a, computation)
@@ -209,7 +210,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item2a = DataItem.DataItem()
             data_item2a.ensure_data_source()
             computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
-            computation.create_object("src", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
             document_model.set_data_item_computation(data_item2a, computation)

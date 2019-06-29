@@ -174,10 +174,10 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         return list(referenced_object_proxy.item for referenced_object_proxy in self.__referenced_object_proxies.values())
 
 
-def get_object_specifier(object, object_type: str=None) -> typing.Optional[typing.Mapping]:
+def get_object_specifier(object, object_type: str=None) -> typing.Optional[typing.Dict]:
     if isinstance(object, DataItem.DataItem):
         return {"version": 1, "type": object_type or "data_item", "uuid": str(object.uuid)}
-    if object_type in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
+    if object and object_type in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
         assert isinstance(object, DisplayItem.DisplayDataChannel)
         return {"version": 1, "type": object_type, "uuid": str(object.uuid)}
     if isinstance(object, DisplayItem.DisplayDataChannel):

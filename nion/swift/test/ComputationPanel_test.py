@@ -12,6 +12,7 @@ from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import Symbolic
 from nion.ui import TestUI
 
 
@@ -35,7 +36,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
-            computation.create_object("a", document_model.get_object_specifier(data_item1))
+            computation.create_input_item("a", Symbolic.make_item(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
             panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # execute queue
@@ -54,7 +55,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
-            computation.create_object("a", document_model.get_object_specifier(data_item1))
+            computation.create_input_item("a", Symbolic.make_item(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
             panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # execute queue
@@ -74,7 +75,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
-            computation.create_object("a", document_model.get_object_specifier(data_item1))
+            computation.create_input_item("a", Symbolic.make_item(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
             panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # let the inspector see the computation
@@ -110,7 +111,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
-            computation.create_object("a", document_model.get_object_specifier(data_item1))
+            computation.create_input_item("a", Symbolic.make_item(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
             panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # let the inspector see the computation
@@ -145,7 +146,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = a.xdata + x")
-            computation.create_object("a", document_model.get_object_specifier(data_item1))
+            computation.create_input_item("a", Symbolic.make_item(data_item1))
             computation.create_variable("x", value_type="integral", value=5)
             document_model.set_data_item_computation(data_item2, computation)
             panel1 = ComputationPanel.EditComputationDialog(document_controller, data_item1)
@@ -171,7 +172,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item3 = DataItem.DataItem(numpy.zeros((10, )))
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation("target.xdata = a.xdata[1] + x")
-            variable = computation.create_object("a", document_model.get_object_specifier(data_item2))
+            variable = computation.create_input_item("a", Symbolic.make_item(data_item2))
             computation.create_variable("x", value_type="integral", value=5)
             document_model.set_data_item_computation(data_item1, computation)
             # verify setup
@@ -214,7 +215,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item3 = DataItem.DataItem(numpy.zeros((10, )))
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation("target.xdata = a.xdata[1] + x")
-            variable = computation.create_object("a", document_model.get_object_specifier(data_item3))
+            variable = computation.create_input_item("a", Symbolic.make_item(data_item3))
             computation.create_variable("x", value_type="integral", value=5)
             document_model.set_data_item_computation(data_item1, computation)
             # verify setup

@@ -668,6 +668,10 @@ class Graphic(metaclass=SharedInstance):
         self.__graphic = graphic
 
     @property
+    def _item(self):
+        return self._graphic
+
+    @property
     def _graphic(self):
         return self.__graphic
 
@@ -916,6 +920,10 @@ class DataItem(metaclass=SharedInstance):
 
     def __init__(self, data_item: DataItemModule.DataItem):
         self.__data_item = data_item
+
+    @property
+    def _item(self):
+        return self._data_item
 
     @property
     def _data_item(self) -> DataItemModule.DataItem:
@@ -1326,6 +1334,10 @@ class DataSource(metaclass=SharedInstance):
         self.__data_source = data_source
 
     @property
+    def _item(self):
+        return self._data_source
+
+    @property
     def _data_source(self):
         return self.__data_source
 
@@ -1419,6 +1431,10 @@ class Display(metaclass=SharedInstance):
 
     def __init__(self, display_item):
         self.__display_item = display_item
+
+    @property
+    def _item(self):
+        return self._display_item
 
     @property
     def _display_item(self) -> DisplayItemModule.DisplayItem:
@@ -2034,6 +2050,10 @@ class DataStructure(metaclass=SharedInstance):
         self.__data_structure = data_structure
 
     @property
+    def _item(self):
+        return self._data_structure
+
+    @property
     def _data_structure(self) -> DataStructureModule.DataStructure:
         return self.__data_structure
 
@@ -2125,19 +2145,19 @@ class Computation(metaclass=SharedInstance):
 
     def set_result(self, name: str, value) -> None:
         if isinstance(value, list):
-            result_specifiers = [v.specifier.rpc_dict for v in value]
+            output_items = Symbolic.make_item_list([v._item for v in value])
             for result in self.__computation.results:
                 if result.name == name:
-                    result.specifiers = result_specifiers
+                    result.specifiers = [DataStructureModule.get_object_specifier(o.item) for o in output_items.items]
                     return
-            self.__computation.create_result(name, specifiers=result_specifiers)
+            self.__computation.create_output_item(name, output_items)
         else:
-            result_specifier = value.specifier.rpc_dict if value is not None else None
+            output_item = Symbolic.make_item(value._item) if value else None
             for result in self.__computation.results:
                 if result.name == name:
-                    result.specifier = result_specifier
+                    result.specifier = DataStructureModule.get_object_specifier(output_item.item) if output_item else None
                     return
-            self.__computation.create_result(name, result_specifier)
+            self.__computation.create_output_item(name, output_item)
 
     def set_referenced_data(self, name: str, data: numpy.ndarray) -> None:
         data_item = self.get_result(name)
@@ -2531,20 +2551,17 @@ class Library(metaclass=SharedInstance):
                 if object_type == "data_source":
                     display_item = self.__document_model.get_display_item_for_data_item(object._data_item)
                     display_data_channel = display_item.display_data_channel
-                    specifier_dict = {"version": 1, "type": "data_source", "uuid": str(display_data_channel.uuid)}
+                    input_item = Symbolic.make_item(display_data_channel)
                 else:
-                    specifier_dict = object.specifier.rpc_dict
-                computation.create_object(name, specifier_dict)
+                    input_item = Symbolic.make_item(object._item, type=object_type)
+                computation.create_input_item(name, input_item)
             elif isinstance(item, list):
                 # TODO: handle more than just objects
-                items = [object.specifier.rpc_dict for object in item]
-                computation.create_objects(name, items)
+                computation.create_input_item(name, Symbolic.make_item_list([i._item for i in item]))
             else:
-                specifier_dict = item.specifier.rpc_dict if item else None
-                computation.create_object(name, specifier_dict)
+                computation.create_input_item(name, Symbolic.make_item(item._item))
         for name, item in outputs.items():
-            specifier_dict = item.specifier.rpc_dict if item else None
-            computation.create_result(name, specifier_dict)
+            computation.create_output_item(name, Symbolic.make_item(item._item) if item else None)
         computation.processing_id = computation_type_id
         self._document_model.append_computation(computation)
         return Computation(computation)

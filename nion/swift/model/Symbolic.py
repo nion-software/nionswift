@@ -19,6 +19,7 @@ import weakref
 # third party libraries
 
 # local libraries
+from nion.swift.model import DataStructure
 from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import ListModel
@@ -447,6 +448,23 @@ class ComputationContext:
         return None
 
 
+class ComputationItem:
+    def __init__(self, *, item=None, type: str=None, secondary_item=None, items: typing.List["ComputationItem"] = None):
+        self.item = item
+        self.type = type
+        self.secondary_item = secondary_item
+        self.items = items
+
+
+def make_item(item, *, type: str=None, secondary_item=None) -> ComputationItem:
+    return ComputationItem(item=item, type=type, secondary_item=secondary_item)
+
+
+def make_item_list(items, *, type: str=None) -> ComputationItem:
+    items = [make_item(item, type=type) if not isinstance(item, ComputationItem) else item for item in items]
+    return ComputationItem(items=items)
+
+
 class Computation(Observable.Observable, Persistence.PersistentObject):
     """A computation on data and other inputs.
 
@@ -610,37 +628,48 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.add_variable(variable)
         return variable
 
-    def create_input(self, name: str, object_specifier: dict, property_name: str, label: str=None) -> ComputationVariable:
-        variable = ComputationVariable(name, specifier=object_specifier, property_name=property_name, label=label)
-        self.add_variable(variable)
-        return variable
+    def create_input_item(self, name: str, input_item: ComputationItem, *, property_name: str=None, label: str=None) -> ComputationVariable:
+        if input_item.items is not None:
+            specifiers = [DataStructure.get_object_specifier(item.item, item.type) if item else None for item in input_item.items]
+            list_model = ListModel.ListModel(items=specifiers)
+            variable = ComputationVariable(name, objects=list_model, label=label)
+            self.add_variable(variable)
+            return variable
+        else:
+            specifier = DataStructure.get_object_specifier(input_item.item, input_item.type)
+            secondary_specifier = DataStructure.get_object_specifier(input_item.secondary_item) if input_item.secondary_item else None
+            variable = ComputationVariable(name, specifier=specifier, secondary_specifier=secondary_specifier, property_name=property_name, label=label)
+            self.add_variable(variable)
+            return variable
 
-    def create_object(self, name: str, object_specifier: dict, label: str=None, secondary_specifier: dict=None) -> ComputationVariable:
-        variable = ComputationVariable(name, specifier=object_specifier, label=label, secondary_specifier=secondary_specifier)
-        self.add_variable(variable)
-        return variable
-
-    def create_objects(self, name: str, items, label: str=None) -> ComputationVariable:
-        list_model = ListModel.ListModel(items=items)
-        variable = ComputationVariable(name, objects=list_model, label=label)
-        self.add_variable(variable)
-        return variable
-
-    def create_result(self, name: str=None, object_specifier: dict=None, specifiers: typing.Sequence[dict]=None, label: str=None) -> ComputationOutput:
-        result = ComputationOutput(name, specifier=object_specifier, specifiers=specifiers, label=label)
-        self.append_item("results", result)
-        if self.persistent_object_context:
-            self.__bind_result(result)
-        self.computation_mutated_event.fire()
-        return result
+    def create_output_item(self, name: str, output_item: ComputationItem=None, *, label: str=None) -> ComputationOutput:
+        if output_item and output_item.items is not None:
+            specifiers = [DataStructure.get_object_specifier(item.item) for item in output_item.items]
+            result = ComputationOutput(name, specifiers=specifiers, label=label)
+            self.append_item("results", result)
+            if self.persistent_object_context:
+                self.__bind_result(result)
+            self.computation_mutated_event.fire()
+            return result
+        elif output_item:
+            assert not output_item.type
+            assert not output_item.secondary_item
+            specifier = DataStructure.get_object_specifier(output_item.item)
+            result = ComputationOutput(name, specifier=specifier, label=label)
+            self.append_item("results", result)
+            if self.persistent_object_context:
+                self.__bind_result(result)
+            self.computation_mutated_event.fire()
+            return result
 
     def remove_item_from_objects(self, name: str, index: int) -> None:
         variable = self._get_variable(name)
         variable.objects_model.remove_item(index)
 
-    def insert_item_into_objects(self, name: str, index: int, object) -> None:
+    def insert_item_into_objects(self, name: str, index: int, input_item: ComputationItem) -> None:
+        specifier = DataStructure.get_object_specifier(input_item.item, input_item.type)
         variable = self._get_variable(name)
-        variable.objects_model.insert_item(index, object)
+        variable.objects_model.insert_item(index, specifier)
 
     def list_item_removed(self, object) -> typing.Sequence[dict]:
         undelete_entries = list()

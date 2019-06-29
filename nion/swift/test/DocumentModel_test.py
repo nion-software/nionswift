@@ -393,8 +393,8 @@ class TestDocumentModelClass(unittest.TestCase):
             graphic = Graphics.PointGraphic()
             display_item.add_graphic(graphic)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
-            computation.create_result("graphic", document_model.get_object_specifier(graphic))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_output_item("graphic", Symbolic.make_item(graphic))
             computation.processing_id = "find_max"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -410,7 +410,7 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
             computation.processing_id = "find_max"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -427,7 +427,7 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
             computation.processing_id = "find_max"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -450,7 +450,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
             computation.processing_id = "find_max"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -481,9 +481,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
             value = computation.create_variable("value", "integral", 3)
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "set_const"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -514,9 +514,9 @@ class TestDocumentModelClass(unittest.TestCase):
             data_structure.set_property_value("value", 3)
             document_model.append_data_structure(data_structure)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
-            computation.create_object("data_structure", document_model.get_object_specifier(data_structure))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_input_item("data_structure", Symbolic.make_item(data_structure))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "set_const_struct"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -537,9 +537,9 @@ class TestDocumentModelClass(unittest.TestCase):
             data_structure.set_property_value("amount", 3)
             document_model.append_data_structure(data_structure)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
-            computation.create_input("value", document_model.get_object_specifier(data_structure), property_name="amount")
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_input_item("value", Symbolic.make_item(data_structure), property_name="amount")
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "set_const"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -560,9 +560,9 @@ class TestDocumentModelClass(unittest.TestCase):
             data_structure.set_property_value("amount", 3)
             document_model.append_data_structure(data_structure)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
-            computation.create_input("value", document_model.get_object_specifier(data_structure), property_name="amount")
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_input_item("value", Symbolic.make_item(data_structure), property_name="amount")
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "set_const"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -598,9 +598,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
             value = computation.create_variable("value", "boolean", True)
-            computation.create_result("graphic")
+            computation.create_output_item("graphic")
             computation.processing_id = "optional_graphic"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -622,9 +622,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
             value = computation.create_variable("value", "boolean", True)
-            computation.create_result("graphic")
+            computation.create_output_item("graphic")
             computation.processing_id = "optional_graphic"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -663,9 +663,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
             value = computation.create_variable("value", "integral", 3)
-            computation.create_result("graphics", specifiers=[])
+            computation.create_output_item("graphics", Symbolic.make_item_list([]))
             computation.processing_id = "n_graphics"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -682,9 +682,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
             value = computation.create_variable("value", "integral", 3)
-            computation.create_result("graphics", specifiers=[])
+            computation.create_output_item("graphics", Symbolic.make_item_list([]))
             computation.processing_id = "n_graphics"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -707,7 +707,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
             computation.create_variable("value", "integral", 3)
             computation.processing_id = "set_const"
             document_model.append_computation(computation)
@@ -729,8 +729,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.create_variable("value", "integral", 3)
             computation.processing_id = "set_const"
             document_model.append_computation(computation)
@@ -751,9 +751,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
             value = computation.create_variable("value", "integral", 3)
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "set_const"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -788,9 +788,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
-            computation.create_object("src1", document_model.get_object_specifier(data_item))
-            computation.create_object("src2", document_model.get_object_specifier(data_item2))
-            computation.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation.create_input_item("src1", Symbolic.make_item(data_item))
+            computation.create_input_item("src2", Symbolic.make_item(data_item2))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "add2"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -819,9 +819,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
-            computation.create_object("src1", document_model.get_object_specifier(data_item))
-            computation.create_object("src2", document_model.get_object_specifier(data_item2))
-            computation.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation.create_input_item("src1", Symbolic.make_item(data_item))
+            computation.create_input_item("src2", Symbolic.make_item(data_item2))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "add2"
             document_model.append_computation(computation)
             self.assertTrue(computation.is_resolved)
@@ -843,9 +843,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
-            computation.create_object("src1", document_model.get_object_specifier(data_item))
-            computation.create_object("src2", document_model.get_object_specifier(data_item2))
-            computation.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation.create_input_item("src1", Symbolic.make_item(data_item))
+            computation.create_input_item("src2", Symbolic.make_item(data_item2))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "add2"
             document_model.append_computation(computation)
             self.assertTrue(computation.is_resolved)
@@ -868,9 +868,9 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.append_data_item(data_item2)
                 document_model.append_data_item(data_item3)
                 computation = document_model.create_computation()
-                computation.create_object("src1", document_model.get_object_specifier(document_model.get_display_item_for_data_item(data_item).display_data_channel, t))
-                computation.create_object("src2", document_model.get_object_specifier(document_model.get_display_item_for_data_item(data_item2).display_data_channel, t))
-                computation.create_result("dst", document_model.get_object_specifier(data_item3))
+                computation.create_input_item("src1", Symbolic.make_item(document_model.get_display_item_for_data_item(data_item).display_data_channel, type=t))
+                computation.create_input_item("src2", Symbolic.make_item(document_model.get_display_item_for_data_item(data_item2).display_data_channel, type=t))
+                computation.create_output_item("dst", Symbolic.make_item(data_item3))
                 computation.processing_id = "add2"
                 document_model.append_computation(computation)
                 self.assertTrue(computation.is_resolved)
@@ -893,9 +893,9 @@ class TestDocumentModelClass(unittest.TestCase):
             data_structure.set_property_value("value", 3)
             document_model.append_data_structure(data_structure)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
-            computation.create_object("data_structure", document_model.get_object_specifier(data_structure))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_input_item("data_structure", Symbolic.make_item(data_structure))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "set_const_struct"
             document_model.append_computation(computation)
             self.assertTrue(computation.is_resolved)
@@ -919,9 +919,9 @@ class TestDocumentModelClass(unittest.TestCase):
             display_item.add_graphic(graphic)  # computation should become valid
             # display_item.add_graphic(graphic)  # purposely not added
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
-            computation.create_object("graphic", document_model.get_object_specifier(graphic))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_input_item("graphic", Symbolic.make_item(graphic))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "set_const_graphic"
             document_model.append_computation(computation)
             self.assertTrue(computation.is_resolved)
@@ -943,9 +943,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
-            computation.create_object("src1", document_model.get_object_specifier(data_item))
-            computation.create_object("src2", document_model.get_object_specifier(data_item2))
-            computation.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation.create_input_item("src1", Symbolic.make_item(data_item))
+            computation.create_input_item("src2", Symbolic.make_item(data_item2))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "add2"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -969,9 +969,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
-            computation.create_object("src1", document_model.get_object_specifier(data_item))
-            computation.create_object("src2", document_model.get_object_specifier(data_item2))
-            computation.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation.create_input_item("src1", Symbolic.make_item(data_item))
+            computation.create_input_item("src2", Symbolic.make_item(data_item2))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "add2"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -992,9 +992,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
             value = computation.create_variable("value", "integral", 3)
-            computation.create_result("graphics", specifiers=[])
+            computation.create_output_item("graphics", Symbolic.make_item_list([]))
             computation.processing_id = "n_graphics"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1015,9 +1015,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
             value = computation.create_variable("value", "integral", 3)
-            computation.create_result("graphics", specifiers=[])
+            computation.create_output_item("graphics", Symbolic.make_item_list([]))
             computation.processing_id = "n_graphics"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1038,7 +1038,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
             computation.create_variable("value", "integral", 3)
             computation.processing_id = "set_const"
             document_model.append_computation(computation)
@@ -1077,8 +1077,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
             computation = document_model.create_computation()
-            items = [document_model.get_object_specifier(display_item1.display_data_channel, "display_xdata"), document_model.get_object_specifier(display_item2.display_data_channel, "display_xdata")]
-            computation.create_objects("src_list", items)
+            items = Symbolic.make_item_list([display_item1.display_data_channel, display_item2.display_data_channel], type="display_xdata")
+            computation.create_input_item("src_list", items)
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1099,8 +1099,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
             computation = document_model.create_computation()
-            items = [document_model.get_object_specifier(display_item1.display_data_channel, "display_xdata"), document_model.get_object_specifier(display_item2.display_data_channel, "display_xdata")]
-            computation.create_objects("src_list", items)
+            items = Symbolic.make_item_list([display_item1.display_data_channel, display_item2.display_data_channel], type="display_xdata")
+            computation.create_input_item("src_list", items)
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
             self.assertIn(data_item1, computation._inputs)
@@ -1118,9 +1118,9 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item3 = DataItem.DataItem(numpy.full((2, 2), 3))
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
-            computation.create_object("src1", document_model.get_object_specifier(data_item1))
-            computation.create_object("src2", document_model.get_object_specifier(data_item2))
-            computation.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation.create_input_item("src1", Symbolic.make_item(data_item1))
+            computation.create_input_item("src2", Symbolic.make_item(data_item2))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "add2"
             document_model.append_computation(computation)
             document_model.recompute_all()  # establish outputs
@@ -1142,8 +1142,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
             computation = document_model.create_computation()
-            items = [document_model.get_object_specifier(display_item1.display_data_channel, "display_xdata"), document_model.get_object_specifier(display_item2.display_data_channel, "display_xdata")]
-            computation.create_objects("src_list", items)
+            items = Symbolic.make_item_list([display_item1.display_data_channel, display_item2.display_data_channel], type="display_xdata")
+            computation.create_input_item("src_list", items)
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
             document_model.recompute_all()  # establish outputs
@@ -1168,14 +1168,14 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item3)
             display_item3 = document_model.get_display_item_for_data_item(data_item3)
             computation = document_model.create_computation()
-            items = [document_model.get_object_specifier(display_item1.display_data_channel, "display_xdata"), document_model.get_object_specifier(display_item2.display_data_channel, "display_xdata")]
-            computation.create_objects("src_list", items)
+            items = Symbolic.make_item_list([display_item1.display_data_channel, display_item2.display_data_channel], type="display_xdata")
+            computation.create_input_item("src_list", items)
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
             document_model.recompute_all()
             data_item4 = document_model.data_items[3]
             self.assertTrue(numpy.array_equal(data_item4.data, numpy.full((2, 2), 3)))
-            computation.insert_item_into_objects("src_list", 0, document_model.get_object_specifier(display_item3.display_data_channel, "display_xdata"))
+            computation.insert_item_into_objects("src_list", 0, Symbolic.make_item(display_item3.display_data_channel, type="display_xdata"))
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(data_item4.data, numpy.full((2, 2), 6)))
             computation.remove_item_from_objects("src_list", 2)
@@ -1197,12 +1197,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item3)
             display_item3 = document_model.get_display_item_for_data_item(data_item3)
             computation = document_model.create_computation()
-            items = [
-                document_model.get_object_specifier(display_item1.display_data_channel, "display_xdata"),
-                document_model.get_object_specifier(display_item2.display_data_channel, "display_xdata"),
-                document_model.get_object_specifier(display_item3.display_data_channel, "display_xdata")
-            ]
-            computation.create_objects("src_list", items)
+            items = Symbolic.make_item_list([display_item1.display_data_channel, display_item2.display_data_channel, display_item3.display_data_channel], type="display_xdata")
+            computation.create_input_item("src_list", items)
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1224,16 +1220,21 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
             computation = document_model.create_computation()
-            src_list = [document_model.get_object_specifier(display_item1.display_data_channel, "display_xdata"), document_model.get_object_specifier(display_item2.display_data_channel, "display_xdata")]
-            src_list[0]["uuid"] = str(uuid.uuid4())
-            computation.create_objects("src_list", src_list)
+
+            # src_list = [document_model.get_object_specifier(display_item1.display_data_channel, "display_xdata"), document_model.get_object_specifier(display_item2.display_data_channel, "display_xdata")]
+            # src_list[0]["uuid"] = str(uuid.uuid4())
+            # computation.create_objects("src_list", src_list)
+
+            src_list = Symbolic.make_item_list([None, display_item2.display_data_channel], type="display_xdata")
+            computation.create_input_item("src_list", src_list)
+
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
             document_model.recompute_all()
             self.assertEqual(len(document_model.computations), 1)
             self.assertEqual(len(document_model.data_items), 2)
             computation.remove_item_from_objects("src_list", 0)
-            computation.insert_item_into_objects("src_list", 0, document_model.get_object_specifier(display_item1.display_data_channel, "display_xdata"))
+            computation.insert_item_into_objects("src_list", 0, Symbolic.make_item(display_item1.display_data_channel, type="display_xdata"))
             document_model.recompute_all()
             data_item3 = document_model.data_items[2]
             self.assertTrue(numpy.array_equal(data_item3.data, numpy.full((2, 2), 3)))
@@ -1248,8 +1249,8 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation()
-            items = [document_model.get_object_specifier(data_item1, "xdata"), document_model.get_object_specifier(data_item2, "xdata")]
-            computation.create_objects("src_list", items)
+            items = Symbolic.make_item_list([data_item1, data_item2], type="xdata")
+            computation.create_input_item("src_list", items)
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1282,14 +1283,14 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "copy_data"
             document_model.append_computation(computation)
             with self.assertRaises(Exception):
                 computation2 = document_model.create_computation()
-                computation2.create_object("src", document_model.get_object_specifier(data_item))
-                computation2.create_result("dst", document_model.get_object_specifier(data_item2))
+                computation2.create_input_item("src", Symbolic.make_item(data_item))
+                computation2.create_output_item("dst", Symbolic.make_item(data_item2))
                 computation2.processing_id = "copy_data"
                 document_model.append_computation(computation2)
 
@@ -1302,8 +1303,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             with self.assertRaises(Exception):
                 computation = document_model.create_computation()
-                computation.create_object("src", document_model.get_object_specifier(data_item))
-                computation.create_result("dst", document_model.get_object_specifier(data_item))
+                computation.create_input_item("src", Symbolic.make_item(data_item))
+                computation.create_output_item("dst", Symbolic.make_item(data_item))
                 computation.processing_id = "copy_data"
                 document_model.append_computation(computation)
 
@@ -1317,14 +1318,14 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "copy_data"
             document_model.append_computation(computation)
             with self.assertRaises(Exception):
                 computation = document_model.create_computation()
-                computation.create_object("src", document_model.get_object_specifier(data_item2))
-                computation.create_result("dst", document_model.get_object_specifier(data_item))
+                computation.create_input_item("src", Symbolic.make_item(data_item2))
+                computation.create_output_item("dst", Symbolic.make_item(data_item))
                 computation.processing_id = "copy_data"
                 document_model.append_computation(computation)
 
@@ -1340,9 +1341,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
-            computation.create_object("src1", document_model.get_object_specifier(data_item))
-            computation.create_object("src2", document_model.get_object_specifier(data_item2))
-            computation.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation.create_input_item("src1", Symbolic.make_item(data_item))
+            computation.create_input_item("src2", Symbolic.make_item(data_item2))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "add2"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1364,9 +1365,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
-            computation.create_object("src1", document_model.get_object_specifier(data_item))
-            computation.create_object("src2", document_model.get_object_specifier(data_item2))
-            computation.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation.create_input_item("src1", Symbolic.make_item(data_item))
+            computation.create_input_item("src2", Symbolic.make_item(data_item2))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "add2"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1385,9 +1386,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
-            computation.create_object("src1", document_model.get_object_specifier(data_item))
-            # computation.create_object("src2")
-            computation.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation.create_input_item("src1", Symbolic.make_item(data_item))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "add2"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1412,8 +1412,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             # document_model.append_data_item(data_item3)  # purposely not added
             computation = document_model.create_computation()
-            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "xdata"))
-            computation.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1428,8 +1428,8 @@ class TestDocumentModelClass(unittest.TestCase):
             # document_model.append_data_item(data_item)  # purposely not added
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
-            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "xdata"))
-            computation.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
             self.assertFalse(computation.is_resolved)
@@ -1445,8 +1445,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             # document_model.append_data_item(data_item3)  # purposely not added
             computation = document_model.create_computation()
-            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "xdata"))
-            computation.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
             self.assertFalse(computation.is_resolved)
@@ -1465,9 +1465,9 @@ class TestDocumentModelClass(unittest.TestCase):
             data_structure.set_property_value("value", 3)
             # document_model.append_data_structure(data_structure)  # purposely not added
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
-            computation.create_object("data_structure", document_model.get_object_specifier(data_structure))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_input_item("data_structure", Symbolic.make_item(data_structure))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "set_const_struct"
             document_model.append_computation(computation)
             self.assertFalse(computation.is_resolved)
@@ -1496,9 +1496,9 @@ class TestDocumentModelClass(unittest.TestCase):
             graphic = Graphics.PointGraphic()
             # display_item.add_graphic(graphic)  # purposely not added
             computation = document_model.create_computation()
-            computation.create_object("src", document_model.get_object_specifier(data_item))
-            computation.create_object("graphic", document_model.get_object_specifier(graphic))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_input_item("graphic", Symbolic.make_item(graphic))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "set_const_graphic"
             document_model.append_computation(computation)
             self.assertFalse(computation.is_resolved)
@@ -1531,7 +1531,7 @@ class TestDocumentModelClass(unittest.TestCase):
             graphic = Graphics.RectangleGraphic()
             display_item.add_graphic(graphic)
             computation = document_model.create_computation()
-            computation.create_object("rect", document_model.get_object_specifier(graphic))
+            computation.create_input_item("rect", Symbolic.make_item(graphic))
             computation.processing_id = "genzero"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1570,8 +1570,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation()
-            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "xdata"))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "crop_half"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1594,8 +1594,8 @@ class TestDocumentModelClass(unittest.TestCase):
             display_data_channel.slice_center = 2
             display_data_channel.slice_width = 1
             computation = document_model.create_computation()
-            computation.create_object("src_xdata", document_model.get_object_specifier(display_data_channel, "display_xdata"))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src_xdata", Symbolic.make_item(display_data_channel, type="display_xdata"))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "crop_half"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1618,8 +1618,8 @@ class TestDocumentModelClass(unittest.TestCase):
             graphic.bounds = (0, 0), (0.5, 0.5)
             display_item.add_graphic(graphic)
             computation = document_model.create_computation()
-            computation.create_object("src_xdata", document_model.get_object_specifier(display_item.display_data_channel, "cropped_xdata"), secondary_specifier=document_model.get_object_specifier(graphic))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src_xdata", Symbolic.make_item(display_item.display_data_channel, type="cropped_xdata", secondary_item=graphic))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "crop_half"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1648,8 +1648,8 @@ class TestDocumentModelClass(unittest.TestCase):
             graphic.bounds = (0, 0), (0.5, 0.5)
             display_item.add_graphic(graphic)
             computation = document_model.create_computation()
-            computation.create_object("src_xdata", document_model.get_object_specifier(display_data_channel, "cropped_display_xdata"), secondary_specifier=document_model.get_object_specifier(graphic))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src_xdata", Symbolic.make_item(display_data_channel, type="cropped_display_xdata", secondary_item=graphic))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "crop_half"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1676,8 +1676,8 @@ class TestDocumentModelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(graphic)
             computation = document_model.create_computation()
-            computation.create_object("src_xdata", document_model.get_object_specifier(display_item.display_data_channel, "filter_xdata"))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src_xdata", Symbolic.make_item(display_item.display_data_channel, type="filter_xdata"))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1706,8 +1706,8 @@ class TestDocumentModelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(graphic)
             computation = document_model.create_computation()
-            computation.create_object("src_xdata", document_model.get_object_specifier(display_item.display_data_channel, "filtered_xdata"))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src_xdata", Symbolic.make_item(display_item.display_data_channel, type="filtered_xdata"))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1733,13 +1733,13 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
             computation1 = document_model.create_computation()
-            computation1.create_object("src_xdata", document_model.get_object_specifier(data_item1, "xdata"))
-            computation1.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation1.create_input_item("src_xdata", Symbolic.make_item(data_item1, type="xdata"))
+            computation1.create_output_item("dst", Symbolic.make_item(data_item2))
             computation1.processing_id = "pass_thru"
             document_model.append_computation(computation1)
             computation2 = document_model.create_computation()
-            computation2.create_object("src_xdata", document_model.get_object_specifier(data_item2, "xdata"))
-            computation2.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation2.create_input_item("src_xdata", Symbolic.make_item(data_item2, type="xdata"))
+            computation2.create_output_item("dst", Symbolic.make_item(data_item3))
             computation2.processing_id = "pass_thru"
             document_model.append_computation(computation2)
             document_model.recompute_all()
@@ -1758,8 +1758,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
             computation.source = data_item3
-            computation.create_object("src_xdata", document_model.get_object_specifier(data_item1, "xdata"))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src_xdata", Symbolic.make_item(data_item1, type="xdata"))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1794,9 +1794,9 @@ class TestDocumentModelClass(unittest.TestCase):
             display_item1.add_graphic(interval3)
             computation = document_model.create_computation()
             computation.processing_id = "source_cycle_test"
-            computation.create_object("s", document_model.get_object_specifier(data_item1, "xdata"))
-            computation.create_object("i1", document_model.get_object_specifier(interval1))
-            computation.create_objects("i2l", [document_model.get_object_specifier(interval2), document_model.get_object_specifier(interval3)])
+            computation.create_input_item("s", Symbolic.make_item(data_item1, type="xdata"))
+            computation.create_input_item("i1", Symbolic.make_item(interval1))
+            computation.create_input_item("i2l", Symbolic.make_item_list([interval2, interval3]))
             computation.source = interval1
             interval1.source = computation
             interval2.source = interval1
@@ -1822,8 +1822,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
             computation.source = data_item3
-            computation.create_object("src_xdata", document_model.get_object_specifier(data_item1, "xdata"))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src_xdata", Symbolic.make_item(data_item1, type="xdata"))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1844,8 +1844,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
-            computation.create_object("src1", document_model.get_object_specifier(data_item))
-            computation.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation.create_input_item("src1", Symbolic.make_item(data_item))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "nothing"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1893,8 +1893,8 @@ class TestDocumentModelClass(unittest.TestCase):
             # create the computation
             computation = document_model.create_computation()
             computation.source = data_item
-            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "xdata"))
-            computation.create_result("dst", document_model.get_object_specifier(data_item2))
+            computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "negate"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1944,8 +1944,8 @@ class TestDocumentModelClass(unittest.TestCase):
             # create the computation
             computation = document_model.create_computation()
             computation.source = data_item
-            computation.create_object("src_xdata", document_model.get_object_specifier(data_item2, "xdata"))
-            computation.create_result("dst", document_model.get_object_specifier(data_item3))
+            computation.create_input_item("src_xdata", Symbolic.make_item(data_item2, type="xdata"))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "negate"
             document_model.append_computation(computation)
             document_model.recompute_all()

@@ -296,8 +296,8 @@ class TestConnectionClass(unittest.TestCase):
             computed_data_item = DataItem.DataItem(numpy.zeros((100, )))
             document_model.append_data_item(computed_data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata"))
-            computation.create_object("a", document_model.get_object_specifier(data_item))
-            computation.create_object("d", document_model.get_object_specifier(data_struct))
+            computation.create_input_item("a", Symbolic.make_item(data_item))
+            computation.create_input_item("d", Symbolic.make_item(data_struct))
             document_model.set_data_item_computation(computed_data_item, computation)
             with document_model.item_transaction(data_item):
                 self.assertTrue(document_model.is_in_transaction_state(data_item))

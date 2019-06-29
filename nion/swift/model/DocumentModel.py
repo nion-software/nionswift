@@ -239,6 +239,346 @@ class TransactionManager:
             self.__close_transaction_items(old_items)
 
 
+class BoundDataBase:
+    def __init__(self, document_model, object, graphic=None):
+        self.__document_model = document_model
+        self._object = object
+        self._graphic = graphic
+        self.changed_event = Event.Event()
+        self.needs_rebind_event = Event.Event()
+        self.property_changed_event = Event.Event()
+        self.__data_changed_event_listener = self._object.data_changed_event.listen(self.changed_event.fire)
+        def data_item_removed(container, data_item, index, moving):
+            if container == self.__document_model and data_item == self._object:
+                self.needs_rebind_event.fire()
+        self.__data_item_removed_event_listener = self.__document_model.data_item_removed_event.listen(data_item_removed)
+    def close(self):
+        self.__data_changed_event_listener.close()
+        self.__data_changed_event_listener = None
+        self.__data_item_removed_event_listener.close()
+        self.__data_item_removed_event_listener = None
+    @property
+    def base_objects(self):
+        objects = {self._object}
+        if self._graphic:
+            objects.add(self._graphic)
+        return objects
+
+
+class BoundDisplayDataChannelBase:
+    def __init__(self, document_model, display_data_channel, graphic=None):
+        self.document_model = document_model
+        self._display_data_channel = display_data_channel
+        self._graphic = graphic
+        self.changed_event = Event.Event()
+        self.needs_rebind_event = Event.Event()
+        self.property_changed_event = Event.Event()
+        self.__display_values_changed_event_listener = self._display_data_channel.add_calculated_display_values_listener(self.changed_event.fire, send=False)
+        def data_item_removed(container, data_item, index, moving):
+            if container == self.document_model and data_item == self._display_data_channel.data_item:
+                self.needs_rebind_event.fire()
+        self.__data_item_removed_event_listener = self.document_model.data_item_removed_event.listen(data_item_removed)
+    def close(self):
+        self.__display_values_changed_event_listener.close()
+        self.__display_values_changed_event_listener = None
+        self.__data_item_removed_event_listener.close()
+        self.__data_item_removed_event_listener = None
+    @property
+    def base_objects(self):
+        objects = {self._display_data_channel.container, self._display_data_channel.data_item}
+        if self._graphic:
+            objects.add(self._graphic)
+        return objects
+
+
+class BoundDataSource:
+
+    def __init__(self, document_model, display_data_channel, graphic):
+        self.__document_model = document_model
+        self.changed_event = Event.Event()
+        self.needs_rebind_event = Event.Event()
+        self.property_changed_event = Event.Event()
+        self.__data_source = DataItem.DataSource(display_data_channel, graphic, self.changed_event)
+        def data_item_removed(container, data_item, index, moving):
+            if container == self.__document_model and data_item == self.__data_source.data_item:
+                self.needs_rebind_event.fire()
+        self.__data_item_removed_event_listener = self.__document_model.data_item_removed_event.listen(data_item_removed)
+
+    def close(self):
+        self.__data_source.close()
+        self.__data_source = None
+        self.__data_item_removed_event_listener.close()
+        self.__data_item_removed_event_listener = None
+
+    @property
+    def value(self):
+        return self.__data_source
+
+    @property
+    def base_objects(self):
+        objects = {self.__data_source.data_item}
+        if self.__data_source.graphic:
+            objects.add(self.__data_source.graphic)
+        return objects
+
+
+class BoundDataItem:
+
+    def __init__(self, document_model, object):
+        self.__document_model = document_model
+        self.__object = object
+        self.changed_event = Event.Event()
+        self.needs_rebind_event = Event.Event()
+        self.property_changed_event = Event.Event()
+        self.__data_item_changed_event_listener = self.__object.data_item_changed_event.listen(self.changed_event.fire)
+        def data_item_removed(container, data_item, index, moving):
+            if container == self.__document_model and data_item == self.__object:
+                self.needs_rebind_event.fire()
+        self.__data_item_removed_event_listener = self.__document_model.data_item_removed_event.listen(data_item_removed)
+
+    def close(self):
+        self.__data_item_changed_event_listener.close()
+        self.__data_item_changed_event_listener = None
+        self.__data_item_removed_event_listener.close()
+        self.__data_item_removed_event_listener = None
+
+    @property
+    def value(self):
+        return self.__object
+
+    @property
+    def base_objects(self):
+        return {self.__object}
+
+
+class BoundData(BoundDataBase):
+
+    @property
+    def value(self):
+        return self._object.xdata
+
+
+class BoundDisplayData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        return self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata if self._display_data_channel else None
+
+
+class BoundCroppedData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        xdata = self._display_data_channel.data_item.xdata
+        graphic = self._graphic
+        if graphic:
+            if hasattr(graphic, "bounds"):
+                return Core.function_crop(xdata, graphic.bounds)
+            if hasattr(graphic, "interval"):
+                return Core.function_crop_interval(xdata, graphic.interval)
+        return xdata
+
+
+class BoundCroppedDisplayData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        xdata = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata
+        graphic = self._graphic
+        if graphic:
+            if hasattr(graphic, "bounds"):
+                return Core.function_crop(xdata, graphic.bounds)
+            if hasattr(graphic, "interval"):
+                return Core.function_crop_interval(xdata, graphic.interval)
+        return xdata
+
+
+class BoundFilterData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        display_item = self._display_data_channel.container
+        # no display item is a special case for cascade removing graphics from computations. ugh.
+        # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
+        if display_item:
+            shape = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
+            mask = numpy.zeros(shape)
+            for graphic in display_item.graphics:
+                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                    mask = numpy.logical_or(mask, graphic.get_mask(shape))
+            return DataAndMetadata.DataAndMetadata.from_data(mask)
+        return None
+
+    @property
+    def base_objects(self):
+        data_item = self._display_data_channel.data_item
+        display_item = self._display_data_channel.container
+        objects = {data_item, display_item}
+        for graphic in display_item.graphics:
+            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                objects.add(graphic)
+        return objects
+
+
+class BoundFilteredData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        display_item = self._display_data_channel.container
+        # no display item is a special case for cascade removing graphics from computations. ugh.
+        # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
+        if display_item:
+            xdata = self._display_data_channel.data_item.xdata
+            if xdata.is_data_2d and xdata.is_data_complex_type:
+                shape = xdata.data_shape
+                mask = numpy.zeros(shape)
+                for graphic in display_item.graphics:
+                    if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                        mask = numpy.logical_or(mask, graphic.get_mask(shape))
+                return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
+            return xdata
+        return None
+
+    @property
+    def base_objects(self):
+        data_item = self._display_data_channel.data_item
+        display_item = self._display_data_channel.container
+        objects = {data_item, display_item}
+        for graphic in display_item.graphics:
+            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                objects.add(graphic)
+        return objects
+
+
+class BoundDataStructure:
+
+    def __init__(self, document_model, object, property_name):
+        self.__document_model = document_model
+        self.__object = object
+        self.__property_name = property_name
+        self.changed_event = Event.Event()
+        self.needs_rebind_event = Event.Event()
+        self.property_changed_event = Event.Event()
+        def data_structure_changed(property_name):
+            self.changed_event.fire()
+            if property_name == self.__property_name:
+                self.property_changed_event.fire(property_name)
+        self.__changed_listener = self.__object.data_structure_changed_event.listen(data_structure_changed)
+        def item_removed(name, value, index):
+            if name == "data_structures" and value == self.__object:
+                self.needs_rebind_event.fire()
+        self.__item_removed_event_listener = self.__document_model.item_removed_event.listen(item_removed)
+
+    def close(self):
+        self.__changed_listener.close()
+        self.__changed_listener = None
+        self.__item_removed_event_listener.close()
+        self.__item_removed_event_listener = None
+
+    @property
+    def value(self):
+        if self.__property_name:
+            return self.__object.get_property_value(self.__property_name)
+        return self.__object
+
+    @property
+    def base_objects(self):
+        return {self.__object}
+
+
+class BoundGraphic:
+
+    def __init__(self, document_model, object, property_name):
+        self.__document_model = document_model
+        self.__object = object
+        self.__property_name = property_name
+        self.changed_event = Event.Event()
+        self.needs_rebind_event = Event.Event()
+        self.property_changed_event = Event.Event()
+        def property_changed(property_name):
+            self.changed_event.fire()
+            if property_name == self.__property_name:
+                self.property_changed_event.fire(property_name)
+        self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
+
+    def close(self):
+        self.__property_changed_listener.close()
+        self.__property_changed_listener = None
+
+    @property
+    def value(self):
+        if self.__property_name:
+            return getattr(self.__object, self.__property_name)
+        return self.__object
+
+    @property
+    def base_objects(self):
+        return {self.__object}
+
+
+class BoundList:
+
+    def __init__(self, document_model, objects_model):
+        self.__document_model = document_model
+        self.__objects_model = objects_model
+        self.__bound_items = list()
+        self.changed_event = Event.Event()
+        self.needs_rebind_event = Event.Event()
+        self.child_removed_event = Event.Event()
+        self.property_changed_event = Event.Event()
+        self.__changed_listeners = list()
+        self.__needs_rebind_listeners = list()
+        self.__resolved = True
+        self.is_list = True  # special marker to indicate items in base objects should not trigger a delete
+        for index, variable_specifier in enumerate(objects_model.items):
+            bound_item = document_model.resolve_object_specifier(variable_specifier)
+            self.__bound_items.append(bound_item)
+            self.__changed_listeners.append(bound_item.changed_event.listen(self.changed_event.fire) if bound_item else None)
+            self.__needs_rebind_listeners.append(bound_item.needs_rebind_event.listen(functools.partial(self.child_removed_event.fire, index)) if bound_item else None)
+            self.__resolved = self.__resolved and bound_item is not None
+
+    def close(self):
+        for bound_object, change_listener, needs_rebind_listener in zip(self.__bound_items, self.__changed_listeners, self.__needs_rebind_listeners):
+            if bound_object:
+                bound_object.close()
+            if change_listener:
+                change_listener.close()
+            if needs_rebind_listener:
+                needs_rebind_listener.close()
+        self.__bound_items = None
+        self.__resolved_items = None
+        self.__changed_listeners = None
+
+    @property
+    def value(self):
+        return [bound_item.value for bound_item in self.__bound_items] if self.__resolved else None
+
+    @property
+    def base_objects(self):
+        # return the base objects in a stable order
+        base_objects = list()
+        for bound_item in self.__bound_items:
+            if bound_item:
+                for base_object in bound_item.base_objects:
+                    if not base_object in base_objects:
+                        base_objects.append(base_object)
+        return base_objects
+
+    def list_item_removed(self, object) -> typing.List[dict]:
+        base_objects = self.base_objects
+        if object in base_objects:
+            index = 0
+            for index, bound_item in enumerate(self.__bound_items):
+                for base_object in bound_item.base_objects:
+                    if base_object in base_objects:
+                        break
+            properties = copy.deepcopy(self.__objects_model.items[index])
+            self.__objects_model.remove_item(index)
+            self.needs_rebind_event.fire()
+            return [{"type": "object_specifiers", "index": index, "properties": properties}]
+        return list()
+
+
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, DataItem.SessionManager):
     """Manages storage and dependencies between data items and other objects.
 
@@ -1379,57 +1719,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def resolve_object_specifier(self, specifier: dict, secondary_specifier: dict=None, property_name: str=None, objects_model=None):
 
-        class BoundDataBase:
-            def __init__(self, document_model, object, graphic=None):
-                self.document_model = document_model
-                self._object = object
-                self._graphic = graphic
-                self.changed_event = Event.Event()
-                self.needs_rebind_event = Event.Event()
-                self.property_changed_event = Event.Event()
-                self.__data_changed_event_listener = self._object.data_changed_event.listen(self.changed_event.fire)
-                def data_item_removed(container, data_item, index, moving):
-                    if container == self.document_model and data_item == self._object:
-                        self.needs_rebind_event.fire()
-                self.__data_item_removed_event_listener = self.document_model.data_item_removed_event.listen(data_item_removed)
-            def close(self):
-                self.__data_changed_event_listener.close()
-                self.__data_changed_event_listener = None
-                self.__data_item_removed_event_listener.close()
-                self.__data_item_removed_event_listener = None
-            @property
-            def base_objects(self):
-                objects = {self._object}
-                if self._graphic:
-                    objects.add(self._graphic)
-                return objects
-
-        class BoundDisplayDataChannelBase:
-            def __init__(self, document_model, display_data_channel, graphic=None):
-                self.document_model = document_model
-                self._display_data_channel = display_data_channel
-                self._graphic = graphic
-                self.changed_event = Event.Event()
-                self.needs_rebind_event = Event.Event()
-                self.property_changed_event = Event.Event()
-                self.__display_values_changed_event_listener = self._display_data_channel.add_calculated_display_values_listener(self.changed_event.fire, send=False)
-                def data_item_removed(container, data_item, index, moving):
-                    if container == self.document_model and data_item == self._display_data_channel.data_item:
-                        self.needs_rebind_event.fire()
-                self.__data_item_removed_event_listener = self.document_model.data_item_removed_event.listen(data_item_removed)
-            def close(self):
-                self.__display_values_changed_event_listener.close()
-                self.__display_values_changed_event_listener = None
-                self.__data_item_removed_event_listener.close()
-                self.__data_item_removed_event_listener = None
-            @property
-            def base_objects(self):
-                objects = {self._display_data_channel.container, self._display_data_channel.data_item}
-                if self._graphic:
-                    objects.add(self._graphic)
-                return objects
-
-        document_model = self
         if specifier and specifier.get("version") == 1:
             specifier_type = specifier["type"]
             if specifier_type == "data_source":
@@ -1439,31 +1728,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
                 display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
-                class BoundDataSource:
-                    def __init__(self, document_model, display_data_channel, graphic):
-                        self.__document_model = document_model
-                        self.changed_event = Event.Event()
-                        self.needs_rebind_event = Event.Event()
-                        self.property_changed_event = Event.Event()
-                        self.__data_source = DataItem.DataSource(display_data_channel, graphic, self.changed_event)
-                        def data_item_removed(container, data_item, index, moving):
-                            if container == self.__document_model and data_item == self.__data_source.data_item:
-                                self.needs_rebind_event.fire()
-                        self.__data_item_removed_event_listener = self.__document_model.data_item_removed_event.listen(data_item_removed)
-                    @property
-                    def value(self):
-                        return self.__data_source
-                    @property
-                    def base_objects(self):
-                        objects = {self.__data_source.data_item}
-                        if self.__data_source.graphic:
-                            objects.add(self.__data_source.graphic)
-                        return objects
-                    def close(self):
-                        self.__data_source.close()
-                        self.__data_source = None
-                        self.__data_item_removed_event_listener.close()
-                        self.__data_item_removed_event_listener = None
                 if display_data_channel and display_data_channel.data_item:
                     return BoundDataSource(self, display_data_channel, graphic)
             elif specifier_type == "data_item":
@@ -1471,31 +1735,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
                 if data_item:
-                    class BoundDataItem:
-                        def __init__(self, document_model, object):
-                            self.__document_model = document_model
-                            self.__object = object
-                            self.changed_event = Event.Event()
-                            self.needs_rebind_event = Event.Event()
-                            self.property_changed_event = Event.Event()
-                            self.__data_item_changed_event_listener = self.__object.data_item_changed_event.listen(self.changed_event.fire)
-                            def data_item_removed(container, data_item, index, moving):
-                                if container == self.__document_model and data_item == self.__object:
-                                    self.needs_rebind_event.fire()
-                            self.__data_item_removed_event_listener = self.__document_model.data_item_removed_event.listen(data_item_removed)
-                        def close(self):
-                            self.__data_item_changed_event_listener.close()
-                            self.__data_item_changed_event_listener = None
-                            self.__data_item_removed_event_listener.close()
-                            self.__data_item_removed_event_listener = None
-                        @property
-                        def value(self):
-                            return self.__object
-                        @property
-                        def base_objects(self):
-                            return {self.__object}
-                    if data_item:
-                        return BoundDataItem(self, data_item)
+                    return BoundDataItem(self, data_item)
             elif specifier_type == "xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
@@ -1504,23 +1744,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                     data_item = display_data_channel.data_item if display_data_channel else None
                 if data_item:
-                    class BoundDataItem(BoundDataBase):
-                        @property
-                        def value(self):
-                            return self._object.xdata
-                    if data_item:
-                        return BoundDataItem(self, data_item)
+                    return BoundData(self, data_item)
             elif specifier_type == "display_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 if display_data_channel:
-                    class BoundDataItem(BoundDisplayDataChannelBase):
-                        @property
-                        def value(self):
-                            return self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata if self._display_data_channel else None
-                    if display_data_channel:
-                        return BoundDataItem(self, display_data_channel)
+                    return BoundDisplayData(self, display_data_channel)
             elif specifier_type == "cropped_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
@@ -1529,19 +1759,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
                 if display_data_channel:
-                    class BoundDataItem(BoundDisplayDataChannelBase):
-                        @property
-                        def value(self):
-                            xdata = self._display_data_channel.data_item.xdata
-                            graphic = self._graphic
-                            if graphic:
-                                if hasattr(graphic, "bounds"):
-                                    return Core.function_crop(xdata, graphic.bounds)
-                                if hasattr(graphic, "interval"):
-                                    return Core.function_crop_interval(xdata, graphic.interval)
-                            return xdata
-                    if display_data_channel:
-                        return BoundDataItem(self, display_data_channel, graphic)
+                    return BoundCroppedData(self, display_data_channel, graphic)
             elif specifier_type == "cropped_display_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
@@ -1550,206 +1768,32 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
                 if display_data_channel:
-                    class BoundDataItem(BoundDisplayDataChannelBase):
-                        @property
-                        def value(self):
-                            xdata = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata
-                            graphic = self._graphic
-                            if graphic:
-                                if hasattr(graphic, "bounds"):
-                                    return Core.function_crop(xdata, graphic.bounds)
-                                if hasattr(graphic, "interval"):
-                                    return Core.function_crop_interval(xdata, graphic.interval)
-                            return xdata
-                    if display_data_channel:
-                        return BoundDataItem(self, display_data_channel, graphic)
+                    return BoundCroppedDisplayData(self, display_data_channel, graphic)
             elif specifier_type == "filter_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 if display_data_channel:
-                    class BoundDataItem(BoundDisplayDataChannelBase):
-                        @property
-                        def value(self):
-                            display_item = self._display_data_channel.container
-                            # no display item is a special case for cascade removing graphics from computations. ugh.
-                            # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
-                            if display_item:
-                                shape = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
-                                mask = numpy.zeros(shape)
-                                for graphic in display_item.graphics:
-                                    if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                                        mask = numpy.logical_or(mask, graphic.get_mask(shape))
-                                return DataAndMetadata.DataAndMetadata.from_data(mask)
-                            return None
-                        @property
-                        def base_objects(self):
-                            data_item = self._display_data_channel.data_item
-                            display_item = self._display_data_channel.container
-                            objects = {data_item, display_item}
-                            for graphic in display_item.graphics:
-                                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                                    objects.add(graphic)
-                            return objects
-                    if display_data_channel:
-                        return BoundDataItem(self, display_data_channel)
+                    return BoundFilterData(self, display_data_channel)
             elif specifier_type == "filtered_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 if display_data_channel:
-                    class BoundDataItem(BoundDisplayDataChannelBase):
-                        @property
-                        def value(self):
-                            display_item = self._display_data_channel.container
-                            # no display item is a special case for cascade removing graphics from computations. ugh.
-                            # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
-                            if display_item:
-                                xdata = self._display_data_channel.data_item.xdata
-                                if xdata.is_data_2d and xdata.is_data_complex_type:
-                                    shape = xdata.data_shape
-                                    mask = numpy.zeros(shape)
-                                    for graphic in display_item.graphics:
-                                        if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                                            mask = numpy.logical_or(mask, graphic.get_mask(shape))
-                                    return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
-                                return xdata
-                            return None
-                        @property
-                        def base_objects(self):
-                            data_item = self._display_data_channel.data_item
-                            display_item = self._display_data_channel.container
-                            objects = {data_item, display_item}
-                            for graphic in display_item.graphics:
-                                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                                    objects.add(graphic)
-                            return objects
-                    if display_data_channel:
-                        return BoundDataItem(self, display_data_channel)
+                    return BoundFilteredData(self, display_data_channel)
             elif specifier_type == "structure":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 data_structure = self.get_data_structure_by_uuid(object_uuid)
                 if data_structure:
-                    class BoundDataStructure:
-                        def __init__(self, document_model, object):
-                            self.__document_model = document_model
-                            self.__object = object
-                            self.changed_event = Event.Event()
-                            self.needs_rebind_event = Event.Event()
-                            self.property_changed_event = Event.Event()
-                            def data_structure_changed(property_name_):
-                                self.changed_event.fire()
-                                if property_name_ == property_name:
-                                    self.property_changed_event.fire(property_name_)
-                            self.__changed_listener = self.__object.data_structure_changed_event.listen(data_structure_changed)
-                            def item_removed(name, value, index):
-                                if name == "data_structures" and value == self.__object:
-                                    self.needs_rebind_event.fire()
-                            self.__item_removed_event_listener = self.__document_model.item_removed_event.listen(item_removed)
-                        def close(self):
-                            self.__changed_listener.close()
-                            self.__changed_listener = None
-                            self.__item_removed_event_listener.close()
-                            self.__item_removed_event_listener = None
-                        @property
-                        def value(self):
-                            if property_name:
-                                return self.__object.get_property_value(property_name)
-                            return self.__object
-                        @property
-                        def base_objects(self):
-                            return {self.__object}
-                    return BoundDataStructure(self, data_structure)
+                    return BoundDataStructure(self, data_structure, property_name)
             elif specifier_type == "graphic":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 graphic = self.get_graphic_by_uuid(object_uuid)
                 if graphic:
-                    class BoundGraphic:
-                        def __init__(self, document_model, object):
-                            self.__document_model = document_model
-                            self.__object = object
-                            self.changed_event = Event.Event()
-                            self.needs_rebind_event = Event.Event()
-                            self.property_changed_event = Event.Event()
-                            def property_changed(property_name_):
-                                self.changed_event.fire()
-                                if property_name_ == property_name:
-                                    self.property_changed_event.fire(property_name_)
-                            self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
-                        def close(self):
-                            self.__property_changed_listener.close()
-                            self.__property_changed_listener = None
-                        @property
-                        def value(self):
-                            if property_name:
-                                return getattr(self.__object, property_name)
-                            return self.__object
-                        @property
-                        def base_objects(self):
-                            return {self.__object}
-                    return BoundGraphic(self, graphic)
-
+                    return BoundGraphic(self, graphic, property_name)
         if objects_model:
-
-            class BoundList:
-                def __init__(self, document_model, objects_model):
-                    self.__document_model = document_model
-                    self.__objects_model = objects_model
-                    self.__bound_items = list()
-                    self.changed_event = Event.Event()
-                    self.needs_rebind_event = Event.Event()
-                    self.child_removed_event = Event.Event()
-                    self.property_changed_event = Event.Event()
-                    self.__changed_listeners = list()
-                    self.__needs_rebind_listeners = list()
-                    self.__resolved = True
-                    self.is_list = True  # special marker to indicate items in base objects should not trigger a delete
-                    for index, variable_specifier in enumerate(objects_model.items):
-                        bound_item = document_model.resolve_object_specifier(variable_specifier)
-                        self.__bound_items.append(bound_item)
-                        self.__changed_listeners.append(bound_item.changed_event.listen(self.changed_event.fire) if bound_item else None)
-                        self.__needs_rebind_listeners.append(bound_item.needs_rebind_event.listen(functools.partial(self.child_removed_event.fire, index)) if bound_item else None)
-                        self.__resolved = self.__resolved and bound_item is not None
-                def close(self):
-                    for bound_object, change_listener, needs_rebind_listener in zip(self.__bound_items, self.__changed_listeners, self.__needs_rebind_listeners):
-                        if bound_object:
-                            bound_object.close()
-                        if change_listener:
-                            change_listener.close()
-                        if needs_rebind_listener:
-                            needs_rebind_listener.close()
-                    self.__bound_items = None
-                    self.__resolved_items = None
-                    self.__changed_listeners = None
-                @property
-                def value(self):
-                    return [bound_item.value for bound_item in self.__bound_items] if self.__resolved else None
-                @property
-                def base_objects(self):
-                    # return the base objects in a stable order
-                    base_objects = list()
-                    for bound_item in self.__bound_items:
-                        if bound_item:
-                            for base_object in bound_item.base_objects:
-                                if not base_object in base_objects:
-                                    base_objects.append(base_object)
-                    return base_objects
-                def list_item_removed(self, object) -> typing.List[dict]:
-                    base_objects = self.base_objects
-                    if object in base_objects:
-                        index = 0
-                        for index, bound_item in enumerate(self.__bound_items):
-                            for base_object in bound_item.base_objects:
-                                if base_object in base_objects:
-                                    break
-                        properties = copy.deepcopy(self.__objects_model.items[index])
-                        self.__objects_model.remove_item(index)
-                        self.needs_rebind_event.fire()
-                        return [{"type": "object_specifiers", "index": index, "properties": properties}]
-                    return list()
-
             return BoundList(self, objects_model)
         return None
 
@@ -2173,7 +2217,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 pass
             elif computation:
                 computation.source = data_item
-                computation.create_result("target", self.get_object_specifier(data_item))
+                computation.create_output_item("target", Symbolic.make_item(data_item))
                 self.append_computation(computation)
             elif old_computation:
                 # remove old computation without cascade (it would delete this data item itself)
@@ -2480,14 +2524,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # process the data item inputs
         for src_dict, src_name, src_label, input in zip(src_dicts, src_names, src_labels, inputs):
             in_display_item = input[0]
-            secondary_specifier = None
+            secondary_item = None
             if src_dict.get("croppable", False):
-                secondary_specifier = self.get_object_specifier(input[1])
+                secondary_item = input[1]
             display_data_channel = in_display_item.display_data_channel
-            computation.create_object(src_name, self.get_object_specifier(display_data_channel), label=src_label, secondary_specifier=secondary_specifier)
+            computation.create_input_item(src_name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item), label=src_label)
         # process the regions
         for region_name, region, region_label in regions:
-            computation.create_object(region_name, self.get_object_specifier(region), label=region_label)
+            computation.create_input_item(region_name, Symbolic.make_item(region), label=region_label)
         # next process the parameters
         for param_dict in processing_description.get("parameters", list()):
             parameter_value = parameters.get(param_dict["name"], param_dict["value"])

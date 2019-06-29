@@ -2043,19 +2043,19 @@ class DocumentController(Window.Window):
             command.perform()
             self.push_undo_command(command)
 
-    def processing_computation(self, expression, map=None):
+    def processing_computation(self, expression, map: typing.Mapping[str, Symbolic.ComputationItem]=None):
         if map is None:
             map = dict()
             for variable_name, data_item in self.document_model.variable_to_data_item_map().items():
-                map[variable_name] = self.document_model.get_object_specifier(data_item)
+                map[variable_name] = Symbolic.make_item(data_item)
         data_item = DataItem.DataItem()
         data_item.ensure_data_source()
         data_item.title = _("Computation on ") + data_item.title
         computation = self.document_model.create_computation(expression)
         names = Symbolic.Computation.parse_names(expression)
-        for variable_name, object_specifier in map.items():
+        for variable_name, input_item in map.items():
             if variable_name in names:
-                computation.create_object(variable_name, object_specifier)
+                computation.create_input_item(variable_name, input_item)
         for variable in computation.variables:
             specifier = variable.specifier
             if specifier:
