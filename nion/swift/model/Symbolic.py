@@ -960,6 +960,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                         assert output_item.secondary_item is None
                     result.specifier = DataStructure.get_object_specifier(output_item.item) if output_item else None
 
+    def get_input(self, name: str):
+        for variable in self.variables:
+            if variable.name == name:
+                return variable.bound_item.value if variable.bound_item else None
+        return None
+
     def _get_variable(self, variable_name) -> ComputationVariable:
         for variable in self.variables:
             if variable.name == variable_name:

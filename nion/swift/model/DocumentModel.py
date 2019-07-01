@@ -240,6 +240,7 @@ class TransactionManager:
 
 
 class BoundDataBase:
+
     def __init__(self, document_model, object, graphic=None):
         self.__document_model = document_model
         self._object = object
@@ -248,15 +249,19 @@ class BoundDataBase:
         self.needs_rebind_event = Event.Event()
         self.property_changed_event = Event.Event()
         self.__data_changed_event_listener = self._object.data_changed_event.listen(self.changed_event.fire)
-        def data_item_removed(container, data_item, index, moving):
-            if container == self.__document_model and data_item == self._object:
+
+        def item_removed(name, value, index):
+            if value in self.base_objects:
                 self.needs_rebind_event.fire()
-        self.__data_item_removed_event_listener = self.__document_model.data_item_removed_event.listen(data_item_removed)
+
+        self.__item_removed_event_listener = self.__document_model.item_removed_event.listen(item_removed)
+
     def close(self):
         self.__data_changed_event_listener.close()
         self.__data_changed_event_listener = None
-        self.__data_item_removed_event_listener.close()
-        self.__data_item_removed_event_listener = None
+        self.__item_removed_event_listener.close()
+        self.__item_removed_event_listener = None
+
     @property
     def base_objects(self):
         objects = {self._object}
@@ -266,23 +271,28 @@ class BoundDataBase:
 
 
 class BoundDisplayDataChannelBase:
+
     def __init__(self, document_model, display_data_channel, graphic=None):
-        self.document_model = document_model
+        self.__document_model = document_model
         self._display_data_channel = display_data_channel
         self._graphic = graphic
         self.changed_event = Event.Event()
         self.needs_rebind_event = Event.Event()
         self.property_changed_event = Event.Event()
         self.__display_values_changed_event_listener = self._display_data_channel.add_calculated_display_values_listener(self.changed_event.fire, send=False)
-        def data_item_removed(container, data_item, index, moving):
-            if container == self.document_model and data_item == self._display_data_channel.data_item:
+
+        def item_removed(name, value, index):
+            if value in self.base_objects:
                 self.needs_rebind_event.fire()
-        self.__data_item_removed_event_listener = self.document_model.data_item_removed_event.listen(data_item_removed)
+
+        self.__item_removed_event_listener = self.__document_model.item_removed_event.listen(item_removed)
+
     def close(self):
         self.__display_values_changed_event_listener.close()
         self.__display_values_changed_event_listener = None
-        self.__data_item_removed_event_listener.close()
-        self.__data_item_removed_event_listener = None
+        self.__item_removed_event_listener.close()
+        self.__item_removed_event_listener = None
+
     @property
     def base_objects(self):
         objects = {self._display_data_channel.container, self._display_data_channel.data_item}
@@ -299,16 +309,18 @@ class BoundDataSource:
         self.needs_rebind_event = Event.Event()
         self.property_changed_event = Event.Event()
         self.__data_source = DataItem.DataSource(display_data_channel, graphic, self.changed_event)
-        def data_item_removed(container, data_item, index, moving):
-            if container == self.__document_model and data_item == self.__data_source.data_item:
+
+        def item_removed(name, value, index):
+            if value in self.base_objects:
                 self.needs_rebind_event.fire()
-        self.__data_item_removed_event_listener = self.__document_model.data_item_removed_event.listen(data_item_removed)
+
+        self.__item_removed_event_listener = self.__document_model.item_removed_event.listen(item_removed)
 
     def close(self):
         self.__data_source.close()
         self.__data_source = None
-        self.__data_item_removed_event_listener.close()
-        self.__data_item_removed_event_listener = None
+        self.__item_removed_event_listener.close()
+        self.__item_removed_event_listener = None
 
     @property
     def value(self):
@@ -331,16 +343,18 @@ class BoundDataItem:
         self.needs_rebind_event = Event.Event()
         self.property_changed_event = Event.Event()
         self.__data_item_changed_event_listener = self.__object.data_item_changed_event.listen(self.changed_event.fire)
-        def data_item_removed(container, data_item, index, moving):
-            if container == self.__document_model and data_item == self.__object:
+
+        def item_removed(name, value, index):
+            if value in self.base_objects:
                 self.needs_rebind_event.fire()
-        self.__data_item_removed_event_listener = self.__document_model.data_item_removed_event.listen(data_item_removed)
+
+        self.__item_removed_event_listener = self.__document_model.item_removed_event.listen(item_removed)
 
     def close(self):
         self.__data_item_changed_event_listener.close()
         self.__data_item_changed_event_listener = None
-        self.__data_item_removed_event_listener.close()
-        self.__data_item_removed_event_listener = None
+        self.__item_removed_event_listener.close()
+        self.__item_removed_event_listener = None
 
     @property
     def value(self):
@@ -414,7 +428,8 @@ class BoundFilterData(BoundDisplayDataChannelBase):
         data_item = self._display_data_channel.data_item
         display_item = self._display_data_channel.container
         objects = {data_item, display_item}
-        for graphic in display_item.graphics:
+        graphics = display_item.graphics if display_item else list()
+        for graphic in graphics:
             if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                 objects.add(graphic)
         return objects
@@ -444,7 +459,8 @@ class BoundFilteredData(BoundDisplayDataChannelBase):
         data_item = self._display_data_channel.data_item
         display_item = self._display_data_channel.container
         objects = {data_item, display_item}
-        for graphic in display_item.graphics:
+        graphics = display_item.graphics if display_item else list()
+        for graphic in graphics:
             if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                 objects.add(graphic)
         return objects
@@ -459,14 +475,18 @@ class BoundDataStructure:
         self.changed_event = Event.Event()
         self.needs_rebind_event = Event.Event()
         self.property_changed_event = Event.Event()
+
         def data_structure_changed(property_name):
             self.changed_event.fire()
             if property_name == self.__property_name:
                 self.property_changed_event.fire(property_name)
+
         self.__changed_listener = self.__object.data_structure_changed_event.listen(data_structure_changed)
+
         def item_removed(name, value, index):
-            if name == "data_structures" and value == self.__object:
+            if value in self.base_objects:
                 self.needs_rebind_event.fire()
+
         self.__item_removed_event_listener = self.__document_model.item_removed_event.listen(item_removed)
 
     def close(self):
@@ -495,15 +515,25 @@ class BoundGraphic:
         self.changed_event = Event.Event()
         self.needs_rebind_event = Event.Event()
         self.property_changed_event = Event.Event()
+
         def property_changed(property_name):
             self.changed_event.fire()
             if property_name == self.__property_name:
                 self.property_changed_event.fire(property_name)
+
         self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
+
+        def item_removed(name, value, index):
+            if value in self.base_objects:
+                self.needs_rebind_event.fire()
+
+        self.__item_removed_event_listener = self.__document_model.item_removed_event.listen(item_removed)
 
     def close(self):
         self.__property_changed_listener.close()
         self.__property_changed_listener = None
+        self.__item_removed_event_listener.close()
+        self.__item_removed_event_listener = None
 
     @property
     def value(self):
@@ -594,8 +624,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.about_to_close_event = Event.Event()
 
         self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
-        self.data_item_inserted_event = Event.Event()
-        self.data_item_removed_event = Event.Event()
 
         self.display_item_will_be_removed_event = Event.Event()
         self.display_item_inserted_event = Event.Event()
@@ -878,7 +906,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
         data_item._document_model = self
         data_item.set_session_manager(self)
-        self.data_item_inserted_event.fire(self, data_item, before_index, False)
         self.notify_insert_item("data_items", data_item, before_index)
         # update the data item references
         data_item_references = self.__profile.data_item_references
@@ -918,7 +945,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_removed(data_item)
         self.__data_items.remove(data_item)
-        self.data_item_removed_event.fire(self, data_item, index, False)
+        self.notify_remove_item("data_items", data_item, index)
 
     def append_data_item(self, data_item: DataItem.DataItem, auto_display: bool = True, *, project: Project.Project = None) -> None:
         project = project or self.__profile.target_project_for_item(data_item)

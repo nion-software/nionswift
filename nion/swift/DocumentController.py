@@ -2057,11 +2057,9 @@ class DocumentController(Window.Window):
             if variable_name in names:
                 computation.create_input_item(variable_name, input_item)
         for variable in computation.variables:
-            specifier = variable.specifier
-            if specifier:
-                object = self.document_model.resolve_object_specifier(variable.specifier)
-                if isinstance(object, DataItem.DataItem) and object.category == "temporary":
-                    data_item.category = "temporary"
+            object = computation.get_input(variable.name)
+            if isinstance(object, DataItem.DataItem) and object.category == "temporary":
+                data_item.category = "temporary"
         self.document_model.append_data_item(data_item)
         self.document_model.set_data_item_computation(data_item, computation)
         display_item = self.document_model.get_display_item_for_data_item(data_item)

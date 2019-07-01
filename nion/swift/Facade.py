@@ -3297,7 +3297,7 @@ class API_1:
             g["print"] = stdout.write
             exec(compiled, g)
 
-    def resolve_object_specifier(self, d):
+    def resolve_api_object_specifier(self, d):
         return ObjectSpecifier.resolve(d)
 
     def _new_api_object(self, object):
@@ -3391,7 +3391,7 @@ class Unpickler(pickle.Unpickler):
         type_tag, d = pid
         for class_ in all_classes:
             if type_tag == class_names.get(class_, class_.__name__):
-                return self.__api.resolve_object_specifier(d)
+                return self.__api.resolve_api_object_specifier(d)
         for struct in all_structs:
             if type_tag == struct_names.get(struct, struct.__name__):
                 return struct.from_rpc_dict(d)

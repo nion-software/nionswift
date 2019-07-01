@@ -729,7 +729,7 @@ class ComputationPanelSection:
         self.__variable_type_changed_event_listener = None
 
 
-def make_image_chooser(document_controller, computation, variable, drag_fn):
+def make_image_chooser(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, drag_fn):
     ui = document_controller.ui
     document_model = document_controller.document_model
     # drag_fn is necessary because it is unsafe to start a drag on the column containing the thumbnail
@@ -741,10 +741,7 @@ def make_image_chooser(document_controller, computation, variable, drag_fn):
     label_row.add_stretch()
     label_row.add(label_widget)
     label_row.add_stretch()
-    base_variable_specifier = copy.copy(variable.specifier)
-
-    bound_data_source = document_model.resolve_object_specifier(base_variable_specifier)
-    data_item = bound_data_source.value.data_item if bound_data_source else None
+    data_item = computation.get_input(variable.name).data_item
 
     def drop_mime_data(mime_data, x, y):
         data_source_mime_str = mime_data.data_as_string(MimeTypes.DATA_SOURCE_MIME_TYPE)
@@ -799,9 +796,7 @@ def make_image_chooser(document_controller, computation, variable, drag_fn):
 
     def property_changed(key):
         if key == "specifier":
-            base_variable_specifier = copy.copy(variable.specifier)
-            bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
-            data_item = bound_data_item.value if bound_data_item else None
+            data_item = computation.get_input(variable.name).data_item
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_item_thumbnail_source.set_display_item(display_item)
 

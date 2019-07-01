@@ -329,9 +329,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_item = document_model.get_display_item_for_data_item(data_item)
         display_item.add_graphic(crop_region)
         new_data_item = document_model.get_invert_new(display_item, crop_region)
-        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(document_model.get_data_item_computation(new_data_item).variables[0].secondary_specifier).value.bounds)
+        self.assertEqual(crop_region.bounds, document_model.get_data_item_computation(new_data_item).get_input("src").graphic.bounds)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(document_model.get_data_item_computation(new_data_item).variables[0].secondary_specifier).value.bounds)
+        self.assertEqual(crop_region.bounds, document_model.get_data_item_computation(new_data_item).get_input("src").graphic.bounds)
         document_controller.close()
 
     def test_processing_on_crop_region_recomputes_when_bounds_changes(self):
@@ -577,8 +577,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertNotEqual(document_model.get_data_item_computation(data_item_dup), document_model.get_data_item_computation(data_item))
             self.assertNotEqual(document_model.get_data_item_computation(data_item_dup).variables[0], document_model.get_data_item_computation(data_item).variables[0])
             self.assertEqual(document_model.get_data_item_computation(data_item_dup).variables[0].variable_specifier["uuid"], document_model.get_data_item_computation(data_item).variables[0].variable_specifier["uuid"])
-            self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item_dup).variables[0].variable_specifier).value.data_item,
-                             document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item).variables[0].variable_specifier).value.data_item)
+            self.assertEqual(document_model.get_data_item_computation(data_item_dup).get_input("src").data_item,
+                             document_model.get_data_item_computation(data_item).get_input("src").data_item)
 
     def test_fixing_display_limits_works_for_all_data_types(self):
         document_model = DocumentModel.DocumentModel()
