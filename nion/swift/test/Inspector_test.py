@@ -994,15 +994,15 @@ class TestInspectorClass(unittest.TestCase):
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             computation = document_model.get_data_item_computation(new_data_item)
-            self.assertFalse(computation._get_variable("do_transpose").value)
+            self.assertFalse(computation.get_input_value("do_transpose"))
             inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))
             cb_widget = inspector_section.find_widget_by_id("value")
             cb_widget.on_checked_changed(True)
-            self.assertTrue(computation._get_variable("do_transpose").value)
+            self.assertTrue(computation.get_input_value("do_transpose"))
             document_controller.handle_undo()
-            self.assertFalse(computation._get_variable("do_transpose").value)
+            self.assertFalse(computation.get_input_value("do_transpose"))
             document_controller.handle_redo()
-            self.assertTrue(computation._get_variable("do_transpose").value)
+            self.assertTrue(computation.get_input_value("do_transpose"))
 
     def test_computation_inspector_handles_computation_variable_slider_and_undo_redo_cycle(self):
         document_model = DocumentModel.DocumentModel()
@@ -1019,15 +1019,15 @@ class TestInspectorClass(unittest.TestCase):
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             computation = document_model.get_data_item_computation(new_data_item)
-            old_sigma = computation._get_variable("sigma").value
+            old_sigma = computation.get_input_value("sigma")
             inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))
             slider_widget = inspector_section.find_widget_by_id("value")
             slider_widget.on_value_changed(0)
-            self.assertEqual(0, computation._get_variable("sigma").value)
+            self.assertEqual(0, computation.get_input_value("sigma"))
             document_controller.handle_undo()
-            self.assertEqual(old_sigma, computation._get_variable("sigma").value)
+            self.assertEqual(old_sigma, computation.get_input_value("sigma"))
             document_controller.handle_redo()
-            self.assertEqual(0, computation._get_variable("sigma").value)
+            self.assertEqual(0, computation.get_input_value("sigma"))
 
     def test_computation_inspector_handles_computation_variable_int_and_undo_redo_cycle(self):
         document_model = DocumentModel.DocumentModel()
@@ -1044,15 +1044,15 @@ class TestInspectorClass(unittest.TestCase):
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             computation = document_model.get_data_item_computation(new_data_item)
-            old_bins = computation._get_variable("bins").value
+            old_bins = computation.get_input_value("bins")
             inspector_section = Inspector.ComputationInspectorSection(document_controller, new_data_item)
             field_widget = inspector_section.find_widget_by_id("value")
             field_widget.on_editing_finished("100")
-            self.assertEqual(100, computation._get_variable("bins").value)
+            self.assertEqual(100, computation.get_input_value("bins"))
             document_controller.handle_undo()
-            self.assertEqual(old_bins, computation._get_variable("bins").value)
+            self.assertEqual(old_bins, computation.get_input_value("bins"))
             document_controller.handle_redo()
-            self.assertEqual(100, computation._get_variable("bins").value)
+            self.assertEqual(100, computation.get_input_value("bins"))
 
     def test_computation_inspector_handles_computation_variable_specifier_and_undo_redo_cycle(self):
         document_model = DocumentModel.DocumentModel()
@@ -1064,17 +1064,17 @@ class TestInspectorClass(unittest.TestCase):
             new_data_item = document_model.get_invert_new(display_item)
             document_model.recompute_all()
             computation = document_model.get_data_item_computation(new_data_item)
-            self.assertEqual(data_item, list(computation._get_variable("src").bound_item.base_objects)[0])
+            self.assertEqual({data_item}, computation.get_input_base_items("src"))
             specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
             command = Inspector.ChangeComputationVariableCommand(document_model, computation, computation._get_variable("src"), specifier=specifier)
             command.perform()
             document_controller.push_undo_command(command)
-            self.assertIsNone(computation._get_variable("src").bound_item)
+            self.assertIsNone(computation.get_input("src"))
             self.assertTrue(document_controller._undo_stack.can_undo)
             document_controller.handle_undo()
-            self.assertEqual(data_item, list(computation._get_variable("src").bound_item.base_objects)[0])
+            self.assertEqual({data_item}, computation.get_input_base_items("src"))
             document_controller.handle_redo()
-            self.assertIsNone(computation._get_variable("src").bound_item)
+            self.assertIsNone(computation.get_input("src"))
 
     def test_change_property_command_multiple_undo(self):
         document_model = DocumentModel.DocumentModel()

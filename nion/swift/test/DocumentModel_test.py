@@ -1128,7 +1128,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(document_model.data_items[0], data_item1)
-            self.assertIsNone(computation.results[0].bound_item)
+            self.assertIsNone(computation.get_output("dst"))
 
     def test_new_computation_with_list_of_data_item_inputs_does_not_remove_outputs_when_item_in_list_is_removed(self):
         Symbolic.register_computation_type("add_n", self.AddN)

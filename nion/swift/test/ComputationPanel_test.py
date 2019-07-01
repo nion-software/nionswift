@@ -176,7 +176,7 @@ class TestComputationPanelClass(unittest.TestCase):
             computation.create_variable("x", value_type="integral", value=5)
             document_model.set_data_item_computation(data_item1, computation)
             # verify setup
-            self.assertEqual(variable.bound_item.value, data_item2)
+            self.assertEqual(data_item2, computation.get_input("a"))
             document_model.recompute_all()
             document_controller.periodic()
             # change variable
@@ -186,13 +186,13 @@ class TestComputationPanelClass(unittest.TestCase):
             command.perform()
             document_controller.push_undo_command(command)
             # verify change and trigger error
-            self.assertEqual(variable.bound_item.value, data_item3)
+            self.assertEqual(data_item3, computation.get_input("a"))
             document_model.recompute_all()
             document_controller.periodic()
             self.assertIsNotNone(computation.error_text)
             # undo and verify
             document_controller.handle_undo()
-            self.assertEqual(variable.bound_item.value, data_item2)
+            self.assertEqual(data_item2, computation.get_input("a"))
             document_model.recompute_all()
             document_controller.periodic()
             self.assertIsNone(computation.error_text)
@@ -200,7 +200,7 @@ class TestComputationPanelClass(unittest.TestCase):
             document_controller.handle_redo()
             document_model.recompute_all()
             document_controller.periodic()
-            self.assertEqual(variable.bound_item.value, data_item3)
+            self.assertEqual(data_item3, computation.get_input("a"))
             self.assertIsNotNone(computation.error_text)
 
     def test_change_variable_command_resulting_in_creating_data_item_undo_redo(self):
@@ -219,7 +219,7 @@ class TestComputationPanelClass(unittest.TestCase):
             computation.create_variable("x", value_type="integral", value=5)
             document_model.set_data_item_computation(data_item1, computation)
             # verify setup
-            self.assertEqual(variable.bound_item.value, data_item3)
+            self.assertEqual(data_item3, computation.get_input("a"))
             document_model.recompute_all()
             document_controller.periodic()
             self.assertIsNotNone(computation.error_text)
@@ -230,13 +230,13 @@ class TestComputationPanelClass(unittest.TestCase):
             command.perform()
             document_controller.push_undo_command(command)
             # verify change and trigger computation
-            self.assertEqual(variable.bound_item.value, data_item2)
+            self.assertEqual(data_item2, computation.get_input("a"))
             document_model.recompute_all()
             document_controller.periodic()
             self.assertIsNone(computation.error_text)
             # undo and verify
             document_controller.handle_undo()
-            self.assertEqual(variable.bound_item.value, data_item3)
+            self.assertEqual(data_item3, computation.get_input("a"))
             document_model.recompute_all()
             document_controller.periodic()
             self.assertIsNotNone(computation.error_text)
@@ -244,7 +244,7 @@ class TestComputationPanelClass(unittest.TestCase):
             document_controller.handle_redo()
             document_model.recompute_all()
             document_controller.periodic()
-            self.assertEqual(variable.bound_item.value, data_item2)
+            self.assertEqual(data_item2, computation.get_input("a"))
             self.assertIsNone(computation.error_text)
 
     def disabled_test_expression_updates_when_variable_is_assigned(self):

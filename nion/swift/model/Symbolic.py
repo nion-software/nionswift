@@ -925,6 +925,15 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         return input_items
 
     @property
+    def direct_input_items(self) -> typing.Set:
+        input_items = set()
+        for variable in self.variables:
+            item = variable.bound_item
+            if hasattr(item, "base_objects") and not getattr(item, "is_list", False):
+                input_items.update(item.base_objects)
+        return input_items
+
+    @property
     def output_items(self) -> typing.Set:
         # resolve the computation inputs and return the set of input items.
         try:
@@ -966,6 +975,32 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 return variable.bound_item.value if variable.bound_item else None
         return None
 
+    def get_output(self, name: str):
+        for result in self.results:
+            if result.name == name:
+                if isinstance(result.bound_item, list):
+                    return [bound_item.value for bound_item in result.bound_item]
+                if result.bound_item:
+                    return result.bound_item.value
+        return None
+
+    def set_input_value(self, name: str, value) -> None:
+        for variable in self.variables:
+            if variable.name == name:
+                variable.value = value
+
+    def get_input_value(self, name: str):
+        for variable in self.variables:
+            if variable.name == name:
+                return variable.bound_variable.value if variable.bound_variable else None
+        return None
+
+    def get_input_base_items(self, name: str) -> typing.Optional[typing.Set]:
+        for variable in self.variables:
+            if variable.name == name:
+                return variable.bound_item.base_objects if variable.bound_item else None
+        return None
+
     def _get_variable(self, variable_name) -> ComputationVariable:
         for variable in self.variables:
             if variable.name == variable_name:
@@ -998,15 +1033,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         for result in self.results:
             if result.name == name:
                 return result
-        return None
-
-    def get_referenced_object(self, name: str):
-        for result in self.results:
-            if result.name == name:
-                if isinstance(result.bound_item, list):
-                    return [bound_item.value for bound_item in result.bound_item]
-                if result.bound_item:
-                    return result.bound_item.value
         return None
 
     def update_script(self, processing_descriptions) -> None:

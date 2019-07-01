@@ -126,11 +126,9 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
                 return target_project
         elif isinstance(item, Symbolic.Computation):
             target_projects = set()
-            for variable in item.variables:
-                bound_item = variable.bound_item
-                base_objects = getattr(bound_item, "base_objects", list()) if bound_item and not getattr(bound_item, "is_list", False) else list()
-                for variable_item in base_objects:
-                    target_projects.add(get_item_project(variable_item))
+            base_objects = item.direct_input_items
+            for variable_item in base_objects:
+                target_projects.add(get_item_project(variable_item))
             target_project = list(target_projects)[0] if len(target_projects) == 1 else None
             if target_project:
                 return target_project

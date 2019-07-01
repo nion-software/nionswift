@@ -55,7 +55,7 @@ class ComputationQueueItem:
         data_item = None
         computation = self.computation
         if computation.expression:
-            data_item = computation.get_referenced_object("target")
+            data_item = computation.get_output("target")
         if computation and computation.needs_update:
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
@@ -1123,15 +1123,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             # this could obviously be optimized.
             if not isinstance(item, Symbolic.Computation):
                 for computation in self.computations:
-                    for variable in computation.variables:
-                        bound_item = variable.bound_item
-                        base_objects = getattr(bound_item, "base_objects", list()) if bound_item and not getattr(bound_item, "is_list", False) else list()
-                        if item in base_objects:
-                            targets = computation._outputs
-                            for target in targets:
-                                if (item, target) not in dependencies:
-                                    dependencies.append((item, target))
-                                self.__build_cascade(target, items, dependencies)
+                    base_objects = computation.direct_input_items
+                    if item in base_objects:
+                        targets = computation._outputs
+                        for target in targets:
+                            if (item, target) not in dependencies:
+                                dependencies.append((item, target))
+                            self.__build_cascade(target, items, dependencies)
             # dependencies are deleted
             # see note above
             # targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())
@@ -2232,7 +2230,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def get_data_item_computation(self, data_item: DataItem.DataItem) -> typing.Optional[Symbolic.Computation]:
         for computation in self.computations:
             if computation.source == data_item:
-                target_object = computation.get_referenced_object("target")
+                target_object = computation.get_output("target")
                 if target_object == data_item:
                     return computation
         return None

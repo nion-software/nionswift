@@ -1600,9 +1600,9 @@ class TestSymbolicClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             document_model.get_invert_new(display_item)
             computation = document_model.computations[0]
-            self.assertIsNotNone(computation.variables[0].bound_item)
+            self.assertIsNotNone(computation.get_input("src"))
             document_model.remove_data_item(document_model.data_items[1])
-            self.assertIsNone(computation.variables[0].bound_item)
+            self.assertIsNone(computation.get_input("src"))
 
     def test_removing_data_item_source_data_item_from_library_is_possible(self):
         document_model = DocumentModel.DocumentModel()

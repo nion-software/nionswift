@@ -1005,7 +1005,7 @@ class TestDataItemClass(unittest.TestCase):
             copied_display_item = document_model.get_display_item_for_data_item(copied_data_item)
             document_model.recompute_all()
             self.assertFalse(document_model.get_data_item_computation(copied_display_item.data_item).needs_update)
-            document_model.get_data_item_computation(copied_data_item).variables[1].value = 0.1
+            document_model.get_data_item_computation(copied_data_item).set_input_value("sigma", 0.1)
             self.assertTrue(document_model.get_data_item_computation(copied_display_item.data_item).needs_update)
 
     def test_reloading_stale_data_should_still_be_stale(self):

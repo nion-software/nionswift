@@ -2056,9 +2056,8 @@ class DocumentController(Window.Window):
         for variable_name, input_item in map.items():
             if variable_name in names:
                 computation.create_input_item(variable_name, input_item)
-        for variable in computation.variables:
-            object = computation.get_input(variable.name)
-            if isinstance(object, DataItem.DataItem) and object.category == "temporary":
+        for item in computation.input_items:
+            if isinstance(item, DataItem.DataItem) and item.category == "temporary":
                 data_item.category = "temporary"
         self.document_model.append_data_item(data_item)
         self.document_model.set_data_item_computation(data_item, computation)

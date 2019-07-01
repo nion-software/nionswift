@@ -2104,44 +2104,30 @@ class Computation(metaclass=SharedInstance):
 
     def set_input_value(self, name: str, value):
         # support lists here?
-        for variable in self.__computation.variables:
-            if variable.name == name:
-                if isinstance(value, str):
-                    variable.value = value
-                elif isinstance(value, bool):
-                    variable.value = value
-                elif isinstance(value, numbers.Integral):
-                    variable.value = value
-                elif isinstance(value, numbers.Real):
-                    variable.value = value
-                elif isinstance(value, numbers.Complex):
-                    variable.value = value
-                elif isinstance(value, dict) and value.get("object"):
-                    object = value.get("object")
-                    object_type = value.get("type")
-                    if object_type == "data_source":
-                        document_model = self.__computation.container.container.container
-                        display_item = document_model.get_display_item_for_data_item(object._data_item)
-                        display_data_channel = display_item.display_data_channel
-                        input_value = Symbolic.make_item(display_data_channel)
-                    else:
-                        input_value = Symbolic.make_item(object._item)
-                    self.__computation.set_input_item(name, input_value)
-                else:
-                    input_value = Symbolic.make_item(value._item)
-                    self.__computation.set_input_item(name, input_value)
-                return
-        raise Exception("No variable matching name.")
+        if isinstance(value, (str, bool, numbers.Integral, numbers.Real, numbers.Complex)):
+            self.__computation.set_input_value(name, value)
+        if isinstance(value, dict) and value.get("object"):
+            object = value.get("object")
+            object_type = value.get("type")
+            if object_type == "data_source":
+                document_model = self.__computation.container.container.container
+                display_item = document_model.get_display_item_for_data_item(object._data_item)
+                display_data_channel = display_item.display_data_channel
+                input_value = Symbolic.make_item(display_data_channel)
+            else:
+                input_value = Symbolic.make_item(object._item)
+            self.__computation.set_input_item(name, input_value)
+        elif hasattr(value, "_item"):
+            input_value = Symbolic.make_item(value._item)
+            self.__computation.set_input_item(name, input_value)
 
     def get_result(self, name: str, value=None):
-        for result in self.__computation.results:
-            if result.name == name:
-                if isinstance(result.bound_item, list):
-                    return [_new_api_object(bound_item.value) for bound_item in result.bound_item]
-                if result.bound_item:
-                    return _new_api_object(result.bound_item.value)
-                return None
-        return value
+        result = self.__computation.get_output(name)
+        if isinstance(result, list):
+            return [_new_api_object(bound_item) for bound_item in result]
+        if result:
+            return _new_api_object(result)
+        return None
 
     def set_result(self, name: str, value) -> None:
         if isinstance(value, list):
@@ -2524,13 +2510,6 @@ class Library(metaclass=SharedInstance):
             setattr(ApplicationData.get_session_metadata_model(), field_id, None)
             return
         raise KeyError()
-
-    def has_computation_with_input(self, computation_type_id: str, input) -> bool:
-        for computation in self._document_model.computations:
-            for variable in computation.variables:
-                if variable.bound_item and variable.bound_item.value.uuid == input.uuid:
-                    return True
-        return False
 
     def create_computation(self, computation_type_id, inputs, outputs) -> Computation:
         computation = self.__document_model.create_computation()
