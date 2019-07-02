@@ -9,6 +9,7 @@
 
 # standard libraries
 import ast
+import contextlib
 import copy
 import functools
 import threading
@@ -90,6 +91,15 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
             self.bound_item = bound_items
         else:
             self.bound_item = None
+
+    @property
+    def output_items(self) -> typing.Set:
+        item = self.bound_item
+        if isinstance(item, list):
+            return {list_item.value for list_item in item}
+        elif item:
+            return {item.value}
+        return set()
 
 
 class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
@@ -274,6 +284,9 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             @property
             def value(self):
                 return self.__variable.value
+            @property
+            def base_objects(self):
+                return set()
             def close(self):
                 self.__variable_property_changed_listener.close()
                 self.__variable_property_changed_listener = None
@@ -307,6 +320,14 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
     @property
     def bound_items_model(self):
         return self.__bound_items_model
+
+    @property
+    def input_items(self) -> typing.Set:
+        return self.bound_item.base_objects if self.bound_item else set()
+
+    @property
+    def direct_input_items(self) -> typing.Set:
+        return self.bound_item.base_objects if self.bound_item and not getattr(self.bound_item, "is_list", False) else set()
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -1015,38 +1036,58 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         for result in self.results:
             self.__unbind_result(result)
 
+    def get_preliminary_input_items(self, resolve_object_specifier_fn) -> typing.Set:
+        input_items = set()
+        for variable in self.variables:
+            if variable.object_specifiers is not None:
+                for object_specifier in variable.object_specifiers:
+                    bound_item = resolve_object_specifier_fn(object_specifier)
+                    if bound_item:
+                        with contextlib.closing(bound_item):
+                            input_items.update(bound_item.base_objects)
+            else:
+                bound_item = resolve_object_specifier_fn(variable.variable_specifier, variable.secondary_specifier, variable.property_name)
+                if bound_item:
+                    with contextlib.closing(bound_item):
+                        input_items.update(bound_item.base_objects)
+        return input_items
+
+    def get_preliminary_output_items(self, resolve_object_specifier_fn) -> typing.Set:
+        output_items = set()
+        for result in self.results:
+            if result.specifier:
+                bound_item = resolve_object_specifier_fn(result.specifier)
+                if bound_item:
+                    with contextlib.closing(bound_item):
+                        output_items.update(bound_item.base_objects)
+            elif result.specifiers is not None:
+                for specifier in result.specifiers:
+                    bound_item = resolve_object_specifier_fn(specifier)
+                    if bound_item:
+                        with contextlib.closing(bound_item):
+                            output_items.update(bound_item.base_objects)
+        return output_items
+
     @property
     def input_items(self) -> typing.Set:
         input_items = set()
         for variable in self.variables:
-            item = variable.bound_item
-            if hasattr(item, "base_objects"):
-                input_items.update(item.base_objects)
+            input_items.update(variable.input_items)
         return input_items
 
     @property
     def direct_input_items(self) -> typing.Set:
         input_items = set()
         for variable in self.variables:
-            item = variable.bound_item
-            if hasattr(item, "base_objects") and not getattr(item, "is_list", False):
-                input_items.update(item.base_objects)
+            input_items.update(variable.direct_input_items)
         return input_items
 
     @property
     def output_items(self) -> typing.Set:
-        # resolve the computation inputs and return the set of input items.
-        try:
-            output_items = set()
-            for result in self.results:
-                item = result.bound_item
-                if isinstance(item, list):
-                    output_items.update(list_item.value for list_item in item)
-                elif item:
-                    output_items.add(item.value)
-            return output_items
-        except Exception as e:
-            print(e)
+        output_items = set()
+        for result in self.results:
+            output_items.update(result.output_items)
+        return output_items
 
     def set_input_item(self, name: str, input_item: ComputationItem) -> None:
         for variable in self.variables:

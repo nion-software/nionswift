@@ -2194,16 +2194,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def append_computation(self, computation: Symbolic.Computation, *, project: Project.Project = None) -> None:
         # input/output bookkeeping
-        input_items = computation.input_items
-        output_items = computation.output_items
-        # input_set = set()
-        # for input in input_items:
-        #     self.__get_deep_dependent_item_set(input, input_set)
-        # output_set = set()
-        # for output in output_items:
-        #     self.__get_deep_dependent_item_set(output, output_set)
-        # if input_set.intersection(output_set):
-        #     raise Exception("Computation would result in duplicate dependency.")
+        input_items = computation.get_preliminary_input_items(self.resolve_object_specifier)
+        output_items = computation.get_preliminary_output_items(self.resolve_object_specifier)
+        input_set = set()
+        for input in input_items:
+            self.__get_deep_dependent_item_set(input, input_set)
+        output_set = set()
+        for output in output_items:
+            self.__get_deep_dependent_item_set(output, output_set)
+        if input_set.intersection(output_set):
+            raise Exception("Computation would result in duplicate dependency.")
         project = project or self.__profile.target_project_for_item(computation)
         project.append_computation(computation)
 
