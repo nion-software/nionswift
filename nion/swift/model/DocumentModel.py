@@ -5,7 +5,6 @@ import copy
 import datetime
 import functools
 import gettext
-import numbers
 import threading
 import time
 import typing
@@ -241,8 +240,9 @@ class TransactionManager:
 
 class BoundDataBase:
 
-    def __init__(self, document_model, object, graphic=None):
+    def __init__(self, document_model, specifier, object, graphic=None):
         self.__document_model = document_model
+        self.specifier = specifier
         self._object = object
         self._graphic = graphic
         self.changed_event = Event.Event()
@@ -272,8 +272,9 @@ class BoundDataBase:
 
 class BoundDisplayDataChannelBase:
 
-    def __init__(self, document_model, display_data_channel, graphic=None):
+    def __init__(self, document_model, specifier, display_data_channel, graphic=None):
         self.__document_model = document_model
+        self.specifier = specifier
         self._display_data_channel = display_data_channel
         self._graphic = graphic
         self.changed_event = Event.Event()
@@ -303,8 +304,9 @@ class BoundDisplayDataChannelBase:
 
 class BoundDataSource:
 
-    def __init__(self, document_model, display_data_channel, graphic):
+    def __init__(self, document_model, specifier, display_data_channel, graphic):
         self.__document_model = document_model
+        self.specifier = specifier
         self.changed_event = Event.Event()
         self.needs_rebind_event = Event.Event()
         self.property_changed_event = Event.Event()
@@ -336,8 +338,9 @@ class BoundDataSource:
 
 class BoundDataItem:
 
-    def __init__(self, document_model, object):
+    def __init__(self, document_model, specifier, object):
         self.__document_model = document_model
+        self.specifier = specifier
         self.__object = object
         self.changed_event = Event.Event()
         self.needs_rebind_event = Event.Event()
@@ -468,8 +471,9 @@ class BoundFilteredData(BoundDisplayDataChannelBase):
 
 class BoundDataStructure:
 
-    def __init__(self, document_model, object, property_name):
+    def __init__(self, document_model, specifier, object, property_name):
         self.__document_model = document_model
+        self.specifier = specifier
         self.__object = object
         self.__property_name = property_name
         self.changed_event = Event.Event()
@@ -508,8 +512,9 @@ class BoundDataStructure:
 
 class BoundGraphic:
 
-    def __init__(self, document_model, object, property_name):
+    def __init__(self, document_model, specifier, object, property_name):
         self.__document_model = document_model
+        self.specifier = specifier
         self.__object = object
         self.__property_name = property_name
         self.changed_event = Event.Event()
@@ -544,69 +549,6 @@ class BoundGraphic:
     @property
     def base_objects(self):
         return {self.__object}
-
-
-class BoundList:
-
-    def __init__(self, document_model, objects_model):
-        self.__document_model = document_model
-        self.__objects_model = objects_model
-        self.__bound_items = list()
-        self.changed_event = Event.Event()
-        self.needs_rebind_event = Event.Event()
-        self.child_removed_event = Event.Event()
-        self.property_changed_event = Event.Event()
-        self.__changed_listeners = list()
-        self.__needs_rebind_listeners = list()
-        self.__resolved = True
-        self.is_list = True  # special marker to indicate items in base objects should not trigger a delete
-        for index, variable_specifier in enumerate(objects_model.items):
-            bound_item = document_model.resolve_object_specifier(variable_specifier)
-            self.__bound_items.append(bound_item)
-            self.__changed_listeners.append(bound_item.changed_event.listen(self.changed_event.fire) if bound_item else None)
-            self.__needs_rebind_listeners.append(bound_item.needs_rebind_event.listen(functools.partial(self.child_removed_event.fire, index)) if bound_item else None)
-            self.__resolved = self.__resolved and bound_item is not None
-
-    def close(self):
-        for bound_object, change_listener, needs_rebind_listener in zip(self.__bound_items, self.__changed_listeners, self.__needs_rebind_listeners):
-            if bound_object:
-                bound_object.close()
-            if change_listener:
-                change_listener.close()
-            if needs_rebind_listener:
-                needs_rebind_listener.close()
-        self.__bound_items = None
-        self.__resolved_items = None
-        self.__changed_listeners = None
-
-    @property
-    def value(self):
-        return [bound_item.value for bound_item in self.__bound_items] if self.__resolved else None
-
-    @property
-    def base_objects(self):
-        # return the base objects in a stable order
-        base_objects = list()
-        for bound_item in self.__bound_items:
-            if bound_item:
-                for base_object in bound_item.base_objects:
-                    if not base_object in base_objects:
-                        base_objects.append(base_object)
-        return base_objects
-
-    def list_item_removed(self, object) -> typing.List[dict]:
-        base_objects = self.base_objects
-        if object in base_objects:
-            index = 0
-            for index, bound_item in enumerate(self.__bound_items):
-                for base_object in bound_item.base_objects:
-                    if base_object in base_objects:
-                        break
-            properties = copy.deepcopy(self.__objects_model.items[index])
-            self.__objects_model.remove_item(index)
-            self.needs_rebind_event.fire()
-            return [{"type": "object_specifiers", "index": index, "properties": properties}]
-        return list()
 
 
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, DataItem.SessionManager):
@@ -1320,7 +1262,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             elif name == "object_specifiers":
                 computation = self.get_computation_by_uuid(uuid.UUID(entry["computation_uuid"]))
                 variable = computation.variables[entry["variable_index"]]
-                variable.objects_model.insert_item(index, properties)
+                computation.undelete_variable_item(variable.name, index, properties)
             elif name == "graphics":
                 item = Graphics.factory(properties.get)
                 item.begin_reading()
@@ -1742,7 +1684,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 return computation
         return None
 
-    def resolve_object_specifier(self, specifier: dict, secondary_specifier: dict=None, property_name: str=None, objects_model=None):
+    def resolve_object_specifier(self, specifier: dict, secondary_specifier: dict=None, property_name: str=None):
 
         if specifier and specifier.get("version") == 1:
             specifier_type = specifier["type"]
@@ -1754,13 +1696,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
                 if display_data_channel and display_data_channel.data_item:
-                    return BoundDataSource(self, display_data_channel, graphic)
+                    return BoundDataSource(self, specifier, display_data_channel, graphic)
             elif specifier_type == "data_item":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
                 if data_item:
-                    return BoundDataItem(self, data_item)
+                    return BoundDataItem(self, specifier, data_item)
             elif specifier_type == "xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
@@ -1769,13 +1711,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                     data_item = display_data_channel.data_item if display_data_channel else None
                 if data_item:
-                    return BoundData(self, data_item)
+                    return BoundData(self, specifier, data_item)
             elif specifier_type == "display_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 if display_data_channel:
-                    return BoundDisplayData(self, display_data_channel)
+                    return BoundDisplayData(self, specifier, display_data_channel)
             elif specifier_type == "cropped_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
@@ -1784,7 +1726,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
                 if display_data_channel:
-                    return BoundCroppedData(self, display_data_channel, graphic)
+                    return BoundCroppedData(self, specifier, display_data_channel, graphic)
             elif specifier_type == "cropped_display_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
@@ -1793,33 +1735,32 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
                 if display_data_channel:
-                    return BoundCroppedDisplayData(self, display_data_channel, graphic)
+                    return BoundCroppedDisplayData(self, specifier, display_data_channel, graphic)
             elif specifier_type == "filter_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 if display_data_channel:
-                    return BoundFilterData(self, display_data_channel)
+                    return BoundFilterData(self, specifier, display_data_channel)
             elif specifier_type == "filtered_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
                 if display_data_channel:
-                    return BoundFilteredData(self, display_data_channel)
+                    return BoundFilteredData(self, specifier, display_data_channel)
             elif specifier_type == "structure":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 data_structure = self.get_data_structure_by_uuid(object_uuid)
                 if data_structure:
-                    return BoundDataStructure(self, data_structure, property_name)
+                    return BoundDataStructure(self, specifier, data_structure, property_name)
             elif specifier_type == "graphic":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 graphic = self.get_graphic_by_uuid(object_uuid)
                 if graphic:
-                    return BoundGraphic(self, graphic, property_name)
-        if objects_model:
-            return BoundList(self, objects_model)
+                    return BoundGraphic(self, specifier, graphic, property_name)
+
         return None
 
     class DataItemReference:

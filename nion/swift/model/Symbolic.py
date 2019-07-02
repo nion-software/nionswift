@@ -10,6 +10,7 @@
 # standard libraries
 import ast
 import copy
+import functools
 import threading
 import time
 import typing
@@ -115,7 +116,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
     Clients can also get/set the bound_item, which must be an object that provides a read-only value property and a
     changed_event.  This object can be used to watch for changes to the object portion of this object.
     """
-    def __init__(self, name: str=None, *, property_name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None, secondary_specifier: dict=None, objects: ListModel.ListModel=None):  # defaults are None for factory
+    def __init__(self, name: str=None, *, property_name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None, secondary_specifier: dict=None, items: typing.List["ComputationItem"]=None):  # defaults are None for factory
         super().__init__()
         self.define_type("variable")
         self.define_property("name", name, changed=self.__property_changed)
@@ -129,32 +130,15 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("secondary_specifier", secondary_specifier, changed=self.__property_changed)
         self.define_property("property_name", property_name, changed=self.__property_changed)
         self.define_property("control_type", control_type, changed=self.__property_changed)
-        self.define_property("object_specifiers", copy.deepcopy(objects.items) if objects else None, changed=self.__property_changed)
+        item_specifiers = [DataStructure.get_object_specifier(item.item, item.type) if item else None for item in items] if items is not None else None
+        self.define_property("object_specifiers", copy.deepcopy(item_specifiers) if item_specifiers is not None else None, changed=self.__property_changed)
         self.changed_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
         self.needs_rebind_event = Event.Event()  # an event to be fired when the computation needs to rebind
         self.needs_rebuild_event = Event.Event()  # an event to be fired when the UI needs a rebuild
-        self.__objects_model = objects
-        self.__objects_model_item_inserted_event_listener = None
-        self.__objects_model_item_removed_event_listener = None
-        if objects is not None:
-
-            def item_inserted(key, value, index):
-                self.needs_rebind_event.fire()
-                # self.changed_event.fire()  # implicit when setting object_specifiers
-                self.object_specifiers = copy.deepcopy(objects.items)
-
-            def item_removed(key, value, index):
-                self.needs_rebind_event.fire()
-                # self.changed_event.fire()  # implicit when setting object_specifiers
-                self.object_specifiers = copy.deepcopy(objects.items)
-
-            self.__objects_model_item_inserted_event_listener = self.__objects_model.item_inserted_event.listen(item_inserted)
-            self.__objects_model_item_removed_event_listener = self.__objects_model.item_removed_event.listen(item_removed)
-
-            for index, object in enumerate(objects.items):
-                item_inserted("items", object, index)
-
+        self.__bound_items_model = None
+        self.__bound_items_model_item_inserted_event_listener = None
+        self.__bound_items_model_item_removed_event_listener = None
         self.__bound_item = None
         self.__bound_item_changed_event_listener = None
         self.__bound_item_removed_event_listener = None
@@ -162,12 +146,12 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
 
     def close(self):
         # TODO: this is not called
-        if self.__objects_model_item_inserted_event_listener:
-            self.__objects_model_item_inserted_event_listener.close()
-            self.__objects_model_item_inserted_event_listener = None
-        if self.__objects_model_item_removed_event_listener:
-            self.__objects_model_item_removed_event_listener.close()
-            self.__objects_model_item_removed_event_listener = None
+        if self.__bound_items_model_item_inserted_event_listener:
+            self.__bound_items_model_item_inserted_event_listener.close()
+            self.__bound_items_model_item_inserted_event_listener = None
+        if self.__bound_items_model_item_removed_event_listener:
+            self.__bound_items_model_item_removed_event_listener.close()
+            self.__bound_items_model_item_removed_event_listener = None
 
     def __repr__(self):
         return "{} ({} {} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self.specifier, self.secondary_specifier)
@@ -178,12 +162,47 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         value_type_property = self._get_persistent_property("value_type")
         value_type_property.read_from_dict(properties)
         super().read_from_dict(properties)
-        if self.object_specifiers:
-            self.__objects_model = ListModel.ListModel(items=self.object_specifiers)
 
     def write_to_dict(self) -> dict:
         # used for persistence. left here since read_from_dict is defined.
         return super().write_to_dict()
+
+    def connect_items(self, bound_items: typing.List) -> None:
+        self.disconnect_items()
+
+        bound_items_model = ListModel.ListModel(items=bound_items) if bound_items is not None else None
+        self.__bound_items_model = bound_items_model
+        self.__bound_items_model_item_inserted_event_listener = None
+        self.__bound_items_model_item_removed_event_listener = None
+        if bound_items_model is not None:
+
+            def item_inserted(key, value, index):
+                # self.changed_event.fire()  # implicit when setting object_specifiers
+                object_specifiers = self.object_specifiers
+                object_specifiers.insert(index, copy.deepcopy(value.specifier))
+                self.object_specifiers = object_specifiers
+                self.bound_item.item_inserted(index, self.__bound_items_model.items[index])
+                self.needs_rebind_event.fire()
+
+            def item_removed(key, value, index):
+                # self.changed_event.fire()  # implicit when setting object_specifiers
+                object_specifiers = self.object_specifiers
+                object_specifiers.pop(index)
+                self.object_specifiers = object_specifiers
+                self.bound_item.item_removed(index)
+                self.needs_rebind_event.fire()
+
+            self.__bound_items_model_item_inserted_event_listener = self.__bound_items_model.item_inserted_event.listen(item_inserted)
+            self.__bound_items_model_item_removed_event_listener = self.__bound_items_model.item_removed_event.listen(item_removed)
+
+    def disconnect_items(self) -> None:
+        if self.__bound_items_model:
+            self.__bound_items_model.close()
+            self.__bound_items_model = None
+            self.__bound_items_model_item_inserted_event_listener.close()
+            self.__bound_items_model_item_inserted_event_listener = None
+            self.__bound_items_model_item_removed_event_listener.close()
+            self.__bound_items_model_item_removed_event_listener = None
 
     def save_properties(self):
         # used for undo
@@ -282,12 +301,12 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         if self.__bound_item:
             self.__bound_item_changed_event_listener = self.__bound_item.changed_event.listen(self.changed_event.fire)
             self.__bound_item_removed_event_listener = self.__bound_item.needs_rebind_event.listen(self.needs_rebind_event.fire)
-            if hasattr(self.__bound_item, "child_removed_event"):
-                self.__bound_item_child_removed_event_listener = self.__bound_item.child_removed_event.listen(self.objects_model.remove_item)
+            # if hasattr(self.__bound_item, "child_removed_event"):
+            #     self.__bound_item_child_removed_event_listener = self.__bound_item.child_removed_event.listen(self.bound_items_model.remove_item)
 
     @property
-    def objects_model(self):
-        return self.__objects_model
+    def bound_items_model(self):
+        return self.__bound_items_model
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -433,7 +452,7 @@ class ComputationContext:
         self.__computation = weakref.ref(computation)
         self.__context = context
 
-    def resolve_object_specifier(self, object_specifier, secondary_specifier=None, property_name=None, objects_model=None):
+    def resolve_object_specifier(self, object_specifier, secondary_specifier=None, property_name=None):
         """Resolve the object specifier.
 
         First lookup the object specifier in the enclosing computation. If it's not found,
@@ -442,7 +461,7 @@ class ComputationContext:
         """
         variable = self.__computation().resolve_variable(object_specifier)
         if not variable:
-            return self.__context.resolve_object_specifier(object_specifier, secondary_specifier, property_name, objects_model)
+            return self.__context.resolve_object_specifier(object_specifier, secondary_specifier, property_name)
         elif variable.specifier is None:
             return variable.bound_variable
         return None
@@ -464,6 +483,60 @@ def make_item_list(items, *, type: str=None) -> ComputationItem:
     items = [make_item(item, type=type) if not isinstance(item, ComputationItem) else item for item in items]
     return ComputationItem(items=items)
 
+
+class BoundList:
+
+    def __init__(self, bound_items: typing.List):
+        self.__bound_items = list()
+        self.changed_event = Event.Event()
+        self.needs_rebind_event = Event.Event()
+        self.child_removed_event = Event.Event()
+        self.property_changed_event = Event.Event()
+        self.is_list = True
+        self.__changed_listeners = list()
+        self.__needs_rebind_listeners = list()
+        self.__resolved = True
+        for index, bound_item in enumerate(bound_items):
+            self.item_inserted(index, bound_item)
+
+    def close(self):
+        while len(self.__bound_items) > 0:
+            self.item_removed(0)
+        self.__bound_items = None
+        self.__resolved_items = None
+        self.__changed_listeners = None
+
+    @property
+    def value(self):
+        return [bound_item.value for bound_item in self.__bound_items] if self.__resolved else None
+
+    @property
+    def base_objects(self):
+        # return the base objects in a stable order
+        base_objects = list()
+        for bound_item in self.__bound_items:
+            if bound_item:
+                for base_object in bound_item.base_objects:
+                    if not base_object in base_objects:
+                        base_objects.append(base_object)
+        return base_objects
+
+    def item_inserted(self, index, bound_item):
+        self.__bound_items.insert(index, bound_item)
+        self.__changed_listeners.insert(index, bound_item.changed_event.listen(self.changed_event.fire) if bound_item else None)
+        self.__needs_rebind_listeners.insert(index, bound_item.needs_rebind_event.listen(functools.partial(self.child_removed_event.fire, index)) if bound_item else None)
+        self.__resolved = self.__resolved and bound_item is not None
+
+    def item_removed(self, index):
+        bound_item = self.__bound_items.pop(index)
+        if bound_item:
+            bound_item.close()
+        changed_listener = self.__changed_listeners.pop(index)
+        if changed_listener:
+            changed_listener.close()
+        needs_rebind_listener = self.__needs_rebind_listeners.pop(index)
+        if needs_rebind_listener:
+            needs_rebind_listener.close()
 
 class Computation(Observable.Observable, Persistence.PersistentObject):
     """A computation on data and other inputs.
@@ -630,9 +703,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def create_input_item(self, name: str, input_item: ComputationItem, *, property_name: str=None, label: str=None) -> ComputationVariable:
         if input_item.items is not None:
-            specifiers = [DataStructure.get_object_specifier(item.item, item.type) if item else None for item in input_item.items]
-            list_model = ListModel.ListModel(items=specifiers)
-            variable = ComputationVariable(name, objects=list_model, label=label)
+            variable = ComputationVariable(name, items=input_item.items, label=label)
             self.add_variable(variable)
             return variable
         else:
@@ -664,24 +735,39 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def remove_item_from_objects(self, name: str, index: int) -> None:
         variable = self._get_variable(name)
-        variable.objects_model.remove_item(index)
+        variable.bound_items_model.remove_item(index)
 
     def insert_item_into_objects(self, name: str, index: int, input_item: ComputationItem) -> None:
-        specifier = DataStructure.get_object_specifier(input_item.item, input_item.type)
         variable = self._get_variable(name)
-        variable.objects_model.insert_item(index, specifier)
+        specifier = DataStructure.get_object_specifier(input_item.item, input_item.type)
+        variable.bound_items_model.insert_item(index, self.__computation_context.resolve_object_specifier(specifier))
 
     def list_item_removed(self, object) -> typing.Sequence[dict]:
-        undelete_entries = list()
+        # when an item is removed from the library, this method is called for each computation.
+        # if the item being removed matches a variable item, mark the computation as needing an update.
+        # if the item is contained in a list variable, create the undelete entries and return them.
+        # undelete_entries = list()
         for variable in self.variables:
+            # check if the bound item matches the object. mark for update if so.
+            # TODO: really needed?
             if variable.bound_item and variable.bound_item.value == object:
                 self.needs_update = True
-            if variable.bound_item and hasattr(variable.bound_item, "list_item_removed"):
-                for undelete_entry in variable.bound_item.list_item_removed(object):
-                    undelete_entry["computation_uuid"] = str(self.uuid)
-                    undelete_entry["variable_index"] = self.variables.index(variable)
-                    undelete_entries.append(undelete_entry)
-        return undelete_entries
+            # check if the bound item is a list and item in list matches the object. if so, create
+            # an undelete entry for the variable. the undelete entry describes how to reconstitute
+            # the list item.
+            if variable.object_specifiers is not None:
+                for index, (object_specifier, bound_item) in enumerate(zip(variable.object_specifiers, variable.bound_items_model.items)):
+                    base_objects = bound_item.base_objects if bound_item else list()
+                    if object in base_objects:
+                        undelete_entry = dict()
+                        undelete_entry["type"] = "object_specifiers"
+                        undelete_entry["computation_uuid"] = str(self.uuid)
+                        undelete_entry["variable_index"] = self.variables.index(variable)
+                        undelete_entry["properties"] = copy.deepcopy(object_specifier)
+                        undelete_entry["index"] = index
+                        variable.bound_items_model.remove_item(index)
+                        return [undelete_entry]
+        return list()
 
     def resolve_variable(self, object_specifier: dict) -> typing.Optional[ComputationVariable]:
         if object_specifier:
@@ -834,6 +920,11 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 return False
         return True
 
+    def undelete_variable_item(self, name: str, index: int, specifier: typing.Dict) -> None:
+        for variable in self.variables:
+            if variable.name == name:
+                variable.bound_items_model.insert_item(index, self.__computation_context.resolve_object_specifier(specifier))
+
     def __bind_variable(self, variable: ComputationVariable) -> None:
         # bind the variable. the variable has a reference to another object in the library.
         # this method finds that object and stores it into the variable. it also sets up
@@ -854,7 +945,15 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
         self.__variable_needs_rebind_event_listeners[variable.uuid] = variable.needs_rebind_event.listen(rebind)
 
-        variable.bound_item = self.__computation_context.resolve_object_specifier(variable.variable_specifier, variable.secondary_specifier, variable.property_name, variable.objects_model)
+        if variable.object_specifiers is not None:
+            bound_items = list()
+            for object_specifier in variable.object_specifiers:
+                bound_item = self.__computation_context.resolve_object_specifier(object_specifier)
+                bound_items.append(bound_item)
+            variable.connect_items(bound_items)
+            variable.bound_item = BoundList(bound_items)
+        else:
+            variable.bound_item = self.__computation_context.resolve_object_specifier(variable.variable_specifier, variable.secondary_specifier, variable.property_name)
 
     def __unbind_variable(self, variable: ComputationVariable) -> None:
         self.__variable_changed_event_listeners[variable.uuid].close()
@@ -862,6 +961,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__variable_needs_rebind_event_listeners[variable.uuid].close()
         del self.__variable_needs_rebind_event_listeners[variable.uuid]
         variable.bound_item = None
+        variable.disconnect_items()
 
     def __bind_result(self, result: ComputationOutput) -> None:
         # bind the result. the result has an optional reference to another object in the library.
