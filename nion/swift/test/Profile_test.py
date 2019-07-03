@@ -278,20 +278,32 @@ class TestProfileClass(unittest.TestCase):
                 project0 = document_model.profile.projects[0]
                 project1 = document_model.profile.projects[1]
                 for item in project0.display_items[0].data_items:
+                    assert item in document_model.data_items
                     self.assertEqual(project0, Project.get_project_for_item(item))
                 for item in project1.display_items[0].data_items:
+                    assert item in document_model.data_items
                     self.assertEqual(project1, Project.get_project_for_item(item))
+                assert project0.display_items[0] in document_model.display_items
+                assert project1.display_items[0] in document_model.display_items
                 undelete_log = document_model.remove_data_item(project0.data_items[0], safe=True)
                 document_model.undelete_all(undelete_log)
+                assert project0.display_items[0] in document_model.display_items
+                assert project1.display_items[0] in document_model.display_items
                 for item in project0.display_items[0].data_items:
+                    assert item in document_model.data_items
                     self.assertEqual(project0, Project.get_project_for_item(item))
                 for item in project1.display_items[0].data_items:
+                    assert item in document_model.data_items
                     self.assertEqual(project1, Project.get_project_for_item(item))
                 undelete_log = document_model.remove_data_item(project1.data_items[0], safe=True)
                 document_model.undelete_all(undelete_log)
+                assert project0.display_items[0] in document_model.display_items
+                assert project1.display_items[0] in document_model.display_items
                 for item in project0.display_items[0].data_items:
+                    assert item in document_model.data_items
                     self.assertEqual(project0, Project.get_project_for_item(item))
                 for item in project1.display_items[0].data_items:
+                    assert item in document_model.data_items
                     self.assertEqual(project1, Project.get_project_for_item(item))
 
     def test_new_computation_is_bound_to_proper_project(self):

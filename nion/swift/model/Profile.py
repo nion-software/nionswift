@@ -214,10 +214,13 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         return Transaction(self)
 
-    def restore_data_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[DataItem.DataItem]:
+    def restore_data_item(self, project: Project.Project, data_item_uuid: uuid.UUID) -> typing.Optional[DataItem.DataItem]:
+        data_item = project.restore_data_item(data_item_uuid)
+        if data_item:
+            return data_item
         for project in self.__projects:
             data_item = project.restore_data_item(data_item_uuid)
-            if data_item is not None:
+            if data_item:
                 return data_item
         return None
 

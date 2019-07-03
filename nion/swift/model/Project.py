@@ -100,6 +100,30 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             container.remove_item(name, item)
             return None
 
+    def _get_related_item(self, item_uuid: uuid.UUID) -> typing.Optional[Persistence.PersistentObject]:
+        for data_item in self.data_items:
+            if data_item.uuid == item_uuid:
+                return data_item
+        for display_item in self.display_items:
+            if display_item.uuid == item_uuid:
+                return display_item
+            for display_data_channel in display_item.display_data_channels:
+                if display_data_channel.uuid == item_uuid:
+                    return display_data_channel
+        for connection in self.connections:
+            if connection.uuid == item_uuid:
+                return connection
+        for data_structure in self.data_structures:
+            if data_structure.uuid == item_uuid:
+                return data_structure
+        for computation in self.computations:
+            if computation.uuid == item_uuid:
+                return computation
+        item = super()._get_related_item(item_uuid)
+        # if item and get_project_for_item(item) != self:
+        #     print(f"!! project {self} {type(item)} {id(item)} {item.uuid}")
+        return item
+
     @property
     def needs_upgrade(self) -> bool:
         return self.__project_reference.get("type") == "project_folder"
@@ -246,6 +270,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             data_item.finish_reading()
             assert data_item.uuid not in {data_item.uuid for data_item in self.data_items}
             self.append_item("data_items", data_item)
+            assert data_item.container == self
+            assert get_project_for_item(data_item) == self
             return data_item
         return None
 

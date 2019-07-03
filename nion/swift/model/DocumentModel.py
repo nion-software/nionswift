@@ -32,12 +32,26 @@ from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
 from nion.utils import Event
 from nion.utils import Observable
+from nion.utils import Persistence
 from nion.utils import Recorder
 from nion.utils import ReferenceCounting
 from nion.utils import Selection
 from nion.utils import ThreadPool
 
 _ = gettext.gettext
+
+
+def save_item_order(items: typing.List[Persistence.PersistentObject]) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
+    return list((Project.get_project_for_item(item), item.uuid) for item in items)
+
+
+def restore_item_order(name: str, projects: typing.List[Project.Project], uuid_order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> typing.List[Persistence.PersistentObject]:
+    item_map = dict()
+    for project in projects:
+        project_dict = item_map.setdefault(project, dict())
+        for item in getattr(project, name):
+            project_dict[item.uuid] = item
+    return [item_map[project][item_uuid] for (project, item_uuid) in uuid_order]
 
 
 class ComputationQueueItem:
@@ -852,7 +866,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # update the data item references
         data_item_references = self.__profile.data_item_references
         for key, data_item_uuid in data_item_references.items():
-            data_item = self.get_data_item_by_uuid(data_item_uuid)
+            data_item = project._get_related_item(data_item_uuid)
             if data_item:
                 self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, data_item))
         self.__rebind_computations()  # rebind any unresolved that may now be resolved
@@ -899,11 +913,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.append_display_item(display_item, project=project)
 
     def insert_data_item(self, index: int, data_item: DataItem.DataItem, auto_display: bool = True) -> None:
-        uuid_order = list(data_item.uuid for data_item in self.__data_items)
+        uuid_order = save_item_order(self.__data_items)
         self.append_data_item(data_item, auto_display=auto_display)
-        uuid_order.insert(index, data_item.uuid)
-        data_item_map = {data_item.uuid: data_item for data_item in self.__data_items}
-        self.__data_items = [data_item_map[data_item_uuid] for data_item_uuid in uuid_order]
+        uuid_order.insert(index, (Project.get_project_for_item(data_item), data_item.uuid))
+        self.__data_items = restore_item_order("data_items", self.profile.projects, uuid_order)
 
     def __rebind_computations(self):
         for computation in self.computations:
@@ -921,8 +934,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # remove data item from any computations
         return self.__cascade_delete(data_item, safe=safe)
 
-    def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int=None) -> typing.Optional[DataItem.DataItem]:
-        return self.__profile.restore_data_item(data_item_uuid)
+    def restore_data_item(self, project: Project.Project, data_item_uuid: uuid.UUID, before_index: int=None) -> typing.Optional[DataItem.DataItem]:
+        return self.__profile.restore_data_item(project, data_item_uuid)
 
     def deepcopy_display_item(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
         display_item_copy = copy.deepcopy(display_item)
@@ -950,11 +963,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         project.append_display_item(display_item)
 
     def insert_display_item(self, before_index: int, display_item: DisplayItem.DisplayItem, *, update_session: bool = True, project: Project.Project = None) -> None:
-        uuid_order = list(display_item.uuid for display_item in self.__display_items)
+        uuid_order = save_item_order(self.__display_items)
         self.append_display_item(display_item, update_session=update_session, project=project)
-        uuid_order.insert(before_index, display_item.uuid)
-        display_item_map = {display_item.uuid: display_item for display_item in self.__display_items}
-        self.__display_items = [display_item_map[display_item_uuid] for display_item_uuid in uuid_order]
+        uuid_order.insert(before_index, (Project.get_project_for_item(display_item), display_item.uuid))
+        self.__display_items = restore_item_order("display_items", self.profile.projects, uuid_order)
 
     def remove_display_item(self, display_item) -> typing.Optional[typing.Sequence]:
         return self.__cascade_delete(display_item)
@@ -1175,6 +1187,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             for item in reversed(items):
                 for computation in self.computations:
                     new_entries = computation.list_item_removed(item)
+                    for new_entry in new_entries:
+                        new_entry["project"] = Project.get_project_for_item(computation)
                     undelete_log.extend(new_entries)
                 container = item.container
                 if isinstance(item, DataItem.DataItem):
@@ -1199,29 +1213,30 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 container_ref = str(container.uuid) if container else None
                 if isinstance(container, Project.Project) and name == "data_items":
                     index = getattr(container, name).index(item)
-                    uuid_order = list(data_item.uuid for data_item in self.__data_items)
+                    uuid_order = save_item_order(self.__data_items)
                     item_dict = item.write_to_dict()
                     # call the version of remove_data_item that doesn't cascade again
                     # NOTE: remove_data_item will notify_remove_item
                     container.remove_data_item(item)
-                    undelete_log.append({"type": name, "container": container_ref, "index": index, "order": uuid_order, "properties": item_dict})
+                    undelete_log.append({"type": name, "project": container, "container": container_ref, "index": index, "order": uuid_order, "properties": item_dict})
                 elif isinstance(container, Project.Project) and name == "display_items":
                     index = getattr(container, name).index(item)
+                    uuid_order = save_item_order(self.__display_items)
                     item_dict = item.write_to_dict()
                     # remove the data item from any groups
                     for data_group in self.get_flat_data_group_generator():
                         if item in data_group.display_items:
-                            undelete_log.append({"type": "data_group_entry", "data_group_uuid": data_group.uuid, "properties": None, "index": data_group.display_items.index(item), "display_item_uuid": item.uuid})
+                            undelete_log.append({"type": "data_group_entry", "project": container, "data_group_uuid": data_group.uuid, "properties": None, "index": data_group.display_items.index(item), "display_item_uuid": item.uuid})
                             data_group.remove_display_item(item)
                     # call the version of remove_display_item that doesn't cascade again
                     # NOTE: remove_display_item will notify_remove_item
                     container.remove_display_item(item)
-                    undelete_log.append({"type": name, "container": container_ref, "index": index, "properties": item_dict})
+                    undelete_log.append({"type": name, "project": container, "container": container_ref, "index": index, "order": uuid_order, "properties": item_dict})
                 elif container:
                     index = getattr(container, name).index(item)
                     item_dict = item.write_to_dict()
                     container_properties = container.save_properties() if hasattr(container, "save_properties") else dict()
-                    undelete_log.append({"type": name, "container": container_ref, "index": index, "properties": item_dict, "container_properties": container_properties})
+                    undelete_log.append({"type": name, "project": Project.get_project_for_item(item), "container": container_ref, "index": index, "properties": item_dict, "container_properties": container_properties})
                     container.remove_item(name, item)
         except Exception as e:
             import sys, traceback
@@ -1241,10 +1256,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             index = entry["index"]
             name = entry["type"]
             properties = entry["properties"]
+            project = entry["project"]
             if name == "data_items":
-                self.restore_data_item(properties["uuid"], index)
-                data_item_map = {data_item.uuid: data_item for data_item in self.__data_items}
-                self.__data_items = [data_item_map[data_item_uuid] for data_item_uuid in entry["order"]]
+                self.restore_data_item(project, properties["uuid"], index)
+                self.__data_items = restore_item_order("data_items", self.profile.projects, entry["order"])
             elif name == "display_items":
                 project = next(project for project in self.__profile.projects if project.uuid == container_uuid)
                 item = DisplayItem.DisplayItem()
@@ -1252,6 +1267,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 item.read_from_dict(properties)
                 item.finish_reading()
                 self.insert_display_item(index, item, update_session=False, project=project)
+                self.__display_items = restore_item_order("display_items", self.profile.projects, entry["order"])
             elif name == "computations":
                 project = next(project for project in self.__profile.projects if project.uuid == container_uuid)
                 item = Symbolic.Computation()
@@ -1260,7 +1276,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 item.finish_reading()
                 self.insert_computation(index, item, project=project)
             elif name == "object_specifiers":
-                computation = self.get_computation_by_uuid(uuid.UUID(entry["computation_uuid"]))
+                computation = project._get_related_item(uuid.UUID(entry["computation_uuid"]))
                 variable = computation.variables[entry["variable_index"]]
                 computation.undelete_variable_item(variable.name, index, properties)
             elif name == "graphics":
@@ -1268,7 +1284,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 item.begin_reading()
                 item.read_from_dict(properties)
                 item.finish_reading()
-                display_item = self.get_display_item_by_uuid(container_uuid)
+                display_item = project._get_related_item(container_uuid)
                 display_item.insert_graphic(index, item)
                 display_item.restore_properties(entry["container_properties"])
             elif name == "connections":
@@ -1287,14 +1303,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 self.insert_data_structure(index, item, project=project)
             elif name == "data_group_entry":
                 data_group = self.get_data_group_by_uuid(entry["data_group_uuid"])
-                display_item = self.get_display_item_by_uuid(entry["display_item_uuid"])
+                display_item = project._get_related_item(entry["display_item_uuid"])
                 data_group.insert_display_item(index, display_item)
             elif name == "display_data_channels":
                 item = DisplayItem.display_data_channel_factory(properties.get)
                 item.begin_reading()
                 item.read_from_dict(properties)
                 item.finish_reading()
-                display_item = self.get_display_item_by_uuid(container_uuid)
+                display_item = project._get_related_item(container_uuid)
                 display_item.undelete_display_data_channel(index, item)
                 display_item.restore_properties(entry["container_properties"])
             else:
@@ -1693,29 +1709,30 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
-                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
-                graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
+                display_data_channel = computation._get_related_item(object_uuid) if object_uuid else None
+                graphic = computation._get_related_item(secondary_uuid) if object_uuid else None
                 if display_data_channel and display_data_channel.data_item:
                     return BoundDataSource(self, specifier, display_data_channel, graphic)
             elif specifier_type == "data_item":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
-                if data_item:
+                data_item = computation._get_related_item(object_uuid) if object_uuid else None
+                if isinstance(data_item, DataItem.DataItem):
                     return BoundDataItem(self, specifier, data_item)
             elif specifier_type == "xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
-                if not data_item:
-                    display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
+                data_item = computation._get_related_item(object_uuid) if object_uuid else None
+                if not isinstance(data_item, DataItem.DataItem):
+                    # display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
+                    display_data_channel = computation._get_related_item(object_uuid) if object_uuid else None
                     data_item = display_data_channel.data_item if display_data_channel else None
                 if data_item:
                     return BoundData(self, specifier, data_item)
             elif specifier_type == "display_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
+                display_data_channel = computation._get_related_item(object_uuid) if object_uuid else None
                 if display_data_channel:
                     return BoundDisplayData(self, specifier, display_data_channel)
             elif specifier_type == "cropped_xdata":
@@ -1723,8 +1740,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
-                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
-                graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
+                display_data_channel = computation._get_related_item(object_uuid) if object_uuid else None
+                graphic = computation._get_related_item(secondary_uuid) if object_uuid else None
                 if display_data_channel:
                     return BoundCroppedData(self, specifier, display_data_channel, graphic)
             elif specifier_type == "cropped_display_xdata":
@@ -1732,32 +1749,32 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
-                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
-                graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
+                display_data_channel = computation._get_related_item(object_uuid) if object_uuid else None
+                graphic = computation._get_related_item(secondary_uuid) if object_uuid else None
                 if display_data_channel:
                     return BoundCroppedDisplayData(self, specifier, display_data_channel, graphic)
             elif specifier_type == "filter_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
+                display_data_channel = computation._get_related_item(object_uuid) if object_uuid else None
                 if display_data_channel:
                     return BoundFilterData(self, specifier, display_data_channel)
             elif specifier_type == "filtered_xdata":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
+                display_data_channel = computation._get_related_item(object_uuid) if object_uuid else None
                 if display_data_channel:
                     return BoundFilteredData(self, specifier, display_data_channel)
             elif specifier_type == "structure":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                data_structure = self.get_data_structure_by_uuid(object_uuid)
+                data_structure = computation._get_related_item(object_uuid) if object_uuid else None
                 if data_structure:
                     return BoundDataStructure(self, specifier, data_structure, property_name)
             elif specifier_type == "graphic":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                graphic = self.get_graphic_by_uuid(object_uuid)
+                graphic = computation._get_related_item(object_uuid) if object_uuid else None
                 if graphic:
                     return BoundGraphic(self, specifier, graphic, property_name)
 
@@ -2091,11 +2108,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         project.append_connection(connection)
 
     def insert_connection(self, before_index: int, connection: Connection.Connection, *, project: Project.Project = None) -> None:
-        uuid_order = list(connection.uuid for connection in self.__connections)
+        uuid_order = save_item_order(self.__connections)
         self.append_connection(connection, project=project)
-        uuid_order.insert(before_index, connection.uuid)
-        connection_map = {connection.uuid: connection for connection in self.__connections}
-        self.__connections = [connection_map[connection_uuid] for connection_uuid in uuid_order]
+        uuid_order.insert(before_index, (Project.get_project_for_item(connection), connection.uuid))
+        self.__connections = restore_item_order("connections", self.profile.projects, uuid_order)
 
     def remove_connection(self, connection: Connection.Connection) -> None:
         connection.container.remove_connection(connection)
@@ -2125,11 +2141,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         project.append_data_structure(data_structure)
 
     def insert_data_structure(self, before_index: int, data_structure: DataStructure.DataStructure, *, project: Project.Project = None) -> None:
-        uuid_order = list(data_structure.uuid for data_structure in self.__data_structures)
+        uuid_order = save_item_order(self.__data_structures)
         self.append_data_structure(data_structure, project=project)
-        uuid_order.insert(before_index, data_structure.uuid)
-        data_structure_map = {data_structure.uuid: data_structure for data_structure in self.__data_structures}
-        self.__data_structures = [data_structure_map[data_structure_uuid] for data_structure_uuid in uuid_order]
+        uuid_order.insert(before_index, (Project.get_project_for_item(data_structure), data_structure.uuid))
+        self.__data_structures = restore_item_order("data_structures", self.profile.projects, uuid_order)
 
     def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> typing.Optional[typing.Sequence]:
         return self.__cascade_delete(data_structure)
@@ -2159,8 +2174,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__data_structure_listeners.pop(data_structure, None)
         # transactions
         self.__transaction_manager._remove_item(data_structure)
-        # notifications
         index = self.__data_structures.index(data_structure)
+        # notifications
         self.notify_remove_item("data_structures", data_structure, index)
         # remove from internal list
         self.__data_structures.remove(data_structure)
@@ -2184,7 +2199,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             elif computation:
                 computation.source = data_item
                 computation.create_output_item("target", Symbolic.make_item(data_item))
-                self.append_computation(computation)
+                self.append_computation(computation, project=Project.get_project_for_item(data_item))
             elif old_computation:
                 # remove old computation without cascade (it would delete this data item itself)
                 old_computation.valid = False
@@ -2193,6 +2208,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 self.__data_item_computation_changed(data_item, old_computation, computation)
 
     def append_computation(self, computation: Symbolic.Computation, *, project: Project.Project = None) -> None:
+        project = project or self.__profile.target_project_for_item(computation)
+        computation.project = project  # tell the computation where it will end up so get related item works
         # input/output bookkeeping
         input_items = computation.get_preliminary_input_items(functools.partial(self.resolve_object_specifier, computation))
         output_items = computation.get_preliminary_output_items(functools.partial(self.resolve_object_specifier, computation))
@@ -2204,15 +2221,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__get_deep_dependent_item_set(output, output_set)
         if input_set.intersection(output_set):
             raise Exception("Computation would result in duplicate dependency.")
-        project = project or self.__profile.target_project_for_item(computation)
         project.append_computation(computation)
 
     def insert_computation(self, before_index: int, computation: Symbolic.Computation, *, project: Project.Project = None) -> None:
-        uuid_order = list(computation.uuid for computation in self.__computations)
+        uuid_order = save_item_order(self.__computations)
         self.append_computation(computation, project=project)
-        uuid_order.insert(before_index, computation.uuid)
-        computation_map = {computation.uuid: computation for computation in self.__computations}
-        self.__computations = [computation_map[computation_uuid] for computation_uuid in uuid_order]
+        uuid_order.insert(before_index, (Project.get_project_for_item(computation), computation.uuid))
+        self.__computations = restore_item_order("computations", self.profile.projects, uuid_order)
 
     def remove_computation(self, computation: Symbolic.Computation, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         return self.__cascade_delete(computation, safe=safe)
@@ -2513,7 +2528,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         project = None
         for display_item, region in inputs:
-            input_project = self.__profile.target_project_for_item(display_item)
+            input_project = Project.get_project_for_item(display_item)
             if project and input_project != project:
                 project = None
                 break

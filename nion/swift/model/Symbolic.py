@@ -611,9 +611,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.variable_removed_event = Event.Event()
         self.is_initial_computation_complete = threading.Event()  # helpful for waiting for initial computation
         self._evaluation_count_for_test = 0
-        self.target_output = None
         self._inputs = set()  # used by document model for tracking dependencies
         self._outputs = set()
+        self.project = None  # used for new computations to tell them where they'll end up
 
     def close(self) -> None:
         self.__source_proxy.close()
@@ -667,6 +667,14 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
+
+    # override this so it can be short circuited if self.project is available.
+    # this is used to check inputs/outputs for circular dependencies before the computation is added to the project.
+    def _get_related_item(self, item_uuid: uuid.UUID) -> typing.Optional[Persistence.PersistentObject]:
+        related_item = super()._get_related_item(item_uuid)
+        if related_item is None and self.project:
+            related_item = self.project._get_related_item(item_uuid)
+        return related_item
 
     @property
     def source(self):

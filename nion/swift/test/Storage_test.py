@@ -759,7 +759,7 @@ class TestStorageClass(unittest.TestCase):
             data_item_uuid = data_item.uuid
             document_model.remove_data_item(data_item, safe=True)
             self.assertEqual(0, len(document_model.data_items))
-            document_model.restore_data_item(data_item_uuid)
+            document_model.restore_data_item(document_model.profile.projects[0], data_item_uuid)
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
 
@@ -774,7 +774,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 self.assertEqual(0, len(document_model.data_items))
-                document_model.restore_data_item(data_item_uuid)
+                document_model.restore_data_item(document_model.profile.projects[0], data_item_uuid)
                 self.assertEqual(1, len(document_model.data_items))
                 self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
 
@@ -787,7 +787,7 @@ class TestStorageClass(unittest.TestCase):
                 data_item_uuid = data_item.uuid
                 document_model.remove_data_item(data_item, safe=True)
                 self.assertEqual(0, len(document_model.data_items))
-                document_model.restore_data_item(data_item_uuid)
+                document_model.restore_data_item(document_model.profile.projects[0], data_item_uuid)
                 self.assertEqual(1, len(document_model.data_items))
                 self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
 
@@ -805,7 +805,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 self.assertEqual(0, len(document_model.data_items))
-                document_model.restore_data_item(data_item_uuid)
+                document_model.restore_data_item(document_model.profile.projects[0], data_item_uuid)
                 self.assertEqual(1, len(document_model.data_items))
                 self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
 
