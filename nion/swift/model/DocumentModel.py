@@ -1684,7 +1684,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 return computation
         return None
 
-    def resolve_object_specifier(self, specifier: dict, secondary_specifier: dict=None, property_name: str=None):
+    def resolve_object_specifier(self, computation: Symbolic.Computation, specifier: dict, secondary_specifier: dict=None, property_name: str=None):
 
         if specifier and specifier.get("version") == 1:
             specifier_type = specifier["type"]
@@ -2194,8 +2194,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def append_computation(self, computation: Symbolic.Computation, *, project: Project.Project = None) -> None:
         # input/output bookkeeping
-        input_items = computation.get_preliminary_input_items(self.resolve_object_specifier)
-        output_items = computation.get_preliminary_output_items(self.resolve_object_specifier)
+        input_items = computation.get_preliminary_input_items(functools.partial(self.resolve_object_specifier, computation))
+        output_items = computation.get_preliminary_output_items(functools.partial(self.resolve_object_specifier, computation))
         input_set = set()
         for input in input_items:
             self.__get_deep_dependent_item_set(input, input_set)

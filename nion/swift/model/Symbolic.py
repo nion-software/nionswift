@@ -78,13 +78,13 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         # self.specifier = None
         self.bound_item = None
 
-    def bind(self, resolve_object_specifier):
+    def bind(self, resolve_object_specifier_fn):
         if self.specifier:
-            self.bound_item = resolve_object_specifier(self.specifier)
+            self.bound_item = resolve_object_specifier_fn(self.specifier)
             if self.bound_item:
                 self.__needs_rebind_event_listeners.append(self.bound_item.needs_rebind_event.listen(self.__unbind))
         elif self.specifiers is not None:
-            bound_items = [resolve_object_specifier(specifier) for specifier in self.specifiers]
+            bound_items = [resolve_object_specifier_fn(specifier) for specifier in self.specifiers]
             bound_items = [bound_item for bound_item in bound_items if bound_item is not None]
             for bound_item in bound_items:
                 self.__needs_rebind_event_listeners.append(bound_item.needs_rebind_event.listen(self.__unbind))
@@ -473,7 +473,7 @@ class ComputationContext:
         self.__computation = weakref.ref(computation)
         self.__context = context
 
-    def resolve_object_specifier(self, object_specifier, secondary_specifier=None, property_name=None):
+    def resolve_object_specifier(self, computation: "Computation", object_specifier, secondary_specifier=None, property_name=None):
         """Resolve the object specifier.
 
         First lookup the object specifier in the enclosing computation. If it's not found,
@@ -482,7 +482,7 @@ class ComputationContext:
         """
         variable = self.__computation().resolve_variable(object_specifier)
         if not variable:
-            return self.__context.resolve_object_specifier(object_specifier, secondary_specifier, property_name)
+            return self.__context.resolve_object_specifier(computation, object_specifier, secondary_specifier, property_name)
         elif variable.specifier is None:
             return variable.bound_variable
         return None
@@ -761,7 +761,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def insert_item_into_objects(self, name: str, index: int, input_item: ComputationItem) -> None:
         variable = self._get_variable(name)
         specifier = DataStructure.get_object_specifier(input_item.item, input_item.type)
-        variable.bound_items_model.insert_item(index, self.__computation_context.resolve_object_specifier(specifier))
+        variable.bound_items_model.insert_item(index, self.__computation_context.resolve_object_specifier(self, specifier))
 
     def list_item_removed(self, object) -> typing.Sequence[dict]:
         # when an item is removed from the library, this method is called for each computation.
@@ -944,7 +944,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def undelete_variable_item(self, name: str, index: int, specifier: typing.Dict) -> None:
         for variable in self.variables:
             if variable.name == name:
-                variable.bound_items_model.insert_item(index, self.__computation_context.resolve_object_specifier(specifier))
+                variable.bound_items_model.insert_item(index, self.__computation_context.resolve_object_specifier(self, specifier))
 
     def __bind_variable(self, variable: ComputationVariable) -> None:
         # bind the variable. the variable has a reference to another object in the library.
@@ -969,12 +969,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         if variable.object_specifiers is not None:
             bound_items = list()
             for object_specifier in variable.object_specifiers:
-                bound_item = self.__computation_context.resolve_object_specifier(object_specifier)
+                bound_item = self.__computation_context.resolve_object_specifier(self, object_specifier)
                 bound_items.append(bound_item)
             variable.connect_items(bound_items)
             variable.bound_item = BoundList(bound_items)
         else:
-            variable.bound_item = self.__computation_context.resolve_object_specifier(variable.variable_specifier, variable.secondary_specifier, variable.property_name)
+            variable.bound_item = self.__computation_context.resolve_object_specifier(self, variable.variable_specifier, variable.secondary_specifier, variable.property_name)
 
     def __unbind_variable(self, variable: ComputationVariable) -> None:
         self.__variable_changed_event_listeners[variable.uuid].close()
@@ -997,7 +997,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
         self.__result_needs_rebind_event_listeners[result.uuid] = result.needs_rebind_event.listen(rebind)
 
-        result.bind(self.__computation_context.resolve_object_specifier)
+        result.bind(functools.partial(self.__computation_context.resolve_object_specifier, self))
 
     def __unbind_result(self, result: ComputationOutput) -> None:
         self.__result_needs_rebind_event_listeners[result.uuid].close()
