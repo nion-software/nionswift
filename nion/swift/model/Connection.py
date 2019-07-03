@@ -48,7 +48,7 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def container(self):
-        return self.__container_weak_ref()
+        return self.__container_weak_ref() if self.__container_weak_ref else None
 
     def prepare_cascade_delete(self) -> typing.List:
         cascade_items = list()

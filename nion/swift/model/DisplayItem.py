@@ -917,7 +917,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def container(self):
-        return self.__container_weak_ref()
+        return self.__container_weak_ref() if self.__container_weak_ref else None
 
     def about_to_close(self):
         self.__disconnect_data_sources()
