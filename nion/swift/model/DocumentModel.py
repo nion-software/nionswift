@@ -728,27 +728,27 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def __project_item_inserted(self, project: Project.Project, name: str, item, before_index: int) -> None:
         if name == "data_items":
-            self.__handle_data_item_inserted(item)
+            self.__handle_data_item_inserted(project, item)
         elif name == "display_items":
-            self.__handle_display_item_inserted(item)
+            self.__handle_display_item_inserted(project, item)
         elif name == "data_structures":
-            self.__handle_data_structure_inserted(item)
+            self.__handle_data_structure_inserted(project, item)
         elif name == "computations":
-            self.__handle_computation_inserted(item)
+            self.__handle_computation_inserted(project, item)
         elif name == "connections":
-            self.__handle_connection_inserted(item)
+            self.__handle_connection_inserted(project, item)
 
     def __project_item_removed(self, project: Project.Project, name: str, item, index: int) -> None:
         if name == "data_items":
-            self.__handle_data_item_removed(item)
+            self.__handle_data_item_removed(project, item)
         elif name == "display_items":
-            self.__handle_display_item_removed(item)
+            self.__handle_display_item_removed(project, item)
         elif name == "data_structures":
-            self.__handle_data_structure_removed(item)
+            self.__handle_data_structure_removed(project, item)
         elif name == "computations":
-            self.__handle_computation_removed(item)
+            self.__handle_computation_removed(project, item)
         elif name == "connections":
-            self.__handle_connection_removed(item)
+            self.__handle_connection_removed(project, item)
 
     def __project_inserted(self, project: Project.Project, before_index: int) -> None:
         self.__project_item_inserted_listeners.insert(before_index, project.item_inserted_event.listen(functools.partial(self.__project_item_inserted, project)))
@@ -835,10 +835,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.set_data_item_computation(data_item_copy, computation_copy)
         return data_item_copy
 
-    def __handle_data_item_inserted(self, data_item: DataItem.DataItem) -> None:
+    def __handle_data_item_inserted(self, project: Project.Project, data_item: DataItem.DataItem) -> None:
         assert data_item is not None
         assert data_item not in self.data_items
-        assert data_item.uuid not in self.__uuid_to_data_item
+        # assert data_item.uuid not in self.__uuid_to_data_item
         # data item bookkeeping
         data_item.set_storage_cache(self.storage_cache)
         # insert in internal list
@@ -858,7 +858,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__rebind_computations()  # rebind any unresolved that may now be resolved
         self.__transaction_manager._add_item(data_item)
 
-    def __handle_data_item_removed(self, data_item: DataItem.DataItem) -> None:
+    def __handle_data_item_removed(self, project: Project.Project, data_item: DataItem.DataItem) -> None:
         self.__transaction_manager._remove_item(data_item)
         assert data_item.uuid in self.__uuid_to_data_item
         library_computation = self.get_data_item_computation(data_item)
@@ -959,7 +959,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def remove_display_item(self, display_item) -> typing.Optional[typing.Sequence]:
         return self.__cascade_delete(display_item)
 
-    def __handle_display_item_inserted(self, display_item: DisplayItem.DisplayItem) -> None:
+    def __handle_display_item_inserted(self, project: Project.Project, display_item: DisplayItem.DisplayItem) -> None:
         assert display_item is not None
         assert display_item not in self.__display_items
         # data item bookkeeping
@@ -971,7 +971,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.display_item_inserted_event.fire(self, display_item, before_index, False)
         self.notify_insert_item("display_items", display_item, before_index)
 
-    def __handle_display_item_removed(self, display_item: DisplayItem.DisplayItem) -> None:
+    def __handle_display_item_removed(self, project: Project.Project, display_item: DisplayItem.DisplayItem) -> None:
         self.display_item_will_be_removed_event.fire(display_item)
         # remove it from the persistent_storage
         assert display_item is not None
@@ -2100,7 +2100,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def remove_connection(self, connection: Connection.Connection) -> None:
         connection.container.remove_connection(connection)
 
-    def __handle_connection_inserted(self, connection: Connection.Connection) -> None:
+    def __handle_connection_inserted(self, project: Project.Project, connection: Connection.Connection) -> None:
         assert connection is not None
         assert connection not in self.__connections
         # insert in internal list
@@ -2109,7 +2109,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # send notifications
         self.notify_insert_item("connections", connection, before_index)
 
-    def __handle_connection_removed(self, connection: Connection.Connection) -> None:
+    def __handle_connection_removed(self, project: Project.Project, connection: Connection.Connection) -> None:
         # remove it from the persistent_storage
         assert connection is not None
         assert connection in self.__connections
@@ -2134,7 +2134,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> typing.Optional[typing.Sequence]:
         return self.__cascade_delete(data_structure)
 
-    def __handle_data_structure_inserted(self, data_structure: DataStructure.DataStructure) -> None:
+    def __handle_data_structure_inserted(self, project: Project.Project, data_structure: DataStructure.DataStructure) -> None:
         assert data_structure is not None
         assert data_structure not in self.__data_structures
         # insert in internal list
@@ -2150,7 +2150,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # send notifications
         self.notify_insert_item("data_structures", data_structure, before_index)
 
-    def __handle_data_structure_removed(self, data_structure: DataStructure.DataStructure) -> None:
+    def __handle_data_structure_removed(self, project: Project.Project, data_structure: DataStructure.DataStructure) -> None:
         # remove it from the persistent_storage
         assert data_structure is not None
         assert data_structure in self.__data_structures
@@ -2217,7 +2217,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def remove_computation(self, computation: Symbolic.Computation, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
         return self.__cascade_delete(computation, safe=safe)
 
-    def __handle_computation_inserted(self, computation: Symbolic.Computation) -> None:
+    def __handle_computation_inserted(self, project: Project.Project, computation: Symbolic.Computation) -> None:
         assert computation is not None
         assert computation not in self.__computations
         # insert in internal list
@@ -2231,7 +2231,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__computation_changed(computation)  # ensure the initial mutation is reported
         self.notify_insert_item("computations", computation, before_index)
 
-    def __handle_computation_removed(self, computation: Symbolic.Computation) -> None:
+    def __handle_computation_removed(self, project: Project.Project, computation: Symbolic.Computation) -> None:
         # remove it from the persistent_storage
         assert computation is not None
         assert computation in self.__computations
