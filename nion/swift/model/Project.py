@@ -312,3 +312,11 @@ def make_project(profile_context, project_reference: typing.Dict) -> typing.Opti
     if project_storage_system:
         return Project(project_storage_system, project_reference)
     return None
+
+
+def get_project_for_item(item) -> typing.Optional[Project]:
+    if item:
+        if isinstance(item, Project):
+            return item
+        return get_project_for_item(item.container)
+    return None
