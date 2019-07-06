@@ -243,6 +243,7 @@ class Application(UIApplication.Application):
         storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
         storage_system.load_properties()
         cache_path = profile_path.parent / pathlib.Path(profile_path.stem + " Cache").with_suffix(".nscache")
+        logging.getLogger("loader").info(f"Using cache {cache_path}")
         storage_cache = Cache.DbStorageCache(cache_path)
         return Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False), create_new_profile
 
