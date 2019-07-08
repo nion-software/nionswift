@@ -5,6 +5,7 @@ import copy
 import datetime
 import functools
 import gettext
+import logging
 import threading
 import time
 import typing
@@ -1022,7 +1023,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         m = dict()
         data_item_variables = self.__profile.data_item_variables
         for variable, data_item_uuid_str in data_item_variables.items():
-            m[variable] = self.__uuid_to_data_item[uuid.UUID(data_item_uuid_str)]
+            data_item = self.__uuid_to_data_item.get(uuid.UUID(data_item_uuid_str), None)
+            if data_item:
+                m[variable] = data_item
+            else:
+                logging.warning(f"Missing {variable}: {data_item_uuid_str}")
         return m
 
     def __build_cascade(self, item, items: list, dependencies: list) -> None:
