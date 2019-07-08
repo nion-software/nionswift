@@ -3,6 +3,10 @@
 Release Notes
 =============
 
+Version 0.14.6, July 8, 2019
+-----------------------------
+* (2019-07-08) Fix issue loading old libraries (had been inadvertently disabled).
+
 Version 0.14.5, June 27, 2019
 -----------------------------
 * (2019-06-25) Make default display slice after pick processing be 5% to 15%.

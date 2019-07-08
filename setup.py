@@ -5,7 +5,7 @@ import os
 
 setuptools.setup(
     name="nionswift",
-    version="0.14.5",
+    version="0.14.6",
     author="Nion Software",
     author_email="swift@nion.com",
     description="Nion Swift: Scientific Image Processing",

@@ -145,4 +145,4 @@ def create_profile(workspace_dir: pathlib.Path, do_logging: bool, force_create: 
     cache_filename = f"Nion Swift Cache {DataItem.DataItem.storage_version}.nscache"
     cache_path = workspace_dir / cache_filename
     storage_cache = Cache.DbStorageCache(cache_path)
-    return Profile(storage_system=storage_system, storage_cache=storage_cache, ignore_older_files=True), create_new_document
+    return Profile(storage_system=storage_system, storage_cache=storage_cache, ignore_older_files=False), create_new_document
