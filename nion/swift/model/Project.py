@@ -140,6 +140,10 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             return pathlib.Path(self.__storage_system.get_identifier()).parts
 
     @property
+    def legacy_path(self) -> pathlib.Path:
+        return pathlib.Path(self.__storage_system.get_identifier()).parent
+
+    @property
     def project_state(self) -> str:
         return self.__project_state
 
@@ -207,8 +211,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         # first read the library (for deletions) and the library items from the primary storage systems
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")
         properties = self.__storage_system.read_project_properties()  # combines library and data item properties
-        self.__project_version = properties.get("version", 0)
-        if self.__project_version in (FileStorageSystem.PROJECT_VERSION, 2):
+        self.__project_version = properties.get("version", None)
+        if self.__project_version is not None and self.__project_version in (FileStorageSystem.PROJECT_VERSION, 2):
             for item_d in properties.get("data_items", list()):
                 data_item = DataItem.DataItem()
                 data_item.begin_reading()
@@ -247,8 +251,10 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 if not connection.uuid in {connection.uuid for connection in self.connections}:
                     self.load_item("connections", len(self.connections), connection)
             self.__project_state = "loaded"
-        else:
+        elif self.__project_version is not None:
             self.__project_state = "needs_upgrade"
+        else:
+            self.__project_state = "missing"
         self._raw_properties = properties
 
     def append_data_item(self, data_item: DataItem.DataItem) -> None:
@@ -311,6 +317,18 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.__storage_system.load_properties()
         self.update_storage_system()  # reload the properties
         self.read_project()
+
+    def unmount(self) -> None:
+        while len(self.connections) > 0:
+            self.unload_item("connections", len(self.connections) - 1)
+        while len(self.computations) > 0:
+            self.unload_item("computations", len(self.computations) - 1)
+        while len(self.data_structures) > 0:
+            self.unload_item("data_structures", len(self.data_structures) - 1)
+        while len(self.display_items) > 0:
+            self.unload_item("display_items", len(self.display_items) - 1)
+        while len(self.data_items) > 0:
+            self.unload_item("data_items", len(self.data_items) - 1)
 
 
 def data_item_factory(lookup_id):

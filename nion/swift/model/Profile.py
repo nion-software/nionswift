@@ -94,6 +94,17 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         # connect the listener
         self.__projects_selection_changed_event_listener = self.projects_selection.changed_event.listen(update_selected_projects_models)
 
+        # define a function to update project selections
+        def projects_changed(property_name: str) -> None:
+            indexes = set()
+            for project in self.selected_projects_model.value:
+                if project in self.projects_model.value:
+                    indexes.add(self.projects_model.value.index(project))
+            self.projects_selection.set_multiple(indexes)
+
+        # update selection when projects change
+        self.__projects_changed_event_listener = self.projects_model.property_changed_event.listen(projects_changed)
+
     @property
     def projects(self) -> typing.List[Project.Project]:
         return self.__projects
@@ -153,6 +164,8 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         # detach project listeners
         self.__projects_selection_changed_event_listener.close()
         self.__projects_selection_changed_event_listener = None
+        self.__projects_changed_event_listener.close()
+        self.__projects_changed_event_listener = None
         for project in self.__projects:
             project.close()
         self.__container_weak_ref = None
@@ -287,6 +300,48 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         if not self.__work_project:
             logging.getLogger("loader").warning(f"Work project could not be loaded or created.")
+
+    def open_project(self, path: pathlib.Path) -> None:
+        project_reference = None
+        if path.suffix == ".nslib":
+            project_reference = self.add_project_folder(pathlib.Path(path.parent))
+        elif path.suffix == ".nsproj":
+            project_reference = self.add_project_index(path)
+        if project_reference:
+            project = Project.make_project(self.profile_context, project_reference)
+            if project:
+                self.__append_project(project)
+                project.read_project()
+
+    def upgrade_project(self, project: Project) -> None:
+        assert project in self.__projects
+        if project.needs_upgrade:
+            legacy_path = project.legacy_path
+            target_project_path = legacy_path.with_suffix(".nsproj")
+            target_data_path = legacy_path.parent / (str(legacy_path.stem) + " Data")
+            logging.getLogger("loader").info(f"Created new project {target_project_path} {target_data_path}")
+            target_project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": [str(target_data_path.stem)]})
+            target_project_path.write_text(target_project_data_json, "utf-8")
+            new_storage_system = FileStorageSystem.FileProjectStorageSystem(target_project_path)
+            new_storage_system.load_properties()
+            FileStorageSystem.migrate_to_latest(project.project_storage_system, new_storage_system)
+            self.remove_project(project)
+            project_reference = self.add_project_index(target_project_path)
+            new_project = Project.make_project(self.profile_context, project_reference)
+            if new_project:
+                self.__append_project(new_project)
+                new_project.read_project()
+
+    def remove_project(self, project: Project) -> None:
+        if project in self.__projects:
+            project.unmount()
+            project_index = self.__projects.index(project)
+            project_references = self.project_references
+            project_references.pop(project_index)
+            self._set_persistent_property_value("project_references", project_references)
+            self.__projects.remove(project)
+            self.projects_model.value = copy.copy(self.__projects)
+            self.project_removed_event.fire(project, project_index)
 
     @property
     def data_item_variables(self):

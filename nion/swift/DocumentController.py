@@ -223,6 +223,9 @@ class DocumentController(Window.Window):
         self._new_window_action = self._file_menu.add_menu_item(_("New Window"), functools.partial(self.new_window_with_data_item, "library"), key_sequence="new")
         self._close_action = self._file_menu.add_menu_item(_("Close Window"), self.request_close, key_sequence="close")
         self._file_menu.add_separator()
+        self._add_project_action = self._file_menu.add_menu_item(_("Open Project"), self.__handle_open_project)
+        self._migrate_project_action = self._file_menu.add_menu_item(_("Upgrade Project"), self.__handle_upgrade_project)
+        self._remove_project_action = self._file_menu.add_menu_item(_("Remove Project"), self.__handle_remove_project)
         self._file_menu.add_separator()
         self._import_folder_action = self._file_menu.add_menu_item(_("Import Folder..."), self.__import_folder)
         self._import_action = self._file_menu.add_menu_item(_("Import Data..."), self.import_file)
@@ -852,6 +855,22 @@ class DocumentController(Window.Window):
     def new_window_with_data_item(self, workspace_id, display_item=None):
         # hack to work around Application <-> DocumentController interdependency.
         self.create_new_document_controller_event.fire(self.document_model, workspace_id, display_item)
+
+    def __handle_open_project(self) -> None:
+        filter = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
+        import_dir = self.ui.get_persistent_string("open_directory", self.ui.get_document_location())
+        paths, selected_filter, selected_directory = self.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter)
+        self.ui.set_persistent_string("open_directory", selected_directory)
+        if len(paths) == 1:
+            self.document_model.profile.open_project(pathlib.Path(paths[0]))
+
+    def __handle_upgrade_project(self) -> None:
+        for project in self.document_model.profile.selected_projects_model.value:
+            self.document_model.profile.upgrade_project(project)
+
+    def __handle_remove_project(self) -> None:
+        for project in self.document_model.profile.selected_projects_model.value:
+            self.document_model.profile.remove_project(project)
 
     def __import_folder(self):
         documents_dir = self.ui.get_document_location()
