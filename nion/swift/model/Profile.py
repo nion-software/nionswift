@@ -43,6 +43,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
         self.define_property("project_references", list())
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("closed_items", list())
 
         self.project_inserted_event = Event.Event()
         self.project_removed_event = Event.Event()
