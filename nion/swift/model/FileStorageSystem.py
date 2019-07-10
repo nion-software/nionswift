@@ -62,12 +62,19 @@ class DataItemStorageAdapter:
         return self.__storage_handler.read_data()
 
 
-def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem") -> None:
+def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem",
+                      target_project_storage_system: "ProjectStorageSystem" = None) -> None:
+    """Migrate the library data in source to target, upgrading them in the process.
+
+    If target is None, then migration is done in place.
+    """
     library_properties = None
     data_item_uuids = set()
     reader_info_list = list()
     library_updates = dict()
     deletions = list()
+
+    target_project_storage_system = target_project_storage_system or source_project_storage_system
 
     # iterate through migration stages from newest to oldest, reading data items, updating them to the latest
     # version, and copying them to the new library. migration stages are the high level directories representing
@@ -127,7 +134,7 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem") -> 
                     data_item_uuid = uuid.UUID(properties["uuid"])
                     if not data_item_uuid in data_item_uuids:
                         if not str(data_item_uuid) in deletions:
-                            new_reader_info = source_project_storage_system._migrate_data_item(reader_info, index, count)
+                            new_reader_info = target_project_storage_system._migrate_data_item(reader_info, index, count)
                             if new_reader_info:
                                 reader_info_list.append(new_reader_info)
                                 data_item_uuids.add(data_item_uuid)
@@ -169,7 +176,7 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem") -> 
 
     assert library_properties["version"] == PROJECT_VERSION
 
-    source_project_storage_system._migrate_library_properties(library_properties, reader_info_list)
+    target_project_storage_system._migrate_library_properties(library_properties, reader_info_list)
 
 
 class PersistentStorageSystem(Persistence.PersistentStorageInterface):
