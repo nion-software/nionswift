@@ -820,6 +820,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
         # the most recent data to be displayed. should have immediate data available.
         self.__data_and_metadata = None
+        self.__is_composite_data = False
         self.__dimensional_calibrations = None
         self.__intensity_calibration = None
         self.__dimensional_shape = None
@@ -1240,6 +1241,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             self.__scales = 0, 1
             self.__dimensional_shape = None
         self.__data_and_metadata = xdata_list[0] if len(xdata_list) == 1 else None
+        self.__is_composite_data = len(xdata_list) > 1
         self.display_property_changed_event.fire("displayed_dimensional_scales")
         self.display_property_changed_event.fire("displayed_dimensional_calibrations")
         self.display_property_changed_event.fire("displayed_intensity_calibration")
@@ -1624,6 +1626,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         intensity_calibration = self.displayed_intensity_calibration
 
         if data_and_metadata is None or pos is None:
+            if self.__is_composite_data and len(pos) == 1:
+                return u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0])), str()
             return str(), str()
 
         is_sequence = data_and_metadata.is_sequence

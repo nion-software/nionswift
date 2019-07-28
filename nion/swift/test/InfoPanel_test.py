@@ -11,6 +11,7 @@ from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import Panel
 from nion.swift.model import DataItem
+from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.ui import TestUI
@@ -23,6 +24,21 @@ class TestInfoPanelClass(unittest.TestCase):
 
     def tearDown(self):
         pass
+
+    def test_cursor_over_1d_composite_image(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((32,)))
+            data_item2 = DataItem.DataItem(numpy.zeros((32,)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2, False)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
+            display_item.calibration_style_id = "pixels-top-left"
+            p, v = display_item.get_value_and_position_text(display_item.display_data_channel, (25, ))
+            self.assertEqual(p, "25")
+            self.assertEqual(v, "")
 
     def test_cursor_over_1d_data_displays_without_exception(self):
         document_model = DocumentModel.DocumentModel()

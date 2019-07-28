@@ -3,6 +3,10 @@
 Release Notes
 =============
 
+UNRELEASED
+----------
+* (2019-07-28) Fix bug where cursor position would not display on composite line plots.
+
 Version 0.14.6, July 8, 2019
 -----------------------------
 * (2019-07-08) Fix issue loading old libraries (had been inadvertently disabled).

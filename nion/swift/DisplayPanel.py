@@ -1696,10 +1696,15 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             if _test_log_exceptions:
                 import traceback
                 traceback.print_exc()
-        if position_text and value_text:
-            self.__document_controller.cursor_changed([_("Position: ") + position_text, _("Value: ") + value_text])
-        else:
+        position_and_value_text = []
+        if position_text:
+            position_and_value_text.append(_("Position: ") + position_text)
+        if value_text:
+            position_and_value_text.append(_("Value: ") + value_text)
+        if len(position_text) == 0:
             self.__document_controller.cursor_changed(None)
+        else:
+            self.__document_controller.cursor_changed(position_and_value_text)
 
     def drag_graphics(self, graphics):
         display_item = self.display_item
