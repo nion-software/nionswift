@@ -1239,7 +1239,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             self.__intensity_calibration = None
             self.__scales = 0, 1
             self.__dimensional_shape = None
-        self.__data_and_metadata = xdata_list[0] if len(xdata_list) == 1 else None
+        self.__data_and_metadata = xdata_list[0] if len(xdata_list) >= 1 else None
         self.display_property_changed_event.fire("displayed_dimensional_scales")
         self.display_property_changed_event.fire("displayed_dimensional_calibrations")
         self.display_property_changed_event.fire("displayed_intensity_calibration")
@@ -1619,6 +1619,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             return str(value)
 
     def get_value_and_position_text(self, display_data_channel, pos) -> (str, str):
+        print(pos, self.__data_and_metadata)
         data_and_metadata = self.__data_and_metadata
         dimensional_calibrations = self.displayed_dimensional_calibrations
         intensity_calibration = self.displayed_intensity_calibration
