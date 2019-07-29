@@ -814,14 +814,17 @@ class TestDocumentControllerClass(unittest.TestCase):
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(4, len(document_model.data_items))
+            self.assertEqual(4, len(document_model.display_items))
             self.assertListEqual([data_item1, data_item2, data_item3, data_item4], list(document_model.data_items))
             # undo and check
             document_controller.handle_undo()
             self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
             self.assertListEqual([data_item1, data_item4], list(document_model.data_items))
             # redo and check
             document_controller.handle_redo()
             self.assertEqual(4, len(document_model.data_items))
+            self.assertEqual(4, len(document_model.display_items))
             self.assertListEqual(data_item_uuids, [data_item.uuid for data_item in document_model.data_items])
 
     def test_remove_display_items_undo_redo_cycle(self):
