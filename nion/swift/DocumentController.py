@@ -1078,6 +1078,14 @@ class DocumentController(Window.Window):
                 for graphic in graphics:
                     display_item.graphic_selection.add(display_item.graphics.index(graphic))
                 return True
+            if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
+                display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
+                display_item_to_paste = self.document_model.get_display_item_by_uuid(display_item_uuid)
+                data_item_to_paste = display_item_to_paste.data_item if display_item else None
+                if data_item_to_paste:
+                    command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, display_item, data_item_to_paste)
+                    command.perform()
+                    self.push_undo_command(command)
         return False
 
     def handle_delete(self):
@@ -1496,6 +1504,7 @@ class DocumentController(Window.Window):
         display_item = self.selected_display_item
         if display_item:
             if display_item.graphic_selection.has_selection:
+                # copy the graphic on the selected display item
                 graphic_dict_list = list()
                 graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
                 for graphic in graphics:
@@ -1506,6 +1515,11 @@ class DocumentController(Window.Window):
                 graphic_mime_data.set_data_as_string(MimeTypes.GRAPHICS_MIME_TYPE, json_str)
                 self.ui.clipboard_set_mime_data(graphic_mime_data)
                 return True
+            else:
+                # copy the selected display item if graphic is not selected
+                mime_data = self.ui.create_mime_data()
+                mime_data.set_data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE, str(display_item.uuid))
+                self.ui.clipboard_set_mime_data(mime_data)
         return False
 
     def remove_selected_graphics(self) -> None:
