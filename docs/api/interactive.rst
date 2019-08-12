@@ -24,7 +24,8 @@ Interactive scripts must include a ``script_main`` function that looks similar t
         is_confirmed = interactive.confirm_yes_no('Are you ready?')
         if is_confirmed:
             print('Proceeding...')
-            api.show(numpy.ones((16, 16)))
+            data_item = api.library.create_data_item_from_data(numpy.random.randn(16, 16))
+            api.application.document_windows[0].display_data_item(data_item)
 
 The special object ``interactive`` represents functions useful in an interactive environment.
 
