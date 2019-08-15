@@ -951,7 +951,7 @@ class DataPanel(Panel.Panel):
 
         class DisplayItemController:
 
-            def __init__(self, base_title, display_items_model):
+            def __init__(self, base_title, display_items_model, document_controller):
                 self.__base_title = base_title
                 self.__count = 0
                 self.__display_items_model = display_items_model
@@ -974,6 +974,8 @@ class DataPanel(Panel.Panel):
 
                 self.__count = len(self.__display_items_model.display_items)
 
+                self.__active_projects_changed_event_listener = document_controller.active_projects_changed_event.listen(display_items_model.mark_changed)
+
             @property
             def title(self):
                 return self.__base_title + (" (%i)" % self.__count)
@@ -984,10 +986,12 @@ class DataPanel(Panel.Panel):
                 self.__display_item_removed_listener.close()
                 self.__display_item_removed_listener = None
                 self.__display_items_model.close()
+                self.__active_projects_changed_event_listener.close()
+                self.__active_projects_changed_event_listener = None
 
-        all_items_controller = DisplayItemController(_("All"), document_controller.create_display_items_model(None, "all"))
-        live_items_controller = DisplayItemController(_("Live"), document_controller.create_display_items_model(None, "temporary"))
-        latest_items_controller = DisplayItemController(_("Latest Session"), document_controller.create_display_items_model(None, "latest-session"))
+        all_items_controller = DisplayItemController(_("All"), document_controller.create_display_items_model(None, "all"), document_controller)
+        live_items_controller = DisplayItemController(_("Live"), document_controller.create_display_items_model(None, "temporary"), document_controller)
+        latest_items_controller = DisplayItemController(_("Latest Session"), document_controller.create_display_items_model(None, "latest-session"), document_controller)
         self.__item_controllers = [all_items_controller, live_items_controller, latest_items_controller]
 
         self.library_model_controller = LibraryModelController(ui, self.__item_controllers)

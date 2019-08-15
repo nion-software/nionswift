@@ -38,6 +38,7 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
 from nion.ui import Dialog
@@ -100,6 +101,7 @@ class DocumentController(Window.Window):
         self.__filtered_display_items_model = ListModel.FilteredListModel(items_key="display_items", container=self.__display_items_model)
         self.__last_display_filter = ListModel.Filter(True)
         self.filter_changed_event = Event.Event()
+        self.active_projects_changed_event = Event.Event()
 
         self.__update_display_items_model(self.__display_items_model, None, None)
 
@@ -643,20 +645,21 @@ class DocumentController(Window.Window):
         """
 
         with display_items_model.changes():  # change filter and sort together
+            project_filter = self.document_model.profile.project_filter
             if data_group is not None:
                 display_items_model.container = data_group
-                display_items_model.filter = ListModel.Filter(True)
+                display_items_model.filter = ListModel.AndFilter((project_filter, ListModel.Filter(True)))
                 display_items_model.sort_key = None
                 display_items_model.filter_id = None
             elif filter_id == "latest-session":
                 display_items_model.container = self.document_model
-                display_items_model.filter = ListModel.EqFilter("session_id", self.document_model.session_id)
+                display_items_model.filter = ListModel.AndFilter((project_filter, ListModel.EqFilter("session_id", self.document_model.session_id)))
                 display_items_model.sort_key = DataItem.sort_by_date_key
                 display_items_model.sort_reverse = True
                 display_items_model.filter_id = filter_id
             elif filter_id == "temporary":
                 display_items_model.container = self.document_model
-                display_items_model.filter = ListModel.NotEqFilter("category", "persistent")
+                display_items_model.filter = ListModel.AndFilter((project_filter, ListModel.NotEqFilter("category", "persistent")))
                 display_items_model.sort_key = DataItem.sort_by_date_key
                 display_items_model.sort_reverse = True
                 display_items_model.filter_id = filter_id
@@ -668,13 +671,13 @@ class DocumentController(Window.Window):
                 display_items_model.filter_id = filter_id
             elif filter_id == "none":  # not intended to be used directly
                 display_items_model.container = self.document_model
-                display_items_model.filter = ListModel.Filter(False)
+                display_items_model.filter = ListModel.AndFilter((project_filter, ListModel.Filter(False)))
                 display_items_model.sort_key = DataItem.sort_by_date_key
                 display_items_model.sort_reverse = True
                 display_items_model.filter_id = filter_id
             else:  # "all"
                 display_items_model.container = self.document_model
-                display_items_model.filter = ListModel.Filter(True)
+                display_items_model.filter = project_filter
                 display_items_model.sort_key = DataItem.sort_by_date_key
                 display_items_model.sort_reverse = True
                 display_items_model.filter_id = None
@@ -871,6 +874,11 @@ class DocumentController(Window.Window):
     def __handle_remove_project(self) -> None:
         for project in self.document_model.profile.selected_projects_model.value:
             self.document_model.profile.remove_project(project)
+
+    def toggle_project_active(self, project: Project.Project) -> None:
+        self.document_model.profile.toggle_project_active(project)
+        self.__display_items_model.mark_changed()
+        self.active_projects_changed_event.fire()
 
     def __import_folder(self):
         documents_dir = self.ui.get_document_location()

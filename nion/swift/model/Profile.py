@@ -1,6 +1,7 @@
 # standard libraries
 import copy
 import datetime
+import functools
 import json
 import logging
 import pathlib
@@ -21,6 +22,7 @@ from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
 from nion.utils import Converter
 from nion.utils import Event
+from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import Persistence
@@ -34,6 +36,13 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         self.__container_weak_ref = None
 
+        # handle special case of auto project - make the auto project active
+        project_uuid_str = None
+        active_project_uuids = list()
+        if auto_project:
+            project_uuid_str = str(uuid.uuid4())
+            active_project_uuids = [project_uuid_str]
+
         self.define_root_context()
         self.define_type("profile")
         self.define_relationship("workspaces", WorkspaceLayout.factory)
@@ -44,6 +53,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_property("project_references", list())
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("closed_items", list())
+        self.define_property("active_project_uuids", active_project_uuids)
 
         self.project_inserted_event = Event.Event()
         self.project_removed_event = Event.Event()
@@ -54,7 +64,9 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         if auto_project:
             project_storage_system = FileStorageSystem.MemoryProjectStorageSystem()
             project_storage_system.load_properties()
-            self.__projects = [Project.Project(project_storage_system, {"type": "memory", "uuid": str(uuid.uuid4())})]
+            project = Project.Project(project_storage_system, {"type": "memory", "uuid": project_uuid_str})
+            self.__projects = [project]
+            project.project_uuid_str = project_uuid_str
             self.__work_project = self.__projects[0]
         else:
             self.__projects = list()
@@ -261,7 +273,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             # note: project context is passed for use during testing
             project = Project.make_project(self.profile_context, project_reference)
             if project:
-                self.__append_project(project)
+                self.__append_project(project_reference["uuid"], project)
 
     def read_projects(self) -> None:
         for project in self.__projects:
@@ -295,7 +307,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
                 project = Project.make_project(self.profile_context, work_project_reference)
                 if project:
                     self.add_project_reference(work_project_reference)
-                    self.__append_project(project)
+                    self.__append_project(work_project_reference["uuid"], project)
                     self.work_project_reference_uuid = uuid.UUID(work_project_reference["uuid"])
                     self.__work_project = project
 
@@ -311,7 +323,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         if project_reference:
             project = Project.make_project(self.profile_context, project_reference)
             if project:
-                self.__append_project(project)
+                self.__append_project(project_reference["uuid"], project)
                 project.read_project()
 
     def upgrade_project(self, project: Project) -> None:
@@ -330,7 +342,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             project_reference = self.add_project_index(target_project_path)
             new_project = Project.make_project(self.profile_context, project_reference)
             if new_project:
-                self.__append_project(new_project)
+                self.__append_project(project_reference["uuid"], new_project)
                 new_project.read_project()
 
     def remove_project(self, project: Project) -> None:
@@ -341,8 +353,39 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             project_references.pop(project_index)
             self._set_persistent_property_value("project_references", project_references)
             self.__projects.remove(project)
+            project.project_uuid_str = None
             self.projects_model.value = copy.copy(self.__projects)
             self.project_removed_event.fire(project, project_index)
+
+    def toggle_project_active(self, project: Project.Project) -> None:
+        active_projects = self.active_projects
+        if project in active_projects:
+            active_projects.remove(project)
+        else:
+            active_projects.add(project)
+        self.active_project_uuids = list(project.project_uuid_str for project in active_projects)
+
+    @property
+    def active_projects(self) -> typing.Set[Project.Project]:
+        active_project_uuids = self.active_project_uuids
+        active_projects = set()
+        for project in self.__projects:
+            if project.project_reference.get("uuid", None) in active_project_uuids:
+                active_projects.add(project)
+        return active_projects
+
+    @property
+    def project_filter(self) -> ListModel.Filter:
+
+        def is_display_item_active(profile_weak_ref, display_item: DisplayItem.DisplayItem) -> bool:
+            active_projects = profile_weak_ref().active_projects
+            for project in active_projects:
+                if display_item in project.display_items:
+                    return True
+            return False
+
+        # use a weak reference to avoid circular references loops that prevent garbage collection
+        return ListModel.PredicateFilter(functools.partial(is_display_item_active, weakref.ref(self)))
 
     @property
     def data_item_variables(self):
@@ -372,6 +415,9 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         project_references = self.project_references
         project_references.append(project_reference)
         self._set_persistent_property_value("project_references", project_references)
+        active_project_uuid_strs = set(self.active_project_uuids)
+        active_project_uuid_strs.add(project_reference["uuid"])
+        self.active_project_uuids = list(active_project_uuid_strs)
 
     def add_project_index(self, project_path: pathlib.Path) -> typing.Dict:
         # add a project reference for the project index. does not create or add project.
@@ -394,11 +440,12 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.add_project_reference(project_reference)
         return project_reference
 
-    def __append_project(self, project: Project.Project) -> None:
+    def __append_project(self, project_uuid_str: str, project: Project.Project) -> None:
         self.update_item_context(project)
         project.about_to_be_inserted(self)
         project_index = len(self.__projects)
         self.__projects.append(project)
+        project.project_uuid_str = project_uuid_str
         self.projects_model.value = copy.copy(self.__projects)
         self.project_inserted_event.fire(project, project_index)
 
