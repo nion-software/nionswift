@@ -696,13 +696,18 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         return None
 
     def _prune(self) -> None:
-        trash_dir = self.__project_data_path / "trash"
-        for file_path in trash_dir.rglob("*"):
-            # the date is not a reliable way of determining the age since a user may trash an old file. for now,
-            # we just delete anything in the trash at startup. future version may have an index file for
-            # tracking items in the trash. when items are again retained in the trash, update the disabled
-            # test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload
-            file_path.unlink()
+        if self.__project_data_path:
+            trash_dir = self.__project_data_path / "trash"
+            for file_path in trash_dir.rglob("*"):
+                # the date is not a reliable way of determining the age since a user may trash an old file. for now,
+                # we just delete anything in the trash at startup. future version may have an index file for
+                # tracking items in the trash. when items are again retained in the trash, update the disabled
+                # test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload
+                file_path.unlink()
+
+    @property
+    def _trash_dir(self) -> pathlib.Path:
+        return self.__project_data_path / "trash"
 
     def _migrate_data_item(self, reader_info: ReaderInfo, index: int, count: int) -> typing.Optional[ReaderInfo]:
         storage_handler = reader_info.storage_handler

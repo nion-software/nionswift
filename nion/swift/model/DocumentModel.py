@@ -633,9 +633,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__connections = list()
         self.session_id = None
         self.start_new_session()
-        self.__prune()
         self.__profile.read_profile()
         self.__profile.read_projects()
+        self.__prune()
 
         for data_group in self.data_groups:
             data_group.connect_display_items(self.get_display_item_by_uuid)

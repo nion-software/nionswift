@@ -791,6 +791,20 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(1, len(document_model.data_items))
                 self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
 
+    def test_deleted_file_removed_from_file_storage_system_restores_data_item_after_reload(self):
+        # is established for restoring items in the trash.
+        with create_temp_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16)))
+                document_model.append_data_item(data_item)
+                data_item_uuid = data_item.uuid
+                document_model.remove_data_item(data_item, safe=True)
+            # # read it back
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                self.assertEqual(len(list(document_model.profile.projects[0].project_storage_system._trash_dir.rglob("*"))), 0)
+
     def disabled_test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload(self):
         # this test is disabled for now; launching the application empties the trash until a user interface
         # is established for restoring items in the trash.
