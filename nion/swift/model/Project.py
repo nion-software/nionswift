@@ -1,5 +1,6 @@
 # standard libraries
 import copy
+import functools
 import logging
 import pathlib
 import typing
@@ -13,7 +14,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import FileStorageSystem
-from nion.utils import Event
+from nion.utils import ListModel
 from nion.utils import Observable
 from nion.utils import Persistence
 
@@ -150,6 +151,19 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     @property
     def project_version(self) -> int:
         return self.__project_version
+
+    @property
+    def project_title(self) -> str:
+        return pathlib.Path(self.project_reference_parts[-1]).stem
+
+    @property
+    def project_filter(self) -> ListModel.Filter:
+
+        def is_display_item_active(project_weak_ref, display_item: DisplayItem.DisplayItem) -> bool:
+            return display_item in project_weak_ref().display_items
+
+        # use a weak reference to avoid circular references loops that prevent garbage collection
+        return ListModel.PredicateFilter(functools.partial(is_display_item_active, weakref.ref(self)))
 
     @property
     def project_storage_system(self) -> FileStorageSystem.ProjectStorageSystem:
