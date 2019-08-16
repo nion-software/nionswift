@@ -940,6 +940,48 @@ class DataGroupModelController:
         return True
 
 
+class DisplayItemController:
+
+    def __init__(self, base_title, display_items_model, document_controller):
+        self.__base_title = base_title
+        self.__count = 0
+        self.__display_items_model = display_items_model
+        self.on_title_changed = None
+
+        # not thread safe. must be called on ui thread.
+        def display_item_inserted(key, display_item, before_index):
+            self.__count += 1
+            if self.on_title_changed:
+                document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
+
+        # not thread safe. must be called on ui thread.
+        def display_item_removed(key, display_item, index):
+            self.__count -= 1
+            if self.on_title_changed:
+                document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
+
+        self.__display_item_inserted_listener = self.__display_items_model.item_inserted_event.listen(display_item_inserted)
+        self.__display_item_removed_listener = self.__display_items_model.item_removed_event.listen(display_item_removed)
+
+        self.__count = len(self.__display_items_model.display_items)
+
+        self.__active_projects_changed_event_listener = document_controller.active_projects_changed_event.listen(display_items_model.mark_changed)
+
+    @property
+    def title(self):
+        return self.__base_title + (" (%i)" % self.__count)
+
+    def close(self):
+        self.__display_item_inserted_listener.close()
+        self.__display_item_inserted_listener = None
+        self.__display_item_removed_listener.close()
+        self.__display_item_removed_listener = None
+        self.__display_items_model.close()
+        self.__active_projects_changed_event_listener.close()
+        self.__active_projects_changed_event_listener = None
+        self.on_title_changed = None
+
+
 class DataPanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
@@ -948,46 +990,6 @@ class DataPanel(Panel.Panel):
         ui = document_controller.ui
 
         self.__filter_changed_event_listener = document_controller.filter_changed_event.listen(self.__data_panel_filter_changed)
-
-        class DisplayItemController:
-
-            def __init__(self, base_title, display_items_model, document_controller):
-                self.__base_title = base_title
-                self.__count = 0
-                self.__display_items_model = display_items_model
-                self.on_title_changed = None
-
-                # not thread safe. must be called on ui thread.
-                def display_item_inserted(key, display_item, before_index):
-                    self.__count += 1
-                    if self.on_title_changed:
-                        document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
-
-                # not thread safe. must be called on ui thread.
-                def display_item_removed(key, display_item, index):
-                    self.__count -= 1
-                    if self.on_title_changed:
-                        document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
-
-                self.__display_item_inserted_listener = self.__display_items_model.item_inserted_event.listen(display_item_inserted)
-                self.__display_item_removed_listener = self.__display_items_model.item_removed_event.listen(display_item_removed)
-
-                self.__count = len(self.__display_items_model.display_items)
-
-                self.__active_projects_changed_event_listener = document_controller.active_projects_changed_event.listen(display_items_model.mark_changed)
-
-            @property
-            def title(self):
-                return self.__base_title + (" (%i)" % self.__count)
-
-            def close(self):
-                self.__display_item_inserted_listener.close()
-                self.__display_item_inserted_listener = None
-                self.__display_item_removed_listener.close()
-                self.__display_item_removed_listener = None
-                self.__display_items_model.close()
-                self.__active_projects_changed_event_listener.close()
-                self.__active_projects_changed_event_listener = None
 
         all_items_controller = DisplayItemController(_("All"), document_controller.create_display_items_model(None, "all"), document_controller)
         live_items_controller = DisplayItemController(_("Live"), document_controller.create_display_items_model(None, "temporary"), document_controller)
