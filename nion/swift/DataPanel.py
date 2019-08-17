@@ -992,9 +992,10 @@ class DataPanel(Panel.Panel):
         self.__filter_changed_event_listener = document_controller.filter_changed_event.listen(self.__data_panel_filter_changed)
 
         all_items_controller = DisplayItemController(_("All"), document_controller.create_display_items_model(None, "all"), document_controller)
+        persistent_items_controller = DisplayItemController(_("Persistent"), document_controller.create_display_items_model(None, "persistent"), document_controller)
         live_items_controller = DisplayItemController(_("Live"), document_controller.create_display_items_model(None, "temporary"), document_controller)
         latest_items_controller = DisplayItemController(_("Latest Session"), document_controller.create_display_items_model(None, "latest-session"), document_controller)
-        self.__item_controllers = [all_items_controller, live_items_controller, latest_items_controller]
+        self.__item_controllers = [all_items_controller, persistent_items_controller, live_items_controller, latest_items_controller]
 
         self.library_model_controller = LibraryModelController(ui, self.__item_controllers)
         self.library_model_controller.on_receive_files = self.library_model_receive_files
@@ -1011,10 +1012,12 @@ class DataPanel(Panel.Panel):
                 self.__blocked1 = True
                 try:
                     index = selected_indexes[0][0] if len(selected_indexes) > 0 else -1
-                    if index == 2:
+                    if index == 3:
                         document_controller.set_filter("latest-session")
-                    elif index == 1:
+                    elif index == 2:
                         document_controller.set_filter("temporary")
+                    elif index == 1:
+                        document_controller.set_filter("persistent")
                     else:
                         document_controller.set_filter("all")
                 finally:
@@ -1242,9 +1245,11 @@ class DataPanel(Panel.Panel):
         else:
             self.data_group_widget.clear_current_row()
             if filter_id == "latest-session":
-                self.library_widget.set_current_row(2, -1, 0)  # select the 'latest' group
+                self.library_widget.set_current_row(3, -1, 0)  # select the 'latest' group
             elif filter_id == "temporary":
-                self.library_widget.set_current_row(1, -1, 0)  # select the 'live' group
+                self.library_widget.set_current_row(2, -1, 0)  # select the 'live' group
+            elif filter_id == "persistent":
+                self.library_widget.set_current_row(1, -1, 0)  # select the 'persistent' group
             else:
                 self.library_widget.set_current_row(0, -1, 0)  # select the 'all' group
 

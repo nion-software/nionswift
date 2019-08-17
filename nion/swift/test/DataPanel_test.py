@@ -720,12 +720,11 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             data_panel = document_controller.find_dock_widget("data-panel").panel
             # index, parent_row, parent_id
-            data_panel.library_widget.on_selection_changed([(0, -1, 0)])  # all
+            data_panel.library_widget.on_selection_changed([(1, -1, 0)])  # persistent
             document_controller.periodic()
-            self.assertEqual(2, data_panel.data_list_controller.display_item_adapter_count)
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).data_item, data_item2)
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(1).data_item, data_item1)
-            data_panel.library_widget.on_selection_changed([(1, -1, 0)])  # temp/live
+            self.assertEqual(1, data_panel.data_list_controller.display_item_adapter_count)
+            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).data_item, data_item1)
+            data_panel.library_widget.on_selection_changed([(2, -1, 0)])  # temp/live
             document_controller.periodic()
             self.assertEqual(1, data_panel.data_list_controller.display_item_adapter_count)
             self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).data_item, data_item2)
@@ -742,7 +741,7 @@ class TestDataPanelClass(unittest.TestCase):
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
             data_panel = document_controller.find_dock_widget("data-panel").panel
             # index, parent_row, parent_id
-            data_panel.library_widget.on_selection_changed([(1, -1, 0)])
+            data_panel.library_widget.on_selection_changed([(2, -1, 0)])
             document_controller.periodic()
             document_controller.selected_display_panel.set_display_panel_display_item(display_item1)
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 1)
@@ -775,7 +774,7 @@ class TestDataPanelClass(unittest.TestCase):
             self.assertIn(data_item1, [display_item.data_item for display_item in data_panel.data_list_controller.display_item_adapters])
             self.assertIn(data_item2, [display_item.data_item for display_item in data_panel.data_list_controller.display_item_adapters])
             self.assertIn(data_item3, [display_item.data_item for display_item in data_panel.data_list_controller.display_item_adapters])
-            data_panel.library_widget.on_selection_changed([(2, -1, 0)])
+            data_panel.library_widget.on_selection_changed([(3, -1, 0)])
             document_controller.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 1)
             self.assertIn(data_item1, [display_item.data_item for display_item in data_panel.data_list_controller.display_item_adapters])
@@ -795,13 +794,13 @@ class TestDataPanelClass(unittest.TestCase):
             data_item3.session_id = "20170101-120000"
             data_panel = document_controller.find_dock_widget("data-panel").panel
             # index, parent_row, parent_id
-            data_panel.library_widget.on_selection_changed([(0, -1, 0)])
+            data_panel.library_widget.on_selection_changed([(1, -1, 0)])
             document_controller.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 3)
-            data_panel.library_widget.on_selection_changed([(2, -1, 0)])
+            data_panel.library_widget.on_selection_changed([(3, -1, 0)])
             document_controller.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 1)
-            data_panel.library_widget.on_selection_changed([(0, -1, 0)])
+            data_panel.library_widget.on_selection_changed([(1, -1, 0)])
             document_controller.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 3)
 
@@ -814,13 +813,13 @@ class TestDataPanelClass(unittest.TestCase):
             data_panel = document_controller.find_dock_widget("data-panel").panel
             document_controller.periodic()
             # select temporary items
-            data_panel.library_widget.on_selection_changed([(1, -1, 0)])
+            data_panel.library_widget.on_selection_changed([(2, -1, 0)])
             document_controller.periodic()
             # check assumptions, temporary group selected
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 0)
             self.assertEqual(data_panel.library_widget.parent_id, 0)
             self.assertEqual(data_panel.library_widget.parent_row, -1)
-            self.assertEqual(data_panel.library_widget.index, 1)
+            self.assertEqual(data_panel.library_widget.index, 2)
             # create display panel
             data_panel = document_controller.find_dock_widget("data-panel").panel
             display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
@@ -837,7 +836,7 @@ class TestDataPanelClass(unittest.TestCase):
                 # filter
                 self.assertEqual(data_panel.library_widget.parent_id, 0)
                 self.assertEqual(data_panel.library_widget.parent_row, -1)
-                self.assertEqual(data_panel.library_widget.index, 1)
+                self.assertEqual(data_panel.library_widget.index, 2)
                 # data group
                 self.assertEqual(data_panel.data_group_widget.parent_id, 0)
                 self.assertEqual(data_panel.data_group_widget.parent_row, -1)
