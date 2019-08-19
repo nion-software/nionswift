@@ -1503,6 +1503,28 @@ class DocumentController(Window.Window):
     def copy_selected_graphics(self):
         display_item = self.selected_display_item
         if display_item:
+            mime_data = self.ui.create_mime_data()
+
+            # copy the data item as an svg
+            FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
+
+            def get_font_metrics(_, text):
+                return FontMetrics(width=6.5 * len(text), height=15, ascent=12, descent=3, leading=0)
+
+            if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
+                display_shape = Geometry.IntSize(height=800, width=800)
+            else:
+                display_shape = Geometry.IntSize(height=600, width=800)
+
+            drawing_context, shape = DisplayPanel.preview(get_font_metrics, display_item, display_shape.width,
+                                                          display_shape.height)
+
+            view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
+
+            svg = drawing_context.to_svg(shape, view_box)
+
+            mime_data.set_data_as_string(MimeTypes.SVG_MIME_TYPE, svg)
+
             if display_item.graphic_selection.has_selection:
                 # copy the graphic on the selected display item
                 graphic_dict_list = list()
@@ -1511,15 +1533,14 @@ class DocumentController(Window.Window):
                     graphic_dict_list.append(graphic.mime_data_dict())
                 graphics_dict = {"src_uuid": str(display_item.data_item.uuid), "graphics": graphic_dict_list}
                 json_str = json.dumps(graphics_dict)
-                graphic_mime_data = self.ui.create_mime_data()
-                graphic_mime_data.set_data_as_string(MimeTypes.GRAPHICS_MIME_TYPE, json_str)
-                self.ui.clipboard_set_mime_data(graphic_mime_data)
+                mime_data.set_data_as_string(MimeTypes.GRAPHICS_MIME_TYPE, json_str)
+                self.ui.clipboard_set_mime_data(mime_data)
                 return True
             else:
                 # copy the selected display item if graphic is not selected
-                mime_data = self.ui.create_mime_data()
                 mime_data.set_data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE, str(display_item.uuid))
                 self.ui.clipboard_set_mime_data(mime_data)
+
         return False
 
     def remove_selected_graphics(self) -> None:
