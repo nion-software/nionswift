@@ -167,7 +167,7 @@ installation tools.
 
 For example, you can install the Nion STEM microscope simulator using the either of the following commands::
 
-    $ conda -c nion install nionswift-usim
+    $ conda install -c nion nionswift-usim
 
 or ::
 
