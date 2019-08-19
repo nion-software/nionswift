@@ -6,6 +6,7 @@ import gettext
 import logging
 import pkgutil
 import threading
+import typing
 import uuid
 
 # third party libraries
@@ -967,10 +968,6 @@ class DisplayItemController:
 
         self.__active_projects_changed_event_listener = document_controller.active_projects_changed_event.listen(display_items_model.mark_changed)
 
-    @property
-    def title(self):
-        return self.__base_title + (" (%i)" % self.__count)
-
     def close(self):
         self.__display_item_inserted_listener.close()
         self.__display_item_inserted_listener = None
@@ -980,6 +977,22 @@ class DisplayItemController:
         self.__active_projects_changed_event_listener.close()
         self.__active_projects_changed_event_listener = None
         self.on_title_changed = None
+
+    @property
+    def title(self):
+        return self.__base_title + (" (%i)" % self.__count)
+
+    @property
+    def is_smart_collection(self) -> bool:
+        return not isinstance(self.__display_items_model.container, DataGroup.DataGroup)
+
+    @property
+    def filter_id(self) -> typing.Optional[str]:
+        return self.__display_items_model.filter_id if self.is_smart_collection else None
+
+    @property
+    def data_group(self) -> typing.Optional[DataGroup.DataGroup]:
+        return self.__display_items_model.container if not self.is_smart_collection else None
 
 
 class DataPanel(Panel.Panel):
