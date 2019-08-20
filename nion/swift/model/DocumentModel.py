@@ -913,9 +913,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             display_item = DisplayItem.DisplayItem(data_item=data_item)
             self.append_display_item(display_item, project=project)
 
-    def insert_data_item(self, index: int, data_item: DataItem.DataItem, auto_display: bool = True) -> None:
+    def insert_data_item(self, index: int, data_item: DataItem.DataItem, auto_display: bool = True, *, project: Project.Project = None) -> None:
         uuid_order = save_item_order(self.__data_items)
-        self.append_data_item(data_item, auto_display=auto_display)
+        self.append_data_item(data_item, auto_display=auto_display, project=project)
         uuid_order.insert(index, (Project.get_project_for_item(data_item), data_item.uuid))
         self.__data_items = restore_item_order("data_items", self.profile.projects, uuid_order)
 

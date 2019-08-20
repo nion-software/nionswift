@@ -2260,7 +2260,7 @@ class DocumentController(Window.Window):
 
     class InsertDataItemsCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: "DocumentController", data_items: typing.Sequence[DataItem.DataItem], index: int, display_panel: DisplayPanel.DisplayPanel=None):
+        def __init__(self, document_controller: "DocumentController", data_items: typing.Sequence[DataItem.DataItem], index: int, display_panel: DisplayPanel.DisplayPanel=None, *, project: Project.Project = None):
             super().__init__(_("Insert Data Items"))
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
@@ -2269,6 +2269,7 @@ class DocumentController(Window.Window):
             self.__data_item_index = index
             self.__data_item_indexes = list()
             self.__display_panel = display_panel  # only used in perform
+            self.__project = project
             self.__undelete_logs = None
             self.initialize()
 
@@ -2286,7 +2287,7 @@ class DocumentController(Window.Window):
             index = self.__data_item_index
             for data_item in self.__data_items:
                 if not document_model.get_data_item_by_uuid(data_item.uuid):
-                    document_model.insert_data_item(index, data_item, auto_display=True)
+                    document_model.insert_data_item(index, data_item, auto_display=True, project=self.__project)
                     self.__data_item_indexes.append(index)
                     index += 1
             if self.__display_panel and self.__data_items:
@@ -2316,16 +2317,38 @@ class DocumentController(Window.Window):
                     self.__undelete_logs.append(document_model.remove_data_item(data_item, safe=True))
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
+    def receive_project_files(self, file_paths: typing.Sequence[pathlib.Path], project: Project.Project) -> None:
+        def receive_files_complete(received_data_items):
+            def select_library_all():
+                self.select_data_items_in_data_panel([received_data_items[0]])
+
+            if len(received_data_items) > 0:
+                self.queue_task(select_library_all)
+
+        self.__receive_files(file_paths, completion_fn=receive_files_complete, project=project)
+
     # receive files into the document model. data_group and index can optionally
     # be specified. if data_group is specified, the item is added to an arbitrary
     # position in the document model (the end) and at the group at the position
     # specified by the index. if the data group is not specified, the item is added
     # at the index within the document model.
-    def receive_files(self, file_paths, data_group=None, index=-1, threaded=True, completion_fn=None, display_panel: DisplayPanel.DisplayPanel=None):
+    def receive_files(self, files: typing.Sequence[str], data_group=None, index=-1, threaded=True, completion_fn=None,
+                      display_panel: DisplayPanel.DisplayPanel = None) -> typing.Optional[
+        typing.List[DataItem.DataItem]]:
+        file_paths = [pathlib.Path(file_path) for file_path in files]
+        return self.__receive_files(file_paths, data_group, index, threaded, completion_fn, display_panel)
+
+    def __receive_files(self, file_paths: typing.Sequence[pathlib.Path],
+                        data_group=None,
+                        index=-1,
+                        threaded=True,
+                        completion_fn=None,
+                        display_panel: DisplayPanel.DisplayPanel = None, *,
+                        project: Project.Project = None) -> typing.Optional[typing.List[DataItem.DataItem]]:
         assert index is not None
 
         # this function will be called on a thread to receive files in the background.
-        def receive_files_on_thread(file_paths, data_group, index, completion_fn):
+        def receive_files_on_thread(file_paths: typing.Sequence[pathlib.Path], data_group: typing.Optional[DataGroup.DataGroup], index: int, completion_fn) -> typing.List[DataItem.DataItem]:
 
             received_data_items = list()
 
@@ -2335,16 +2358,16 @@ class DocumentController(Window.Window):
 
                 for file_index, file_path in enumerate(file_paths):
                     data = task_data.setdefault("data", list())
-                    root_path, file_name = os.path.split(file_path)
+                    file_name = file_path.name
                     task_data_entry = [str(file_index + 1), file_name]
                     data.append(task_data_entry)
                     task.update_progress(_("Importing item {}.").format(file_index + 1), (file_index + 1, len(file_paths)), task_data)
                     try:
-                        data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path)
+                        data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, str(file_path))
                         if data_items:
                             received_data_items.extend(data_items)
                     except Exception as e:
-                        logging.debug("Could not read image %s / %s", file_path, str(e))
+                        logging.debug(f"Could not read image {file_path} / {e}")
                         traceback.print_exc()
                         traceback.print_stack()
 
@@ -2362,7 +2385,7 @@ class DocumentController(Window.Window):
                 self.push_undo_command(command)
             else:
                 index = index if index >= 0 else len(self.document_model.data_items)
-                command = DocumentController.InsertDataItemsCommand(self, data_items, index, display_panel)
+                command = DocumentController.InsertDataItemsCommand(self, data_items, index, display_panel, project=project)
                 command.perform()
                 self.push_undo_command(command)
             if callable(completion_fn):

@@ -948,6 +948,8 @@ class DisplayItemController:
         self.__count = 0
         self.__display_items_model = display_items_model
         self.on_title_changed = None
+        self.document_controller = document_controller
+        self.document_model = document_controller.document_model
 
         # not thread safe. must be called on ui thread.
         def display_item_inserted(key, display_item, before_index):
