@@ -1,13 +1,9 @@
 # standard libraries
 import asyncio
 import copy
-import functools
 import gettext
-import logging
 import pkgutil
 import threading
-import typing
-import uuid
 
 # third party libraries
 # None
@@ -16,7 +12,6 @@ import uuid
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Thumbnails
-from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.ui import CanvasItem
@@ -468,13 +463,16 @@ class DataGridController:
             self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item)
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_bar_canvas_item)
-        if False:  # dual scroll bars, leave here for easy testing
-            self.vertical_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
-            self.horizontal_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
-            self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(width=2, height=2))
-            self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item, Geometry.IntPoint(x=0, y=0))
-            self.scroll_group_canvas_item.add_canvas_item(self.vertical_scroll_bar_canvas_item, Geometry.IntPoint(x=1, y=0))
-            self.scroll_group_canvas_item.add_canvas_item(self.horizontal_scroll_bar_canvas_item, Geometry.IntPoint(x=0, y=1))
+
+        """
+        # dual scroll bars, leave here for easy testing
+        self.vertical_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
+        self.horizontal_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
+        self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(width=2, height=2))
+        self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item, Geometry.IntPoint(x=0, y=0))
+        self.scroll_group_canvas_item.add_canvas_item(self.vertical_scroll_bar_canvas_item, Geometry.IntPoint(x=1, y=0))
+        self.scroll_group_canvas_item.add_canvas_item(self.horizontal_scroll_bar_canvas_item, Geometry.IntPoint(x=0, y=1))
+        """
 
         self.canvas_item = self.scroll_group_canvas_item
 
@@ -641,463 +639,12 @@ class DataGridWidget(Widgets.CompositeWidgetBase):
         super().close()
 
 
-class LibraryModelController:
-    """Controller for a list of top level library items."""
-
-    def __init__(self, ui, item_controllers):
-        """
-        item_controllers is a list of objects that have a title property and a on_title_changed callback that gets
-        invoked (on the ui thread) when the title changes externally.
-        """
-        self.ui = ui
-        self.item_model_controller = self.ui.create_item_model_controller(["display"])
-        self.item_model_controller.on_can_drop_mime_data = self.can_drop_mime_data
-        self.item_model_controller.on_item_drop_mime_data = self.item_drop_mime_data
-        self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
-        self.item_model_controller.mime_types_for_drop = ["text/uri-list"]
-        self.on_receive_files = None
-        self.__item_controllers = list()
-        self.__item_count = 0
-        # build the items
-        for item_controller in item_controllers:
-            self.__append_item_controller(item_controller)
-
-    def close(self):
-        self.__item_controllers = None
-        self.item_model_controller.close()
-        self.item_model_controller = None
-        self.on_receive_files = None
-
-    # not thread safe. must be called on ui thread.
-    def __append_item_controller(self, item_controller):
-        parent_item = self.item_model_controller.root
-        self.item_model_controller.begin_insert(self.__item_count, self.__item_count, parent_item.row, parent_item.id)
-        item = self.item_model_controller.create_item()
-        parent_item.insert_child(self.__item_count, item)
-        self.item_model_controller.end_insert()
-        # not thread safe. must be called on ui thread.
-        def title_changed(title):
-            item.data["display"] = title
-            self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
-        item_controller.on_title_changed = title_changed
-        title_changed(item_controller.title)
-        self.__item_controllers.append(item_controller)
-        self.__item_count += 1
-
-    def can_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
-        if mime_data.has_file_paths:
-            return row < 0  # only accept drops ONTO items, not BETWEEN items
-        return False
-
-    def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
-        if mime_data.has_file_paths:
-            if row >= 0:  # only accept drops ONTO items, not BETWEEN items
-                return self.item_model_controller.NONE
-            if callable(self.on_receive_files):
-                if self.on_receive_files(mime_data.file_paths):
-                    return self.item_model_controller.COPY
-        return self.item_model_controller.NONE
-
-
-class DataGroupModelController:
-    """ A tree model of the data groups. this class watches for changes to the data groups contained in the document
-    controller and responds by updating the item model controller associated with the data group tree view widget. it
-    also handles drag and drop and keeps the current selection synchronized with the image panel. """
-
-    def __init__(self, ui, document_controller):
-        self.ui = ui
-        self.__document_controller = document_controller
-        self.__document_model = document_controller.document_model
-        self.item_model_controller = self.ui.create_item_model_controller(["display", "edit"])
-        self.item_model_controller.on_item_set_data = self.item_set_data
-        self.item_model_controller.on_can_drop_mime_data = self.can_drop_mime_data
-        self.item_model_controller.on_item_drop_mime_data = self.item_drop_mime_data
-        self.item_model_controller.on_item_mime_data = self.item_mime_data
-        self.item_model_controller.on_remove_rows = self.remove_rows
-        self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
-        self.item_model_controller.mime_types_for_drop = ["text/uri-list", MimeTypes.DISPLAY_ITEM_MIME_TYPE, MimeTypes.DATA_GROUP_MIME_TYPE]
-        self.__document_model_item_inserted_listener = self.__document_model.item_inserted_event.listen(functools.partial(self.__item_inserted, self.__document_model))
-        self.__document_model_item_removed_listener = self.__document_model.item_removed_event.listen(functools.partial(self.__item_removed, self.__document_model))
-        self.__mapping = { self.__document_model: self.item_model_controller.root }
-        self.on_receive_files = None
-        self.on_item_count_changed = None
-        # add items that already exist
-        self.__data_group_property_changed_listeners = dict()
-        self.__data_group_item_inserted_listeners = dict()
-        self.__data_group_item_removed_listeners = dict()
-        self.__data_group_display_item_inserted_listeners = dict()
-        self.__data_group_display_item_removed_listeners = dict()
-        data_groups = self.__document_model.data_groups
-        for index, data_group in enumerate(data_groups):
-            self.__item_inserted(self.__document_model, "data_groups", data_group, index)
-
-    def close(self):
-        # cheap way to unlisten to everything
-        for object in self.__mapping.keys():
-            if isinstance(object, DataGroup.DataGroup):
-                self.__data_group_display_item_inserted_listeners[object.uuid].close()
-                del self.__data_group_display_item_inserted_listeners[object.uuid]
-                self.__data_group_display_item_removed_listeners[object.uuid].close()
-                del self.__data_group_display_item_removed_listeners[object.uuid]
-                self.__data_group_item_inserted_listeners[object.uuid].close()
-                del self.__data_group_item_inserted_listeners[object.uuid]
-                self.__data_group_item_removed_listeners[object.uuid].close()
-                del self.__data_group_item_removed_listeners[object.uuid]
-                self.__data_group_property_changed_listeners[object.uuid].close()
-                del self.__data_group_property_changed_listeners[object.uuid]
-        self.__document_model_item_inserted_listener.close()
-        self.__document_model_item_inserted_listener = None
-        self.__document_model_item_removed_listener.close()
-        self.__document_model_item_removed_listener = None
-        self.item_model_controller.close()
-        self.item_model_controller = None
-        self.on_receive_files = None
-        self.on_item_count_changed = None
-
-    def log(self, parent_id=-1, indent=""):
-        parent_id = parent_id if parent_id >= 0 else self.item_model_controller.root.id
-        for index, child in enumerate(self.item_model_controller.item_from_id(parent_id).children):
-            value = child.data["display"] if "display" in child.data else "---"
-            logging.debug(indent + str(index) + ": (" + str(child.id) + ") " + value)
-            self.log(child.id, indent + "  ")
-
-    def __get_display_item_count_flat(self, container) -> int:
-        return get_display_item_count_flat(self.__document_model, container)
-
-    # this message is received when a display item is inserted into one of the
-    # groups we're observing.
-    def __item_inserted(self, container, key, object, before_index):
-        if key == "data_groups":
-            # manage the item model
-            parent_item = self.__mapping[container]
-            self.item_model_controller.begin_insert(before_index, before_index, parent_item.row, parent_item.id)
-            count = self.__get_display_item_count_flat(object)
-            properties = {
-                "display": str(object) + (" (%i)" % count),
-                "edit": object.title,
-                "data_group": object
-            }
-            item = self.item_model_controller.create_item(properties)
-            parent_item.insert_child(before_index, item)
-            self.__mapping[object] = item
-            def property_changed(key):
-                if key == "title":
-                    self.__update_item_count(object)
-            self.__data_group_property_changed_listeners[object.uuid] = object.property_changed_event.listen(property_changed)
-            self.__data_group_item_inserted_listeners[object.uuid] = object.item_inserted_event.listen(functools.partial(self.__item_inserted, object))
-            self.__data_group_item_removed_listeners[object.uuid] = object.item_removed_event.listen(functools.partial(self.__item_removed, object))
-            self.__data_group_display_item_inserted_listeners[object.uuid] = object.display_item_inserted_event.listen(self.__display_item_inserted)
-            self.__data_group_display_item_removed_listeners[object.uuid] = object.display_item_removed_event.listen(self.__display_item_removed)
-            self.item_model_controller.end_insert()
-            # recursively insert items that already exist
-            data_groups = object.data_groups
-            for index, child_data_group in enumerate(data_groups):
-                self.__item_inserted(object, "data_groups", child_data_group, index)
-            if callable(self.on_item_count_changed):
-                self.on_item_count_changed()
-
-    # this message is received when a display item is removed from one of the
-    # groups we're observing.
-    def __item_removed(self, container, key, object, index):
-        if key == "data_groups":
-            assert isinstance(object, DataGroup.DataGroup)
-            # get parent and item
-            parent_item = self.__mapping[container]
-            # manage the item model
-            self.item_model_controller.begin_remove(index, index, parent_item.row, parent_item.id)
-            self.__data_group_display_item_inserted_listeners[object.uuid].close()
-            del self.__data_group_display_item_inserted_listeners[object.uuid]
-            self.__data_group_display_item_removed_listeners[object.uuid].close()
-            del self.__data_group_display_item_removed_listeners[object.uuid]
-            self.__data_group_item_inserted_listeners[object.uuid].close()
-            del self.__data_group_item_inserted_listeners[object.uuid]
-            self.__data_group_item_removed_listeners[object.uuid].close()
-            del self.__data_group_item_removed_listeners[object.uuid]
-            self.__data_group_property_changed_listeners[object.uuid].close()
-            del self.__data_group_property_changed_listeners[object.uuid]
-            parent_item.remove_child(parent_item.children[index])
-            self.__mapping.pop(object)
-            self.item_model_controller.end_remove()
-            if callable(self.on_item_count_changed):
-                self.on_item_count_changed()
-
-    def __update_item_count(self, data_group):
-        assert isinstance(data_group, DataGroup.DataGroup)
-        count = self.__get_display_item_count_flat(data_group)
-        item = self.__mapping[data_group]
-        item.data["display"] = str(data_group) + (" (%i)" % count)
-        item.data["edit"] = data_group.title
-        self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
-
-    # this method if called when one of our listened to data groups changes
-    def __display_item_inserted(self, container, display_item, before_index, moving):
-        self.__update_item_count(container)
-
-    # this method if called when one of our listened to data groups changes
-    def __display_item_removed(self, container, display_item, index, moving):
-        self.__update_item_count(container)
-
-    def item_set_data(self, data, index, parent_row, parent_id):
-        data_group = self.item_model_controller.item_value("data_group", index, parent_id)
-        if data_group:
-            command = self.__document_controller.create_rename_data_group_command(data_group, title=data)
-            command.perform()
-            self.__document_controller.push_undo_command(command)
-            return True
-        return False
-
-    def get_data_group(self, index, parent_row, parent_id):
-        return self.item_model_controller.item_value("data_group", index, parent_id)
-
-    def get_data_group_of_parent(self, parent_row, parent_id):
-        parent_item = self.item_model_controller.item_from_id(parent_id)
-        return parent_item.data["data_group"] if "data_group" in parent_item.data else None
-
-    def get_data_group_index(self, data_group):
-        item = None
-        data_group_item = self.__mapping.get(data_group)
-        parent_item = data_group_item.parent if data_group_item else self.item_model_controller.root
-        assert parent_item is not None
-        for child in parent_item.children:
-            child_data_group = child.data.get("data_group")
-            if child_data_group == data_group:
-                item = child
-                break
-        if item:
-            return item.row, item.parent.row, item.parent.id
-        else:
-            return -1, -1, 0
-
-    def can_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
-        data_group = self.get_data_group_of_parent(parent_row, parent_id)
-        if data_group and mime_data.has_file_paths:
-            return row < 0  # only accept drops ONTO items, not BETWEEN items
-        if data_group and (mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE)):
-            if row >= 0:  # only accept drops ONTO items, not BETWEEN items
-                return False
-            # if the display item exists in this document, then it is copied to the
-            # target group. if it doesn't exist in this document, then it is coming
-            # from another document and can't be handled here.
-            display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
-            display_item = self.__document_model.get_display_item_by_uuid(display_item_uuid)
-            if display_item:
-                return True
-            return False
-        if mime_data.has_format(MimeTypes.DATA_GROUP_MIME_TYPE):
-            data_group_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DATA_GROUP_MIME_TYPE))
-            data_group = self.__document_model.get_data_group_by_uuid(data_group_uuid)
-            if data_group:
-                return True
-        return False
-
-    def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
-        data_group = self.get_data_group_of_parent(parent_row, parent_id)
-        container = self.__document_model if parent_row < 0 and parent_id == 0 else data_group
-        if data_group and mime_data.has_file_paths:
-            if row >= 0:  # only accept drops ONTO items, not BETWEEN items
-                return self.item_model_controller.NONE
-            if callable(self.on_receive_files):
-                if self.on_receive_files(mime_data.file_paths, data_group, len(data_group.display_items)):
-                    return self.item_model_controller.COPY
-        if data_group and (mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE)):
-            if row >= 0:  # only accept drops ONTO items, not BETWEEN items
-                return self.item_model_controller.NONE
-            # if the display item exists in this document, then it is copied to the
-            # target group. if it doesn't exist in this document, then it is coming
-            # from another document and can't be handled here.
-            display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
-            display_item = self.__document_model.get_display_item_by_uuid(display_item_uuid)
-            if display_item:
-                command = self.__document_controller.create_insert_data_group_display_item_command(data_group, len(data_group.display_items), display_item)
-                command.perform()
-                self.__document_controller.push_undo_command(command)
-                return action
-            return self.item_model_controller.NONE
-        if mime_data.has_format(MimeTypes.DATA_GROUP_MIME_TYPE):
-            data_group_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DATA_GROUP_MIME_TYPE))
-            data_group = self.__document_model.get_data_group_by_uuid(data_group_uuid)
-            if data_group:
-                data_group_copy = copy.deepcopy(data_group)
-                row = row if row >= 0 else len(container.data_groups)
-                command = self.__document_controller.create_insert_data_group_command(container, row, data_group_copy)
-                command.perform()
-                self.__document_controller.push_undo_command(command)
-                return action
-        return self.item_model_controller.NONE
-
-    def item_mime_data(self, index, parent_row, parent_id):
-        data_group = self.get_data_group(index, parent_row, parent_id)
-        if data_group:
-            mime_data = self.ui.create_mime_data()
-            mime_data.set_data_as_string(MimeTypes.DATA_GROUP_MIME_TYPE, str(data_group.uuid))
-            return mime_data
-        return None
-
-    def remove_rows(self, row, count, parent_row, parent_id):
-        data_group = self.get_data_group_of_parent(parent_row, parent_id)
-        container = self.__document_model if parent_row < 0 and parent_id == 0 else data_group
-        for i in range(count):
-            del container.data_groups[row]
-        return True
-
-
-class DisplayItemController:
-
-    def __init__(self, base_title, display_items_model, document_controller):
-        self.__base_title = base_title
-        self.__count = 0
-        self.__display_items_model = display_items_model
-        self.on_title_changed = None
-        self.document_controller = document_controller
-        self.document_model = document_controller.document_model
-
-        # not thread safe. must be called on ui thread.
-        def display_item_inserted(key, display_item, before_index):
-            self.__count += 1
-            if self.on_title_changed:
-                document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
-
-        # not thread safe. must be called on ui thread.
-        def display_item_removed(key, display_item, index):
-            self.__count -= 1
-            if self.on_title_changed:
-                document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
-
-        self.__display_item_inserted_listener = self.__display_items_model.item_inserted_event.listen(display_item_inserted)
-        self.__display_item_removed_listener = self.__display_items_model.item_removed_event.listen(display_item_removed)
-
-        self.__count = len(self.__display_items_model.display_items)
-
-        self.__active_projects_changed_event_listener = document_controller.active_projects_changed_event.listen(display_items_model.mark_changed)
-
-    def close(self):
-        self.__display_item_inserted_listener.close()
-        self.__display_item_inserted_listener = None
-        self.__display_item_removed_listener.close()
-        self.__display_item_removed_listener = None
-        self.__display_items_model.close()
-        self.__active_projects_changed_event_listener.close()
-        self.__active_projects_changed_event_listener = None
-        self.on_title_changed = None
-
-    @property
-    def title(self):
-        return self.__base_title + (" (%i)" % self.__count)
-
-    @property
-    def is_smart_collection(self) -> bool:
-        return not isinstance(self.__display_items_model.container, DataGroup.DataGroup)
-
-    @property
-    def filter_id(self) -> typing.Optional[str]:
-        return self.__display_items_model.filter_id if self.is_smart_collection else None
-
-    @property
-    def data_group(self) -> typing.Optional[DataGroup.DataGroup]:
-        return self.__display_items_model.container if not self.is_smart_collection else None
-
-
 class DataPanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
         super().__init__(document_controller, panel_id, _("Data Items"))
 
         ui = document_controller.ui
-
-        self.__filter_changed_event_listener = document_controller.filter_changed_event.listen(self.__data_panel_filter_changed)
-
-        all_items_controller = DisplayItemController(_("All"), document_controller.create_display_items_model(None, "all"), document_controller)
-        persistent_items_controller = DisplayItemController(_("Persistent"), document_controller.create_display_items_model(None, "persistent"), document_controller)
-        live_items_controller = DisplayItemController(_("Live"), document_controller.create_display_items_model(None, "temporary"), document_controller)
-        latest_items_controller = DisplayItemController(_("Latest Session"), document_controller.create_display_items_model(None, "latest-session"), document_controller)
-        self.__item_controllers = [all_items_controller, persistent_items_controller, live_items_controller, latest_items_controller]
-
-        self.library_model_controller = LibraryModelController(ui, self.__item_controllers)
-        self.library_model_controller.on_receive_files = self.library_model_receive_files
-
-        self.data_group_model_controller = DataGroupModelController(ui, document_controller)
-        self.data_group_model_controller.on_receive_files = lambda file_paths, data_group, index: self.data_group_model_receive_files(file_paths, data_group, index)
-
-        self.__blocked1 = False
-        self.__blocked2 = False
-
-        def library_widget_selection_changed(selected_indexes):
-            # this message comes from the collection tree widget when the selection changes
-            if not self.__blocked1:
-                self.__blocked1 = True
-                try:
-                    index = selected_indexes[0][0] if len(selected_indexes) > 0 else -1
-                    if index == 3:
-                        document_controller.set_filter("latest-session")
-                    elif index == 2:
-                        document_controller.set_filter("temporary")
-                    elif index == 1:
-                        document_controller.set_filter("persistent")
-                    else:
-                        document_controller.set_filter("all")
-                finally:
-                    self.__blocked1 = False
-
-        self.library_widget = ui.create_tree_widget()
-        self.library_widget.item_model_controller = self.library_model_controller.item_model_controller
-        self.library_widget.on_selection_changed = library_widget_selection_changed
-        self.library_widget.on_focus_changed = lambda focused: setattr(self, "focused", focused)
-
-        self.library_model_controller.on_item_count_changed = self.library_widget.size_to_content
-        self.library_widget.size_to_content()
-
-        def data_group_widget_selection_changed(selected_indexes):
-            # this message comes from the data group tree widget when the selection changes
-            if not self.__blocked2:
-                self.__blocked2 = True
-                try:
-                    if len(selected_indexes) > 0:
-                        index, parent_row, parent_id = selected_indexes[0]
-                        data_group = self.data_group_model_controller.get_data_group(index, parent_row, parent_id)
-                    else:
-                        data_group = None
-                    document_controller.set_data_group(data_group)
-                finally:
-                    self.__blocked2 = False
-
-        def data_group_widget_key_pressed(index, parent_row, parent_id, key):
-            if key.is_delete:
-                data_group = self.data_group_model_controller.get_data_group(index, parent_row, parent_id)
-                if data_group:
-                    container = self.data_group_model_controller.get_data_group_of_parent(parent_row, parent_id)
-                    container = container if container else self.document_controller.document_model
-                    self.document_controller.remove_data_group_from_container(data_group, container)
-                return True
-            return False
-
-        self.data_group_widget = ui.create_tree_widget()
-        self.data_group_widget.item_model_controller = self.data_group_model_controller.item_model_controller
-        self.data_group_widget.on_selection_changed = data_group_widget_selection_changed
-        self.data_group_widget.on_item_key_pressed = data_group_widget_key_pressed
-        self.data_group_widget.on_focus_changed = lambda focused: setattr(self, "focused", focused)
-
-        self.data_group_model_controller.on_item_count_changed = self.data_group_widget.size_to_content
-        self.data_group_widget.size_to_content()
-
-        library_label_row = ui.create_row_widget()
-        library_label_row.add_spacing(8)
-        library_label_row.add(ui.create_label_widget(_("Library"), properties={"stylesheet": "font-weight: bold"}))
-        library_label_row.add_stretch()
-
-        collections_label_row = ui.create_row_widget()
-        collections_label_row.add_spacing(8)
-        collections_label_row.add(ui.create_label_widget(_("Collections"), properties={"stylesheet": "font-weight: bold"}))
-        collections_label_row.add_stretch()
-
-        library_section_widget = ui.create_column_widget()
-        library_section_widget.add_spacing(4)
-        library_section_widget.add(library_label_row)
-        library_section_widget.add(self.library_widget)
-        library_section_widget.add_spacing(4)
-        library_section_widget.add(collections_label_row)
-        library_section_widget.add(self.data_group_widget)
-        library_section_widget.add_spacing(4)
-        library_section_widget.add_stretch()
 
         def show_context_menu(display_item_adapter, x, y, gx, gy):
             menu = document_controller.create_context_menu_for_display(display_item_adapter.display_item, use_selection=True)
@@ -1171,7 +718,7 @@ class DataPanel(Panel.Panel):
         search_widget.add_spacing(8)
         search_line_edit = ui.create_line_edit_widget()
         search_line_edit.placeholder_text = _("No Filter")
-        # search_line_edit.clear_button_enabled = True  # Qt 5.3 doesn't signal text edited or editing finished when clearing. useless so disabled.
+        search_line_edit.clear_button_enabled = True  # Qt 5.3 doesn't signal text edited or editing finished when clearing. useless so disabled.
         search_line_edit.on_text_edited = self.document_controller.filter_controller.text_filter_changed
         search_line_edit.on_editing_finished = self.document_controller.filter_controller.text_filter_changed
         search_widget.add(search_line_edit)
@@ -1188,30 +735,18 @@ class DataPanel(Panel.Panel):
         self.__view_button_group.current_index = 0
         self.__view_button_group.on_current_index_changed = lambda index: setattr(self.data_view_widget, "current_index", index)
 
-        slave_widget = ui.create_column_widget()
-        slave_widget.add(self.data_view_widget)
-        slave_widget.add_spacing(6)
-        slave_widget.add(search_widget)
-        slave_widget.add_spacing(6)
+        widget = ui.create_column_widget(properties=properties)
+        widget.add(self.data_view_widget)
+        widget.add_spacing(6)
+        widget.add(search_widget)
+        widget.add_spacing(6)
 
-        self.splitter = ui.create_splitter_widget("vertical", properties)
-        self.splitter.orientation = "vertical"
-        self.splitter.add(library_section_widget)
-        self.splitter.add(slave_widget)
-        self.splitter.set_sizes([1, 9999])  # minimum library section; maximum display item section
-        self.splitter.restore_state("window/v1/data_panel_splitter")
-
-        self.widget = self.splitter
+        self.widget = widget
 
         self._data_list_widget = data_list_widget
         self._data_grid_widget = data_grid_widget
 
-        data_group, filter_id = document_controller.get_data_group_and_filter_id()
-        self.__data_panel_filter_changed(data_group, filter_id)
-
     def close(self):
-        # display items model should not be closed since it isn't created in this object
-        self.splitter.save_state("window/v1/data_panel_splitter")
         # close the widget to stop repainting the widgets before closing the controllers.
         super().close()
         # finish closing
@@ -1219,16 +754,6 @@ class DataPanel(Panel.Panel):
         self.data_list_controller = None
         self.data_grid_controller.close()
         self.data_grid_controller = None
-        # close the item models
-        self.data_group_model_controller.close()
-        self.data_group_model_controller = None
-        for item_controller in self.__item_controllers:
-            item_controller.close()
-        self.library_model_controller.close()
-        self.library_model_controller = None
-        # and the listeners
-        self.__filter_changed_event_listener.close()
-        self.__filter_changed_event_listener = None
         self.__filtered_display_item_adapters_model.close()
         self.__filtered_display_item_adapters_model = None
         # button group
@@ -1251,47 +776,3 @@ class DataPanel(Panel.Panel):
     def focused(self, value):
         self.__focused = value
         self.__notify_focus_changed()
-
-    def __data_panel_filter_changed(self, data_group, filter_id):
-        if data_group:
-            index, parent_row, parent_id = self.data_group_model_controller.get_data_group_index(data_group)
-            self.library_widget.clear_current_row()
-            self.data_group_widget.set_current_row(index, parent_row, parent_id)
-        else:
-            self.data_group_widget.clear_current_row()
-            if filter_id == "latest-session":
-                self.library_widget.set_current_row(3, -1, 0)  # select the 'latest' group
-            elif filter_id == "temporary":
-                self.library_widget.set_current_row(2, -1, 0)  # select the 'live' group
-            elif filter_id == "persistent":
-                self.library_widget.set_current_row(1, -1, 0)  # select the 'persistent' group
-            else:
-                self.library_widget.set_current_row(0, -1, 0)  # select the 'all' group
-
-    def library_model_receive_files(self, file_paths, threaded=True):
-        self.document_controller._register_ui_activity()
-
-        def receive_files_complete(received_data_items):
-            def select_library_all():
-                self.document_controller.select_data_items_in_data_panel([received_data_items[0]])
-            if len(received_data_items) > 0:
-                self.queue_task(select_library_all)
-
-        self.document_controller.receive_files(file_paths, None, -1, threaded, receive_files_complete)
-        return True
-
-    # receive files dropped into the data group.
-    # this message comes from the data group model, which is why it is named the way it is.
-    def data_group_model_receive_files(self, file_paths, data_group, index, threaded=True):
-        def receive_files_complete(received_data_items):
-            def select_data_group_and_data_item():
-                self.document_controller.set_data_group(data_group)
-                self.document_controller.select_data_items_in_data_panel([received_data_items[0]])
-            if len(received_data_items) > 0:
-                if threaded:
-                    self.queue_task(select_data_group_and_data_item)
-                else:
-                    select_data_group_and_data_item()
-
-        self.document_controller.receive_files(file_paths, data_group, index, threaded, receive_files_complete)
-        return True

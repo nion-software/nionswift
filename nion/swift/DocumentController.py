@@ -2317,7 +2317,7 @@ class DocumentController(Window.Window):
                     self.__undelete_logs.append(document_model.remove_data_item(data_item, safe=True))
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
-    def receive_project_files(self, file_paths: typing.Sequence[pathlib.Path], project: Project.Project) -> None:
+    def receive_project_files(self, file_paths: typing.Sequence[pathlib.Path], project: Project.Project, index: int = -1, threaded: bool = True) -> None:
         def receive_files_complete(received_data_items):
             def select_library_all():
                 self.select_data_items_in_data_panel([received_data_items[0]])
@@ -2325,7 +2325,7 @@ class DocumentController(Window.Window):
             if len(received_data_items) > 0:
                 self.queue_task(select_library_all)
 
-        self.__receive_files(file_paths, completion_fn=receive_files_complete, project=project)
+        self.__receive_files(file_paths, index=index, threaded=threaded, completion_fn=receive_files_complete, project=project)
 
     # receive files into the document model. data_group and index can optionally
     # be specified. if data_group is specified, the item is added to an arbitrary
