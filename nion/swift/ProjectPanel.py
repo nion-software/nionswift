@@ -163,7 +163,15 @@ class TreeModel:
         # update the first time
         self.__update_model()
 
+        def profile_property_changed(key: str) -> None:
+            if key == "work_project":
+                self.property_changed_event.fire("value")
+
+        self.__profile_property_changed_event_listener = self.document_controller.document_model.profile.property_changed_event.listen(profile_property_changed)
+
     def close(self) -> None:
+        self.__profile_property_changed_event_listener.close()
+        self.__profile_property_changed_event_listener = None
         self.__listener.close()
         self.__projects_model = None
         self.document_controller = None

@@ -130,6 +130,17 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
     def work_project(self) -> typing.Optional[Project.Project]:
         return self.__work_project
 
+    def set_work_project(self, project: Project.Project) -> None:
+        if project != self.__work_project:
+            if any(data_item.is_live for data_item in self.__work_project.data_items):
+                raise Exception("Work project contains live items.")
+            if any(display_item.is_live for display_item in self.__work_project.display_items):
+                raise Exception("Work project contains live items.")
+            assert project.project_uuid_str is not None
+            self.work_project_reference_uuid = project.project_uuid_str
+            self.__work_project = project
+            self.property_changed_event.fire("work_project")
+
     def target_project_for_item(self, item) -> typing.Optional[Project.Project]:
 
         def get_item_project(item) -> typing.Optional[Project.Project]:
