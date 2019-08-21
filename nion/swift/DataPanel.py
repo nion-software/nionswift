@@ -70,6 +70,7 @@ class DisplayItemAdapter:
             (property, read-only) datetime_str
             (property, read-only) format_str
             (property, read-only) status_str
+            (property, read-only) project_str
             (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
             (event) needs_update_event
     """
@@ -143,6 +144,10 @@ class DisplayItemAdapter:
     def status_str(self) -> str:
         return self.__display_item.status_str if self.__display_item else str()
 
+    @property
+    def project_str(self) -> str:
+        return self.__display_item.project_str if self.__display_item else str()
+
     def drag_started(self, ui, x, y, modifiers):
         if self.__display_item:
             mime_data = self.ui.create_mime_data()
@@ -162,7 +167,11 @@ class DisplayItemAdapter:
             drawing_context.fill_text(self.title_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12)
             drawing_context.fill_text(self.format_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15)
             drawing_context.fill_text(self.datetime_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15)
-            drawing_context.fill_text(self.status_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
+            if self.status_str:
+                drawing_context.fill_text(self.status_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
+            else:
+                drawing_context.fill_style = "#888"
+                drawing_context.fill_text(self.project_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
 
     def draw_grid_item(self, drawing_context, rect):
         drawing_context.add(self.__create_thumbnail(rect.inset(6)))

@@ -39,6 +39,7 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertIsNotNone(display_item.date_for_sorting)
             self.assertIsNotNone(display_item.date_for_sorting_local_as_string)
             self.assertIsNotNone(display_item.status_str)
+            self.assertIsNotNone(display_item.project_str)
             self.assertIsNotNone(display_item.used_display_type)
 
     def test_display_item_snapshot_and_copy_preserve_display_type(self):

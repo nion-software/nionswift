@@ -1614,6 +1614,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         return str()
 
     @property
+    def project_str(self) -> str:
+        display_item = self.display_data_channel.container if self.display_data_channel else None
+        if display_item:
+            return display_item.container.project_title if display_item.container else str()
+        return str()
+
+    @property
     def used_display_type(self) -> str:
         display_type = self.display_type
         if not display_type in ("line_plot", "image", "display_script"):
