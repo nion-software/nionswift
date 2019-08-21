@@ -4061,6 +4061,7 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
+            self.assertTrue(all(project.project_state == "loaded" for project in profile.projects))
 
     def test_work_project_is_created_if_not_valid(self):
         with create_temp_profile_context() as profile_context:

@@ -308,6 +308,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
                 if project:
                     self.add_project_reference(work_project_reference)
                     self.__append_project(work_project_reference["uuid"], project)
+                    project.read_project()
                     self.work_project_reference_uuid = uuid.UUID(work_project_reference["uuid"])
                     self.__work_project = project
 
