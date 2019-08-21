@@ -65,6 +65,21 @@ class TestProfileClass(unittest.TestCase):
                 self.assertEqual(2, len(profile.selected_projects_model.value))
                 self.assertIn(profile.projects[0], profile.selected_projects_model.value)
                 self.assertIn(profile.projects[1], profile.selected_projects_model.value)
-                profile.remove_project(profile.projects[0])
+                profile.remove_project(profile.projects[1])  # note: cannot remove project 0, since it is work project
                 self.assertEqual(1, len(profile.selected_projects_model.value))
                 self.assertIn(profile.projects[0], profile.selected_projects_model.value)
+
+    def test_work_project_cannot_be_removed(self):
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.add_project_memory()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item, project=profile.projects[0])
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item, project=profile.projects[1])
+                self.assertEqual(profile.work_project, profile.projects[0])
+                self.assertEqual(2, len(profile.projects))
+                profile.remove_project(profile.projects[0])  # work profile
+                self.assertEqual(2, len(profile.projects))

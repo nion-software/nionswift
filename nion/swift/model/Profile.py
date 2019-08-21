@@ -347,7 +347,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
                 new_project.read_project()
 
     def remove_project(self, project: Project) -> None:
-        if project in self.__projects:
+        if project in self.__projects and project != self.work_project:
             project.unmount()
             project_index = self.__projects.index(project)
             project_references = self.project_references
