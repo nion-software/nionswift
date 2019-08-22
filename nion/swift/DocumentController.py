@@ -1,6 +1,7 @@
 # standard libraries
 import collections
 import copy
+import datetime
 import functools
 import gettext
 import itertools
@@ -38,6 +39,7 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
@@ -225,7 +227,8 @@ class DocumentController(Window.Window):
         self._new_window_action = self._file_menu.add_menu_item(_("New Window"), functools.partial(self.new_window_with_data_item, "library"), key_sequence="new")
         self._close_action = self._file_menu.add_menu_item(_("Close Window"), self.request_close, key_sequence="close")
         self._file_menu.add_separator()
-        self._add_project_action = self._file_menu.add_menu_item(_("Open Project"), self.__handle_open_project)
+        self._new_library_action = self._file_menu.add_menu_item(_("New Project..."), self.__handle_new_project)
+        self._add_project_action = self._file_menu.add_menu_item(_("Open Project..."), self.__handle_open_project)
         self._migrate_project_action = self._file_menu.add_menu_item(_("Upgrade Project"), self.__handle_upgrade_project)
         self._remove_project_action = self._file_menu.add_menu_item(_("Remove Project"), self.__handle_remove_project)
         self._file_menu.add_separator()
@@ -860,6 +863,112 @@ class DocumentController(Window.Window):
     def new_window_with_data_item(self, workspace_id, display_item=None):
         # hack to work around Application <-> DocumentController interdependency.
         self.create_new_document_controller_event.fire(self.document_model, workspace_id, display_item)
+
+    def __handle_new_project(self) -> None:
+        class NewProjectDialog(Dialog.ActionDialog):
+
+            def __init__(self, ui, app, parent_window, profile: Profile.Profile):
+                super().__init__(ui, title=_("New Project"), app=app, persistent_id="new_project_dialog")
+
+                self._create_menus()
+
+                self.directory = self.ui.get_persistent_string("project_directory", self.ui.get_document_location())
+
+                project_base_name = _("Nion Swift Project") + " " + datetime.datetime.now().strftime("%Y%m%d")
+                project_base_index = 0
+                project_base_index_str = ""
+                while os.path.exists(os.path.join(self.directory, project_base_name + project_base_index_str)):
+                    project_base_index += 1
+                    project_base_index_str = " " + str(project_base_index)
+
+                self.project_name = project_base_name + project_base_index_str
+
+                def safe_request_close():
+                    parent_window.queue_task(self.request_close)
+
+                def handle_new():
+                    self.project_name = self.__project_name_field.text
+                    profile.create_project(pathlib.Path(self.directory), self.project_name)
+                    return True
+
+                def handle_new_and_close():
+                    handle_new()
+                    safe_request_close()
+                    return True
+
+                column = self.ui.create_column_widget()
+
+                directory_header_row = self.ui.create_row_widget()
+                directory_header_row.add_spacing(13)
+                directory_header_row.add(self.ui.create_label_widget(_("Projects Folder: "), properties={"font": "bold"}))
+                directory_header_row.add_stretch()
+                directory_header_row.add_spacing(13)
+
+                show_directory_row = self.ui.create_row_widget()
+                show_directory_row.add_spacing(26)
+                directory_label = self.ui.create_label_widget(self.directory)
+                show_directory_row.add(directory_label)
+                show_directory_row.add_stretch()
+                show_directory_row.add_spacing(13)
+
+                choose_directory_row = self.ui.create_row_widget()
+                choose_directory_row.add_spacing(26)
+                choose_directory_button = self.ui.create_push_button_widget(_("Choose..."))
+                choose_directory_row.add(choose_directory_button)
+                choose_directory_row.add_stretch()
+                choose_directory_row.add_spacing(13)
+
+                project_name_header_row = self.ui.create_row_widget()
+                project_name_header_row.add_spacing(13)
+                project_name_header_row.add(self.ui.create_label_widget(_("Project Name: "), properties={"font": "bold"}))
+                project_name_header_row.add_stretch()
+                project_name_header_row.add_spacing(13)
+
+                project_name_row = self.ui.create_row_widget()
+                project_name_row.add_spacing(26)
+                project_name_field = self.ui.create_line_edit_widget(properties={"width": 400})
+                project_name_field.text = self.project_name
+                project_name_field.on_return_pressed = handle_new_and_close
+                project_name_field.on_escape_pressed = safe_request_close
+                project_name_row.add(project_name_field)
+                project_name_row.add_stretch()
+                project_name_row.add_spacing(13)
+
+                column.add_spacing(12)
+                column.add(directory_header_row)
+                column.add_spacing(8)
+                column.add(show_directory_row)
+                column.add_spacing(8)
+                column.add(choose_directory_row)
+                column.add_spacing(16)
+                column.add(project_name_header_row)
+                column.add_spacing(8)
+                column.add(project_name_row)
+                column.add_stretch()
+                column.add_spacing(16)
+
+                def choose() -> None:
+                    existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Project Directory"), self.directory)
+                    if existing_directory:
+                        self.directory = existing_directory
+                        directory_label.text = self.directory
+                        self.ui.set_persistent_string("project_directory", self.directory)
+
+                choose_directory_button.on_clicked = choose
+
+                self.add_button(_("Cancel"), lambda: True)
+                self.add_button(_("Create Project"), handle_new)
+
+                self.content.add(column)
+
+                self.__project_name_field = project_name_field
+
+            def show(self):
+                super().show()
+                self.__project_name_field.focused = True
+
+        new_project_dialog = NewProjectDialog(self.ui, self.app, self, self.document_model.profile)
+        new_project_dialog.show()
 
     def __handle_open_project(self) -> None:
         filter = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"

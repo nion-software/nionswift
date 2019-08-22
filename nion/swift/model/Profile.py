@@ -326,6 +326,20 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         if not self.__work_project:
             logging.getLogger("loader").warning(f"Work project could not be loaded or created.")
 
+    def create_project(self, project_dir: pathlib.Path, library_name: str) -> None:
+        project_name = pathlib.Path(library_name)
+        project_data_path = pathlib.Path(library_name + " Data")
+        project_path = project_dir / project_name.with_suffix(".nsproj")
+        project_dir.mkdir(parents=True, exist_ok=True)
+        project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": [str(project_data_path)]})
+        project_path.write_text(project_data_json, "utf-8")
+        project_reference = {"type": "project_index", "uuid": str(uuid.uuid4()), "project_path": str(project_path)}
+        project = Project.make_project(self.profile_context, project_reference)
+        if project:
+            self.add_project_reference(project_reference)
+            self.__append_project(project_reference["uuid"], project)
+            project.read_project()
+
     def open_project(self, path: pathlib.Path) -> None:
         project_reference = None
         if path.suffix == ".nslib":
