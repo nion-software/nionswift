@@ -1605,6 +1605,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     return display_data_channel
         return None
 
+    def get_project_for_item(self, item: Project.ProjectItemType) -> typing.Optional[Project.Project]:
+        return item.container if item else None
+
     def get_or_create_data_group(self, group_name):
         data_group = DataGroup.get_data_group_in_container_by_title(self, group_name)
         if data_group is None:

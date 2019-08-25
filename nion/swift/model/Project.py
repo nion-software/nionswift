@@ -19,6 +19,9 @@ from nion.utils import Observable
 from nion.utils import Persistence
 
 
+ProjectItemType = typing.Union[DataItem.DataItem, DisplayItem.DisplayItem, DataStructure.DataStructure, Connection.Connection, Symbolic.Computation]
+
+
 class Project(Observable.Observable, Persistence.PersistentObject):
     """A project manages raw data items, display items, computations, data structures, and connections.
 
