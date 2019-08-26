@@ -1074,13 +1074,14 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             return True
 
     def mouse_pressed(self, x, y, modifiers):
-        i = self.__get_legend_index(x, y)
-        if i != -1:
-            self.__mouse_pressed_for_dragging = True
-            self.__dragging_index = i
-            self.__mouse_position = Geometry.IntPoint(x=x, y=y)
-            self.__entry_to_insert = i
-            self.update()
+        if self.__legend_entries:
+            i = self.__get_legend_index(x, y)
+            if i != -1:
+                self.__mouse_pressed_for_dragging = True
+                self.__dragging_index = i
+                self.__mouse_position = Geometry.IntPoint(x=x, y=y)
+                self.__entry_to_insert = i
+                self.update()
 
     def mouse_released(self, x, y, modifiers):
         if self.__mouse_dragging and self.__entry_to_insert != self.__dragging_index:
