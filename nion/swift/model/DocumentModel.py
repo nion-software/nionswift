@@ -66,26 +66,30 @@ class ComputationQueueItem:
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
                 if not data_item:
+                    start_time = time.perf_counter()
                     compute_obj, error_text = computation.evaluate(api)
+                    eval_time = time.perf_counter() - start_time
                     if error_text and computation.error_text != error_text:
                         def update_error_text():
                             computation.error_text = error_text
                         pending_data_item_merge = (computation, update_error_text)
                         return pending_data_item_merge
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
-                    time.sleep(max(throttle_time, 0.0))
+                    time.sleep(max(throttle_time, min(eval_time * DocumentModel.computation_min_factor, 1.0)))
                     if self.valid and compute_obj:  # TODO: race condition for 'valid'
                         pending_data_item_merge = (computation, functools.partial(compute_obj.commit))
                     else:
                         pending_data_item_merge = (computation, None)
                 else:
+                    start_time = time.perf_counter()
                     data_item_clone = data_item.clone()
                     data_item_data_modified = data_item.data_modified or datetime.datetime.min
                     data_item_clone_recorder = Recorder.Recorder(data_item_clone)
                     api_data_item = api._new_api_object(data_item_clone)
                     error_text = computation.evaluate_with_target(api, api_data_item)
+                    eval_time = time.perf_counter() - start_time
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
-                    time.sleep(max(throttle_time, 0.0))
+                    time.sleep(max(throttle_time, min(eval_time * DocumentModel.computation_min_factor, 1.0)))
                     if self.valid:  # TODO: race condition for 'valid'
                         def data_item_merge(data_item, data_item_clone, data_item_clone_recorder):
                             # merge the result item clones back into the document. this method is guaranteed to run at
@@ -268,6 +272,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     """
 
     computation_min_period = 0.0
+    computation_min_factor = 0.0
     library_version = 2
 
     def __init__(self, *, profile: Profile.Profile = None):

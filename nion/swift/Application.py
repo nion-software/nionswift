@@ -204,7 +204,8 @@ class Application(UIApplication.Application):
             self.choose_library()
             return True
         self.workspace_dir = workspace_dir
-        DocumentModel.DocumentModel.computation_min_period = 0.1
+        DocumentModel.DocumentModel.computation_min_period = 0.2
+        DocumentModel.DocumentModel.computation_min_factor = 1.0
         document_model = DocumentModel.DocumentModel(profile=profile)
         document_model.create_default_data_groups()
         document_model.start_dispatcher()
