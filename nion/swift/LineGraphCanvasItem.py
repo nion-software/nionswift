@@ -10,6 +10,7 @@
 # standard libraries
 import gettext
 import math
+import typing
 
 # third party libraries
 import numpy
@@ -18,6 +19,9 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
+
+from nion.swift import Inspector, Undo
+from nion.swift.model import DisplayItem
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.utils import Geometry
@@ -980,22 +984,119 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.translate(-x, -y)
 
 
+class LineGraphLegendCanvasItemDelegate:
+    # interface must be implemented by the delegate
+
+    def create_change_display_item_property_command(self, property_name: str, value) -> Inspector.ChangeDisplayItemPropertyCommand: ...
+
+    def push_undo_command(self, command: Undo.UndoableCommand) -> None: ...
+
+
 class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot background and grid lines."""
 
-    def __init__(self, get_font_metrics_fn):
+    def __init__(self, get_font_metrics_fn, delegate: LineGraphLegendCanvasItemDelegate):
         super().__init__()
+
+        self.delegate = delegate
+
         self.__drawing_context = None
         self.__legend_position = None
         self.__legend_entries = None
+        self.__mouse_pressed_for_dragging = False
+        self.__mouse_dragging = False
+        self.__mouse_position = None
+        self.__display_layers = None
+        self.wants_mouse_events = True
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.font_size = 12
 
-    def set_legend_entries(self, legend_position, legend_entries):
-        if self.__legend_entries != legend_entries or self.__legend_position != legend_position:
+        self.__dragging_index = None
+        self.__entry_to_insert = None
+
+    def set_legend_entries(self, legend_position: typing.Optional[str], legend_entries: typing.Optional[typing.Sequence], display_layers: typing.Optional[typing.Sequence]):
+        if self.__legend_entries != legend_entries or self.__legend_position != legend_position or self.__display_layers != display_layers:
             self.__legend_position = legend_position
             self.__legend_entries = legend_entries
+            self.__display_layers = display_layers
             self.update()
+
+    def __get_legend_index(self, x, y, ignore_y = False) -> int:
+        """
+        Returns the current index at a certain x and y if over a legend item, otherwise returns -1. If ignore_y is set,
+        it will always return a value at the closest y value. (useful for determining where to drop an item)
+        """
+        legend_position = self.__legend_position
+        legend_entries = self.__legend_entries
+        plot_rect = self.canvas_bounds
+        plot_width = int(plot_rect[1][1]) - 1
+        plot_origin_x = int(plot_rect[0][1])
+        plot_origin_y = int(plot_rect[0][0])
+
+        legend_width = 0
+        line_height = self.font_size + 4
+        border = 4
+        font = "{0:d}px".format(self.font_size)
+
+        for index, legend_entry in enumerate(legend_entries):
+            legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
+
+        if legend_position == "top-left":
+            legend_origin = Geometry.IntPoint(x=plot_origin_x + 10, y=plot_origin_y + line_height * 0.5 - border)
+        else:
+            legend_origin = Geometry.IntPoint(x=plot_origin_x + plot_width - 10 - line_height - legend_width - border,
+                                              y=plot_origin_y + line_height * 0.5 - border)
+
+        start_x = legend_origin.x
+        end_x = start_x + legend_width + line_height + border * 2
+
+        index = (y - legend_origin.y) // line_height
+
+        if not ignore_y:
+            if start_x <= x <= end_x and 0 <= index < len(self.__legend_entries):
+                return index
+            else:
+                return -1
+        else:
+            # return the current item, clamped to length-1 and 0
+            return max(min((y - legend_origin.y) // line_height, len(self.__legend_entries)-1), 0)
+
+    def mouse_position_changed(self, x, y, modifiers):
+        if self.__mouse_pressed_for_dragging:
+            if not self.__mouse_dragging and Geometry.distance(self.__mouse_position, Geometry.IntPoint(y=y, x=x)) > 1:
+                self.__mouse_dragging = True
+                self.update()
+                return True
+        if self.__mouse_dragging:
+            old_entry = self.__entry_to_insert
+            self.__entry_to_insert = self.__get_legend_index(x, y, True)
+            if old_entry != self.__entry_to_insert:
+                self.update()
+            return True
+
+    def mouse_pressed(self, x, y, modifiers):
+        i = self.__get_legend_index(x, y)
+        if i != -1:
+            self.__mouse_pressed_for_dragging = True
+            self.__dragging_index = i
+            self.__mouse_position = Geometry.IntPoint(x=x, y=y)
+            self.__entry_to_insert = i
+            self.update()
+
+    def mouse_released(self, x, y, modifiers):
+        if self.__mouse_dragging and self.__entry_to_insert != self.__dragging_index:
+            new_display_layers = DisplayItem.shift_display_layers(self.__display_layers, self.__dragging_index, self.__entry_to_insert)
+
+            command = self.delegate.create_change_display_item_property_command("display_layers", new_display_layers)
+            command.perform()
+            self.delegate.push_undo_command(command)
+
+        self.__mouse_dragging = False
+        self.__mouse_position = None
+        self.__dragging_index = None
+        self.__entry_to_insert = None
+        self.__mouse_pressed_for_dragging = False
+        self.update()
 
     def _repaint(self, drawing_context):
         # draw the data, if any
@@ -1012,7 +1113,12 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             border = 4
             font = "{0:d}px".format(self.font_size)
 
-            for index, legend_entry in enumerate(legend_entries):
+            effective_entries = legend_entries[:]
+
+            if self.__mouse_dragging and self.__entry_to_insert is not None:
+                DisplayItem.shift_display_layers(effective_entries, self.__dragging_index, self.__entry_to_insert)
+
+            for index, legend_entry in enumerate(effective_entries):
                 with drawing_context.saver():
                     legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
 
@@ -1030,7 +1136,17 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
                 drawing_context.fill()
 
-            for index, legend_entry in enumerate(legend_entries):
+            if self.__mouse_pressed_for_dragging:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    drawing_context.rect(legend_origin.x,
+                                         self.__entry_to_insert * line_height + border * 2,
+                                         legend_width + border * 2 + line_height,
+                                         line_height)
+                    drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
+                    drawing_context.fill()
+
+            for index, legend_entry in enumerate(effective_entries):
                 with drawing_context.saver():
                     drawing_context.font = font
                     drawing_context.text_align = "right"

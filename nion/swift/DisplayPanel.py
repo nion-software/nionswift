@@ -21,6 +21,7 @@ from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Thumbnails
 from nion.swift import Undo
+from nion.swift import Inspector
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
@@ -1799,6 +1800,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> ChangeDisplayCommand:
         return ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item, command_id=command_id, is_mergeable=is_mergeable)
+
+    def create_change_display_item_property_command(self, property_name: str, value) -> Inspector.ChangeDisplayItemPropertyCommand:
+        return Inspector.ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, self.__display_item, property_name, value)
 
     def create_change_graphics_command(self) -> ChangeGraphicsCommand:
         all_graphics = self.__display_item.graphics

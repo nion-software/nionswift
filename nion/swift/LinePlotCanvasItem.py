@@ -135,7 +135,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
         self.__line_graph_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem()
-        self.__line_graph_legend_canvas_item = LineGraphCanvasItem.LineGraphLegendCanvasItem(get_font_metrics_fn)
+        self.__line_graph_legend_canvas_item = LineGraphCanvasItem.LineGraphLegendCanvasItem(get_font_metrics_fn, delegate)
         self.__line_graph_frame_canvas_item = LineGraphCanvasItem.LineGraphFrameCanvasItem()
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_background_canvas_item)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_stack)
@@ -529,7 +529,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 stroke_color = display_layer.get("stroke_color")
                 legend_entries.append(LegendEntry(label, fill_color, stroke_color))
 
-            self.__update_canvas_items(axes, legend_position, legend_entries)
+            self.__update_canvas_items(axes, legend_position, legend_entries, display_layers)
         else:
             for line_graph_canvas_item in self.__line_graph_stack.canvas_items:
                 line_graph_canvas_item.set_axes(None)
@@ -582,12 +582,12 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
                 drawing_context.fill_text("prepare:" + fps4, text_pos.x + 8, text_pos.y + 70)
 
-    def __update_canvas_items(self, axes, legend_position: typing.Optional[str], legend_entries: typing.Optional[typing.Sequence]):
+    def __update_canvas_items(self, axes, legend_position: typing.Optional[str], legend_entries: typing.Optional[typing.Sequence], display_layers: typing.Optional[typing.Sequence]):
         self.__line_graph_background_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_canvas_item.calibrated_xdata.data if self.line_graph_canvas_item and self.line_graph_canvas_item.calibrated_xdata else None)
         self.__line_graph_frame_canvas_item.set_draw_frame(axes.is_valid)
-        self.__line_graph_legend_canvas_item.set_legend_entries(legend_position, legend_entries)
+        self.__line_graph_legend_canvas_item.set_legend_entries(legend_position, legend_entries, display_layers)
         self.__line_graph_vertical_axis_label_canvas_item.set_axes(axes)
         self.__line_graph_vertical_axis_scale_canvas_item.set_axes(axes, self.__get_font_metrics_fn)
         self.__line_graph_vertical_axis_ticks_canvas_item.set_axes(axes)

@@ -1815,6 +1815,20 @@ def move_display_layer_forward(display_layers: list, index: int) -> list:
     return display_layers
 
 
+def shift_display_layers(display_layers: list, from_index: int, to_index: int) -> list:
+    assert 0 <= from_index < len(display_layers)
+    assert 0 <= to_index < len(display_layers)
+
+    if from_index == to_index:
+        return display_layers
+
+    moving_layer = display_layers.pop(from_index)
+
+    display_layers.insert(to_index, moving_layer)
+
+    return display_layers
+
+
 def move_display_layer_backward(display_layers: list, index: int) -> list:
     assert 0 <= index < len(display_layers)
     if index < len(display_layers) - 1:
