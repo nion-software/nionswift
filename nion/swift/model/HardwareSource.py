@@ -517,7 +517,6 @@ class DataChannel:
             left = sub_area[0][1]
             right = sub_area[0][1] + sub_area[1][1]
             if top > 0 or left > 0 or bottom < data.shape[0] or right < data.shape[1]:
-                master_data = numpy.copy(master_data)
                 master_data[top:bottom, left:right] = data[top:bottom, left:right]
             else:
                 master_data = numpy.copy(data)
