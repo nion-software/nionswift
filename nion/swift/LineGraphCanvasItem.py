@@ -1086,16 +1086,23 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.__mouse_dragging and self.__entry_to_insert != self.__dragging_index:
             new_display_layers = DisplayItem.shift_display_layers(self.__display_layers, self.__dragging_index, self.__entry_to_insert)
 
+            self.__mouse_dragging = False
+            self.__mouse_position = None
+            self.__dragging_index = None
+            self.__entry_to_insert = None
+            self.__mouse_pressed_for_dragging = False
+
             command = self.delegate.create_change_display_item_property_command("display_layers", new_display_layers)
             command.perform()
             self.delegate.push_undo_command(command)
+            self.update()
 
-        self.__mouse_dragging = False
-        self.__mouse_position = None
-        self.__dragging_index = None
-        self.__entry_to_insert = None
-        self.__mouse_pressed_for_dragging = False
-        self.update()
+        else:
+            self.__mouse_dragging = False
+            self.__mouse_position = None
+            self.__dragging_index = None
+            self.__entry_to_insert = None
+            self.__mouse_pressed_for_dragging = False
 
     def _repaint(self, drawing_context):
         # draw the data, if any
