@@ -1127,7 +1127,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.append_display_data_channel(display_data_channel_copy)
         display_data_channel_copy_index = len(self.display_data_channels) - 1
         display_layer_copy["data_index"] = display_data_channel_copy_index
-        display_layer_copy["fill_color"] = self.__get_unique_display_layer_color()
+        display_layer_copy["fill_color"] = display_layer["fill_color"]
         self.insert_display_layer(before_index, **display_layer_copy)
         self.__auto_display_legend()
 
@@ -1812,6 +1812,20 @@ def move_display_layer_forward(display_layers: list, index: int) -> list:
     if index > 0:
         display_layer = display_layers.pop(index)
         display_layers.insert(index - 1, display_layer)
+    return display_layers
+
+
+def shift_display_layers(display_layers: list, from_index: int, to_index: int) -> list:
+    assert 0 <= from_index < len(display_layers)
+    assert 0 <= to_index < len(display_layers)
+
+    if from_index == to_index:
+        return display_layers
+
+    moving_layer = display_layers.pop(from_index)
+
+    display_layers.insert(to_index, moving_layer)
+
     return display_layers
 
 

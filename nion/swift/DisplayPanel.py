@@ -21,6 +21,7 @@ from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Thumbnails
 from nion.swift import Undo
+from nion.swift import Inspector
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
@@ -136,6 +137,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_drag_enter = None
         self.on_drag_leave = None
         self.on_drag_move = None
+        self.on_wants_drag_event = None
         self.on_drop = None
         self.on_key_pressed = None
         self.on_key_released = None
@@ -246,6 +248,11 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             return True
         if self.on_context_menu_event:
             self.on_context_menu_event(x, y, gx, gy)
+        return False
+
+    def wants_drag_event(self, mime_data, x, y) -> bool:
+        if self.on_wants_drag_event:
+            return self.on_wants_drag_event(mime_data)
         return False
 
     def drag_enter(self, mime_data):
@@ -1038,6 +1045,11 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 return workspace_controller.handle_drag_move(self, mime_data, x, y)
             return "ignore"
 
+        def wants_drag_event(mime_data):
+            if workspace_controller:
+                return workspace_controller.should_handle_drag_for_mime_data(mime_data)
+            return False
+
         def drop(mime_data, region, x, y):
             if workspace_controller:
                 return workspace_controller.handle_drop(self, mime_data, region, x, y)
@@ -1047,6 +1059,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__content_canvas_item.on_drag_enter = drag_enter
         self.__content_canvas_item.on_drag_leave = drag_leave
         self.__content_canvas_item.on_drag_move = drag_move
+        self.__content_canvas_item.on_wants_drag_event = wants_drag_event
         self.__content_canvas_item.on_drop = drop
         self.__content_canvas_item.on_key_pressed = self._handle_key_pressed
         self.__content_canvas_item.on_key_released = self._handle_key_released
@@ -1734,6 +1747,15 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def begin_mouse_tracking(self):
         self.__mouse_tracking_transaction = self.__document_controller.document_model.begin_display_item_transaction(self.__display_item)
 
+    def create_mime_data(self):
+        return self.ui.create_mime_data()
+
+    def get_display_item_uuid(self) -> uuid.UUID:
+        return self.display_item.uuid
+
+    def get_display_item_by_uuid(self, id: uuid.UUID) -> DisplayItem:
+        return self.document_controller.document_model.get_display_item_by_uuid(id)
+
     def end_mouse_tracking(self, undo_command):
         self.__mouse_tracking_transaction.close()
         self.__mouse_tracking_transaction = None
@@ -1799,6 +1821,14 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> ChangeDisplayCommand:
         return ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item, command_id=command_id, is_mergeable=is_mergeable)
+
+    def create_move_display_layer_command(self, src_id: uuid.UUID, src_index: int, target_index: int) -> MoveDisplayLayerCommand:
+        src_display_item = self.__document_controller.document_model.get_display_item_by_uuid(src_id)
+        return MoveDisplayLayerCommand(self.__document_controller.document_model, src_display_item, src_index, self.__display_item, target_index)
+
+    def create_change_display_item_property_command(self, id: uuid.UUID, property_name: str, value) -> Inspector.ChangeDisplayItemPropertyCommand:
+        display_item = self.__document_controller.document_model.get_display_item_by_uuid(id)
+        return Inspector.ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, display_item, property_name, value)
 
     def create_change_graphics_command(self) -> ChangeGraphicsCommand:
         all_graphics = self.__display_item.graphics

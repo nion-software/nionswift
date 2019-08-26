@@ -8,16 +8,25 @@
 """
 
 # standard libraries
+import collections
 import gettext
+import json
 import math
+import typing
 
 # third party libraries
+import uuid
+
 import numpy
 
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
+from nion.swift import Inspector
+from nion.swift import MimeTypes
+from nion.swift import Undo
+from nion.swift.model import DisplayItem
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.utils import Geometry
@@ -980,69 +989,329 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.translate(-x, -y)
 
 
+class LineGraphLegendCanvasItemDelegate:
+    # interface must be implemented by the delegate
+
+    def create_move_display_layer_command(self, src_id: uuid.UUID, src_index: int, target_index: int) -> Undo.UndoableCommand: ...
+
+    def create_change_display_item_property_command(self, id_to_change: uuid.UUID, property_name: str, value) -> Inspector.ChangeDisplayItemPropertyCommand: ...
+
+    def get_display_item_by_uuid(self, item_id: uuid.UUID) -> DisplayItem.DisplayItem: ...
+
+    def push_undo_command(self, command: Undo.UndoableCommand) -> None: ...
+
+    def create_mime_data(self) -> typing.Any: ...
+
+    def get_display_item_uuid(self) -> uuid.UUID: ...
+
+
 class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot background and grid lines."""
 
-    def __init__(self, get_font_metrics_fn):
+    def __init__(self, get_font_metrics_fn, delegate: LineGraphLegendCanvasItemDelegate):
         super().__init__()
+
+        self.__delegate = delegate
         self.__drawing_context = None
-        self.__legend_position = None
-        self.__legend_entries = None
+
+        # current legend items corresponding to layers of the display item
+        self.__legend_entries = []
+
+        # reordered/inserted entries that have not yet been applied
+        self.__effective_entries = []
+
+        # True when a user is clicking, but a drag hasn't started because they haven't moved the mouse enough
+        self.__mouse_pressed_for_dragging = False
+
+        # This is true when we're dragging from a local display item or foreign display item.
+        self.__mouse_dragging = False
+
+        # Tracks where the drag started from
+        self._drag_start_position = None
+
+        # The current display layers of the display item. Used to shift to different positions as needed.
+        self.__display_layers = None
+
+        # The index of the local entry we're currently dragging
+        self.__dragging_index = None
+
+        # The entry where the mouse is over so we know where to reorder the entry to
+        self.__entry_to_insert = None
+
+        # An entry from another display item that we're dragging into this one
+        self.__foreign_legend_entry = None
+
+        # The index and UUID of the other display item layer we're dragging here
+        self.__foreign_legend_uuid_and_index = None
+
+        # canvas item settings
+        self.wants_mouse_events = True
+        self.wants_drag_events = True
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.font_size = 12
 
-    def set_legend_entries(self, legend_position, legend_entries):
-        if self.__legend_entries != legend_entries or self.__legend_position != legend_position:
-            self.__legend_position = legend_position
+    def __generate_effective_entries(self):
+        """
+        This function generates a new effective entries array based on how the user is dragging legend items and updates
+        the bounds of the canvas item as needed.
+        """
+        effective_entries = self.__legend_entries[:]
+
+        if self.__mouse_dragging and self.__entry_to_insert is not None and self.__dragging_index is not None:
+            DisplayItem.shift_display_layers(effective_entries, self.__dragging_index, self.__entry_to_insert)
+
+        self.__effective_entries = effective_entries
+        self.__update_bounds()
+
+    def __update_bounds(self):
+        """
+        Updates the bounds of the canvas item by calculating the new bounds.
+        """
+        self.update_layout(self.canvas_origin, self.get_bounds())
+
+    def get_bounds(self) -> Geometry.IntSize:
+        """
+        Computes the size needed by the canvas item.
+        """
+        line_height = self.font_size + 4
+        border = 4
+
+        legend_height = len(self.__effective_entries) * line_height + border * 2
+
+        if len(self.effective_entries) == 0:
+            legend_height = 0
+
+        text_width = 0
+        font = "{0:d}px".format(self.font_size)
+
+        for index, legend_entry in enumerate(self.effective_entries):
+            text_width = max(text_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
+
+        legend_width = text_width + border * 2 + line_height
+
+        return Geometry.IntSize(width=legend_width, height=legend_height)
+
+    def wants_drag_event(self, mime_data, x, y) -> bool:
+        return mime_data.has_format(MimeTypes.LAYER_MIME_TYPE)
+
+    def set_legend_entries(self, legend_entries: typing.Optional[typing.Sequence], display_layers: typing.Optional[typing.Sequence]):
+        if self.__legend_entries != legend_entries or self.__display_layers != display_layers:
             self.__legend_entries = legend_entries
+            self.__generate_effective_entries()
+            self.__display_layers = display_layers
             self.update()
 
-    def _repaint(self, drawing_context):
-        # draw the data, if any
-        legend_position = self.__legend_position
+    def __get_legend_index(self, x, y, ignore_y=False, insertion=False) -> int:
+        """
+        Returns the current index at a certain x and y if over a legend item, otherwise returns -1. If ignore_y is set,
+        it will always return a value at the closest y value. (useful for determining where to drop an item). If
+        insertion is set, the index will be capped between 0 and length (instead of 0 and length-1) so that we can tell
+        if a user is trying to drop the item at the end of the list.
+        """
         legend_entries = self.__legend_entries
-        if legend_entries and legend_position in ("top-left", "top-right"):
-            plot_rect = self.canvas_bounds
-            plot_width = int(plot_rect[1][1]) - 1
-            plot_origin_x = int(plot_rect[0][1])
-            plot_origin_y = int(plot_rect[0][0])
 
-            legend_width = 0
-            line_height = self.font_size + 4
-            border = 4
-            font = "{0:d}px".format(self.font_size)
+        legend_width = 0
+        line_height = self.font_size + 4
+        border = 4
+        font = "{0:d}px".format(self.font_size)
 
-            for index, legend_entry in enumerate(legend_entries):
-                with drawing_context.saver():
-                    legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
+        for index, legend_entry in enumerate(legend_entries):
+            legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
 
-            if legend_position == "top-left":
-                legend_origin = Geometry.IntPoint(x=plot_origin_x + 10, y=plot_origin_y + line_height * 0.5 - border)
+        end_x = legend_width + line_height + border * 2
+
+        index = y // line_height
+
+        # if ignore_y is not on, we return the index if in bounds and -1 otherwise
+        if not ignore_y:
+            if 0 <= x <= end_x and 0 <= index < len(self.__legend_entries):
+                return index
             else:
-                legend_origin = Geometry.IntPoint(x=plot_origin_x + plot_width - 10 - line_height - legend_width - border, y=plot_origin_y + line_height * 0.5 - border)
+                return -1
+        else:
+            end_index = len(self.__legend_entries) - (1 if not insertion else 0)
+            # return the current item, clamped to length-1 and 0
+            return max(min(y // line_height, end_index), 0)
 
+    def mouse_position_changed(self, x, y, modifiers):
+        # if the mouse is pressed and the distance it greater than the distance to start dragging, start the drag using
+        # the selected layer as the mime type.
+        if self.__mouse_pressed_for_dragging and Geometry.distance(self._drag_start_position, Geometry.IntPoint(y=y, x=x)) > 1:
+                mime_data = self.__delegate.create_mime_data()
+
+                legend_data = {
+                    "index": self.__dragging_index,
+                    "display_item": str(self.__delegate.get_display_item_uuid()),
+                    "label": self.__legend_entries[self.__dragging_index].label,
+                    "fill_color": self.__legend_entries[self.__dragging_index].fill_color,
+                    "stroke_color": self.__legend_entries[self.__dragging_index].stroke_color,
+                }
+
+                mime_data.set_data_as_string(MimeTypes.LAYER_MIME_TYPE, json.dumps(legend_data))
+                self.drag(mime_data)
+                self.update()
+                return True
+
+    def drag_move(self, mime_data, x, y):
+        # get the entry the mouse was over
+        old_entry = self.__entry_to_insert
+
+        # find the current entry the mouse is over
+        self.__entry_to_insert = self.__get_legend_index(x, y, True, self.__foreign_legend_entry is not None)
+        if old_entry != self.__entry_to_insert:
+            # update effective entries and the display if it changed
+            self.__generate_effective_entries()
+            self.update()
+        return True
+
+    def mouse_pressed(self, x, y, modifiers):
+        # if there are less than 2 entries, ignore this because a data item can't be empty
+        if self.__legend_entries and len(self.__legend_entries) > 1:
+            # find the current legend index if there is one
+            i = self.__get_legend_index(x, y)
+            if i != -1:
+                # signal we want to start dragging with this item
+                self.__mouse_pressed_for_dragging = True
+                self.__dragging_index = i
+                self._drag_start_position = Geometry.IntPoint(x=x, y=y)
+                self.__entry_to_insert = i
+                self.update()
+
+                return True
+        return False
+
+    def mouse_released(self, x, y, modifiers):
+        self.__mouse_pressed_for_dragging = False
+        self.__dragging_index = None
+        self._drag_start_position = None
+        self.__entry_to_insert = None
+        self.__generate_effective_entries()
+        self.update()
+
+    def drag_leave(self):
+        self._drag_start_position = None
+        self.__mouse_dragging = False
+        self.__mouse_pressed_for_dragging = False
+        self.__entry_to_insert = None
+        self.__dragging_index = None
+        self.__foreign_legend_entry = None
+        self.__foreign_legend_uuid_and_index = None
+        # when we leave the drag area, update the effective entries because we're no longer previewing a shift
+        self.__generate_effective_entries()
+        self.update()
+
+    def drag_enter(self, mime_data):
+        # if a new drag comes in with layer mime data, check if we're the source or if this is a foreign layer
+        if mime_data.has_format(MimeTypes.LAYER_MIME_TYPE):
+            self.__mouse_dragging = True
+            legend_data = json.loads(mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE))
+            if uuid.UUID(legend_data["display_item"]) == self.__delegate.get_display_item_uuid():
+                # if we're the source, setup the index and update the drag preview
+                self.__dragging_index = legend_data["index"]
+                self.__mouse_pressed_for_dragging = True
+                self.__generate_effective_entries()
+                self.update()
+            else:
+                # if we aren't the source, setup foreign_legend_* and update the display
+                LegendEntry = collections.namedtuple("LegendEntry", ["label", "fill_color", "stroke_color"])
+
+                self.__foreign_legend_entry = LegendEntry(label=legend_data["label"], fill_color=legend_data["fill_color"], stroke_color=legend_data["stroke_color"])
+                self.__foreign_legend_uuid_and_index = (legend_data["display_item"], legend_data["index"])
+                self.update()
+
+    def drop(self, mime_data, x, y):
+        # stop dragging
+        self._drag_start_position = None
+        self.__mouse_pressed_for_dragging = False
+        self.__mouse_dragging = False
+
+        if mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE) != "":
+            legend_data = json.loads(mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE))
+            source_display_item_uuid = uuid.UUID(legend_data["display_item"])
+
+            from_index = legend_data["index"]
+
+            if source_display_item_uuid == self.__delegate.get_display_item_uuid():
+                # if we're the source item, just shift the layers
+                if from_index != self.__entry_to_insert:
+                    new_display_layers = DisplayItem.shift_display_layers(self.__display_layers, from_index,
+                                                                          self.__entry_to_insert)
+
+                    self.__entry_to_insert = None
+
+                    command = self.__delegate.create_change_display_item_property_command(source_display_item_uuid, "display_layers",
+                                                                                          new_display_layers)
+                    command.perform()
+                    self.__delegate.push_undo_command(command)
+            else:
+                # if we aren't the source item, move the display layer between display items
+                command = self.__delegate.create_move_display_layer_command(source_display_item_uuid, from_index, self.__entry_to_insert)
+
+                self.__foreign_legend_entry = None
+                self.__foreign_legend_uuid_and_index = None
+
+                # TODO: perform only if the display channel doesn't exist in the target
+                command.perform()
+                self.__delegate.push_undo_command(command)
+            self.update()
+
+    @property
+    def effective_entries(self) -> list:
+        return self.__effective_entries
+
+    def _repaint(self, drawing_context):
+        # don't display the canvas item if there are less than two items
+        if self.__legend_entries is None or len(self.__legend_entries) < 2:
+            return
+
+        font = "{0:d}px".format(self.font_size)
+
+        legend_width = 0
+        for index, legend_entry in enumerate(self.__effective_entries):
+            legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
+
+        line_height = self.font_size + 4
+        border = 4
+        font = "{0:d}px".format(self.font_size)
+
+        effective_entries_and_foreign = self.__effective_entries[:]
+        if self.__foreign_legend_entry is not None and self.__entry_to_insert:
+            effective_entries_and_foreign.insert(self.__entry_to_insert, self.__foreign_legend_entry)
+
+        legend_height = len(effective_entries_and_foreign) * line_height + border * 2
+
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.rect(0,
+                                 0,
+                                 legend_width + border * 2 + line_height,
+                                 legend_height)
+            drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
+            drawing_context.fill()
+
+        if self.__mouse_pressed_for_dragging or self.__foreign_legend_entry is not None:
             with drawing_context.saver():
                 drawing_context.begin_path()
-                drawing_context.rect(legend_origin.x,
-                                     legend_origin.y,
+                drawing_context.rect(0,
+                                     self.__entry_to_insert * line_height + border * 2,
                                      legend_width + border * 2 + line_height,
-                                     len(legend_entries) * line_height + border * 2)
+                                     line_height)
                 drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
                 drawing_context.fill()
 
-            for index, legend_entry in enumerate(legend_entries):
-                with drawing_context.saver():
-                    drawing_context.font = font
-                    drawing_context.text_align = "right"
-                    drawing_context.text_baseline = "bottom"
-                    drawing_context.fill_style = "#000"
-                    drawing_context.fill_text(legend_entry.label, legend_origin.x + legend_width + border, legend_origin.y + line_height * (index + 1))
+        for index, legend_entry in enumerate(effective_entries_and_foreign):
+            with drawing_context.saver():
+                drawing_context.font = font
+                drawing_context.text_align = "right"
+                drawing_context.text_baseline = "bottom"
+                drawing_context.fill_style = "#000"
+                drawing_context.fill_text(legend_entry.label, legend_width + border, line_height * (index + 1))
 
-                    drawing_context.begin_path()
-                    drawing_context.rect(legend_origin.x + legend_width + border + 3, legend_origin.y + line_height * index + 3 + 4, line_height - 6, line_height - 6)
-                    if legend_entry.fill_color:
-                        drawing_context.fill_style = legend_entry.fill_color
-                        drawing_context.fill()
-                    if legend_entry.stroke_color:
-                        drawing_context.stroke_style = legend_entry.stroke_color
-                        drawing_context.stroke()
+                drawing_context.begin_path()
+                drawing_context.rect(legend_width + border + 3, line_height * index + 3 + 4, line_height - 6, line_height - 6)
+                if legend_entry.fill_color:
+                    drawing_context.fill_style = legend_entry.fill_color
+                    drawing_context.fill()
+                if legend_entry.stroke_color:
+                    drawing_context.stroke_style = legend_entry.stroke_color
+                    drawing_context.stroke()

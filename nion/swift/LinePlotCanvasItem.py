@@ -1,9 +1,11 @@
 # standard libraries
 import collections
 import copy
+import json
 import math
 import threading
 import typing
+import uuid
 
 # third party libraries
 import numpy
@@ -13,6 +15,7 @@ from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift import LineGraphCanvasItem
+from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
@@ -86,6 +89,8 @@ class LinePlotCanvasItemDelegate:
     @tool_mode.setter
     def tool_mode(self, value: str) -> None: ...
 
+    def create_move_display_layer_command(self, src_id: uuid.UUID, src_index: int, target_index: int) -> Undo.UndoableCommand: ...
+
 
 class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     """Display a line plot.
@@ -135,7 +140,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
         self.__line_graph_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem()
-        self.__line_graph_legend_canvas_item = LineGraphCanvasItem.LineGraphLegendCanvasItem(get_font_metrics_fn)
+        self.__line_graph_legend_canvas_item = LineGraphCanvasItem.LineGraphLegendCanvasItem(get_font_metrics_fn, delegate)
         self.__line_graph_frame_canvas_item = LineGraphCanvasItem.LineGraphFrameCanvasItem()
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_background_canvas_item)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_stack)
@@ -242,6 +247,25 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     @property
     def _has_valid_drawn_graph_data(self):
         return self.___has_valid_drawn_graph_data
+
+    def __update_legend_origin(self):
+        plot_rect = self.__line_graph_area_stack.canvas_bounds
+        if plot_rect:
+            plot_width = int(plot_rect[1][1]) - 1
+            plot_origin_x = int(plot_rect[0][1])
+            plot_origin_y = int(plot_rect[0][0])
+
+            line_height = self.__line_graph_legend_canvas_item.font_size + 4
+            border = 4
+            legend_size = self.__line_graph_legend_canvas_item.get_bounds()
+
+            if self.__legend_position == "top-left":
+                legend_origin = Geometry.IntPoint(x=plot_origin_x + 10, y=plot_origin_y + line_height * 0.5 - border)
+            else:
+                legend_origin = Geometry.IntPoint(x=plot_origin_x + plot_width - 10 - legend_size.width,
+                                                  y=plot_origin_y + line_height * 0.5 - border)
+
+            self.__line_graph_legend_canvas_item.update_layout(legend_origin, self.__line_graph_legend_canvas_item.get_bounds())
 
     def update_display_values(self, display_values_list) -> None:
         self.__display_values_list = display_values_list
@@ -529,7 +553,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 stroke_color = display_layer.get("stroke_color")
                 legend_entries.append(LegendEntry(label, fill_color, stroke_color))
 
-            self.__update_canvas_items(axes, legend_position, legend_entries)
+            self.__update_canvas_items(axes, legend_position, legend_entries, display_layers)
         else:
             for line_graph_canvas_item in self.__line_graph_stack.canvas_items:
                 line_graph_canvas_item.set_axes(None)
@@ -582,12 +606,13 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
                 drawing_context.fill_text("prepare:" + fps4, text_pos.x + 8, text_pos.y + 70)
 
-    def __update_canvas_items(self, axes, legend_position: typing.Optional[str], legend_entries: typing.Optional[typing.Sequence]):
+    def __update_canvas_items(self, axes, legend_position: typing.Optional[str], legend_entries: typing.Optional[typing.Sequence], display_layers: typing.Optional[typing.Sequence]):
         self.__line_graph_background_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_canvas_item.calibrated_xdata.data if self.line_graph_canvas_item and self.line_graph_canvas_item.calibrated_xdata else None)
         self.__line_graph_frame_canvas_item.set_draw_frame(axes.is_valid)
-        self.__line_graph_legend_canvas_item.set_legend_entries(legend_position, legend_entries)
+        self.__line_graph_legend_canvas_item.set_legend_entries(legend_entries, display_layers)
+        self.__update_legend_origin()
         self.__line_graph_vertical_axis_label_canvas_item.set_axes(axes)
         self.__line_graph_vertical_axis_scale_canvas_item.set_axes(axes, self.__get_font_metrics_fn)
         self.__line_graph_vertical_axis_ticks_canvas_item.set_axes(axes)
@@ -961,3 +986,24 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             return {"plus": (hit_rect, self.__line_graph_area_stack.canvas_rect)}
         else:
             return None
+
+    def wants_drag_event(self, mime_data, x, y) -> bool:
+        return mime_data.has_format(MimeTypes.LAYER_MIME_TYPE)
+
+    def drop(self, mime_data, x, y):
+        if not mime_data.has_format(MimeTypes.LAYER_MIME_TYPE):
+            return "ignore"
+
+        legend_data = json.loads(mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE))
+        source_display_item_uuid = uuid.UUID(legend_data["display_item"])
+
+        from_index = legend_data["index"]
+
+        # if we aren't the source item, move the display layer between display items
+        command = self.delegate.create_move_display_layer_command(source_display_item_uuid, from_index, len(self.__display_layers))
+
+        # TODO: perform only if the display channel doesn't exist in the target
+        command.perform()
+        self.delegate.push_undo_command(command)
+
+        return "ignore"
