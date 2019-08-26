@@ -8,6 +8,7 @@ UNRELEASED
 * (2019-09-17) Fix issue with graphics and scale bar coordinates on 4D data image display.
 * (2019-08-26) Add adaptive computation throttling to keep CPU usage below maximum.
 * (2019-08-26) Eliminate unnecessary data copy during partial acquisition (scan).
+* (2019-08-26) Add support for dragging legend items to reorder layers on composite line plotes.
 * (2019-08-19) Add MIME image/svg+xml to clipboard when copying displays (allows pasting to Office).
 * (2019-08-06) Add support to copy line plot and paste to create composite line plot.
 * (2019-07-28) Fix bug where cursor position would not display on composite line plots.
