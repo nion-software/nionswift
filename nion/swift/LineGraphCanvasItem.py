@@ -19,7 +19,6 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
-
 from nion.swift import Inspector, Undo
 from nion.swift.model import DisplayItem
 from nion.ui import CanvasItem
