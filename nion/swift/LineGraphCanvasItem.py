@@ -9,17 +9,22 @@
 
 # standard libraries
 import gettext
+import json
 import math
 import typing
 
 # third party libraries
+import uuid
+
 import numpy
 
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
-from nion.swift import Inspector, Undo
+from nion.swift import Inspector
+from nion.swift import MimeTypes
+from nion.swift import Undo
 from nion.swift.model import DisplayItem
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
@@ -990,6 +995,10 @@ class LineGraphLegendCanvasItemDelegate:
 
     def push_undo_command(self, command: Undo.UndoableCommand) -> None: ...
 
+    def create_mime_data(self) -> typing.Any: ...
+
+    def get_display_item_uuid(self) -> uuid.UUID: ...
+
 
 class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot background and grid lines."""
@@ -1007,6 +1016,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__mouse_position = None
         self.__display_layers = None
         self.wants_mouse_events = True
+        self.wants_drag_events = True
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.font_size = 12
 
@@ -1063,15 +1073,25 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     def mouse_position_changed(self, x, y, modifiers):
         if self.__mouse_pressed_for_dragging:
             if not self.__mouse_dragging and Geometry.distance(self.__mouse_position, Geometry.IntPoint(y=y, x=x)) > 1:
+                mime_data = self.delegate.create_mime_data()
+
+                legend_data = {
+                    "index": self.__dragging_index,
+                    "display_item": str(self.delegate.get_display_item_uuid())
+                }
+
+                mime_data.set_data_as_string(MimeTypes.LAYER_MIME_TYPE, json.dumps(legend_data))
                 self.__mouse_dragging = True
+                self.drag(mime_data)
                 self.update()
                 return True
-        if self.__mouse_dragging:
-            old_entry = self.__entry_to_insert
-            self.__entry_to_insert = self.__get_legend_index(x, y, True)
-            if old_entry != self.__entry_to_insert:
-                self.update()
-            return True
+
+    def drag_move(self, mime_data, x, y):
+        old_entry = self.__entry_to_insert
+        self.__entry_to_insert = self.__get_legend_index(x, y, True)
+        if old_entry != self.__entry_to_insert:
+            self.update()
+        return True
 
     def mouse_pressed(self, x, y, modifiers):
         if self.__legend_entries:
@@ -1083,27 +1103,45 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
                 self.__entry_to_insert = i
                 self.update()
 
-    def mouse_released(self, x, y, modifiers):
-        if self.__mouse_dragging and self.__entry_to_insert != self.__dragging_index:
-            new_display_layers = DisplayItem.shift_display_layers(self.__display_layers, self.__dragging_index, self.__entry_to_insert)
+    def drag_leave(self):
+        self.__mouse_dragging = False
+        self.__mouse_position = None
+        self.__mouse_pressed_for_dragging = False
+        self.__entry_to_insert = None
+        self.__dragging_index = None
+        self.update()
 
-            self.__mouse_dragging = False
-            self.__mouse_position = None
-            self.__dragging_index = None
-            self.__entry_to_insert = None
-            self.__mouse_pressed_for_dragging = False
+    def drag_enter(self, mime_data):
+        legend_data = json.loads(mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE))
 
-            command = self.delegate.create_change_display_item_property_command("display_layers", new_display_layers)
-            command.perform()
-            self.delegate.push_undo_command(command)
+        if uuid.UUID(legend_data["display_item"]) == self.delegate.get_display_item_uuid():
+            self.__mouse_dragging = True
+            self.__dragging_index = legend_data["index"]
+            self.__mouse_pressed_for_dragging = True
             self.update()
 
-        else:
-            self.__mouse_dragging = False
-            self.__mouse_position = None
-            self.__dragging_index = None
-            self.__entry_to_insert = None
-            self.__mouse_pressed_for_dragging = False
+    def drop(self, mime_data, x, y):
+        self.__mouse_dragging = False
+        self.__mouse_position = None
+        self.__mouse_pressed_for_dragging = False
+
+        legend_data = json.loads(mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE))
+
+        if uuid.UUID(legend_data["display_item"]) == self.delegate.get_display_item_uuid():
+            from_index = legend_data["index"]
+
+            if from_index != self.__entry_to_insert:
+                new_display_layers = DisplayItem.shift_display_layers(self.__display_layers, from_index,
+                                                                      self.__entry_to_insert)
+
+                self.__entry_to_insert = None
+
+                command = self.delegate.create_change_display_item_property_command("display_layers",
+                                                                                    new_display_layers)
+                command.perform()
+                self.delegate.push_undo_command(command)
+
+        self.update()
 
     def _repaint(self, drawing_context):
         # draw the data, if any

@@ -1735,6 +1735,12 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def begin_mouse_tracking(self):
         self.__mouse_tracking_transaction = self.__document_controller.document_model.begin_display_item_transaction(self.__display_item)
 
+    def create_mime_data(self):
+        return self.ui.create_mime_data()
+
+    def get_display_item_uuid(self) -> uuid.UUID:
+        return self.display_item.uuid
+
     def end_mouse_tracking(self, undo_command):
         self.__mouse_tracking_transaction.close()
         self.__mouse_tracking_transaction = None
