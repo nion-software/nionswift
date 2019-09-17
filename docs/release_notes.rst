@@ -5,6 +5,7 @@ Release Notes
 
 UNRELEASED
 ----------
+* (2019-09-17) Fix issue with graphics and scale bar coordinates on 4D data image display.
 * (2019-08-26) Add adaptive computation throttling to keep CPU usage below maximum.
 * (2019-08-26) Eliminate unnecessary data copy during partial acquisition (scan).
 * (2019-08-19) Add MIME image/svg+xml to clipboard when copying displays (allows pasting to Office).

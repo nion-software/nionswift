@@ -94,6 +94,22 @@ class TestImageCanvasItemClass(unittest.TestCase):
             # run test
             self.assertEqual(display_panel.display_canvas_item._info_overlay_canvas_item_for_test._dimension_calibration_for_test.units, "x")
 
+    def test_dimension_used_for_scale_marker_on_4d_diffraction_image_is_correct(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            calibrations = [Calibration.Calibration(units="y"), Calibration.Calibration(units="x"), Calibration.Calibration(units="a"), Calibration.Calibration(units="b")]
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((10, 10, 50, 50)), dimensional_calibrations=calibrations, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
+            data_item = DataItem.new_data_item(data_and_metadata)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            # run test
+            self.assertEqual(display_panel.display_canvas_item._info_overlay_canvas_item_for_test._dimension_calibration_for_test.units, "b")
+
     def test_tool_returns_to_pointer_after_but_not_during_creating_rectangle(self):
         # setup
         document_model = DocumentModel.DocumentModel()

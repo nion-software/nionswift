@@ -642,6 +642,24 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(graphic_widget.find_widget_by_id("x").text, "256.0 mm")  # x
             self.assertEqual(graphic_widget.find_widget_by_id("y").text, "64.00 mm")  # y
 
+    def test_point_dimensions_show_calibrated_units_on_4d(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.full((16, 16, 24, 24), 0, dtype=numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.add_graphic(Graphics.PointGraphic())
+            graphic_widget = self.app.ui.create_column_widget()
+            display_item.calibration_style_id = "calibrated"
+            display_item.data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm", scale=0.5))  # a
+            display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=2.0))  # b
+            display_item.data_item.set_dimensional_calibration(2, Calibration.Calibration(units="nm", scale=0.5))  # y
+            display_item.data_item.set_dimensional_calibration(3, Calibration.Calibration(units="nm", scale=2.0))  # x
+            Inspector.make_point_type_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0])
+            self.assertEqual("6.00 nm", graphic_widget.find_widget_by_id("y").text)  # y
+            self.assertEqual("24.0 nm", graphic_widget.find_widget_by_id("x").text)  # x
+
     def test_pixel_center_rounding_correct_on_odd_dimensioned_image(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

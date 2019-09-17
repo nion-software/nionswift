@@ -1583,21 +1583,21 @@ class CalibratedValueFloatToStringConverter:
         self.__index = index
     def __get_calibration(self):
         index = self.__index
-        dimension_count = len(self.__display_item.displayed_dimensional_calibrations)
+        dimension_count = len(self.__display_item.displayed_datum_calibrations)
         if index < 0:
             index = dimension_count + index
         if index >= 0 and index < dimension_count:
-            return self.__display_item.displayed_dimensional_calibrations[index]
+            return self.__display_item.displayed_datum_calibrations[index]
         else:
             return Calibration.Calibration()
     def __get_data_size(self):
         index = self.__index
-        dimensional_shape = self.__display_item.dimensional_shape
-        dimension_count = len(dimensional_shape) if dimensional_shape is not None else 0
+        display_data_shape = self.__display_item.display_data_shape
+        dimension_count = len(display_data_shape) if display_data_shape is not None else 0
         if index < 0:
             index = dimension_count + index
         if index >= 0 and index < dimension_count:
-            return dimensional_shape[index]
+            return display_data_shape[index]
         else:
             return 1.0
     def convert_calibrated_value_to_str(self, calibrated_value):
@@ -1631,21 +1631,21 @@ class CalibratedSizeFloatToStringConverter:
         self.__factor = factor
     def __get_calibration(self):
         index = self.__index
-        dimension_count = len(self.__display_item.displayed_dimensional_calibrations)
+        dimension_count = len(self.__display_item.displayed_datum_calibrations)
         if index < 0:
             index = dimension_count + index
         if index >= 0 and index < dimension_count:
-            return self.__display_item.displayed_dimensional_calibrations[index]
+            return self.__display_item.displayed_datum_calibrations[index]
         else:
             return Calibration.Calibration()
     def __get_data_size(self):
         index = self.__index
-        dimensional_shape = self.__display_item.dimensional_shape
-        dimension_count = len(dimensional_shape) if dimensional_shape else 0
+        display_data_shape = self.__display_item.display_data_shape
+        dimension_count = len(display_data_shape) if display_data_shape else 0
         if index < 0:
             index = dimension_count + index
         if index >= 0 and index < dimension_count:
-            return dimensional_shape[index]
+            return display_data_shape[index]
         else:
             return 1.0
     def convert_calibrated_value_to_str(self, calibrated_value):
@@ -1674,7 +1674,7 @@ class CalibratedBinding(Binding.Binding):
         self.__value_binding.target_setter = update_target
         def calibrations_changed(k):
             if k == "displayed_dimensional_calibrations":
-                update_target(display_item.displayed_dimensional_calibrations)
+                update_target(display_item.displayed_datum_calibrations)
         self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(calibrations_changed)
     def close(self):
         self.__value_binding.close()
@@ -1707,7 +1707,7 @@ class CalibratedSizeBinding(CalibratedBinding):
 
 class CalibratedWidthBinding(CalibratedBinding):
     def __init__(self, display_item: DisplayItem.DisplayItem, value_binding):
-        factor = 1.0 / display_item.dimensional_shape[0]
+        factor = 1.0 / display_item.display_data_shape[0]
         converter = CalibratedSizeFloatToStringConverter(display_item, 0, factor)  # width is stored in pixels. argh.
         super().__init__(display_item, value_binding, converter)
 
@@ -1726,7 +1726,7 @@ class CalibratedLengthBinding(Binding.Binding):
         self.__end_binding.target_setter = update_target
         def calibrations_changed(k):
             if k == "displayed_dimensional_calibrations":
-                update_target(display_item.displayed_dimensional_calibrations)
+                update_target(display_item.displayed_datum_calibrations)
         self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(calibrations_changed)
     def close(self):
         self.__start_binding.close()
@@ -1785,7 +1785,7 @@ def make_point_type_inspector(document_controller, graphic_widget, display_item:
 
     position_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "position", title=_("Change Position"), command_id="change_point_position")
 
-    image_size = data_item.dimensional_shape
+    image_size = data_item.display_data_shape
     if (len(image_size) > 1):
         # calculate values from rectangle type graphic
         # signal_index
@@ -1865,7 +1865,7 @@ def make_line_type_inspector(document_controller, graphic_widget, display_item: 
 
     end_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "end", title=_("Change Line End"), command_id="change_line_end")
 
-    image_size = data_item.dimensional_shape
+    image_size = data_item.display_data_shape
     if len(image_size) > 1:
         # configure the bindings
         # signal_index
@@ -1961,7 +1961,7 @@ def make_rectangle_type_inspector(document_controller, graphic_widget, display_i
     size_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
 
     # calculate values from rectangle type graphic
-    image_size = data_item.dimensional_shape
+    image_size = data_item.display_data_shape
     if len(image_size) > 1:
         # signal_index
         center_x_binding = CalibratedValueBinding(1, display_item, Binding.TuplePropertyBinding(center_model, "value", 1))

@@ -1499,10 +1499,36 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
+        """The calibrations for all data dimensions in the displayed calibration style."""
         calibration_style = self.__get_calibration_style_for_id(self.calibration_style_id)
         calibration_style = CalibrationStyleNative() if not calibration_style else calibration_style
         if self.__dimensional_calibrations:
             return calibration_style.get_dimensional_calibrations(self.__dimensional_shape, self.__dimensional_calibrations)
+        return [Calibration.Calibration() for c in self.__dimensional_calibrations] if self.__dimensional_calibrations else [Calibration.Calibration()]
+
+    @property
+    def displayed_datum_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
+        """The calibrations for only datum dimensions, in the displayed calibration style."""
+        calibration_style = self.__get_calibration_style_for_id(self.calibration_style_id)
+        calibration_style = CalibrationStyleNative() if not calibration_style else calibration_style
+        if self.__dimensional_calibrations and self.__data_and_metadata:
+            calibrations = calibration_style.get_dimensional_calibrations(self.__dimensional_shape, self.__dimensional_calibrations)
+            data_and_metadata = self.__data_and_metadata
+            next_dimension = 0
+            if data_and_metadata.is_sequence:
+                next_dimension += 1
+            if data_and_metadata.is_collection:
+                collection_dimension_count = data_and_metadata.collection_dimension_count
+                datum_dimension_count = data_and_metadata.datum_dimension_count
+                # next dimensions are treated as collection indexes.
+                if collection_dimension_count == 1 and datum_dimension_count == 1:
+                    return calibrations[next_dimension:next_dimension + collection_dimension_count + datum_dimension_count]
+                elif collection_dimension_count == 2 and datum_dimension_count == 1:
+                    return calibrations[next_dimension:next_dimension + collection_dimension_count]
+                else:  # default, "pick"
+                    return calibrations[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
+            else:
+                return calibrations[next_dimension:]
         return [Calibration.Calibration() for c in self.__dimensional_calibrations] if self.__dimensional_calibrations else [Calibration.Calibration()]
 
     @property

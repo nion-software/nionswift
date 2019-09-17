@@ -493,7 +493,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 if data_and_metadata:
                     datum_dimensions = data_and_metadata.datum_dimension_indexes
                     collection_dimensions = data_and_metadata.collection_dimension_indexes
-                    if len(collection_dimensions) > 0:
+                    if len(datum_dimensions) == 2:
+                        dimensional_calibration = data_and_metadata.dimensional_calibrations[datum_dimensions[-1]]
+                    elif len(collection_dimensions) > 0:
                         dimensional_calibration = data_and_metadata.dimensional_calibrations[collection_dimensions[-1]]
                     elif len(datum_dimensions) > 0:
                         dimensional_calibration = data_and_metadata.dimensional_calibrations[datum_dimensions[-1]]
