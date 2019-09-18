@@ -1,5 +1,6 @@
 # standard libraries
 import contextlib
+import copy
 import functools
 import gettext
 import json
@@ -723,8 +724,7 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
     def _undo(self):
         display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
         display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
-        self.__undelete_logs = list()
-        self.__undelete_logs.append(display_item.remove_display_data_channel(display_data_channel, safe=True))
+        display_item.remove_display_data_channel(display_data_channel, safe=True)
         display_item.restore_properties(self.__old_properties)
 
     def _redo(self):
@@ -772,6 +772,72 @@ class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
         return isinstance(command, ChangeDisplayDataChannelCommand) and self.command_id and self.command_id == command.command_id and self.__display_data_channel_uuid == command.__display_data_channel_uuid
+
+
+class MoveDisplayLayerCommand(Undo.UndoableCommand):
+
+    def __init__(self, document_model,
+                 old_display_item: DisplayItem.DisplayItem, old_display_layer_index: int,
+                 new_display_item: DisplayItem.DisplayItem, new_display_layer_index: int,
+                 *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+        super().__init__(title if title else _("Move Display Layer"), command_id=command_id, is_mergeable=is_mergeable)
+        old_display_layer = old_display_item.display_layers[old_display_layer_index]
+        old_display_data_channel_index = old_display_layer["data_index"]
+        self.__document_model = document_model
+        self.__old_display_item_uuid = old_display_item.uuid
+        self.__old_display_layer_index = old_display_layer_index
+        self.__old_display_data_channel_index = old_display_data_channel_index
+        self.__new_display_item_uuid = new_display_item.uuid
+        self.__new_display_layer_index = new_display_layer_index
+        self.__new_display_data_channel_index = None
+        self.initialize()
+
+    def close(self):
+        self.__document_model = None
+        self.__display_data_channel_uuid = None
+        self.__properties = None
+        super().close()
+
+    def perform(self):
+        # add display data channel and display layer to new display item
+        old_display_item = self.__document_model.get_display_item_by_uuid(self.__old_display_item_uuid)
+        old_display_layer = old_display_item.display_layers[self.__old_display_layer_index]
+        new_display_item = self.__document_model.get_display_item_by_uuid(self.__new_display_item_uuid)
+        self.__new_original_legend_position = new_display_item.get_display_property("legend_position")
+        new_display_item.copy_display_layer(self.__new_display_layer_index, old_display_item, old_display_layer)
+        new_display_item.connect_data_items(self.__document_model.get_data_item_by_uuid)
+        self.__new_display_data_channel_index = len(new_display_item.display_data_channels) - 1
+        # remove display layer and then display data channel from old display item
+        self.__old_display_layers = copy.deepcopy(old_display_item.display_layers)
+        old_display_item.remove_display_layer(self.__old_display_layer_index)
+        self.__undelete_logs = list()
+        self.__undelete_logs.append(old_display_item.remove_display_data_channel(old_display_item.display_data_channels[self.__old_display_data_channel_index]))
+
+    def _get_modified_state(self):
+        old_display_item = self.__document_model.get_display_item_by_uuid(self.__old_display_item_uuid)
+        new_display_item = self.__document_model.get_display_item_by_uuid(self.__new_display_item_uuid)
+        return old_display_item.modified_state, new_display_item.modified_state, self.__document_model.modified_state
+
+    def _set_modified_state(self, modified_state):
+        old_display_item = self.__document_model.get_display_item_by_uuid(self.__old_display_item_uuid)
+        new_display_item = self.__document_model.get_display_item_by_uuid(self.__new_display_item_uuid)
+        old_display_item.modified_state, new_display_item.modified_state, self.__document_model.modified_state = modified_state
+
+    def _compare_modified_states(self, state1, state2) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0] and state1[1] == state2[1]
+
+    def _undo(self):
+        old_display_item = self.__document_model.get_display_item_by_uuid(self.__old_display_item_uuid)
+        new_display_item = self.__document_model.get_display_item_by_uuid(self.__new_display_item_uuid)
+        # restore original display item display data channel, display layer
+        for undelete_log in reversed(self.__undelete_logs):
+            self.__document_model.undelete_all(undelete_log)
+        old_display_item.display_layers = self.__old_display_layers
+        # remove new display item display layer, display data channel, and restore legend state
+        new_display_item.remove_display_layer(self.__new_display_layer_index)
+        new_display_item.remove_display_data_channel(new_display_item.display_data_channels[self.__new_display_data_channel_index])
+        new_display_item.set_display_property("legend_position", self.__new_original_legend_position)
 
 
 class ChangeDisplayCommand(Undo.UndoableCommand):

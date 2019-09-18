@@ -1121,6 +1121,16 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def move_display_layer_backward(self, index: int) -> None:
         self.display_layers = move_display_layer_backward(self.display_layers, index)
 
+    def copy_display_layer(self, before_index: int, display_item: "DisplayItem", display_layer: typing.Dict) -> None:
+        display_layer_copy = copy.deepcopy(display_layer)
+        display_data_channel_copy = copy.deepcopy(display_item.display_data_channels[display_layer_copy["data_index"]])
+        self.append_display_data_channel(display_data_channel_copy)
+        display_data_channel_copy_index = len(self.display_data_channels)
+        display_layer_copy["data_index"] = display_data_channel_copy_index
+        display_layer_copy["fill_color"] = self.__get_unique_display_layer_color()
+        self.insert_display_layer(before_index, **display_layer)
+        self.__auto_display_legend()
+
     def populate_display_layers(self) -> None:
         if len(self.display_layers) == 0:
             # create basic display layers here
@@ -1369,18 +1379,25 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             data_index = self.display_data_channels.index(display_data_channel)
             self.__add_display_layer_auto(display_layer, data_index)
 
+    def __get_unique_display_layer_color(self) -> str:
+        existing_colors = [display_layer_.get("fill_color") for display_layer_ in self.display_layers]
+        for color in ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00"):
+            if not color in existing_colors:
+                return color
+        return '#1E90FF'
+
+    def __auto_display_legend(self) -> None:
+        if len(self.display_layers) == 2 and self.get_display_property("legend_position") is None:
+            self.set_display_property("legend_position", "top-right")
+
     def __add_display_layer_auto(self, display_layer: typing.Dict, data_index: int) -> None:
         # this fill color code breaks encapsulation. i'm leaving it here as a convenience for now.
         # eventually there should be a connection to a display controller based on the display type which can be
         # used to set defaults for the layers.
         display_layer["data_index"] = data_index
-        existing_colors = [display_layer_.get("fill_color") for display_layer_ in self.display_layers]
-        for color in ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00"):
-            if not color in existing_colors:
-                display_layer.setdefault("fill_color", color)
+        display_layer.setdefault("fill_color", self.__get_unique_display_layer_color())
         self.add_display_layer(**display_layer)
-        if len(self.display_layers) == 2 and self.get_display_property("legend_position") is None:
-            self.set_display_property("legend_position", "top-right")
+        self.__auto_display_legend()
 
     def insert_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel) -> None:
         self.insert_model_item(self, "display_data_channels", before_index, display_data_channel)
