@@ -2115,6 +2115,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(3, len(display_item4.display_layers))
             self.assertEqual(3, len(display_item4.display_data_channels))
             self.assertEqual(data_item2, display_item4.display_data_channels[2].data_item)
+            self.assertEqual(2, display_item4.display_layers[1]["data_index"])
             command.undo()
             self.assertEqual(3, len(display_item1.display_layers))
             self.assertEqual(3, len(display_item1.display_data_channels))
