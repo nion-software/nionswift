@@ -1741,6 +1741,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def get_display_item_uuid(self) -> uuid.UUID:
         return self.display_item.uuid
 
+    def get_display_item_by_uuid(self, id: uuid.UUID) -> DisplayItem:
+        return self.document_controller.document_model.get_display_item_by_uuid(id)
+
     def end_mouse_tracking(self, undo_command):
         self.__mouse_tracking_transaction.close()
         self.__mouse_tracking_transaction = None
@@ -1807,8 +1810,13 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> ChangeDisplayCommand:
         return ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item, command_id=command_id, is_mergeable=is_mergeable)
 
-    def create_change_display_item_property_command(self, property_name: str, value) -> Inspector.ChangeDisplayItemPropertyCommand:
-        return Inspector.ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, self.__display_item, property_name, value)
+    def create_move_display_layer_command(self, src_id: uuid.UUID, src_index: int, target_index: int) -> MoveDisplayLayerCommand:
+        src_display_item = self.__document_controller.document_model.get_display_item_by_uuid(src_id)
+        return MoveDisplayLayerCommand(self.__document_controller.document_model, src_display_item, src_index, self.__display_item, target_index)
+
+    def create_change_display_item_property_command(self, id: uuid.UUID, property_name: str, value) -> Inspector.ChangeDisplayItemPropertyCommand:
+        display_item = self.__document_controller.document_model.get_display_item_by_uuid(id)
+        return Inspector.ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, display_item, property_name, value)
 
     def create_change_graphics_command(self) -> ChangeGraphicsCommand:
         all_graphics = self.__display_item.graphics
