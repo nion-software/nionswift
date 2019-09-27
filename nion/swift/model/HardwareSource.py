@@ -954,7 +954,7 @@ class HardwareSource:
         return HardwareSourceFacade()
 
 
-class SumProcessor(Observable.Observable, Persistence.PersistentObject):
+class SumProcessor(Observable.Observable):
     def __init__(self, bounds, processor_id=None, label=None):
         super().__init__()
         self.__bounds = bounds
