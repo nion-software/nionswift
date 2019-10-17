@@ -243,7 +243,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def _has_valid_drawn_graph_data(self):
         return self.___has_valid_drawn_graph_data
 
-    def __get_legend_origin(self) -> Geometry.IntPoint:
+    def __get_legend_origin(self) -> typing.Optional[Geometry.IntPoint]:
         plot_rect = self.__line_graph_area_stack.canvas_bounds
         if plot_rect:
             plot_width = int(plot_rect[1][1]) - 1
@@ -252,16 +252,12 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
             line_height = self.__line_graph_legend_canvas_item.font_size + 4
             border = 4
-            legend_width = 0
-            font = "{0:d}px".format(self.__line_graph_legend_canvas_item.font_size)
-
-            for index, legend_entry in enumerate(self.__line_graph_legend_canvas_item.get_effective_entries()):
-                legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
+            legend_size = self.__line_graph_legend_canvas_item.get_bounds()
 
             if self.__legend_position == "top-left":
                 legend_origin = Geometry.IntPoint(x=plot_origin_x + 10, y=plot_origin_y + line_height * 0.5 - border)
             else:
-                legend_origin = Geometry.IntPoint(x=plot_origin_x + plot_width - 10 - line_height - legend_width - border,
+                legend_origin = Geometry.IntPoint(x=plot_origin_x + plot_width - 10 - line_height - legend_size.width - border,
                                                   y=plot_origin_y + line_height * 0.5 - border)
             return legend_origin
         return None
@@ -612,8 +608,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__line_graph_frame_canvas_item.set_draw_frame(axes.is_valid)
         legend_origin = self.__get_legend_origin()
         if legend_origin:
-            old_legend_bounds = self.__line_graph_legend_canvas_item.canvas_bounds
-            self.__line_graph_legend_canvas_item.update_layout(legend_origin, old_legend_bounds.size)
+            old_legend_bounds = self.__line_graph_legend_canvas_item.get_bounds()
+            self.__line_graph_legend_canvas_item.update_layout(legend_origin, old_legend_bounds)
         self.__line_graph_legend_canvas_item.set_legend_entries(legend_position, legend_entries, display_layers)
         self.__line_graph_vertical_axis_label_canvas_item.set_axes(axes)
         self.__line_graph_vertical_axis_scale_canvas_item.set_axes(axes, self.__get_font_metrics_fn)

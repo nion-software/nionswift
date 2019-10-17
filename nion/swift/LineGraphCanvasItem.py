@@ -1018,6 +1018,8 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__legend_entries = None
         self.__effective_entries = []  # reordered/inserted entries that have not yet been applied
         self.__mouse_pressed_for_dragging = False
+
+        # This is true when we're dragging from a local display item or foreign display item.
         self.__mouse_dragging = False
         self.__mouse_position = None
         self.__display_layers = None
@@ -1034,10 +1036,24 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     def __generate_effective_entries(self):
         effective_entries = self.__legend_entries[:]
 
-        if self.__mouse_dragging and self.__entry_to_insert is not None:
+        if self.__mouse_dragging and self.__entry_to_insert is not None and self.__dragging_index is not None:
             DisplayItem.shift_display_layers(effective_entries, self.__dragging_index, self.__entry_to_insert)
 
         self.__effective_entries = effective_entries
+
+    def get_bounds(self) -> Geometry.IntSize:
+        line_height = self.font_size + 4
+        border = 4
+
+        legend_height = len(self.__effective_entries) * line_height + border * 2
+
+        legend_width = 0
+        font = "{0:d}px".format(self.font_size)
+
+        for index, legend_entry in enumerate(self.get_effective_entries()):
+            legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
+
+        return Geometry.IntSize(width=legend_width, height=legend_height)
 
     def set_legend_entries(self, legend_position: typing.Optional[str], legend_entries: typing.Optional[typing.Sequence], display_layers: typing.Optional[typing.Sequence]):
         if self.__legend_entries != legend_entries or self.__legend_position != legend_position or self.__display_layers != display_layers:
@@ -1045,20 +1061,6 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__legend_entries = legend_entries
             self.__generate_effective_entries()
             self.__display_layers = display_layers
-
-            line_height = self.font_size + 4
-            border = 4
-
-            legend_height = len(self.__effective_entries) * line_height + border * 2
-
-            legend_width = 0
-            font = "{0:d}px".format(self.font_size)
-
-            for index, legend_entry in enumerate(self.get_effective_entries()):
-                legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
-
-            self.update_layout(self.canvas_origin, Geometry.IntSize(height=legend_height, width=legend_width))
-
             self.update()
 
     def __get_legend_index(self, x, y, ignore_y = False, insertion = False) -> int:
@@ -1094,7 +1096,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def mouse_position_changed(self, x, y, modifiers):
         if self.__mouse_pressed_for_dragging:
-            if not self.__mouse_dragging and Geometry.distance(self.__mouse_position, Geometry.IntPoint(y=y, x=x)) > 1:
+            if Geometry.distance(self.__mouse_position, Geometry.IntPoint(y=y, x=x)) > 1:
                 mime_data = self.delegate.create_mime_data()
 
                 legend_data = {
@@ -1106,20 +1108,17 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
                 }
 
                 mime_data.set_data_as_string(MimeTypes.LAYER_MIME_TYPE, json.dumps(legend_data))
-                self.__mouse_dragging = True
                 self.drag(mime_data)
                 self.update()
                 return True
 
     def drag_move(self, mime_data, x, y):
-        if self.__mouse_dragging:
-            old_entry = self.__entry_to_insert
-            self.__entry_to_insert = self.__get_legend_index(x, y, True, self.__foreign_legend_entry is not None)
-            if old_entry != self.__entry_to_insert:
-                self.__generate_effective_entries()
-                self.update()
-            return True
-        return False
+        old_entry = self.__entry_to_insert
+        self.__entry_to_insert = self.__get_legend_index(x, y, True, self.__foreign_legend_entry is not None)
+        if old_entry != self.__entry_to_insert:
+            self.__generate_effective_entries()
+            self.update()
+        return True
 
     def mouse_pressed(self, x, y, modifiers):
         if self.__legend_entries and len(self.__legend_entries) > 1:
@@ -1142,8 +1141,8 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update()
 
     def drag_leave(self):
-        self.__mouse_dragging = False
         self.__mouse_position = None
+        self.__mouse_dragging = False
         self.__mouse_pressed_for_dragging = False
         self.__entry_to_insert = None
         self.__dragging_index = None
@@ -1153,10 +1152,9 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def drag_enter(self, mime_data):
         if mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE) != "":
+            self.__mouse_dragging = True
             legend_data = json.loads(mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE))
-
             if uuid.UUID(legend_data["display_item"]) == self.delegate.get_display_item_uuid():
-                self.__mouse_dragging = True
                 self.__dragging_index = legend_data["index"]
                 self.__mouse_pressed_for_dragging = True
                 self.update()
@@ -1165,12 +1163,12 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
                 self.__foreign_legend_entry = LegendEntry(label=legend_data["label"], fill_color=legend_data["fill_color"], stroke_color=legend_data["stroke_color"])
                 self.__foreign_legend_uuid_and_index = (legend_data["display_item"], legend_data["index"])
-        return "ignore"
+                self.update()
 
     def drop(self, mime_data, x, y):
-        self.__mouse_dragging = False
         self.__mouse_position = None
         self.__mouse_pressed_for_dragging = False
+        self.__mouse_dragging = False
 
         if mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE) != "":
             legend_data = json.loads(mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE))
@@ -1192,26 +1190,12 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             else:
                 source_display_item = self.delegate.get_display_item_by_uuid(source_display_item_uuid)
                 source_display_item_layers = source_display_item.display_layers[:]
-                source_display_data_channels = source_display_item.display_data_channels[:]
-                layer_to_move = source_display_item_layers[from_index]["data_index"]
-
                 command = self.delegate.create_move_display_layer_command(source_display_item_uuid, from_index, self.__entry_to_insert)
 
-                #
-                # # first, we remove the data channel from the old display item and update the indices of the layer
-                source_channel = source_display_data_channels[layer_to_move]
-
-                target_display_item_uuid = self.delegate.get_display_item_uuid()
-                target_display_item = self.delegate.get_display_item_by_uuid(target_display_item_uuid)
-
-                target_display_item_channels = target_display_item.display_data_channels[:]
-
-                # perform only if the display channel doesn't exist in the target
-                if source_channel not in target_display_item_channels:
-                    command.perform()
-                    self.delegate.push_undo_command(command)
-
-        self.update()
+                # TODO: perform only if the display channel doesn't exist in the target
+                command.perform()
+                self.delegate.push_undo_command(command)
+            self.update()
 
     def get_effective_entries(self) -> list:
         return self.__effective_entries
@@ -1221,12 +1205,6 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         legend_position = self.__legend_position
         legend_entries = self.__legend_entries
         if legend_entries and legend_position in ("top-left", "top-right"):
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.rect(-2, -2, 4, 4)
-                drawing_context.fill_style = "rgba(255, 0, 0, 1)"
-                drawing_context.fill()
-
             font = "{0:d}px".format(self.font_size)
 
             legend_width = 0
@@ -1258,7 +1236,11 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
                     drawing_context.fill()
 
-            for index, legend_entry in enumerate(self.__effective_entries):
+            effective_entries_and_foreign = self.__effective_entries[:]
+            if self.__foreign_legend_entry is not None:
+                effective_entries_and_foreign.insert(self.__entry_to_insert, self.__foreign_legend_entry)
+
+            for index, legend_entry in enumerate(effective_entries_and_foreign):
                 with drawing_context.saver():
                     drawing_context.font = font
                     drawing_context.text_align = "right"
