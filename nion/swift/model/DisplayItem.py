@@ -1127,7 +1127,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.append_display_data_channel(display_data_channel_copy)
         display_data_channel_copy_index = len(self.display_data_channels) - 1
         display_layer_copy["data_index"] = display_data_channel_copy_index
-        display_layer_copy["fill_color"] = self.__get_unique_display_layer_color()
+        display_layer_copy["fill_color"] = display_layer["fill_color"]
         self.insert_display_layer(before_index, **display_layer_copy)
         self.__auto_display_legend()
 
