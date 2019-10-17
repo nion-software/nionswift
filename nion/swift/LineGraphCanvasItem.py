@@ -1031,7 +1031,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__foreign_legend_entry = None
         self.__foreign_legend_uuid_and_index = None
 
-    def __generate_effective_entries(self) -> typing.Sequence:
+    def __generate_effective_entries(self):
         effective_entries = self.__legend_entries[:]
 
         if self.__mouse_dragging and self.__entry_to_insert is not None:
@@ -1057,10 +1057,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             for index, legend_entry in enumerate(self.get_effective_entries()):
                 legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
 
-            sizing = CanvasItem.Sizing()
-            sizing.set_fixed_size(Geometry.IntSize(height=legend_height, width=legend_width))
-            self.update_sizing(sizing)
-            print(self.canvas_bounds)
+            self.update_layout(self.canvas_origin, Geometry.IntSize(height=legend_height, width=legend_width))
 
             self.update()
 
@@ -1224,12 +1221,18 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         legend_position = self.__legend_position
         legend_entries = self.__legend_entries
         if legend_entries and legend_position in ("top-left", "top-right"):
-            plot_rect = self.canvas_bounds
-            plot_width = int(plot_rect[1][1]) - 1
-            plot_origin_x = int(plot_rect[0][1])
-            plot_origin_y = int(plot_rect[0][0])
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.rect(-2, -2, 4, 4)
+                drawing_context.fill_style = "rgba(255, 0, 0, 1)"
+                drawing_context.fill()
+
+            font = "{0:d}px".format(self.font_size)
 
             legend_width = 0
+            for index, legend_entry in enumerate(self.get_effective_entries()):
+                legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
+
             line_height = self.font_size + 4
             border = 4
             font = "{0:d}px".format(self.font_size)

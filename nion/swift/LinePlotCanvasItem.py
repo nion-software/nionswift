@@ -610,9 +610,10 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__line_graph_regions_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_canvas_item.calibrated_xdata.data if self.line_graph_canvas_item and self.line_graph_canvas_item.calibrated_xdata else None)
         self.__line_graph_frame_canvas_item.set_draw_frame(axes.is_valid)
-        old_legend_bounds = self.__line_graph_legend_canvas_item.canvas_bounds
         legend_origin = self.__get_legend_origin()
-        # self.__line_graph_legend_canvas_item.update_layout(legend_origin, old_legend_bounds.size)
+        if legend_origin:
+            old_legend_bounds = self.__line_graph_legend_canvas_item.canvas_bounds
+            self.__line_graph_legend_canvas_item.update_layout(legend_origin, old_legend_bounds.size)
         self.__line_graph_legend_canvas_item.set_legend_entries(legend_position, legend_entries, display_layers)
         self.__line_graph_vertical_axis_label_canvas_item.set_axes(axes)
         self.__line_graph_vertical_axis_scale_canvas_item.set_axes(axes, self.__get_font_metrics_fn)
