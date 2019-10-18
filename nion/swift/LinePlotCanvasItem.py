@@ -1,9 +1,11 @@
 # standard libraries
 import collections
 import copy
+import json
 import math
 import threading
 import typing
+import uuid
 
 # third party libraries
 import numpy
@@ -13,6 +15,7 @@ from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift import LineGraphCanvasItem
+from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
@@ -85,6 +88,8 @@ class LinePlotCanvasItemDelegate:
 
     @tool_mode.setter
     def tool_mode(self, value: str) -> None: ...
+
+    def create_move_display_layer_command(self, src_id: uuid.UUID, src_index: int, target_index: int) -> Undo.UndoableCommand: ...
 
 
 class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
@@ -981,3 +986,24 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             return {"plus": (hit_rect, self.__line_graph_area_stack.canvas_rect)}
         else:
             return None
+
+    def wants_drag_event(self, mime_data, x, y) -> bool:
+        return mime_data.has_format(MimeTypes.LAYER_MIME_TYPE)
+
+    def drop(self, mime_data, x, y):
+        if not mime_data.has_format(MimeTypes.LAYER_MIME_TYPE):
+            return "ignore"
+
+        legend_data = json.loads(mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE))
+        source_display_item_uuid = uuid.UUID(legend_data["display_item"])
+
+        from_index = legend_data["index"]
+
+        # if we aren't the source item, move the display layer between display items
+        command = self.delegate.create_move_display_layer_command(source_display_item_uuid, from_index, len(self.__display_layers))
+
+        # TODO: perform only if the display channel doesn't exist in the target
+        command.perform()
+        self.delegate.push_undo_command(command)
+
+        return "ignore"
