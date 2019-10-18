@@ -1078,6 +1078,9 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
         legend_height = len(self.__effective_entries) * line_height + border * 2
 
+        if len(self.effective_entries) == 0:
+            legend_height = 0
+
         text_width = 0
         font = "{0:d}px".format(self.font_size)
 
@@ -1087,6 +1090,9 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         legend_width = text_width + border * 2 + line_height
 
         return Geometry.IntSize(width=legend_width, height=legend_height)
+
+    def wants_drag_event(self, mime_data, x, y) -> bool:
+        return mime_data.has_format(MimeTypes.LAYER_MIME_TYPE)
 
     def set_legend_entries(self, legend_entries: typing.Optional[typing.Sequence], display_layers: typing.Optional[typing.Sequence]):
         if self.__legend_entries != legend_entries or self.__display_layers != display_layers:
@@ -1196,7 +1202,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def drag_enter(self, mime_data):
         # if a new drag comes in with layer mime data, check if we're the source or if this is a foreign layer
-        if mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE) != "":
+        if mime_data.has_format(MimeTypes.LAYER_MIME_TYPE):
             self.__mouse_dragging = True
             legend_data = json.loads(mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE))
             if uuid.UUID(legend_data["display_item"]) == self.delegate.get_display_item_uuid():
@@ -1254,7 +1260,8 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         return self.__effective_entries
 
     def _repaint(self, drawing_context):
-        if self.__legend_entries is None or len(self.__legend_entries) == 0:
+        # don't display the canvas item if there are less than two items
+        if self.__legend_entries is None or len(self.__legend_entries) < 2:
             return
 
         font = "{0:d}px".format(self.font_size)
@@ -1268,7 +1275,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         font = "{0:d}px".format(self.font_size)
 
         effective_entries_and_foreign = self.__effective_entries[:]
-        if self.__foreign_legend_entry is not None:
+        if self.__foreign_legend_entry is not None and self.__entry_to_insert:
             effective_entries_and_foreign.insert(self.__entry_to_insert, self.__foreign_legend_entry)
 
         legend_height = len(effective_entries_and_foreign) * line_height + border * 2

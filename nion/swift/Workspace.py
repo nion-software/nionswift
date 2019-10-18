@@ -751,6 +751,9 @@ class Workspace:
             return "copy"
         return "ignore"
 
+    def should_handle_drag_for_mime_data(self, mime_data):
+        return mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE) or mime_data.has_format("text/uri-list") or mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE)
+
     def handle_drop(self, display_panel, mime_data, region, x, y):
         document_model = self.document_model
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
