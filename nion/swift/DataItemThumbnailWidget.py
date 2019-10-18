@@ -98,9 +98,6 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.update()
         return "ignore"
 
-    def wants_drag_event(self, mime_data, x, y) -> bool:
-        return True
-
     def drag_leave(self):
         self.__dropping = False
         self.update()
