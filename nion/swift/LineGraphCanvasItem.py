@@ -1015,7 +1015,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__drawing_context = None
 
         # current legend items corresponding to layers of the display item
-        self.__legend_entries = None
+        self.__legend_entries = []
 
         # reordered/inserted entries that have not yet been applied
         self.__effective_entries = []
