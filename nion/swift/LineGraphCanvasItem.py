@@ -1011,7 +1011,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self, get_font_metrics_fn, delegate: LineGraphLegendCanvasItemDelegate):
         super().__init__()
 
-        self.delegate = delegate
+        self.__delegate = delegate
         self.__drawing_context = None
 
         # current legend items corresponding to layers of the display item
@@ -1137,11 +1137,11 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         # if the mouse is pressed and the distance it greater than the distance to start dragging, start the drag using
         # the selected layer as the mime type.
         if self.__mouse_pressed_for_dragging and Geometry.distance(self._drag_start_position, Geometry.IntPoint(y=y, x=x)) > 1:
-                mime_data = self.delegate.create_mime_data()
+                mime_data = self.__delegate.create_mime_data()
 
                 legend_data = {
                     "index": self.__dragging_index,
-                    "display_item": str(self.delegate.get_display_item_uuid()),
+                    "display_item": str(self.__delegate.get_display_item_uuid()),
                     "label": self.__legend_entries[self.__dragging_index].label,
                     "fill_color": self.__legend_entries[self.__dragging_index].fill_color,
                     "stroke_color": self.__legend_entries[self.__dragging_index].stroke_color,
@@ -1205,7 +1205,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         if mime_data.has_format(MimeTypes.LAYER_MIME_TYPE):
             self.__mouse_dragging = True
             legend_data = json.loads(mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE))
-            if uuid.UUID(legend_data["display_item"]) == self.delegate.get_display_item_uuid():
+            if uuid.UUID(legend_data["display_item"]) == self.__delegate.get_display_item_uuid():
                 # if we're the source, setup the index and update the drag preview
                 self.__dragging_index = legend_data["index"]
                 self.__mouse_pressed_for_dragging = True
@@ -1231,7 +1231,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
             from_index = legend_data["index"]
 
-            if source_display_item_uuid == self.delegate.get_display_item_uuid():
+            if source_display_item_uuid == self.__delegate.get_display_item_uuid():
                 # if we're the source item, just shift the layers
                 if from_index != self.__entry_to_insert:
                     new_display_layers = DisplayItem.shift_display_layers(self.__display_layers, from_index,
@@ -1239,20 +1239,20 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
                     self.__entry_to_insert = None
 
-                    command = self.delegate.create_change_display_item_property_command(source_display_item_uuid, "display_layers",
-                                                                                        new_display_layers)
+                    command = self.__delegate.create_change_display_item_property_command(source_display_item_uuid, "display_layers",
+                                                                                          new_display_layers)
                     command.perform()
-                    self.delegate.push_undo_command(command)
+                    self.__delegate.push_undo_command(command)
             else:
                 # if we aren't the source item, move the display layer between display items
-                command = self.delegate.create_move_display_layer_command(source_display_item_uuid, from_index, self.__entry_to_insert)
+                command = self.__delegate.create_move_display_layer_command(source_display_item_uuid, from_index, self.__entry_to_insert)
 
                 self.__foreign_legend_entry = None
                 self.__foreign_legend_uuid_and_index = None
 
                 # TODO: perform only if the display channel doesn't exist in the target
                 command.perform()
-                self.delegate.push_undo_command(command)
+                self.__delegate.push_undo_command(command)
             self.update()
 
     @property

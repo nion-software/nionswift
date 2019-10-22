@@ -137,7 +137,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_drag_enter = None
         self.on_drag_leave = None
         self.on_drag_move = None
-        self.should_accept_mime_type = None
+        self.on_wants_drag_event = None
         self.on_drop = None
         self.on_key_pressed = None
         self.on_key_released = None
@@ -251,8 +251,8 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         return False
 
     def wants_drag_event(self, mime_data, x, y) -> bool:
-        if self.should_accept_mime_type:
-            return self.should_accept_mime_type(mime_data)
+        if self.on_wants_drag_event:
+            return self.on_wants_drag_event(mime_data)
         return False
 
     def drag_enter(self, mime_data):
@@ -1045,7 +1045,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 return workspace_controller.handle_drag_move(self, mime_data, x, y)
             return "ignore"
 
-        def should_handle_for_mime_data(mime_data):
+        def wants_drag_event(mime_data):
             if workspace_controller:
                 return workspace_controller.should_handle_drag_for_mime_data(mime_data)
             return False
@@ -1059,7 +1059,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__content_canvas_item.on_drag_enter = drag_enter
         self.__content_canvas_item.on_drag_leave = drag_leave
         self.__content_canvas_item.on_drag_move = drag_move
-        self.__content_canvas_item.should_accept_mime_type = should_handle_for_mime_data
+        self.__content_canvas_item.on_wants_drag_event = wants_drag_event
         self.__content_canvas_item.on_drop = drop
         self.__content_canvas_item.on_key_pressed = self._handle_key_pressed
         self.__content_canvas_item.on_key_released = self._handle_key_released
