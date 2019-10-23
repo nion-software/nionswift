@@ -5,6 +5,7 @@ Release Notes
 
 UNRELEASED
 ----------
+* (2019-10-22) Fix issue with cursor display on collections of 1D data displayed as image.
 * (2019-10-22) Add support for dragging legend items to reorder layers on composite line plotes.
 * (2019-09-17) Fix issue with graphics and scale bar coordinates on 4D data image display.
 * (2019-08-26) Add adaptive computation throttling to keep CPU usage below maximum.

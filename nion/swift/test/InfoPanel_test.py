@@ -118,6 +118,17 @@ class TestInfoPanelClass(unittest.TestCase):
             self.assertEqual(p, "25.0")
             self.assertEqual(v, "0")
 
+    def test_cursor_over_1d_image_without_exception_x(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 25)), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 1)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "image"
+            p, v = display_item.get_value_and_position_text(display_item.display_data_channel, (2, 20))
+            self.assertEqual(p, "20.0, 2.0")
+            self.assertEqual(v, "0")
+
     def test_cursor_over_3d_data_displays_without_exception(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

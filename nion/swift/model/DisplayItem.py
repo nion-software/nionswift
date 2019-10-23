@@ -1669,7 +1669,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         intensity_calibration = self.displayed_intensity_calibration
 
         if data_and_metadata is None or pos is None:
-            if self.__is_composite_data and len(pos) == 1:
+            if self.__is_composite_data and (pos is not None and len(pos) == 1):
                 return u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0])), str()
             return str(), str()
 
@@ -1681,6 +1681,10 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         if collection_dimension_count == 2 and datum_dimension_count == 1:
             pos = pos + (display_data_channel.slice_center, )
         else:
+            # reduce collection dimensions for case where 2 pos dimensions are supplied on 1 pos datum (line plot display as image)
+            non_collection_dimension_count = datum_dimension_count + (1 if is_sequence else 0)
+            collection_dimension_count -= len(pos) - non_collection_dimension_count
+            # adjust position for collection dimensions
             pos = tuple(display_data_channel.collection_index[0:collection_dimension_count]) + pos
 
         while len(pos) < data_and_metadata.datum_dimension_count:
