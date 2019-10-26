@@ -1750,6 +1750,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def create_mime_data(self):
         return self.ui.create_mime_data()
 
+    def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int):
+        return self.ui.create_rgba_image(drawing_context, width, height)
+
     def get_display_item_uuid(self) -> uuid.UUID:
         return self.display_item.uuid
 

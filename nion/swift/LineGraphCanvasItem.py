@@ -1004,6 +1004,8 @@ class LineGraphLegendCanvasItemDelegate:
 
     def get_display_item_uuid(self) -> uuid.UUID: ...
 
+    def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int) -> numpy.ndarray: ...
+
 
 class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot background and grid lines."""
@@ -1133,22 +1135,43 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             # return the current item, clamped to length-1 and 0
             return max(min(y // line_height, end_index), 0)
 
+    def __get_icon_for_layer(self, fill: str):
+        border = 1
+        drawing_context = DrawingContext.DrawingContext()
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.rect(0, 0, 32, 32)
+            drawing_context.fill_style = "rgba(0, 0, 0, 255)"
+            drawing_context.fill()
+
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.rect(border, border, 32 - 2*border, 32 - 2*border)
+            drawing_context.fill_style = fill
+            drawing_context.fill()
+
+        return self.__delegate.create_rgba_image(drawing_context, 32, 32)
+
     def mouse_position_changed(self, x, y, modifiers):
         # if the mouse is pressed and the distance it greater than the distance to start dragging, start the drag using
         # the selected layer as the mime type.
         if self.__mouse_pressed_for_dragging and Geometry.distance(self._drag_start_position, Geometry.IntPoint(y=y, x=x)) > 1:
                 mime_data = self.__delegate.create_mime_data()
 
+                layer = self.__legend_entries[self.__dragging_index]
+
                 legend_data = {
                     "index": self.__dragging_index,
                     "display_item": str(self.__delegate.get_display_item_uuid()),
-                    "label": self.__legend_entries[self.__dragging_index].label,
-                    "fill_color": self.__legend_entries[self.__dragging_index].fill_color,
-                    "stroke_color": self.__legend_entries[self.__dragging_index].stroke_color,
+                    "label": layer.label,
+                    "fill_color": layer.fill_color,
+                    "stroke_color": layer.stroke_color,
                 }
 
+                thumbnail_data = self.__get_icon_for_layer(layer.fill_color)
+
                 mime_data.set_data_as_string(MimeTypes.LAYER_MIME_TYPE, json.dumps(legend_data))
-                self.drag(mime_data)
+                self.drag(mime_data, thumbnail_data)
                 self.update()
                 return True
 
