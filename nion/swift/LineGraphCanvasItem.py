@@ -1138,19 +1138,20 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     def __get_icon_for_layer(self, fill: str):
         border = 1
         drawing_context = DrawingContext.DrawingContext()
+        icon_size = 16
         with drawing_context.saver():
             drawing_context.begin_path()
-            drawing_context.rect(0, 0, 32, 32)
-            drawing_context.fill_style = "rgba(0, 0, 0, 255)"
+            drawing_context.rect(0, 0, icon_size, icon_size)
+            drawing_context.fill_style = "rgba(0, 0, 0, 1.0)"
             drawing_context.fill()
 
         with drawing_context.saver():
             drawing_context.begin_path()
-            drawing_context.rect(border, border, 32 - 2*border, 32 - 2*border)
+            drawing_context.rect(border, border, icon_size - 2 * border, icon_size - 2 * border)
             drawing_context.fill_style = fill
             drawing_context.fill()
 
-        return self.__delegate.create_rgba_image(drawing_context, 32, 32)
+        return self.__delegate.create_rgba_image(drawing_context, icon_size, icon_size)
 
     def mouse_position_changed(self, x, y, modifiers):
         # if the mouse is pressed and the distance it greater than the distance to start dragging, start the drag using
