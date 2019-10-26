@@ -1133,7 +1133,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         else:
             end_index = len(self.__legend_entries) - (1 if not insertion else 0)
             # return the current item, clamped to length-1 and 0
-            return max(min(y // line_height, end_index), 0)
+            return max(min(index, end_index), 0)
 
     def __get_icon_for_layer(self, fill: str):
         border = 1
@@ -1298,7 +1298,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         font = "{0:d}px".format(self.font_size)
 
         effective_entries_and_foreign = self.__effective_entries[:]
-        if self.__foreign_legend_entry is not None and self.__entry_to_insert:
+        if self.__foreign_legend_entry is not None and self.__entry_to_insert is not None:
             effective_entries_and_foreign.insert(self.__entry_to_insert, self.__foreign_legend_entry)
 
         legend_height = len(effective_entries_and_foreign) * line_height + border * 2
