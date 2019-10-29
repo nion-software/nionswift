@@ -304,6 +304,18 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.uint8)
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape[-1], 4)
 
+    def test_create_rgba_sequence_should_work(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data = (numpy.random.rand(4, 64, 64, 3) * 255).astype(numpy.uint8)
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(data, data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_data_channel = display_item.display_data_channels[0]
+            self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.uint8)
+            self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape[-1], 3)
+
     def test_display_data_is_2d_for_3d(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
