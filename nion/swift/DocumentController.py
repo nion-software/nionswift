@@ -688,7 +688,7 @@ class DocumentController(Window.Window):
                 display_items_model.filter_id = filter_id
             else:  # "all"
                 display_items_model.container = self.document_model
-                display_items_model.filter = ListModel.EqFilter("category", "persistent")
+                display_items_model.filter = ListModel.Filter(True)
                 display_items_model.sort_key = DataItem.sort_by_date_key
                 display_items_model.sort_reverse = True
                 display_items_model.filter_id = None

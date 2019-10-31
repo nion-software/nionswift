@@ -3,6 +3,10 @@
 Release Notes
 =============
 
+Version 0.14.8, UNRELEASED
+--------------------------
+* (2019-10-31) Change data panel 'All' filter to include acquisition items too.
+
 Version 0.14.7, October 24, 2019
 --------------------------------
 * (2019-10-22) Fix issue with cursor display on collections of 1D data displayed as image.
