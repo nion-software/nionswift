@@ -817,7 +817,8 @@ def migrate_library_to_v2(library_properties):
                     if specifier_dict is not None:
                         fix_specifier(specifier_dict)
             for result_dict in computation_dict.get("results", list()):
-                fix_specifier(result_dict["specifier"])
+                if "specifier" in result_dict:
+                    fix_specifier(result_dict["specifier"])
         library_properties["version"] = 2
         logging.getLogger("migration").debug("Updated 1 to 2 (display items)")
 
