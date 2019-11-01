@@ -722,8 +722,9 @@ class TestDataPanelClass(unittest.TestCase):
             # index, parent_row, parent_id
             data_panel.library_widget.on_selection_changed([(0, -1, 0)])  # all
             document_controller.periodic()
-            self.assertEqual(1, data_panel.data_list_controller.display_item_adapter_count)
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).data_item, data_item1)
+            self.assertEqual(2, data_panel.data_list_controller.display_item_adapter_count)
+            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).data_item, data_item2)
+            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(1).data_item, data_item1)
             data_panel.library_widget.on_selection_changed([(1, -1, 0)])  # temp/live
             document_controller.periodic()
             self.assertEqual(1, data_panel.data_list_controller.display_item_adapter_count)

@@ -680,6 +680,12 @@ class DocumentController(Window.Window):
                 display_items_model.sort_key = DataItem.sort_by_date_key
                 display_items_model.sort_reverse = True
                 display_items_model.filter_id = filter_id
+            elif filter_id == "persistent":
+                display_items_model.container = self.document_model
+                display_items_model.filter = ListModel.EqFilter("category", "persistent")
+                display_items_model.sort_key = DataItem.sort_by_date_key
+                display_items_model.sort_reverse = True
+                display_items_model.filter_id = filter_id
             elif filter_id == "none":  # not intended to be used directly
                 display_items_model.container = self.document_model
                 display_items_model.filter = ListModel.Filter(False)

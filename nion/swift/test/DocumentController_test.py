@@ -706,7 +706,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             # check assumptions
-            document_controller.set_filter(None)
+            document_controller.set_filter("persistent")
             self.assertEqual(0, len(document_controller.filtered_display_items_model.items))
             # do the snapshot and verify
             document_controller._perform_display_item_snapshot(display_item)
