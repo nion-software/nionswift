@@ -19,9 +19,14 @@ import uuid
 import weakref
 
 # third party libraries
+import numpy
 
 # local libraries
+from nion.data import Core
+from nion.data import DataAndMetadata
+from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
+from nion.swift.model import Graphics
 from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import ListModel
@@ -266,30 +271,37 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             return self.specifier
 
     @property
-    def bound_variable(self):
+    def bound_variable(self) -> "BoundItemBase":
         """Return an object with a value property and a changed_event.
 
         The value property returns the value of the variable. The changed_event is fired
         whenever the value changes.
         """
-        class BoundVariable:
+
+        class BoundVariable(BoundItemBase):
             def __init__(self, variable):
+                super().__init__(None)
+                self.valid = True
                 self.__variable = variable
-                self.changed_event = Event.Event()
-                self.needs_rebind_event = Event.Event()
+
                 def property_changed(key):
                     if key == "value":
                         self.changed_event.fire()
+
                 self.__variable_property_changed_listener = variable.property_changed_event.listen(property_changed)
+
             @property
             def value(self):
                 return self.__variable.value
+
             @property
             def base_objects(self):
                 return set()
+
             def close(self):
                 self.__variable_property_changed_listener.close()
                 self.__variable_property_changed_listener = None
+                super().close()
 
         return BoundVariable(self)
 
@@ -468,24 +480,463 @@ def result_factory(lookup_id):
     return ComputationOutput()
 
 
-class ComputationContext:
-    def __init__(self, computation, context):
-        self.__computation = weakref.ref(computation)
-        self.__context = context
+class BoundItemBase:
 
-    def resolve_object_specifier(self, computation: "Computation", object_specifier, secondary_specifier=None, property_name=None):
-        """Resolve the object specifier.
+    def __init__(self, specifier):
+        self.specifier = specifier
+        self.changed_event = Event.Event()
+        self.needs_rebind_event = Event.Event()
+        self.property_changed_event = Event.Event()
+        self.valid = False
 
-        First lookup the object specifier in the enclosing computation. If it's not found,
-        then lookup in the computation's context. Otherwise it should be a value type variable.
-        In that case, return the bound variable.
-        """
-        variable = self.__computation().resolve_variable(object_specifier)
-        if not variable:
-            return self.__context.resolve_object_specifier(computation, object_specifier, secondary_specifier, property_name)
-        elif variable.specifier is None:
-            return variable.bound_variable
+    def close(self) -> None:
+        pass
+
+    @property
+    def value(self):
         return None
+
+    @property
+    def base_objects(self) -> typing.Set:
+        return set()
+
+
+class BoundData(BoundItemBase):
+
+    def __init__(self, project, specifier):
+        super().__init__(specifier)
+
+        specifier_uuid_str = specifier.get("uuid")
+        object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+
+        self.__item_proxy = project.create_item_proxy(item_uuid=object_uuid)
+        self.__data_changed_event_listener = None
+
+        def maintain_data_source():
+            if self.__data_changed_event_listener:
+                self.__data_changed_event_listener.close()
+                self.__data_changed_event_listener = None
+            object = self._object
+            if object:
+                self.__data_changed_event_listener = object.data_changed_event.listen(self.changed_event.fire)
+            self.valid = object is not None
+
+        def item_registered(item):
+            maintain_data_source()
+
+        def item_unregistered(item):
+            maintain_data_source()
+            self.needs_rebind_event.fire()
+
+        self.__item_proxy.on_item_registered = item_registered
+        self.__item_proxy.on_item_unregistered = item_unregistered
+
+        maintain_data_source()
+
+    def close(self):
+        if self.__data_changed_event_listener:
+            self.__data_changed_event_listener.close()
+            self.__data_changed_event_listener = None
+        self.__item_proxy.close()
+        self.__item_proxy = None
+        super().close()
+
+    @property
+    def base_objects(self):
+        return {self._object}
+
+    @property
+    def value(self):
+        return self._object.xdata
+
+    @property
+    def _object(self):
+        data_item = self.__item_proxy.item
+        if not isinstance(data_item, DataItem.DataItem):
+            display_data_channel = data_item
+            data_item = display_data_channel.data_item if display_data_channel else None
+        return data_item
+
+
+class BoundDisplayDataChannelBase(BoundItemBase):
+
+    def __init__(self, project, specifier, secondary_specifier):
+        super().__init__(specifier)
+
+        specifier_uuid_str = specifier.get("uuid")
+        object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+
+        secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
+        secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
+
+        self.__item_proxy = project.create_item_proxy(item_uuid=object_uuid)
+        self.__graphic_proxy = project.create_item_proxy(item_uuid=secondary_uuid)
+        self.__display_values_changed_event_listener = None
+
+        def maintain_data_source():
+            if self.__display_values_changed_event_listener:
+                self.__display_values_changed_event_listener.close()
+                self.__display_values_changed_event_listener = None
+            display_data_channel = self._display_data_channel
+            if display_data_channel:
+                self.__display_values_changed_event_listener = display_data_channel.add_calculated_display_values_listener(self.changed_event.fire, send=False)
+            self.valid = self.__display_values_changed_event_listener is not None
+
+        def item_registered(item):
+            maintain_data_source()
+
+        def item_unregistered(item):
+            maintain_data_source()
+            self.needs_rebind_event.fire()
+
+        self.__item_proxy.on_item_registered = item_registered
+        self.__item_proxy.on_item_unregistered = item_unregistered
+
+        self.__graphic_proxy.on_item_registered = item_registered
+        self.__graphic_proxy.on_item_unregistered = item_unregistered
+
+        maintain_data_source()
+
+    def close(self):
+        if self.__display_values_changed_event_listener:
+            self.__display_values_changed_event_listener.close()
+            self.__display_values_changed_event_listener = None
+        self.__item_proxy.close()
+        self.__item_proxy = None
+        self.__graphic_proxy.close()
+        self.__graphic_proxy = None
+        super().close()
+
+    @property
+    def base_objects(self):
+        objects = {self._display_data_channel.container, self._display_data_channel.data_item}
+        if self._graphic:
+            objects.add(self._graphic)
+        return objects
+
+    @property
+    def _display_data_channel(self):
+        return self.__item_proxy.item
+
+    @property
+    def _graphic(self):
+        return self.__graphic_proxy.item
+
+
+class BoundDataSource(BoundItemBase):
+
+    def __init__(self, project, specifier, secondary_specifier):
+        super().__init__(specifier)
+
+        specifier_uuid_str = specifier.get("uuid")
+        object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+
+        secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
+        secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
+
+        self.__item_proxy = project.create_item_proxy(item_uuid=object_uuid)
+        self.__graphic_proxy = project.create_item_proxy(item_uuid=secondary_uuid)
+        self.__data_source = None
+
+        def maintain_data_source():
+            if self.__data_source:
+                self.__data_source.close()
+                self.__data_source = None
+            display_data_channel = self.__item_proxy.item
+            if display_data_channel and display_data_channel.data_item:
+                self.__data_source = DataItem.DataSource(display_data_channel, self.__graphic_proxy.item, self.changed_event)
+            self.valid = self.__data_source is not None
+
+        def item_registered(item):
+            maintain_data_source()
+
+        def item_unregistered(item):
+            maintain_data_source()
+            self.needs_rebind_event.fire()
+
+        self.__item_proxy.on_item_registered = item_registered
+        self.__item_proxy.on_item_unregistered = item_unregistered
+
+        self.__graphic_proxy.on_item_registered = item_registered
+        self.__graphic_proxy.on_item_unregistered = item_unregistered
+
+        maintain_data_source()
+
+    def close(self):
+        if self.__data_source:
+            self.__data_source.close()
+            self.__data_source = None
+        self.__item_proxy.close()
+        self.__item_proxy = None
+        self.__graphic_proxy.close()
+        self.__graphic_proxy = None
+        super().close()
+
+    @property
+    def value(self):
+        return self.__data_source
+
+    @property
+    def base_objects(self):
+        objects = {self.__data_source.data_item}
+        if self.__data_source.graphic:
+            objects.add(self.__data_source.graphic)
+        return objects
+
+
+class BoundDataItem(BoundItemBase):
+
+    def __init__(self, project, specifier):
+        super().__init__(specifier)
+
+        specifier_uuid_str = specifier.get("uuid")
+        object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+
+        self.__item_proxy = project.create_item_proxy(item_uuid=object_uuid)
+        self.__data_item_changed_event_listener = None
+
+        def item_registered(item):
+            self.__data_item_changed_event_listener = item.data_item_changed_event.listen(self.changed_event.fire)
+
+        def item_unregistered(item):
+            self.__data_item_changed_event_listener.close()
+            self.__data_item_changed_event_listener = None
+            self.needs_rebind_event.fire()
+
+        self.__item_proxy.on_item_registered = item_registered
+        self.__item_proxy.on_item_unregistered = item_unregistered
+
+        if self.__item_proxy.item:
+            item_registered(self.__item_proxy.item)
+            self.valid = True
+        else:
+            self.valid = False
+
+    def close(self):
+        if self.__data_item_changed_event_listener:
+            self.__data_item_changed_event_listener.close()
+            self.__data_item_changed_event_listener = None
+        self.__item_proxy.close()
+        self.__item_proxy = None
+        super().close()
+
+    @property
+    def value(self):
+        return self.__item_proxy.item
+
+    @property
+    def base_objects(self):
+        return {self.value}
+
+
+class BoundDisplayData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        return self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata if self._display_data_channel else None
+
+
+class BoundCroppedData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        xdata = self._display_data_channel.data_item.xdata
+        graphic = self._graphic
+        if graphic:
+            if hasattr(graphic, "bounds"):
+                return Core.function_crop(xdata, graphic.bounds)
+            if hasattr(graphic, "interval"):
+                return Core.function_crop_interval(xdata, graphic.interval)
+        return xdata
+
+
+class BoundCroppedDisplayData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        xdata = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata
+        graphic = self._graphic
+        if graphic:
+            if hasattr(graphic, "bounds"):
+                return Core.function_crop(xdata, graphic.bounds)
+            if hasattr(graphic, "interval"):
+                return Core.function_crop_interval(xdata, graphic.interval)
+        return xdata
+
+
+class BoundFilterData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        display_item = self._display_data_channel.container
+        # no display item is a special case for cascade removing graphics from computations. ugh.
+        # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
+        if display_item:
+            shape = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
+            mask = numpy.zeros(shape)
+            for graphic in display_item.graphics:
+                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                    mask = numpy.logical_or(mask, graphic.get_mask(shape))
+            return DataAndMetadata.DataAndMetadata.from_data(mask)
+        return None
+
+    @property
+    def base_objects(self):
+        data_item = self._display_data_channel.data_item
+        display_item = self._display_data_channel.container
+        objects = {data_item, display_item}
+        graphics = display_item.graphics if display_item else list()
+        for graphic in graphics:
+            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                objects.add(graphic)
+        return objects
+
+
+class BoundFilteredData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        display_item = self._display_data_channel.container
+        # no display item is a special case for cascade removing graphics from computations. ugh.
+        # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
+        if display_item:
+            xdata = self._display_data_channel.data_item.xdata
+            if xdata.is_data_2d and xdata.is_data_complex_type:
+                shape = xdata.data_shape
+                mask = numpy.zeros(shape)
+                for graphic in display_item.graphics:
+                    if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                        mask = numpy.logical_or(mask, graphic.get_mask(shape))
+                return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
+            return xdata
+        return None
+
+    @property
+    def base_objects(self):
+        data_item = self._display_data_channel.data_item
+        display_item = self._display_data_channel.container
+        objects = {data_item, display_item}
+        graphics = display_item.graphics if display_item else list()
+        for graphic in graphics:
+            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                objects.add(graphic)
+        return objects
+
+
+class BoundDataStructure(BoundItemBase):
+
+    def __init__(self, project, specifier, property_name: str):
+        super().__init__(specifier)
+
+        specifier_uuid_str = specifier.get("uuid")
+        object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+
+        self.__property_name = property_name
+
+        self.__item_proxy = project.create_item_proxy(item_uuid=object_uuid)
+        self.__changed_listener = None
+
+        def data_structure_changed(property_name):
+            self.changed_event.fire()
+            if property_name == self.__property_name:
+                self.property_changed_event.fire(property_name)
+
+        def item_registered(item):
+            self.__changed_listener = item.data_structure_changed_event.listen(data_structure_changed)
+
+        def item_unregistered(item):
+            self.__changed_listener.close()
+            self.__changed_listener = None
+            self.needs_rebind_event.fire()
+
+        self.__item_proxy.on_item_registered = item_registered
+        self.__item_proxy.on_item_unregistered = item_unregistered
+
+        if self.__item_proxy.item:
+            item_registered(self.__item_proxy.item)
+            self.valid = True
+        else:
+            self.valid = False
+
+    def close(self):
+        if self.__changed_listener:
+            self.__changed_listener.close()
+            self.__changed_listener = None
+        self.__item_proxy.close()
+        self.__item_proxy = None
+        super().close()
+
+    @property
+    def value(self):
+        if self.__property_name:
+            return self.__object.get_property_value(self.__property_name)
+        return self.__object
+
+    @property
+    def base_objects(self):
+        return {self.__object}
+
+    @property
+    def __object(self):
+        return self.__item_proxy.item
+
+
+class BoundGraphic(BoundItemBase):
+
+    def __init__(self, project, specifier, property_name: str):
+        super().__init__(specifier)
+
+        specifier_uuid_str = specifier.get("uuid")
+        object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+
+        self.__property_name = property_name
+
+        self.__item_proxy = project.create_item_proxy(item_uuid=object_uuid)
+        self.__changed_listener = None
+
+        def property_changed(property_name):
+            self.changed_event.fire()
+            if property_name == self.__property_name:
+                self.property_changed_event.fire(property_name)
+
+        def item_registered(item):
+            self.__changed_listener = item.property_changed_event.listen(property_changed)
+
+        def item_unregistered(item):
+            self.__changed_listener.close()
+            self.__changed_listener = None
+            self.needs_rebind_event.fire()
+
+        self.__item_proxy.on_item_registered = item_registered
+        self.__item_proxy.on_item_unregistered = item_unregistered
+
+        if self.__item_proxy.item:
+            item_registered(self.__item_proxy.item)
+            self.valid = True
+        else:
+            self.valid = False
+
+    def close(self):
+        if self.__changed_listener:
+            self.__changed_listener.close()
+            self.__changed_listener = None
+        self.__item_proxy.close()
+        self.__item_proxy = None
+        super().close()
+
+    @property
+    def value(self):
+        if self.__property_name:
+            return getattr(self.__object, self.__property_name)
+        return self.__object
+
+    @property
+    def base_objects(self):
+        return {self.__object}
+
+    @property
+    def __object(self):
+        return self.__item_proxy.item
 
 
 class ComputationItem:
@@ -769,7 +1220,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def insert_item_into_objects(self, name: str, index: int, input_item: ComputationItem) -> None:
         variable = self._get_variable(name)
         specifier = DataStructure.get_object_specifier(input_item.item, input_item.type)
-        variable.bound_items_model.insert_item(index, self.__computation_context.resolve_object_specifier(self, specifier))
+        variable.bound_items_model.insert_item(index, self.__resolve_object_specifier(specifier))
 
     def list_item_removed(self, object) -> typing.Sequence[dict]:
         # when an item is removed from the library, this method is called for each computation.
@@ -798,7 +1249,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                         return [undelete_entry]
         return list()
 
-    def resolve_variable(self, object_specifier: dict) -> typing.Optional[ComputationVariable]:
+    def __resolve_variable(self, object_specifier: dict) -> typing.Optional[ComputationVariable]:
         if object_specifier:
             uuid_str = object_specifier.get("uuid")
             uuid_ = Converter.UuidToStringConverter().convert_back(uuid_str) if uuid_str else None
@@ -807,6 +1258,46 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                     if variable.uuid == uuid_:
                         return variable
         return None
+
+    def __resolve_object_specifier(self, specifier, secondary_specifier=None, property_name=None) -> typing.Optional[BoundItemBase]:
+        """Resolve the object specifier.
+
+        First lookup the object specifier in the enclosing computation. If it's not found,
+        then lookup in the computation's context. Otherwise it should be a value type variable.
+        In that case, return the bound variable.
+        """
+        bound_item = None
+        variable = self.__resolve_variable(specifier)
+        if not variable:
+            if specifier and specifier.get("version") == 1:
+                specifier_type = specifier["type"]
+                project = self.container or self.project
+                if specifier_type == "data_source":
+                    bound_item = BoundDataSource(project, specifier, secondary_specifier)
+                elif specifier_type == "data_item":
+                    bound_item = BoundDataItem(project, specifier)
+                elif specifier_type == "xdata":
+                    bound_item = BoundData(project, specifier)
+                elif specifier_type == "display_xdata":
+                    bound_item = BoundDisplayData(project, specifier, secondary_specifier)
+                elif specifier_type == "cropped_xdata":
+                    bound_item = BoundCroppedData(project, specifier, secondary_specifier)
+                elif specifier_type == "cropped_display_xdata":
+                    bound_item = BoundCroppedDisplayData(project, specifier, secondary_specifier)
+                elif specifier_type == "filter_xdata":
+                    bound_item = BoundFilterData(project, specifier, secondary_specifier)
+                elif specifier_type == "filtered_xdata":
+                    bound_item = BoundFilteredData(project, specifier, secondary_specifier)
+                elif specifier_type == "structure":
+                    bound_item = BoundDataStructure(project, specifier, property_name)
+                elif specifier_type == "graphic":
+                    bound_item = BoundGraphic(project, specifier, property_name)
+        elif variable.specifier is None:
+            bound_item = variable.bound_variable
+        if bound_item and not bound_item.valid:
+            bound_item.close()
+            bound_item = None
+        return bound_item
 
     @property
     def expression(self) -> str:
@@ -952,7 +1443,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def undelete_variable_item(self, name: str, index: int, specifier: typing.Dict) -> None:
         for variable in self.variables:
             if variable.name == name:
-                variable.bound_items_model.insert_item(index, self.__computation_context.resolve_object_specifier(self, specifier))
+                variable.bound_items_model.insert_item(index, self.__resolve_object_specifier(specifier))
 
     def __bind_variable(self, variable: ComputationVariable) -> None:
         # bind the variable. the variable has a reference to another object in the library.
@@ -977,12 +1468,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         if variable.object_specifiers is not None:
             bound_items = list()
             for object_specifier in variable.object_specifiers:
-                bound_item = self.__computation_context.resolve_object_specifier(self, object_specifier)
+                bound_item = self.__resolve_object_specifier(object_specifier)
                 bound_items.append(bound_item)
             variable.connect_items(bound_items)
             variable.bound_item = BoundList(bound_items)
         else:
-            variable.bound_item = self.__computation_context.resolve_object_specifier(self, variable.variable_specifier, variable.secondary_specifier, variable.property_name)
+            variable.bound_item = self.__resolve_object_specifier(variable.variable_specifier, variable.secondary_specifier, variable.property_name)
 
     def __unbind_variable(self, variable: ComputationVariable) -> None:
         self.__variable_changed_event_listeners[variable.uuid].close()
@@ -1005,7 +1496,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
         self.__result_needs_rebind_event_listeners[result.uuid] = result.needs_rebind_event.listen(rebind)
 
-        result.bind(functools.partial(self.__computation_context.resolve_object_specifier, self))
+        result.bind(self.__resolve_object_specifier)
 
     def __unbind_result(self, result: ComputationOutput) -> None:
         self.__result_needs_rebind_event_listeners[result.uuid].close()
@@ -1020,8 +1511,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
         # make a computation context based on the enclosing context.
         assert self.persistent_object_context
-
-        self.__computation_context = ComputationContext(self, context)
 
         # re-bind is not valid. be careful to set the computation after the data item is already in document.
         for variable in self.variables:
@@ -1044,33 +1533,33 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         for result in self.results:
             self.__unbind_result(result)
 
-    def get_preliminary_input_items(self, resolve_object_specifier_fn) -> typing.Set:
+    def get_preliminary_input_items(self) -> typing.Set:
         input_items = set()
         for variable in self.variables:
             if variable.object_specifiers is not None:
                 for object_specifier in variable.object_specifiers:
-                    bound_item = resolve_object_specifier_fn(object_specifier)
+                    bound_item = self.__resolve_object_specifier(object_specifier)
                     if bound_item:
                         with contextlib.closing(bound_item):
                             input_items.update(bound_item.base_objects)
             else:
-                bound_item = resolve_object_specifier_fn(variable.variable_specifier, variable.secondary_specifier, variable.property_name)
+                bound_item = self.__resolve_object_specifier(variable.variable_specifier, variable.secondary_specifier, variable.property_name)
                 if bound_item:
                     with contextlib.closing(bound_item):
                         input_items.update(bound_item.base_objects)
         return input_items
 
-    def get_preliminary_output_items(self, resolve_object_specifier_fn) -> typing.Set:
+    def get_preliminary_output_items(self) -> typing.Set:
         output_items = set()
         for result in self.results:
             if result.specifier:
-                bound_item = resolve_object_specifier_fn(result.specifier)
+                bound_item = self.__resolve_object_specifier(result.specifier)
                 if bound_item:
                     with contextlib.closing(bound_item):
                         output_items.update(bound_item.base_objects)
             elif result.specifiers is not None:
                 for specifier in result.specifiers:
-                    bound_item = resolve_object_specifier_fn(specifier)
+                    bound_item = self.__resolve_object_specifier(specifier)
                     if bound_item:
                         with contextlib.closing(bound_item):
                             output_items.update(bound_item.base_objects)
