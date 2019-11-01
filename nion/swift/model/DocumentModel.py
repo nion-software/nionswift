@@ -382,9 +382,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         HardwareSource.HardwareSourceManager().abort_all_and_close()
 
         # make sure the data item references shut down cleanly
-        for data_item in self.data_items:
-            for data_item_reference in self.__data_item_references.values():
-                data_item_reference.data_item_removed(data_item)
+        for k, data_item_reference in self.__data_item_references.items():
+            data_item_reference.close()
+        self.__data_item_references = None
 
         for listeners in self.__data_channel_updated_listeners.values():
             for listener in listeners:
@@ -554,9 +554,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # update the data item references
         data_item_references = self.__profile.data_item_references
         for key, data_item_uuid in data_item_references.items():
-            data_item = project._get_related_item(data_item_uuid)
-            if data_item:
-                self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, data_item))
+            self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, project, data_item_uuid))
         self.__rebind_computations()  # rebind any unresolved that may now be resolved
         self.__transaction_manager._add_item(data_item)
 
@@ -585,9 +583,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             del data_item_variables[data_item.r_var]
             self.__profile.data_item_variables = data_item_variables
             data_item.r_var = None
-        # update data item count
-        for data_item_reference in self.__data_item_references.values():
-            data_item_reference.data_item_removed(data_item)
         self.__data_items.remove(data_item)
         self.notify_remove_item("data_items", data_item, index)
 
@@ -1406,15 +1401,34 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         This class will also track when the data item is deleted and handle it appropriately if it
         happens while the acquisition thread is using it.
         """
-        def __init__(self, document_model: "DocumentModel", key: str, data_item: DataItem.DataItem=None):
+        def __init__(self, document_model: "DocumentModel", key: str, project: Project.Project, data_item_uuid: uuid.UUID=None):
             self.__document_model = document_model
             self.__key = key
-            self.__data_item = data_item
+            self.__data_item_proxy = project.create_item_proxy(item_uuid=data_item_uuid)
             self.__starts = 0
             self.__pending_starts = 0
             self.__data_item_transaction = None
             self.mutex = threading.RLock()
             self.data_item_reference_changed_event = Event.Event()
+
+            def item_unregistered(item) -> None:
+                # when this data item is removed, it can no longer be used.
+                # but to ensure that start/stop calls are matching in the case where this item
+                # is removed and then a new item is set, we need to copy the number of starts
+                # to the pending starts so when the new item is set, start gets called the right
+                # number of times to match the stops that will eventually be called.
+                self.__pending_starts = self.__starts
+                self.__starts = 0
+
+            self.__data_item_proxy.on_item_unregistered = item_unregistered
+
+        def close(self) -> None:
+            self.__data_item_proxy.close()
+            self.__data_item_proxy = None
+
+        @property
+        def __data_item(self) -> typing.Optional[DataItem.DataItem]:
+            return self.__data_item_proxy.item
 
         def start(self):
             """Start using the data item reference. Must call stop a matching number of times.
@@ -1462,23 +1476,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 self.__data_item.decrement_data_ref_count()
                 self.__starts -= 1
 
-        # this method gets called directly from the document model
-        def data_item_inserted(self, data_item):
-            pass
-
-        # this method gets called directly from the document model
-        def data_item_removed(self, data_item):
-            with self.mutex:
-                if data_item == self.__data_item:
-                    # when this data item is removed, it can no longer be used.
-                    # but to ensure that start/stop calls are matching in the case where this item
-                    # is removed and then a new item is set, we need to copy the number of starts
-                    # to the pending starts so when the new item is set, start gets called the right
-                    # number of times to match the stops that will eventually be called.
-                    self.__pending_starts = self.__starts
-                    self.__starts = 0
-                    self.__data_item = None
-
         @property
         def data_item(self) -> DataItem.DataItem:
             with self.mutex:
@@ -1492,7 +1489,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         def data_item(self, value):
             with self.mutex:
                 if self.__data_item != value:
-                    self.__data_item = value
+                    self.__data_item_proxy.item = value
                     # start (internal) for each pending start.
                     for i in range(self.__pending_starts):
                         self.__start()
@@ -1573,7 +1570,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         data_item_reference = self.__data_item_references.get(key)
         if data_item_reference:
             return data_item_reference
-        return self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key))
+        return self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self.profile.work_project))
 
     def setup_channel(self, data_item_reference_key: str, data_item: DataItem.DataItem) -> None:
         data_item_reference = self.get_data_item_reference(data_item_reference_key)

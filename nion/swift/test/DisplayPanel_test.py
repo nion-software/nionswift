@@ -2074,17 +2074,18 @@ class TestDisplayPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
-            data_item_reference = DocumentModel.DocumentModel.DataItemReference(document_model, "abc")
-            data_item_reference.data_item = data_item
-            display_panel = document_controller.selected_display_panel
-            display_panel.set_data_item_reference(data_item_reference)
-            self.assertEqual(None, display_panel.display_item)
-            self.assertEqual(None, display_panel.data_item)
-            document_model.append_data_item(data_item)
-            document_controller.periodic()
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertEqual(display_item, display_panel.display_item)
-            self.assertEqual(data_item, display_panel.data_item)
+            data_item_reference = DocumentModel.DocumentModel.DataItemReference(document_model, "abc", document_model.profile.work_project)
+            with contextlib.closing(data_item_reference):
+                data_item_reference.data_item = data_item
+                display_panel = document_controller.selected_display_panel
+                display_panel.set_data_item_reference(data_item_reference)
+                self.assertEqual(None, display_panel.display_item)
+                self.assertEqual(None, display_panel.data_item)
+                document_model.append_data_item(data_item)
+                document_controller.periodic()
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                self.assertEqual(display_item, display_panel.display_item)
+                self.assertEqual(data_item, display_panel.data_item)
 
     def test_move_display_layer_undo_redo(self):
         document_model = DocumentModel.DocumentModel()
