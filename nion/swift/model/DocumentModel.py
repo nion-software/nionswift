@@ -1,4 +1,5 @@
 # standard libraries
+import abc
 import asyncio
 import collections
 import copy
@@ -16,7 +17,6 @@ import weakref
 import numpy
 
 # local libraries
-from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.swift.model import ApplicationData
 from nion.swift.model import Connection
@@ -251,6 +251,270 @@ class TransactionManager:
             new_items = self.__build_transaction_items(transaction.item)
             transaction.replace_items(new_items)
             self.__close_transaction_items(old_items)
+
+
+class UndeleteBase(abc.ABC):
+
+    @abc.abstractmethod
+    def close(self) -> None: ...
+
+    @abc.abstractmethod
+    def undelete(self, document_model: "DocumentModel") -> None: ...
+
+
+class UndeleteObjectSpecifiers(UndeleteBase):
+
+    def __init__(self, document_model: "DocumentModel", computation: Symbolic.Computation, index: int, variable_index: int, object_specifier: typing.Dict):
+        self.computation_proxy = computation.container.create_item_proxy(item_uuid=computation.uuid, item=computation)
+        self.variable_index = variable_index
+        self.specifier = object_specifier
+        self.index = index
+
+    def close(self) -> None:
+        self.computation_proxy.close()
+        self.computation_proxy = None
+
+    def undelete(self, document_model: "DocumentModel") -> None:
+        computation = self.computation_proxy.item
+        variable = computation.variables[self.variable_index]
+        computation.undelete_variable_item(variable.name, self.index, self.specifier)
+
+
+class UndeleteDataItems(UndeleteBase):
+
+    def __init__(self, document_model: "DocumentModel", data_item: DataItem.DataItem):
+        project = Project.get_project_for_item(data_item)
+        container = data_item.container
+        index = container.data_items.index(data_item)
+        uuid_order = save_item_order(document_model.data_items)
+        self.project_item_proxy = Persistence.PersistentObjectProxy(document_model.profile, project.uuid, project)
+        self.data_item_uuid = data_item.uuid
+        self.index = index
+        self.order = uuid_order
+
+    def close(self) -> None:
+        self.project_item_proxy.close()
+        self.project_item_proxy = None
+
+    def undelete(self, document_model: "DocumentModel") -> None:
+        project = typing.cast(Project.Project, self.project_item_proxy.item)
+        document_model.restore_data_item(project, self.data_item_uuid, self.index)
+        document_model.restore_items_order("data_items", self.order)
+
+
+class UndeleteDisplayItemInDataGroup(UndeleteBase):
+
+    def __init__(self, document_model: "DocumentModel", display_item: DisplayItem.DisplayItem, data_group: DataGroup.DataGroup):
+        self.display_item_proxy = display_item.container.create_item_proxy(item_uuid=display_item.uuid, item=display_item)
+        self.data_group_proxy = Persistence.PersistentObjectProxy(document_model.profile, data_group.uuid, data_group)
+        self.index = data_group.display_items.index(display_item)
+
+    def close(self) -> None:
+        self.display_item_proxy.close()
+        self.display_item_proxy = None
+        self.data_group_proxy.close()
+        self.data_group_proxy = None
+
+    def undelete(self, document_model: "DocumentModel") -> None:
+        display_item = self.display_item_proxy.item
+        data_group = self.data_group_proxy.item
+        data_group.insert_display_item(self.index, display_item)
+
+
+class UndeleteDisplayItem(UndeleteBase):
+
+    def __init__(self, document_model: "DocumentModel", display_item: DisplayItem.DisplayItem):
+        project = Project.get_project_for_item(display_item)
+        container = display_item.container
+        index = container.display_items.index(display_item)
+        uuid_order = save_item_order(document_model.display_items)
+        self.project_item_proxy = Persistence.PersistentObjectProxy(document_model.profile, project.uuid, project)
+        self.item_dict = display_item.write_to_dict()
+        self.index = index
+        self.order = uuid_order
+
+    def close(self) -> None:
+        self.project_item_proxy.close()
+        self.project_item_proxy = None
+
+    def undelete(self, document_model: "DocumentModel") -> None:
+        project = self.project_item_proxy.item
+        display_item = DisplayItem.DisplayItem()
+        display_item.begin_reading()
+        display_item.read_from_dict(self.item_dict)
+        display_item.finish_reading()
+        document_model.insert_display_item(self.index, display_item, update_session=False, project=project)
+        document_model.restore_items_order("display_items", self.order)
+
+
+class ItemsController(abc.ABC):
+
+    @abc.abstractmethod
+    def get_container(self, item: Persistence.PersistentObject) -> typing.Optional[Persistence.PersistentObject]: ...
+
+    @abc.abstractmethod
+    def item_index(self, item: Persistence.PersistentObject) -> int: ...
+
+    @abc.abstractmethod
+    def save_item_order(self) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]: ...
+
+    @abc.abstractmethod
+    def write_to_dict(self, data_structure: Persistence.PersistentObject) -> typing.Dict: ...
+
+    @abc.abstractmethod
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None: ...
+
+
+class DataStructuresController(ItemsController):
+    def __init__(self, document_model: "DocumentModel"):
+        self.__document_model = document_model
+
+    def get_container(self, item: Persistence.PersistentObject) -> typing.Optional[Persistence.PersistentObject]:
+        return None
+
+    def item_index(self, data_structure: Persistence.PersistentObject) -> int:
+        return data_structure.container.data_structures.index(data_structure)
+
+    def save_item_order(self) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
+        return save_item_order(self.__document_model.data_structures)
+
+    def write_to_dict(self, data_structure: Persistence.PersistentObject) -> typing.Dict:
+        return data_structure.write_to_dict()
+
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+        data_structure = DataStructure.DataStructure()
+        data_structure.begin_reading()
+        data_structure.read_from_dict(item_dict)
+        data_structure.finish_reading()
+        self.__document_model.insert_data_structure(index, data_structure, project=project)
+        self.__document_model.restore_items_order("data_structures", order)
+
+
+class ComputationsController(ItemsController):
+    def __init__(self, document_model: "DocumentModel"):
+        self.__document_model = document_model
+
+    def get_container(self, item: Persistence.PersistentObject) -> typing.Optional[Persistence.PersistentObject]:
+        return None
+
+    def item_index(self, computation: Persistence.PersistentObject) -> int:
+        return computation.container.computations.index(computation)
+
+    def save_item_order(self) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
+        return save_item_order(self.__document_model.computations)
+
+    def write_to_dict(self, computation: Persistence.PersistentObject) -> typing.Dict:
+        return computation.write_to_dict()
+
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+        computation = Symbolic.Computation()
+        computation.begin_reading()
+        computation.read_from_dict(item_dict)
+        computation.finish_reading()
+        self.__document_model.insert_computation(index, computation, project=project)
+        self.__document_model.restore_items_order("computations", order)
+
+
+class ConnectionsController(ItemsController):
+    def __init__(self, document_model: "DocumentModel"):
+        self.__document_model = document_model
+
+    def get_container(self, item: Persistence.PersistentObject) -> typing.Optional[Persistence.PersistentObject]:
+        return None
+
+    def item_index(self, connection: Persistence.PersistentObject) -> int:
+        return connection.container.connections.index(connection)
+
+    def save_item_order(self) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
+        return save_item_order(self.__document_model.connections)
+
+    def write_to_dict(self, connection: Persistence.PersistentObject) -> typing.Dict:
+        return connection.write_to_dict()
+
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+        item = Connection.connection_factory(item_dict.get)
+        item.begin_reading()
+        item.read_from_dict(item_dict)
+        item.finish_reading()
+        self.__document_model.insert_connection(index, item, project=project)
+        self.__document_model.restore_items_order("connections", order)
+
+
+class GraphicsController(ItemsController):
+    def __init__(self, document_model: "DocumentModel"):
+        self.__document_model = document_model
+
+    def get_container(self, item: Persistence.PersistentObject) -> typing.Optional[Persistence.PersistentObject]:
+        return item.container
+
+    def item_index(self, graphic: Persistence.PersistentObject) -> int:
+        return graphic.container.graphics.index(graphic)
+
+    def save_item_order(self) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
+        return list()
+
+    def write_to_dict(self, graphic: Persistence.PersistentObject) -> typing.Dict:
+        return graphic.write_to_dict()
+
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+        graphic = Graphics.factory(item_dict.get)
+        graphic.begin_reading()
+        graphic.read_from_dict(item_dict)
+        graphic.finish_reading()
+        display_item = typing.cast(DisplayItem.DisplayItem, container)
+        display_item.insert_graphic(index, graphic)
+        display_item.restore_properties(container_properties)
+
+
+class DisplayDataChannelsController(ItemsController):
+    def __init__(self, document_model: "DocumentModel"):
+        self.__document_model = document_model
+
+    def get_container(self, item: Persistence.PersistentObject) -> typing.Optional[Persistence.PersistentObject]:
+        return item.container
+
+    def item_index(self, display_data_channel: Persistence.PersistentObject) -> int:
+        return display_data_channel.container.display_data_channels.index(display_data_channel)
+
+    def save_item_order(self) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
+        return list()
+
+    def write_to_dict(self, display_data_channel: Persistence.PersistentObject) -> typing.Dict:
+        return display_data_channel.write_to_dict()
+
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+        display_data_channel = DisplayItem.display_data_channel_factory(item_dict.get)
+        display_data_channel.begin_reading()
+        display_data_channel.read_from_dict(item_dict)
+        display_data_channel.finish_reading()
+        display_item = typing.cast(DisplayItem.DisplayItem, container)
+        display_item.undelete_display_data_channel(index, display_data_channel)
+        display_item.restore_properties(container_properties)
+
+
+class UndeleteItem(UndeleteBase):
+
+    def __init__(self, document_model: "DocumentModel", items_controller: ItemsController, item: Persistence.PersistentObject):
+        self.__items_controller = items_controller
+        project = Project.get_project_for_item(item)
+        container = self.__items_controller.get_container(item)
+        index = self.__items_controller.item_index(item)
+        self.project_item_proxy = Persistence.PersistentObjectProxy(document_model.profile, project.uuid, project)
+        self.container_item_proxy = project.create_item_proxy(item_uuid=container.uuid, item=container) if container else None
+        self.container_properties = container.save_properties() if hasattr(container, "save_properties") else dict()
+        self.item_dict = self.__items_controller.write_to_dict(item)
+        self.index = index
+        self.order = self.__items_controller.save_item_order()
+
+    def close(self) -> None:
+        self.project_item_proxy.close()
+        self.project_item_proxy = None
+
+    def undelete(self, document_model: "DocumentModel") -> None:
+        project = typing.cast(Project.Project, self.project_item_proxy.item)
+        container = typing.cast(Persistence.PersistentObject, self.container_item_proxy.item) if self.container_item_proxy else None
+        container_properties = self.container_properties
+        self.__items_controller.restore_from_dict(self.item_dict, self.index, project, container, container_properties, self.order)
 
 
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, DataItem.SessionManager):
@@ -620,6 +884,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def restore_data_item(self, project: Project.Project, data_item_uuid: uuid.UUID, before_index: int=None) -> typing.Optional[DataItem.DataItem]:
         return self.__profile.restore_data_item(project, data_item_uuid)
 
+    def restore_items_order(self, name: str, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+        if name == "data_items":
+            self.__data_items = restore_item_order(name, self.profile.projects, order)
+        elif name == "display_items":
+            self.__display_items = restore_item_order(name, self.profile.projects, order)
+        elif name == "data_strutures":
+            self.__data_structures = restore_item_order(name, self.profile.projects, order)
+        elif name == "computations":
+            self.__computations = restore_item_order(name, self.profile.projects, order)
+        elif name == "connections":
+            self.__connections = restore_item_order(name, self.profile.projects, order)
+
     def deepcopy_display_item(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
         display_item_copy = copy.deepcopy(display_item)
         data_item_copies = list()
@@ -873,58 +1149,42 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             # now delete the actual items
             for item in reversed(items):
                 for computation in self.computations:
-                    new_entries = computation.list_item_removed(item)
-                    for new_entry in new_entries:
-                        new_entry["project"] = Project.get_project_for_item(computation)
-                    undelete_log.extend(new_entries)
+                    t = computation.list_item_removed(item)
+                    if t is not None:
+                        index, variable_index, object_specifier = t
+                        undelete_log.append(UndeleteObjectSpecifiers(self, computation, index, variable_index, object_specifier))
                 container = item.container
-                if isinstance(item, DataItem.DataItem):
-                    name = "data_items"
-                elif isinstance(item, DisplayItem.DisplayItem):
-                    name = "display_items"
-                elif isinstance(item, Graphics.Graphic):
-                    name = "graphics"
-                elif isinstance(item, DataStructure.DataStructure):
-                    name = "data_structures"
-                elif isinstance(item, Symbolic.Computation):
-                    name = "computations"
-                elif isinstance(item, Connection.Connection):
-                    name = "connections"
-                elif isinstance(item, DisplayItem.DisplayDataChannel):
-                    name = "display_data_channels"
-                else:
-                    name = None
-                    assert False, "Unable to cascade delete type " + str(type(item))
-                assert name
-                # print(container, name, item)
-                container_ref = str(container.uuid) if container else None
-                if isinstance(container, Project.Project) and name == "data_items":
-                    index = getattr(container, name).index(item)
-                    uuid_order = save_item_order(self.__data_items)
-                    item_dict = item.write_to_dict()
+                # if container is None, then this object has already been removed
+                if isinstance(container, Project.Project) and isinstance(item, DataItem.DataItem):
+                    undelete_log.append(UndeleteDataItems(self, item))
                     # call the version of remove_data_item that doesn't cascade again
                     # NOTE: remove_data_item will notify_remove_item
                     container.remove_data_item(item)
-                    undelete_log.append({"type": name, "project": container, "container": container_ref, "index": index, "order": uuid_order, "properties": item_dict})
-                elif isinstance(container, Project.Project) and name == "display_items":
-                    index = getattr(container, name).index(item)
-                    uuid_order = save_item_order(self.__display_items)
-                    item_dict = item.write_to_dict()
+                elif isinstance(container, Project.Project) and isinstance(item, DisplayItem.DisplayItem):
                     # remove the data item from any groups
                     for data_group in self.get_flat_data_group_generator():
                         if item in data_group.display_items:
-                            undelete_log.append({"type": "data_group_entry", "project": container, "data_group_uuid": data_group.uuid, "properties": None, "index": data_group.display_items.index(item), "display_item_uuid": item.uuid})
+                            undelete_log.append(UndeleteDisplayItemInDataGroup(self, item, data_group))
                             data_group.remove_display_item(item)
+                    undelete_log.append(UndeleteDisplayItem(self, item))
                     # call the version of remove_display_item that doesn't cascade again
                     # NOTE: remove_display_item will notify_remove_item
                     container.remove_display_item(item)
-                    undelete_log.append({"type": name, "project": container, "container": container_ref, "index": index, "order": uuid_order, "properties": item_dict})
-                elif container:
-                    index = getattr(container, name).index(item)
-                    item_dict = item.write_to_dict()
-                    container_properties = container.save_properties() if hasattr(container, "save_properties") else dict()
-                    undelete_log.append({"type": name, "project": Project.get_project_for_item(item), "container": container_ref, "index": index, "properties": item_dict, "container_properties": container_properties})
-                    container.remove_item(name, item)
+                elif isinstance(container, Project.Project) and isinstance(item, DataStructure.DataStructure):
+                    undelete_log.append(UndeleteItem(self, DataStructuresController(self), item))
+                    container.remove_item("data_structures", item)
+                elif isinstance(container, Project.Project) and isinstance(item, Symbolic.Computation):
+                    undelete_log.append(UndeleteItem(self, ComputationsController(self), item))
+                    container.remove_item("computations", item)
+                elif isinstance(container, Project.Project) and isinstance(item, Connection.Connection):
+                    undelete_log.append(UndeleteItem(self, ConnectionsController(self), item))
+                    container.remove_item("connections", item)
+                elif container and isinstance(item, Graphics.Graphic):
+                    undelete_log.append(UndeleteItem(self, GraphicsController(self), item))
+                    container.remove_item("graphics", item)
+                elif container and isinstance(item, DisplayItem.DisplayDataChannel):
+                    undelete_log.append(UndeleteItem(self, DisplayDataChannelsController(self), item))
+                    container.remove_item("display_data_channels", item)
         except Exception as e:
             import sys, traceback
             traceback.print_exc()
@@ -938,70 +1198,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def undelete_all(self, undelete_log):
         for entry in reversed(undelete_log):
-            container_ref = entry.get("container", None)
-            container_uuid = uuid.UUID(container_ref) if container_ref else None
-            index = entry["index"]
-            name = entry["type"]
-            properties = entry["properties"]
-            project = entry["project"]
-            if name == "data_items":
-                self.restore_data_item(project, properties["uuid"], index)
-                self.__data_items = restore_item_order("data_items", self.profile.projects, entry["order"])
-            elif name == "display_items":
-                project = next(project for project in self.__profile.projects if project.uuid == container_uuid)
-                item = DisplayItem.DisplayItem()
-                item.begin_reading()
-                item.read_from_dict(properties)
-                item.finish_reading()
-                self.insert_display_item(index, item, update_session=False, project=project)
-                self.__display_items = restore_item_order("display_items", self.profile.projects, entry["order"])
-            elif name == "computations":
-                project = next(project for project in self.__profile.projects if project.uuid == container_uuid)
-                item = Symbolic.Computation()
-                item.begin_reading()
-                item.read_from_dict(properties)
-                item.finish_reading()
-                self.insert_computation(index, item, project=project)
-            elif name == "object_specifiers":
-                computation = project._get_related_item(uuid.UUID(entry["computation_uuid"]))
-                variable = computation.variables[entry["variable_index"]]
-                computation.undelete_variable_item(variable.name, index, properties)
-            elif name == "graphics":
-                item = Graphics.factory(properties.get)
-                item.begin_reading()
-                item.read_from_dict(properties)
-                item.finish_reading()
-                display_item = project._get_related_item(container_uuid)
-                display_item.insert_graphic(index, item)
-                display_item.restore_properties(entry["container_properties"])
-            elif name == "connections":
-                project = next(project for project in self.__profile.projects if project.uuid == container_uuid)
-                item = Connection.connection_factory(properties.get)
-                item.begin_reading()
-                item.read_from_dict(properties)
-                item.finish_reading()
-                self.insert_connection(index, item, project=project)
-            elif name == "data_structures":
-                project = next(project for project in self.__profile.projects if project.uuid == container_uuid)
-                item = DataStructure.DataStructure()
-                item.begin_reading()
-                item.read_from_dict(properties)
-                item.finish_reading()
-                self.insert_data_structure(index, item, project=project)
-            elif name == "data_group_entry":
-                data_group = self.get_data_group_by_uuid(entry["data_group_uuid"])
-                display_item = project._get_related_item(entry["display_item_uuid"])
-                data_group.insert_display_item(index, display_item)
-            elif name == "display_data_channels":
-                item = DisplayItem.display_data_channel_factory(properties.get)
-                item.begin_reading()
-                item.read_from_dict(properties)
-                item.finish_reading()
-                display_item = project._get_related_item(container_uuid)
-                display_item.undelete_display_data_channel(index, item)
-                display_item.restore_properties(entry["container_properties"])
-            else:
-                assert False
+            entry.undelete(self)
 
     def __remove_dependency(self, source_item, target_item):
         # print(f"remove dependency {source_item} {target_item}")

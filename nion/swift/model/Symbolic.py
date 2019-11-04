@@ -1222,7 +1222,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         specifier = DataStructure.get_object_specifier(input_item.item, input_item.type)
         variable.bound_items_model.insert_item(index, self.__resolve_object_specifier(specifier))
 
-    def list_item_removed(self, object) -> typing.Sequence[dict]:
+    def list_item_removed(self, object) -> typing.Optional[typing.Tuple[int, int, dict]]:
         # when an item is removed from the library, this method is called for each computation.
         # if the item being removed matches a variable item, mark the computation as needing an update.
         # if the item is contained in a list variable, create the undelete entries and return them.
@@ -1239,15 +1239,10 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 for index, (object_specifier, bound_item) in enumerate(zip(variable.object_specifiers, variable.bound_items_model.items)):
                     base_objects = bound_item.base_objects if bound_item else list()
                     if object in base_objects:
-                        undelete_entry = dict()
-                        undelete_entry["type"] = "object_specifiers"
-                        undelete_entry["computation_uuid"] = str(self.uuid)
-                        undelete_entry["variable_index"] = self.variables.index(variable)
-                        undelete_entry["properties"] = copy.deepcopy(object_specifier)
-                        undelete_entry["index"] = index
+                        variables_index = self.variables.index(variable)
                         variable.bound_items_model.remove_item(index)
-                        return [undelete_entry]
-        return list()
+                        return (index, variables_index, copy.deepcopy(object_specifier))
+        return None
 
     def __resolve_variable(self, object_specifier: dict) -> typing.Optional[ComputationVariable]:
         if object_specifier:

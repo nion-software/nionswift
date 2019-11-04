@@ -2,6 +2,7 @@
 import contextlib
 import copy
 import unittest
+import uuid
 
 # third party libraries
 import numpy
@@ -306,3 +307,69 @@ class TestProjectClass(unittest.TestCase):
                     self.assertEqual(project0, Project.get_project_for_item(item))
                 for item in project1.computations[0].input_items:
                     self.assertEqual(project1, Project.get_project_for_item(item))
+
+    def test_data_item_in_computation_is_bound_to_its_own_project(self):
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.add_project_memory()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            item_uuid = uuid.uuid4()
+            with contextlib.closing(document_model):
+                data_item0 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid)
+                document_model.append_data_item(data_item0, project=profile.projects[0])
+                display_item0 = document_model.get_display_item_for_data_item(data_item0)
+                document_model.get_invert_new(display_item0)
+                data_item1 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid)
+                document_model.append_data_item(data_item1, project=profile.projects[1])
+                display_item1 = document_model.get_display_item_for_data_item(data_item1)
+                document_model.get_invert_new(display_item1)
+                document_model.recompute_all()
+                self.assertEqual(4, len(document_model.data_items))
+                self.assertEqual(2, len(profile.projects[0].data_items))
+                self.assertEqual(2, len(profile.projects[1].data_items))
+                self.assertEqual(1, len(profile.projects[0].computations))
+                self.assertEqual(1, len(profile.projects[1].computations))
+                self.assertEqual(data_item0, list(profile.projects[0].computations[0].input_items)[0])
+                self.assertEqual(data_item1, list(profile.projects[1].computations[0].input_items)[0])
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                self.assertEqual(4, len(document_model.data_items))
+                self.assertEqual(2, len(profile.projects[0].data_items))
+                self.assertEqual(2, len(profile.projects[1].data_items))
+                self.assertEqual(1, len(profile.projects[0].computations))
+                self.assertEqual(1, len(profile.projects[1].computations))
+                self.assertEqual(data_item0, list(profile.projects[0].computations[0].input_items)[0])
+                self.assertEqual(data_item1, list(profile.projects[1].computations[0].input_items)[0])
+
+    def test_data_item_in_computation_is_not_bound_to_another_project(self):
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.add_project_memory()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            item_uuid = uuid.uuid4()
+            with contextlib.closing(document_model):
+                data_item0 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid)
+                document_model.append_data_item(data_item0, project=profile.projects[0])
+                display_item0 = document_model.get_display_item_for_data_item(data_item0)
+                document_model.get_invert_new(display_item0)
+                data_item1 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid)
+                document_model.append_data_item(data_item1, project=profile.projects[1])
+                display_item1 = document_model.get_display_item_for_data_item(data_item1)
+                document_model.get_invert_new(display_item1)
+                document_model.recompute_all()
+                self.assertEqual(4, len(document_model.data_items))
+                self.assertEqual(2, len(profile.projects[0].data_items))
+                self.assertEqual(2, len(profile.projects[1].data_items))
+                self.assertEqual(1, len(profile.projects[0].computations))
+                self.assertEqual(1, len(profile.projects[1].computations))
+                self.assertEqual(data_item0, list(profile.projects[0].computations[0].input_items)[0])
+                self.assertEqual(data_item1, list(profile.projects[1].computations[0].input_items)[0])
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                self.assertEqual(4, len(document_model.data_items))
+                self.assertEqual(2, len(profile.projects[0].data_items))
+                self.assertEqual(2, len(profile.projects[1].data_items))
+                self.assertEqual(1, len(profile.projects[0].computations))
+                self.assertEqual(1, len(profile.projects[1].computations))
+                self.assertEqual(data_item0, list(profile.projects[0].computations[0].input_items)[0])
+                self.assertEqual(data_item1, list(profile.projects[1].computations[0].input_items)[0])
