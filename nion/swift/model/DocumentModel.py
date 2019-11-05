@@ -1433,14 +1433,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 return data_group
         return None
 
-    def get_data_group_or_document_model_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[typing.Union["DocumentModel", DataGroup.DataGroup]]:
-        if self.uuid == uuid:
-            return self
-        for data_group in DataGroup.get_flat_data_group_generator_in_container(self):
-            if data_group.uuid == uuid:
-                return data_group
-        return None
-
     # access data items by uuid
     def get_data_item_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DataItem.DataItem]:
         return self.__uuid_to_data_item.get(uuid)
@@ -1468,13 +1460,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def are_display_items_equal(self, display_item1: DisplayItem.DisplayItem, display_item2: DisplayItem.DisplayItem) -> bool:
         return display_item1 == display_item2
-
-    def get_display_data_channel_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DisplayItem.DisplayDataChannel]:
-        for display_item in self.display_items:
-            for display_data_channel in display_item.display_data_channels:
-                if display_data_channel.uuid == uuid:
-                    return display_data_channel
-        return None
 
     def get_project_for_item(self, item: Project.ProjectItemType) -> typing.Optional[Project.Project]:
         return item.container if item else None
@@ -1565,18 +1550,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             for graphic in display_item.graphics:
                 if graphic.uuid == object_uuid:
                     return graphic
-        return None
-
-    def get_data_structure_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[DataStructure.DataStructure]:
-        for data_structure in self.data_structures:
-            if data_structure.uuid == object_uuid:
-                return data_structure
-        return None
-
-    def get_computation_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Symbolic.Computation]:
-        for computation in self.computations:
-            if computation.uuid == object_uuid:
-                return computation
         return None
 
     class DataItemReference:

@@ -233,7 +233,7 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_item: DisplayItem.DisplayItem, property_name: str, value):
         super().__init__(_("Change Display Item Info"), command_id="change_property_" + property_name, is_mergeable=True)
         self.__document_model = document_model
-        self.__display_item_uuid = display_item.uuid
+        self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
         self.__property_name = property_name
         self.__new_display_layers = value
         self.__old_display_layers = getattr(display_item, property_name)
@@ -241,22 +241,23 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
 
     def close(self):
         self.__document_model = None
-        self.__display_item_uuid = None
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
         self.__property_name = None
         self.__new_display_layers = None
         self.__old_display_layers = None
         super().close()
 
     def perform(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         setattr(display_item, self.__property_name, self.__new_display_layers)
 
     def _get_modified_state(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         return display_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         display_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
@@ -264,7 +265,7 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self) -> None:
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         self.__new_display_layers = getattr(display_item, self.__property_name)
         setattr(display_item, self.__property_name, self.__old_display_layers)
 
@@ -272,7 +273,7 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
         self.perform()
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
+        return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item
 
 
 class ChangePropertyCommand(Undo.UndoableCommand):
@@ -1230,27 +1231,28 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_item: DisplayItem.DisplayItem, display_type: str):
         super().__init__(_("Change Display Type"), command_id="change_display_type", is_mergeable=True)
         self.__document_model = document_model
-        self.__display_item_uuid = display_item.uuid
+        self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
         self.__old_display_type = display_item.display_type
         self.__display_type = display_type
         self.initialize()
 
     def close(self):
         self.__document_model = None
-        self.__display_item_uuid = None
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
         self.__old_display_type = None
         super().close()
 
     def perform(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         display_item.display_type = self.__display_type
 
     def _get_modified_state(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         return display_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         display_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
@@ -1258,13 +1260,13 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         old_display_type = self.__old_display_type
         self.__old_display_type = display_item.display_type
         display_item.display_type = old_display_type
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDisplayTypeCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
+        return isinstance(command, ChangeDisplayTypeCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item
 
 
 def make_display_type_chooser(document_controller, display_item: DisplayItem.DisplayItem):
@@ -2239,7 +2241,7 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
     def __init__(self, document_model, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Change Computation Variable"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
-        self.__computation_uuid = computation.uuid
+        self.__computation_proxy = computation.container.create_item_proxy(item=computation)
         self.__variable_index = computation.variables.index(variable)
         self.__properties = variable.save_properties()
         self.__value_dict = kwargs
@@ -2247,25 +2249,26 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
 
     def close(self):
         self.__document_model = None
-        self.__computation = None
+        self.__computation_proxy.close()
+        self.__computation_proxy = None
         self.__variable_index = None
         self.__properties = None
         self.__value_dict = None
         super().close()
 
     def perform(self):
-        computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+        computation = self.__computation_proxy.item
         variable = computation.variables[self.__variable_index]
         for key, value in self.__value_dict.items():
             setattr(variable, key, value)
 
     def _get_modified_state(self):
-        computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+        computation = self.__computation_proxy.item
         variable = computation.variables[self.__variable_index]
         return variable.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+        computation = self.__computation_proxy.item
         variable = computation.variables[self.__variable_index]
         variable.modified_state, self.__document_model.modified_state = modified_state
 
@@ -2274,14 +2277,14 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self):
-        computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+        computation = self.__computation_proxy.item
         variable = computation.variables[self.__variable_index]
         properties = self.__properties
         self.__properties = variable.save_properties()
         variable.restore_properties(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeComputationVariableCommand) and self.command_id and self.command_id == command.command_id and self.__computation_uuid == command.__computation_uuid and self.__variable_index == command.__variable_index
+        return isinstance(command, ChangeComputationVariableCommand) and self.command_id and self.command_id == command.command_id and self.__computation_proxy.item == command.__computation_proxy.item and self.__variable_index == command.__variable_index
 
 
 class ChangeComputationVariablePropertyBinding(Binding.PropertyBinding):
@@ -2679,7 +2682,7 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
             def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel):
                 super().__init__(_("Remove Data Item"))
                 self.__document_controller = document_controller
-                self.__display_item_uuid = display_item.uuid
+                self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
                 self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
                 self.__new_workspace_layout = None
                 self.__display_data_channel_index = display_item.display_data_channels.index(display_data_channel)
@@ -2690,7 +2693,8 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
 
             def close(self):
                 self.__document_controller = None
-                self.__display_item_uuid = None
+                self.__display_item_proxy.close()
+                self.__display_item_proxy = None
                 self.__old_workspace_layout = None
                 self.__new_workspace_layout = None
                 self.__display_data_channel_index = None
@@ -2702,17 +2706,17 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
                 super().close()
 
             def perform(self):
-                display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+                display_item = self.__display_item_proxy.item
                 display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
                 self.__undelete_logs.append(display_item.remove_display_data_channel(display_data_channel, safe=True))
                 self.__new_value = display_item.display_layers
 
             def _get_modified_state(self):
-                display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+                display_item = self.__display_item_proxy.item
                 return display_item.modified_state, self.__document_controller.document_model.modified_state
 
             def _set_modified_state(self, modified_state):
-                display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+                display_item = self.__display_item_proxy.item
                 display_item.modified_state, self.__document_controller.document_model.modified_state = modified_state
 
             def _undo(self):

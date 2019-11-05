@@ -1226,24 +1226,26 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, before_index: int, display_item: DisplayItem.DisplayItem):
             super().__init__("Insert Data Item")
             self.__document_model = document_model
-            self.__data_group_uuid = data_group.uuid
+            self.__data_group_proxy = document_model.profile.create_item_proxy(item=data_group)
             self.__before_index = before_index
-            self.__display_item_uuid = display_item.uuid
+            self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
             self.initialize()
 
         def close(self):
             self.__document_model = None
-            self.__data_group_uuid = None
+            self.__data_group_proxy.close()
+            self.__data_group_proxy = None
             self.__before_index = None
-            self.__display_item_uuid = None
+            self.__display_item_proxy.close()
+            self.__display_item_proxy = None
             super().close()
 
         def _get_modified_state(self):
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             return data_group.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             data_group.modified_state, self.__document_model.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
@@ -1251,12 +1253,12 @@ class DocumentController(Window.Window):
             return state1[0] == state2[0]
 
         def perform(self) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+            data_group = self.__data_group_proxy.item
+            display_item = self.__display_item_proxy.item
             data_group.insert_display_item(self.__before_index, display_item)
 
         def _undo(self) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             data_group.remove_display_item(data_group.display_items[self.__before_index])
 
         def _redo(self) -> None:
@@ -1345,19 +1347,27 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, display_items: typing.Sequence[DisplayItem.DisplayItem]):
             super().__init__("Remove Data Item")
             self.__document_model = document_model
-            self.__data_group_uuid = data_group.uuid
-            combined = [(data_group.display_items.index(display_item), display_item.uuid) for display_item in display_items]
+            self.__data_group_proxy = document_model.profile.create_item_proxy(item=data_group)
+            combined = [(data_group.display_items.index(display_item), display_item) for display_item in display_items]
             combined = sorted(combined, key=operator.itemgetter(0), reverse=True)
             self.__display_item_indexes = list(map(operator.itemgetter(0), combined))
-            self.__display_item_uuids = list(map(operator.itemgetter(1), combined))
+            self.__display_item_proxies = [display_item.container.create_item_proxy(item=display_item) for index, display_item in combined]
             self.initialize()
 
+        def close(self):
+            self.__data_group_proxy.close()
+            self.__data_group_proxy = None
+            for display_item_proxy in self.__display_item_proxies:
+                display_item_proxy.close()
+            self.__display_item_proxies = None
+            super().close()
+
         def _get_modified_state(self):
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             return data_group.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             data_group.modified_state, self.__document_model.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
@@ -1365,15 +1375,15 @@ class DocumentController(Window.Window):
             return state1[0] == state2[0]
 
         def perform(self) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             display_items = [data_group.display_items[index] for index in self.__display_item_indexes]
             for display_item in display_items:
                 if display_item in data_group.display_items:
                     data_group.remove_display_item(display_item)
 
         def _undo(self) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            display_items = [self.__document_model.get_display_item_by_uuid(display_item_uuid) for display_item_uuid in self.__display_item_uuids]
+            data_group = self.__data_group_proxy.item
+            display_items = [display_item_proxy.item for display_item_proxy in self.__display_item_proxies]
             for index, display_item in zip(self.__display_item_indexes, display_items):
                 data_group.insert_display_item(index, display_item)
 
@@ -1384,17 +1394,22 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, title: str):
             super().__init__("Rename Data Group")
             self.__document_model = document_model
-            self.__data_group_uuid = data_group.uuid
+            self.__data_group_proxy = document_model.profile.create_item_proxy(item=data_group)
             self.__title = title
             self.__new_title = None
             self.initialize()
 
+        def close(self):
+            self.__data_group_proxy.close()
+            self.__data_group_proxy = None
+            super().close()
+
         def _get_modified_state(self):
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             return data_group.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             data_group.modified_state, self.__document_model.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
@@ -1402,12 +1417,12 @@ class DocumentController(Window.Window):
             return state1[0] == state2[0]
 
         def perform(self) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             self.__new_title = data_group.title
             data_group.title = self.__title
 
         def _undo(self) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             data_group.title = self.__new_title
 
         def _redo(self) -> None:
@@ -1420,18 +1435,26 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, container: typing.Union[DataGroup.DataGroup, DocumentModel.DocumentModel], before_index: int, data_group: DataGroup.DataGroup):
             super().__init__("Insert Data Group")
             self.__document_model = document_model
-            self.__container_uuid = container.uuid
+            self.__container_proxy = document_model.profile.create_item_proxy(item=container)
             self.__before_index = before_index
             self.__data_group_properties = data_group.write_to_dict()
-            self.__data_group_uuid = data_group.uuid
+            self.__data_group_proxy = None
             self.initialize()
 
+        def close(self):
+            if self.__data_group_proxy:
+                self.__data_group_proxy.close()
+                self.__data_group_proxy = None
+            self.__container_proxy.close()
+            self.__container_proxy = None
+            super().close()
+
         def _get_modified_state(self):
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            container = self.__container_proxy.item
             return container.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            container = self.__container_proxy.item
             container.modified_state, self.__document_model.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
@@ -1439,15 +1462,18 @@ class DocumentController(Window.Window):
             return state1[0] == state2[0]
 
         def perform(self) -> None:
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            container = self.__container_proxy.item
             data_group = DataGroup.DataGroup()
             data_group.read_from_dict(self.__data_group_properties)
             container.insert_data_group(self.__before_index, data_group)
+            self.__data_group_proxy = self.__document_model.profile.create_item_proxy(item=data_group)
 
         def _undo(self) -> None:
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            container = self.__container_proxy.item
+            data_group = self.__data_group_proxy.item
             container.remove_data_group(data_group)
+            self.__data_group_proxy.close()
+            self.__data_group_proxy = None
 
         def _redo(self) -> None:
             self.perform()
@@ -1459,18 +1485,25 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, container: typing.Union[DataGroup.DataGroup, DocumentModel.DocumentModel], data_group: DataGroup.DataGroup):
             super().__init__("Remove Data Group")
             self.__document_model = document_model
-            self.__container_uuid = container.uuid
-            self.__data_group_uuid = data_group.uuid
+            self.__container_proxy = document_model.profile.create_item_proxy(item=container)
+            self.__data_group_proxy = document_model.profile.create_item_proxy(item=data_group)
             self.__data_group_properties = None
             self.__data_group_index = None
             self.initialize()
 
+        def close(self):
+            self.__data_group_proxy.close()
+            self.__data_group_proxy = None
+            self.__container_proxy.close()
+            self.__container_proxy = None
+            super().close()
+
         def _get_modified_state(self):
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            container = self.__container_proxy.item
             return container.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            container = self.__container_proxy.item
             container.modified_state, self.__document_model.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
@@ -1478,14 +1511,14 @@ class DocumentController(Window.Window):
             return state1[0] == state2[0]
 
         def perform(self) -> None:
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            container = self.__container_proxy.item
+            data_group = self.__data_group_proxy.item
             self.__data_group_properties = data_group.write_to_dict()
             self.__data_group_index = container.data_groups.index(data_group)
             container.remove_data_group(data_group)
 
         def _undo(self) -> None:
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            container = self.__container_proxy.item
             data_group = DataGroup.DataGroup()
             data_group.begin_reading()
             data_group.read_from_dict(self.__data_group_properties)
@@ -1691,7 +1724,7 @@ class DocumentController(Window.Window):
         def __init__(self, document_controller: "DocumentController", display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic]):
             super().__init__(_("Remove Graphics"))
             self.__document_controller = document_controller
-            self.__display_item_uuid = display_item.uuid
+            self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
             self.__graphic_indexes = [display_item.graphics.index(graphic) for graphic in graphics]
@@ -1700,7 +1733,8 @@ class DocumentController(Window.Window):
 
         def close(self):
             self.__document_controller = None
-            self.__display_item_uuid = None
+            self.__display_item_proxy.close()
+            self.__display_item_proxy = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             self.__graphic_indexes = None
@@ -1710,17 +1744,17 @@ class DocumentController(Window.Window):
             super().close()
 
         def perform(self):
-            display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+            display_item = self.__display_item_proxy.item
             graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
             for graphic in graphics:
                 self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
 
         def _get_modified_state(self):
-            display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+            display_item = self.__display_item_proxy.item
             return display_item.modified_state, self.__document_controller.document_model.modified_state
 
         def _set_modified_state(self, modified_state):
-            display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+            display_item = self.__display_item_proxy.item
             display_item.modified_state, self.__document_controller.document_model.modified_state = modified_state
 
         def _undo(self):
@@ -2102,7 +2136,7 @@ class DocumentController(Window.Window):
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
-            self.__display_item_uuid = None
+            self.__display_item_proxy = None
             self.__display_item = display_item
             self.__display_item_fn = display_item_fn
             self.__display_item_index = None
@@ -2111,7 +2145,9 @@ class DocumentController(Window.Window):
 
         def close(self):
             self.__document_controller = None
-            self.__display_item_uuid = None
+            if self.__display_item_proxy:
+                self.__display_item_proxy.close()
+                self.__display_item_proxy = None
             self.__display_item_index = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
@@ -2133,7 +2169,7 @@ class DocumentController(Window.Window):
                 if inspector_panel is not None:
                     inspector_panel.request_focus = True
             document_controller.show_display_item(snapshot_display_item, source_display_item=snapshot_display_item, request_focus=request_focus)
-            self.__display_item_uuid = display_item.uuid if display_item else None
+            self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item) if display_item else None
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -2145,11 +2181,10 @@ class DocumentController(Window.Window):
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
             self.__undelete_log.close()
             self.__undelete_log = None
-            self.__display_item_uuid = self.__document_controller.document_model.display_items[self.__display_item_index].uuid
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
         def _undo(self):
-            display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+            display_item = self.__display_item_proxy.item if self.__display_item_proxy else None
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__display_item_index = self.__document_controller.document_model.display_items.index(display_item)
             self.__undelete_log = self.__document_controller.document_model.remove_display_item_with_log(display_item)
