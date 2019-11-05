@@ -19,6 +19,7 @@ import numpy
 # local libraries
 from nion.data import DataAndMetadata
 from nion.swift.model import ApplicationData
+from nion.swift.model import Changes
 from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
@@ -253,16 +254,7 @@ class TransactionManager:
             self.__close_transaction_items(old_items)
 
 
-class UndeleteBase(abc.ABC):
-
-    @abc.abstractmethod
-    def close(self) -> None: ...
-
-    @abc.abstractmethod
-    def undelete(self, document_model: "DocumentModel") -> None: ...
-
-
-class UndeleteObjectSpecifiers(UndeleteBase):
+class UndeleteObjectSpecifiers(Changes.UndeleteBase):
 
     def __init__(self, document_model: "DocumentModel", computation: Symbolic.Computation, index: int, variable_index: int, object_specifier: typing.Dict):
         self.computation_proxy = computation.container.create_item_proxy(item_uuid=computation.uuid, item=computation)
@@ -280,7 +272,7 @@ class UndeleteObjectSpecifiers(UndeleteBase):
         computation.undelete_variable_item(variable.name, self.index, self.specifier)
 
 
-class UndeleteDataItems(UndeleteBase):
+class UndeleteDataItems(Changes.UndeleteBase):
 
     def __init__(self, document_model: "DocumentModel", data_item: DataItem.DataItem):
         project = Project.get_project_for_item(data_item)
@@ -302,7 +294,7 @@ class UndeleteDataItems(UndeleteBase):
         document_model.restore_items_order("data_items", self.order)
 
 
-class UndeleteDisplayItemInDataGroup(UndeleteBase):
+class UndeleteDisplayItemInDataGroup(Changes.UndeleteBase):
 
     def __init__(self, document_model: "DocumentModel", display_item: DisplayItem.DisplayItem, data_group: DataGroup.DataGroup):
         self.display_item_proxy = display_item.container.create_item_proxy(item_uuid=display_item.uuid, item=display_item)
@@ -321,7 +313,7 @@ class UndeleteDisplayItemInDataGroup(UndeleteBase):
         data_group.insert_display_item(self.index, display_item)
 
 
-class UndeleteDisplayItem(UndeleteBase):
+class UndeleteDisplayItem(Changes.UndeleteBase):
 
     def __init__(self, document_model: "DocumentModel", display_item: DisplayItem.DisplayItem):
         project = Project.get_project_for_item(display_item)
@@ -492,7 +484,7 @@ class DisplayDataChannelsController(ItemsController):
         display_item.restore_properties(container_properties)
 
 
-class UndeleteItem(UndeleteBase):
+class UndeleteItem(Changes.UndeleteBase):
 
     def __init__(self, document_model: "DocumentModel", items_controller: ItemsController, item: Persistence.PersistentObject):
         self.__items_controller = items_controller
@@ -873,12 +865,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 if computation.is_resolved:
                     computation.mark_update()
 
-    def remove_data_item(self, data_item: DataItem.DataItem, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
-        """Remove data item from document model.
+    def remove_data_item(self, data_item: DataItem.DataItem, *, safe: bool=False) -> None:
+        self.__cascade_delete(data_item, safe=safe).close()
 
-        This method is NOT threadsafe.
-        """
-        # remove data item from any computations
+    def remove_data_item_with_log(self, data_item: DataItem.DataItem, *, safe: bool=False) -> Changes.UndeleteLog:
         return self.__cascade_delete(data_item, safe=safe)
 
     def restore_data_item(self, project: Project.Project, data_item_uuid: uuid.UUID, before_index: int=None) -> typing.Optional[DataItem.DataItem]:
@@ -927,7 +917,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         uuid_order.insert(before_index, (Project.get_project_for_item(display_item), display_item.uuid))
         self.__display_items = restore_item_order("display_items", self.profile.projects, uuid_order)
 
-    def remove_display_item(self, display_item) -> typing.Optional[typing.Sequence]:
+    def remove_display_item(self, display_item) -> None:
+        self.__cascade_delete(display_item).close()
+
+    def remove_display_item_with_log(self, display_item) -> Changes.UndeleteLog:
         return self.__cascade_delete(display_item)
 
     def __handle_display_item_inserted(self, project: Project.Project, display_item: DisplayItem.DisplayItem) -> None:
@@ -959,7 +952,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             # there may be a better place for this
             self.__rebind_computations()  # rebind any unresolved that may now be resolved
 
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
         return self.__cascade_delete(item, safe=safe)
 
     def assign_variable_to_data_item(self, data_item: DataItem.DataItem) -> str:
@@ -1097,11 +1090,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 if (source, item) not in dependencies:
                     dependencies.append((source, item))
 
-    def __cascade_delete(self, master_item, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def __cascade_delete(self, master_item, safe: bool=False) -> Changes.UndeleteLog:
         with self.transaction_context():
             return self.__cascade_delete_inner(master_item, safe=safe)
 
-    def __cascade_delete_inner(self, master_item, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def __cascade_delete_inner(self, master_item, safe: bool=False) -> Changes.UndeleteLog:
         """Cascade delete an item.
 
         Returns an undelete log that can be used to undo the cascade deletion.
@@ -1123,7 +1116,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__computation_changed_delay_list = computation_changed_delay_list
         else:
             computation_changed_delay_list = None
-        undelete_log = list()
+        undelete_log = Changes.UndeleteLog()
         try:
             items = list()
             dependencies = list()
@@ -1196,9 +1189,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 self.__finish_computation_changed()
         return undelete_log
 
-    def undelete_all(self, undelete_log):
-        for entry in reversed(undelete_log):
-            entry.undelete(self)
+    def undelete_all(self, undelete_log: Changes.UndeleteLog) -> None:
+        undelete_log.undelete_all(self)
 
     def __remove_dependency(self, source_item, target_item):
         # print(f"remove dependency {source_item} {target_item}")
@@ -1955,7 +1947,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         uuid_order.insert(before_index, (Project.get_project_for_item(data_structure), data_structure.uuid))
         self.__data_structures = restore_item_order("data_structures", self.profile.projects, uuid_order)
 
-    def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> typing.Optional[typing.Sequence]:
+    def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
+        return self.__cascade_delete(data_structure).close()
+
+    def remove_data_structure_with_log(self, data_structure: DataStructure.DataStructure) -> Changes.UndeleteLog:
         return self.__cascade_delete(data_structure)
 
     def __handle_data_structure_inserted(self, project: Project.Project, data_structure: DataStructure.DataStructure) -> None:
@@ -2038,7 +2033,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         uuid_order.insert(before_index, (Project.get_project_for_item(computation), computation.uuid))
         self.__computations = restore_item_order("computations", self.profile.projects, uuid_order)
 
-    def remove_computation(self, computation: Symbolic.Computation, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def remove_computation(self, computation: Symbolic.Computation, *, safe: bool=False) -> None:
+        self.__cascade_delete(computation, safe=safe).close()
+
+    def remove_computation_with_log(self, computation: Symbolic.Computation, *, safe: bool=False) -> Changes.UndeleteLog:
         return self.__cascade_delete(computation, safe=safe)
 
     def __handle_computation_inserted(self, project: Project.Project, computation: Symbolic.Computation) -> None:

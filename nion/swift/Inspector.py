@@ -2677,6 +2677,7 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
                 self.__display_data_channel_index = display_item.display_data_channels.index(display_data_channel)
                 self.__new_value = None
                 self.__old_value = display_item.display_layers
+                self.__undelete_logs = list()
                 self.initialize()
 
             def close(self):
@@ -2687,11 +2688,13 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
                 self.__display_data_channel_index = None
                 self.__new_value = None
                 self.__old_value = None
+                for undelete_log in self.__undelete_logs:
+                    undelete_log.close()
+                self.__undelete_logs = None
                 super().close()
 
             def perform(self):
                 display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
-                self.__undelete_logs = list()
                 display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
                 self.__undelete_logs.append(display_item.remove_display_data_channel(display_data_channel, safe=True))
                 self.__new_value = display_item.display_layers
@@ -2708,6 +2711,8 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
                 self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
                 for undelete_log in reversed(self.__undelete_logs):
                     self.__document_controller.document_model.undelete_all(undelete_log)
+                    undelete_log.close()
+                self.__undelete_logs.clear()
                 self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
                 self.__new_value = display_item.display_layers
                 display_item.display_layers = self.__old_value

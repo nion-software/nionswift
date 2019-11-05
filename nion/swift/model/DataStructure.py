@@ -8,6 +8,7 @@ import weakref
 # third party libraries
 
 # local libraries
+from nion.swift.model import Changes
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
@@ -92,12 +93,12 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         else:
             container.insert_item(name, before_index, item)
 
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
         if self.__container_weak_ref:
             return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
-            return None
+            return Changes.UndeleteLog()
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)

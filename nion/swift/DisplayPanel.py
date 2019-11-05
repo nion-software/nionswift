@@ -647,17 +647,19 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         self.__new_workspace_layout = None
         self.__graphics_properties = None
         self.__graphic_uuids = [graphic.uuid for graphic in graphics]
-        self.__undelete_logs = None
+        self.__undelete_logs = list()
         self.initialize()
 
     def close(self):
-        self.__undelete_logs = None
         self.__graphics_properties = None
         self.__display_item_uuid = None
         self.__graphic_uuids = None
         self.__document_controller = None
         self.__old_workspace_layout = None
         self.__new_workspace_layout = None
+        for undelete_log in self.__undelete_logs:
+            undelete_log.close()
+        self.__undelete_logs = None
         super().close()
 
     def perform(self):
@@ -680,6 +682,8 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
         for undelete_log in reversed(self.__undelete_logs):
             self.__document_controller.document_model.undelete_all(undelete_log)
+            undelete_log.close()
+        self.__undelete_logs.clear()
         self.__graphic_uuids = [graphic.uuid for graphic in display_item.graphics[-len(self.__graphic_uuids):]]
         self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
@@ -687,7 +691,6 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
         graphics = [self.__document_controller.document_model.get_graphic_by_uuid(graphic_uuid) for graphic_uuid in self.__graphic_uuids]
         self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-        self.__undelete_logs = list()
         for graphic in graphics:
             self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
         self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
@@ -797,12 +800,16 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         self.__new_display_item_uuid = new_display_item.uuid
         self.__new_display_layer_index = new_display_layer_index
         self.__new_display_data_channel_index = None
+        self.__undelete_logs = list()
         self.initialize()
 
     def close(self):
         self.__document_model = None
         self.__display_data_channel_uuid = None
         self.__properties = None
+        for undelete_log in self.__undelete_logs:
+            undelete_log.close()
+        self.__undelete_logs = None
         super().close()
 
     def perform(self):
@@ -816,7 +823,6 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         # remove display layer and then display data channel from old display item
         self.__old_display_layers = copy.deepcopy(old_display_item.display_layers)
         old_display_item.remove_display_layer(self.__old_display_layer_index)
-        self.__undelete_logs = list()
         self.__undelete_logs.append(old_display_item.remove_display_data_channel(old_display_item.display_data_channels[self.__old_display_data_channel_index]))
 
     def _get_modified_state(self):
@@ -839,6 +845,8 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         # restore original display item display data channel, display layer
         for undelete_log in reversed(self.__undelete_logs):
             self.__document_model.undelete_all(undelete_log)
+            undelete_log.close()
+        self.__undelete_logs.clear()
         old_display_item.display_layers = self.__old_display_layers
         # remove new display item display layer, display data channel, and restore legend state
         new_display_item.remove_display_layer(self.__new_display_layer_index)

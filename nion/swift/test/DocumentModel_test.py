@@ -1857,9 +1857,9 @@ class TestDocumentModelClass(unittest.TestCase):
             data_structure = document_model.create_data_structure()
             data_structure.set_property_value("amount", 3)
             document_model.append_data_structure(data_structure)
-            undelete_log = document_model.remove_data_structure(document_model.data_structures[1])
-            self.assertEqual(2, len(document_model.data_structures))
-            document_model.undelete_all(undelete_log)
+            with contextlib.closing(document_model.remove_data_structure_with_log(document_model.data_structures[1])) as undelete_log:
+                self.assertEqual(2, len(document_model.data_structures))
+                document_model.undelete_all(undelete_log)
             # required to handle is_reading?
             self.assertEqual(3, len(document_model.data_structures))
             self.assertEqual(2, document_model.data_structures[1].amount)
@@ -1895,14 +1895,14 @@ class TestDocumentModelClass(unittest.TestCase):
             # check results
             self.assertTrue(numpy.array_equal(numpy.full((4, 4), -1), data_item2.data))
             # remove computation and verify it was removed along with dst data item
-            undelete_log = document_model.remove_computation(computation, safe=True)
-            self.assertEqual(1, len(document_model.data_items))
-            self.assertEqual(0, len(document_model.computations))
-            # start a recompute, but it won't do anything now
-            data_item.set_data(numpy.full((4, 4), 2))
-            document_model.recompute_all()
-            # undelete
-            document_model.undelete_all(undelete_log)
+            with contextlib.closing(document_model.remove_computation_with_log(computation, safe=True)) as undelete_log:
+                self.assertEqual(1, len(document_model.data_items))
+                self.assertEqual(0, len(document_model.computations))
+                # start a recompute, but it won't do anything now
+                data_item.set_data(numpy.full((4, 4), 2))
+                document_model.recompute_all()
+                # undelete
+                document_model.undelete_all(undelete_log)
             # verify state of document
             self.assertEqual(2, len(document_model.data_items))
             self.assertEqual(1, len(document_model.computations))
@@ -1947,11 +1947,11 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(numpy.full((2, 2), 1), data_item2.data))
             self.assertTrue(numpy.array_equal(numpy.full((2, 2), -1), data_item3.data))
             # remove computation and verify it was removed along with dst data item
-            undelete_log = document_model.remove_data_item(data_item, safe=True)
-            self.assertEqual(0, len(document_model.data_items))
-            self.assertEqual(0, len(document_model.computations))
-            # undelete
-            document_model.undelete_all(undelete_log)
+            with contextlib.closing(document_model.remove_data_item_with_log(data_item, safe=True)) as undelete_log:
+                self.assertEqual(0, len(document_model.data_items))
+                self.assertEqual(0, len(document_model.computations))
+                # undelete
+                document_model.undelete_all(undelete_log)
             document_model.recompute_all()
             # verify state of document
             self.assertEqual(3, len(document_model.data_items))
@@ -1986,12 +1986,12 @@ class TestDocumentModelClass(unittest.TestCase):
             pick_display_item.graphics[0].interval = (12 / 100, 16 / 100)
             self.assertEqual(pick_display_item.graphics[0].interval, display_data_channel.slice_interval)
             # delete the pick and verify
-            undelete_log = document_model.remove_data_item(pick_data_item, safe=True)
-            self.assertEqual(0, len(document_model.connections))
-            self.assertEqual(0, len(document_model.computations))
-            self.assertEqual(1, len(document_model.data_items))
-            # undelete and verify
-            document_model.undelete_all(undelete_log)
+            with contextlib.closing(document_model.remove_data_item_with_log(pick_data_item, safe=True)) as undelete_log:
+                self.assertEqual(0, len(document_model.connections))
+                self.assertEqual(0, len(document_model.computations))
+                self.assertEqual(1, len(document_model.data_items))
+                # undelete and verify
+                document_model.undelete_all(undelete_log)
             pick_data_item = document_model.data_items[1]
             pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
             self.assertEqual(1, len(document_model.connections))
@@ -2014,9 +2014,9 @@ class TestDocumentModelClass(unittest.TestCase):
             # only even width intervals aligned to pixels are represented exactly by slices
             pick_display_item.graphics[0].interval = (12 / 100, 16 / 100)
             # delete the pick and verify
-            undelete_log = document_model.remove_data_item(pick_data_item, safe=True)
-            # undelete and verify
-            document_model.undelete_all(undelete_log)
+            with contextlib.closing(document_model.remove_data_item_with_log(pick_data_item, safe=True)) as undelete_log:
+                # undelete and verify
+                document_model.undelete_all(undelete_log)
             pick_data_item = document_model.data_items[1]
             pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
             # delete again
@@ -2082,10 +2082,10 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             self.assertEqual(1, len(document_model.data_items))
             # delete the data item and verify
-            undelete_log = document_model.remove_data_item(data_item, safe=True)
-            self.assertEqual(0, len(document_model.data_items))
-            # undelete and verify
-            document_model.undelete_all(undelete_log)
+            with contextlib.closing(document_model.remove_data_item_with_log(data_item, safe=True)) as undelete_log:
+                self.assertEqual(0, len(document_model.data_items))
+                # undelete and verify
+                document_model.undelete_all(undelete_log)
             self.assertEqual(1, len(document_model.data_items))
             self.assertTrue(numpy.array_equal(numpy.ones((8, 8)), document_model.data_items[0].data))
 
@@ -2104,13 +2104,13 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(numpy.ones((5, )), line_profile_data_item.data))
             # delete the line profile and verify
-            undelete_log = document_model.remove_data_item(line_profile_data_item, safe=True)
-            self.assertEqual(0, len(document_model.connections))
-            self.assertEqual(0, len(document_model.computations))
-            self.assertEqual(1, len(document_model.data_items))
-            self.assertEqual(0, len(document_model.display_items[0].graphics))
-            # undelete and verify
-            document_model.undelete_all(undelete_log)
+            with contextlib.closing(document_model.remove_data_item_with_log(line_profile_data_item, safe=True)) as undelete_log:
+                self.assertEqual(0, len(document_model.connections))
+                self.assertEqual(0, len(document_model.computations))
+                self.assertEqual(1, len(document_model.data_items))
+                self.assertEqual(0, len(document_model.display_items[0].graphics))
+                # undelete and verify
+                document_model.undelete_all(undelete_log)
             line_profile_data_item = document_model.data_items[1]
             self.assertEqual(1, len(document_model.connections))
             self.assertEqual(1, len(document_model.computations))
@@ -2122,7 +2122,7 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(numpy.zeros((5, )), line_profile_data_item.data))
             # delete the line profile again and verify
-            undelete_log = document_model.remove_data_item(line_profile_data_item, safe=True)
+            document_model.remove_data_item(line_profile_data_item, safe=True)
             self.assertEqual(0, len(document_model.connections))
             self.assertEqual(0, len(document_model.computations))
             self.assertEqual(1, len(document_model.data_items))

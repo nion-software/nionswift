@@ -20,6 +20,7 @@ from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import Cache
+from nion.swift.model import Changes
 from nion.swift.model import Graphics
 from nion.swift.model import Metadata
 from nion.swift.model import Utility
@@ -313,7 +314,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         else:
             container.insert_item(name, before_index, item)
 
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
         """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
 
         Passing responsibility to this item's container allows the library to easily track dependencies.
@@ -323,7 +324,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
-            return None
+            return Changes.UndeleteLog()
 
     def clone(self) -> "DataItem":
         data_item = self.__class__()

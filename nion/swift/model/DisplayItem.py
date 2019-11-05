@@ -19,6 +19,7 @@ from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import Cache
+from nion.swift.model import Changes
 from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
@@ -478,12 +479,12 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         else:
             container.insert_item(name, before_index, item)
 
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
         if self.__container_weak_ref:
             return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
-            return None
+            return Changes.UndeleteLog()
 
     def clone(self):
         display_data_channel = DisplayDataChannel()
@@ -952,7 +953,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         else:
             container.insert_item(name, before_index, item)
 
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
         """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
 
         Passing responsibility to this item's container allows the library to easily track dependencies.
@@ -962,7 +963,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
-            return None
+            return Changes.UndeleteLog()
 
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener by using the method
@@ -1419,7 +1420,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
                 display_layer["data_index"] = data_index + 1
         self.display_layers = display_layers
 
-    def remove_display_data_channel(self, display_data_channel: DisplayDataChannel, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def remove_display_data_channel(self, display_data_channel: DisplayDataChannel, *, safe: bool=False) -> Changes.UndeleteLog:
         return self.remove_model_item(self, "display_data_channels", display_data_channel, safe=safe)
 
     def undelete_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel) -> None:
@@ -1467,7 +1468,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         """Append a graphic, but do it through the container, so dependencies can be tracked."""
         self.insert_model_item(self, "graphics", self.item_count("graphics"), graphic)
 
-    def remove_graphic(self, graphic: Graphics.Graphic, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def remove_graphic(self, graphic: Graphics.Graphic, *, safe: bool=False) -> Changes.UndeleteLog:
         """Remove a graphic, but do it through the container, so dependencies can be tracked."""
         return self.remove_model_item(self, "graphics", graphic, safe=safe)
 

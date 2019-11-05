@@ -8,6 +8,7 @@ import uuid
 import weakref
 
 # local libraries
+from nion.swift.model import Changes
 from nion.swift.model import Connection
 from nion.swift.model import Symbolic
 from nion.swift.model import DataItem
@@ -92,7 +93,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         else:
             container.insert_item(name, before_index, item)
 
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
         """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
 
         Passing responsibility to this item's container allows the library to easily track dependencies.
@@ -102,7 +103,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
-            return None
+            return Changes.UndeleteLog()
 
     def _get_related_item(self, item_uuid: uuid.UUID) -> typing.Optional[Persistence.PersistentObject]:
         for data_item in self.data_items:

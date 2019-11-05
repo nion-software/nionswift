@@ -101,6 +101,7 @@ class Recorder:
             self.__data_item_uuid = None
             self.__data_item_fn = data_item_fn
             self.__data_item_index = None
+            self.__undelete_log = None
             self.initialize()
 
         def close(self):
@@ -110,6 +111,9 @@ class Recorder:
             self.__data_item_index = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
+            if self.__undelete_log:
+                self.__undelete_log.close()
+                self.__undelete_log = None
             super().close()
 
         def perform(self):
@@ -127,6 +131,8 @@ class Recorder:
 
         def _redo(self):
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
+            self.__undelete_log.close()
+            self.__undelete_log = None
             self.__data_item_uuid = self.__document_controller.document_model.data_items[self.__data_item_index].uuid
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
@@ -135,7 +141,7 @@ class Recorder:
             self.__recorder.stop_recording()
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__data_item_index = self.__document_controller.document_model.data_items.index(data_item)
-            self.__undelete_log = self.__document_controller.document_model.remove_data_item(data_item, safe=True)
+            self.__undelete_log = self.__document_controller.document_model.remove_data_item_with_log(data_item, safe=True)
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def continue_recording(self, current_time: float) -> None:

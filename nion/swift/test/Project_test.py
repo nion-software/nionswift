@@ -264,8 +264,8 @@ class TestProjectClass(unittest.TestCase):
                     self.assertEqual(project1, Project.get_project_for_item(item))
                 assert project0.display_items[0] in document_model.display_items
                 assert project1.display_items[0] in document_model.display_items
-                undelete_log = document_model.remove_data_item(project0.data_items[0], safe=True)
-                document_model.undelete_all(undelete_log)
+                with contextlib.closing(document_model.remove_data_item_with_log(project0.data_items[0], safe=True)) as undelete_log:
+                    document_model.undelete_all(undelete_log)
                 assert project0.display_items[0] in document_model.display_items
                 assert project1.display_items[0] in document_model.display_items
                 for item in project0.display_items[0].data_items:
@@ -274,8 +274,8 @@ class TestProjectClass(unittest.TestCase):
                 for item in project1.display_items[0].data_items:
                     assert item in document_model.data_items
                     self.assertEqual(project1, Project.get_project_for_item(item))
-                undelete_log = document_model.remove_data_item(project1.data_items[0], safe=True)
-                document_model.undelete_all(undelete_log)
+                with contextlib.closing(document_model.remove_data_item_with_log(project1.data_items[0], safe=True)) as undelete_log:
+                    document_model.undelete_all(undelete_log)
                 assert project0.display_items[0] in document_model.display_items
                 assert project1.display_items[0] in document_model.display_items
                 for item in project0.display_items[0].data_items:

@@ -1274,7 +1274,7 @@ class DocumentController(Window.Window):
             self.__data_items = data_items  # only in perform
             self.__display_item_index = index
             self.__display_item_indexes = list()
-            self.__undelete_logs = None
+            self.__undelete_logs = list()
             self.initialize()
 
         def close(self):
@@ -1284,6 +1284,8 @@ class DocumentController(Window.Window):
             self.__data_group_uuids = None
             self.__data_items = None
             self.__display_item_index = None
+            for undelete_log in self.__undelete_logs:
+                undelete_log.close()
             self.__undelete_logs = None
             super().close()
 
@@ -1316,7 +1318,6 @@ class DocumentController(Window.Window):
         def _undo(self) -> None:
             document_model = self.__document_controller.document_model
             data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            self.__undelete_logs = list()
             display_items = [data_group.display_items[index] for index in self.__data_group_indexes]
             for display_item in display_items:
                 if display_item in data_group.display_items:
@@ -1324,13 +1325,15 @@ class DocumentController(Window.Window):
             display_items = [document_model.display_items[index] for index in self.__display_item_indexes]
             for display_item in display_items:
                 if display_item in document_model.display_items:
-                    self.__undelete_logs.append(document_model.remove_display_item(display_item, safe=True))
+                    self.__undelete_logs.append(document_model.remove_display_item_with_log(display_item, safe=True))
 
         def _redo(self) -> None:
             document_model = self.__document_controller.document_model
             data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
+                undelete_log.close()
+            self.__undelete_logs.clear()
             index = self.__display_item_index
             display_items = [document_model.get_display_item_by_uuid(display_item_uuid) for display_item_uuid in reversed(self.__data_group_uuids)]
             for display_item in display_items:
@@ -1691,6 +1694,7 @@ class DocumentController(Window.Window):
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
             self.__graphic_indexes = [display_item.graphics.index(graphic) for graphic in graphics]
+            self.__undelete_logs = list()
             self.initialize()
 
         def close(self):
@@ -1699,11 +1703,13 @@ class DocumentController(Window.Window):
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             self.__graphic_indexes = None
+            for undelete_log in self.__undelete_logs:
+                undelete_log.close()
+            self.__undelete_logs = None
             super().close()
 
         def perform(self):
             display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
-            self.__undelete_logs = list()
             graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
             for graphic in graphics:
                 self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
@@ -1720,6 +1726,8 @@ class DocumentController(Window.Window):
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
+                undelete_log.close()
+            self.__undelete_logs.clear()
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
         def _redo(self):
@@ -1742,6 +1750,7 @@ class DocumentController(Window.Window):
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
             self.__display_item_indexes = [document_controller.document_model.display_items.index(display_item) for display_item in display_items]
+            self.__undelete_logs = list()
             self.initialize()
 
         def close(self):
@@ -1749,10 +1758,12 @@ class DocumentController(Window.Window):
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             self.__display_item_indexes = None
+            for undelete_log in self.__undelete_logs:
+                undelete_log.close()
+            self.__undelete_logs = None
             super().close()
 
         def perform(self):
-            self.__undelete_logs = list()
             document_model = self.__document_controller.document_model
             display_items = [document_model.display_items[index] for index in self.__display_item_indexes]
             for display_item in display_items:
@@ -1760,7 +1771,7 @@ class DocumentController(Window.Window):
                     selected_display_items = self.__document_controller.selected_display_items
                     if display_item in selected_display_items:
                         selected_display_items.remove(display_item)
-                    self.__undelete_logs.append(document_model.remove_display_item(display_item))
+                    self.__undelete_logs.append(document_model.remove_display_item_with_log(display_item))
                     self.__document_controller.select_display_items_in_data_panel(selected_display_items)
 
         def _get_modified_state(self):
@@ -1773,6 +1784,8 @@ class DocumentController(Window.Window):
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
+                undelete_log.close()
+            self.__undelete_logs.clear()
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
         def _redo(self):
@@ -1790,6 +1803,7 @@ class DocumentController(Window.Window):
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
             self.__data_item_indexes = [document_controller.document_model.data_items.index(data_item) for data_item in data_items]
+            self.__undelete_logs = list()
             self.initialize()
 
         def close(self):
@@ -1797,15 +1811,17 @@ class DocumentController(Window.Window):
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             self.__data_item_indexes = None
+            for undelete_log in self.__undelete_logs:
+                undelete_log.close()
+            self.__undelete_logs = None
             super().close()
 
         def perform(self):
-            self.__undelete_logs = list()
             document_model = self.__document_controller.document_model
             data_items = [document_model.data_items[index] for index in self.__data_item_indexes]
             for data_item in data_items:
                 if data_item in document_model.data_items:
-                    self.__undelete_logs.append(document_model.remove_data_item(data_item, safe=True))
+                    self.__undelete_logs.append(document_model.remove_data_item_with_log(data_item, safe=True))
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -1817,6 +1833,8 @@ class DocumentController(Window.Window):
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
+                undelete_log.close()
+            self.__undelete_logs.clear()
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
         def _redo(self):
@@ -2004,6 +2022,7 @@ class DocumentController(Window.Window):
             self.__data_item_uuid = None
             self.__data_item_fn = data_item_fn
             self.__data_item_index = None
+            self.__undelete_log = None
             self.initialize()
 
         def close(self):
@@ -2013,6 +2032,9 @@ class DocumentController(Window.Window):
             self.__data_item_index = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
+            if self.__undelete_log:
+                self.__undelete_log.close()
+                self.__undelete_log = None
             super().close()
 
         def perform(self):
@@ -2036,6 +2058,8 @@ class DocumentController(Window.Window):
 
         def _redo(self):
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
+            self.__undelete_log.close()
+            self.__undelete_log = None
             self.__data_item_uuid = self.__document_controller.document_model.data_items[self.__data_item_index].uuid
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
@@ -2043,7 +2067,7 @@ class DocumentController(Window.Window):
             data_item = self.__document_controller.document_model.get_data_item_by_uuid(self.__data_item_uuid)
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__data_item_index = self.__document_controller.document_model.data_items.index(data_item)
-            self.__undelete_log = self.__document_controller.document_model.remove_data_item(data_item, safe=True)
+            self.__undelete_log = self.__document_controller.document_model.remove_data_item_with_log(data_item, safe=True)
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def create_insert_data_item_command(self, data_item_fn: typing.Callable[[], DataItem.DataItem]) -> Undo.UndoableCommand:
@@ -2083,6 +2107,7 @@ class DocumentController(Window.Window):
             self.__display_item = display_item
             self.__display_item_fn = display_item_fn
             self.__display_item_index = None
+            self.__undelete_log = None
             self.initialize()
 
         def close(self):
@@ -2091,6 +2116,9 @@ class DocumentController(Window.Window):
             self.__display_item_index = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
+            if self.__undelete_log:
+                self.__undelete_log.close()
+                self.__undelete_log = None
             super().close()
 
         def perform(self):
@@ -2116,6 +2144,8 @@ class DocumentController(Window.Window):
 
         def _redo(self):
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
+            self.__undelete_log.close()
+            self.__undelete_log = None
             self.__display_item_uuid = self.__document_controller.document_model.display_items[self.__display_item_index].uuid
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
@@ -2123,7 +2153,7 @@ class DocumentController(Window.Window):
             display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__display_item_index = self.__document_controller.document_model.display_items.index(display_item)
-            self.__undelete_log = self.__document_controller.document_model.remove_display_item(display_item)
+            self.__undelete_log = self.__document_controller.document_model.remove_display_item_with_log(display_item)
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def _perform_display_item_snapshot(self, display_item: DisplayItem.DisplayItem) -> None:
@@ -2151,6 +2181,7 @@ class DocumentController(Window.Window):
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
             self.__display_item_index = document_controller.document_model.display_items.index(display_item)
+            self.__undelete_logs = list()
             self.initialize()
 
         def close(self):
@@ -2158,13 +2189,15 @@ class DocumentController(Window.Window):
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             self.__display_item_index = None
+            for undelete_log in self.__undelete_logs:
+                undelete_log.close()
+            self.__undelete_logs = None
             super().close()
 
         def perform(self):
-            self.__undelete_logs = list()
             document_model = self.__document_controller.document_model
             display_item = document_model.display_items[self.__display_item_index]
-            self.__undelete_logs.append(document_model.remove_display_item(display_item))
+            self.__undelete_logs.append(document_model.remove_display_item_with_log(display_item))
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -2176,6 +2209,8 @@ class DocumentController(Window.Window):
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
+                undelete_log.close()
+            self.__undelete_logs.clear()
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
         def _redo(self):
@@ -2389,7 +2424,7 @@ class DocumentController(Window.Window):
             self.__data_item_indexes = list()
             self.__display_panel = display_panel  # only used in perform
             self.__project = project
-            self.__undelete_logs = None
+            self.__undelete_logs = list()
             self.initialize()
 
         def close(self):
@@ -2398,6 +2433,8 @@ class DocumentController(Window.Window):
             self.__new_workspace_layout = None
             self.__data_items = None
             self.__data_item_index = None
+            for undelete_log in self.__undelete_logs:
+                undelete_log.close()
             self.__undelete_logs = None
             super().close()
 
@@ -2424,16 +2461,17 @@ class DocumentController(Window.Window):
         def _redo(self):
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
+                undelete_log.close()
+            self.__undelete_logs.clear()
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
         def _undo(self):
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__undelete_logs = list()
             document_model = self.__document_controller.document_model
             data_items = [document_model.data_items[index] for index in self.__data_item_indexes]
             for data_item in data_items:
                 if data_item in document_model.data_items:
-                    self.__undelete_logs.append(document_model.remove_data_item(data_item, safe=True))
+                    self.__undelete_logs.append(document_model.remove_data_item_with_log(data_item, safe=True))
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def receive_project_files(self, file_paths: typing.Sequence[pathlib.Path], project: Project.Project, index: int = -1, threaded: bool = True) -> None:
