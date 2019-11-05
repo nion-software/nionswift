@@ -233,7 +233,7 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_item: DisplayItem.DisplayItem, property_name: str, value):
         super().__init__(_("Change Display Item Info"), command_id="change_property_" + property_name, is_mergeable=True)
         self.__document_model = document_model
-        self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
+        self.__display_item_proxy = display_item.create_proxy()
         self.__property_name = property_name
         self.__new_display_layers = value
         self.__old_display_layers = getattr(display_item, property_name)
@@ -280,7 +280,7 @@ class ChangePropertyCommand(Undo.UndoableCommand):
     def __init__(self, document_model, data_item: DataItem.DataItem, property_name: str, value):
         super().__init__(_("Change Data Item Info"), command_id="change_property_" + property_name, is_mergeable=True)
         self.__document_model = document_model
-        self.__data_item_proxy = data_item.container.create_item_proxy(item=data_item)
+        self.__data_item_proxy = data_item.create_proxy()
         self.__property_name = property_name
         self.__new_value = value
         self.__old_value = getattr(data_item, property_name)
@@ -896,7 +896,7 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
     def __init__(self, document_model, data_item: DataItem.DataItem, intensity_calibration: Calibration.Calibration):
         super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
         self.__document_model = document_model
-        self.__data_item_proxy = data_item.container.create_item_proxy(item=data_item)
+        self.__data_item_proxy = data_item.create_proxy()
         self.__new_intensity_calibration = intensity_calibration
         self.__old_intensity_calibration = data_item.intensity_calibration
         self.initialize()
@@ -941,7 +941,7 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
     def __init__(self, document_model, data_item: DataItem.DataItem, dimensional_calibrations: typing.List[Calibration.Calibration]):
         super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
         self.__document_model = document_model
-        self.__data_item_proxy = data_item.container.create_item_proxy(item=data_item)
+        self.__data_item_proxy = data_item.create_proxy()
         self.__new_dimensional_calibrations = dimensional_calibrations
         self.__old_dimensional_calibrations = data_item.dimensional_calibrations
         self.initialize()
@@ -1231,7 +1231,7 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_item: DisplayItem.DisplayItem, display_type: str):
         super().__init__(_("Change Display Type"), command_id="change_display_type", is_mergeable=True)
         self.__document_model = document_model
-        self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
+        self.__display_item_proxy = display_item.create_proxy()
         self.__old_display_type = display_item.display_type
         self.__display_type = display_type
         self.initialize()
@@ -2241,7 +2241,7 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
     def __init__(self, document_model, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Change Computation Variable"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
-        self.__computation_proxy = computation.container.create_item_proxy(item=computation)
+        self.__computation_proxy = computation.create_proxy()
         self.__variable_index = computation.variables.index(variable)
         self.__properties = variable.save_properties()
         self.__value_dict = kwargs
@@ -2682,7 +2682,7 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
             def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel):
                 super().__init__(_("Remove Data Item"))
                 self.__document_controller = document_controller
-                self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
+                self.__display_item_proxy = display_item.create_proxy()
                 self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
                 self.__new_workspace_layout = None
                 self.__display_data_channel_index = display_item.display_data_channels.index(display_data_channel)

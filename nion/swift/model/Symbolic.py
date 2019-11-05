@@ -34,6 +34,9 @@ from nion.utils import ListModel
 from nion.utils import Observable
 from nion.utils import Persistence
 
+if typing.TYPE_CHECKING:
+    from nion.swift.model import Project
+
 
 class ComputationVariableType:
     """Defines a type of a computation variable beyond the built-in types."""
@@ -1065,7 +1068,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self._evaluation_count_for_test = 0
         self._inputs = set()  # used by document model for tracking dependencies
         self._outputs = set()
-        self.project = None  # used for new computations to tell them where they'll end up
+        self.pending_project = None  # used for new computations to tell them where they'll end up
 
     def close(self) -> None:
         self.__source_proxy.close()
@@ -1079,6 +1082,13 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     @property
     def container(self):
         return self.__container_weak_ref() if self.__container_weak_ref else None
+
+    @property
+    def project(self) -> "Project.Project":
+        return typing.cast("Project.Project", self.container)
+
+    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+        return self.project.create_item_proxy(item=self)
 
     def prepare_cascade_delete(self) -> typing.List:
         cascade_items = list()
@@ -1120,12 +1130,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
 
-    # override this so it can be short circuited if self.project is available.
+    # override this so it can be short circuited if self.pending_project is available.
     # this is used to check inputs/outputs for circular dependencies before the computation is added to the project.
     def _get_related_item(self, item_uuid: uuid.UUID) -> typing.Optional[Persistence.PersistentObject]:
         related_item = super()._get_related_item(item_uuid)
-        if related_item is None and self.project:
-            related_item = self.project._get_related_item(item_uuid)
+        if related_item is None and self.pending_project:
+            related_item = self.pending_project._get_related_item(item_uuid)
         return related_item
 
     @property
@@ -1267,7 +1277,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         if not variable:
             if specifier and specifier.get("version") == 1:
                 specifier_type = specifier["type"]
-                project = self.container or self.project
+                project = self.container or self.pending_project
                 if specifier_type == "data_source":
                     bound_item = BoundDataSource(project, specifier, secondary_specifier)
                 elif specifier_type == "data_item":

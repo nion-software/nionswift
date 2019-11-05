@@ -1986,7 +1986,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def append_computation(self, computation: Symbolic.Computation, *, project: Project.Project = None) -> None:
         project = project or self.__profile.target_project_for_item(computation)
-        computation.project = project  # tell the computation where it will end up so get related item works
+        computation.pending_project = project  # tell the computation where it will end up so get related item works
         # input/output bookkeeping
         input_items = computation.get_preliminary_input_items()
         output_items = computation.get_preliminary_output_items()

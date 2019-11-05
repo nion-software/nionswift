@@ -1228,7 +1228,7 @@ class DocumentController(Window.Window):
             self.__document_model = document_model
             self.__data_group_proxy = document_model.profile.create_item_proxy(item=data_group)
             self.__before_index = before_index
-            self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
+            self.__display_item_proxy = display_item.create_proxy()
             self.initialize()
 
         def close(self):
@@ -1351,7 +1351,7 @@ class DocumentController(Window.Window):
             combined = [(data_group.display_items.index(display_item), display_item) for display_item in display_items]
             combined = sorted(combined, key=operator.itemgetter(0), reverse=True)
             self.__display_item_indexes = list(map(operator.itemgetter(0), combined))
-            self.__display_item_proxies = [display_item.container.create_item_proxy(item=display_item) for index, display_item in combined]
+            self.__display_item_proxies = [display_item.create_proxy() for index, display_item in combined]
             self.initialize()
 
         def close(self):
@@ -1724,7 +1724,7 @@ class DocumentController(Window.Window):
         def __init__(self, document_controller: "DocumentController", display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic]):
             super().__init__(_("Remove Graphics"))
             self.__document_controller = document_controller
-            self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
+            self.__display_item_proxy = display_item.create_proxy()
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
             self.__graphic_indexes = [display_item.graphics.index(graphic) for graphic in graphics]
@@ -2074,7 +2074,7 @@ class DocumentController(Window.Window):
 
         def perform(self):
             data_item = self.__data_item_fn()
-            self.__data_item_proxy = data_item.container.create_item_proxy(item=data_item) if data_item else None
+            self.__data_item_proxy = data_item.create_proxy() if data_item else None
 
         @property
         def data_item(self):
@@ -2169,7 +2169,7 @@ class DocumentController(Window.Window):
                 if inspector_panel is not None:
                     inspector_panel.request_focus = True
             document_controller.show_display_item(snapshot_display_item, source_display_item=snapshot_display_item, request_focus=request_focus)
-            self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item) if display_item else None
+            self.__display_item_proxy = display_item.create_proxy() if display_item else None
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state

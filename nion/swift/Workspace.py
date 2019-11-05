@@ -810,7 +810,7 @@ class Workspace:
             self.__workspace_layout_uuid = workspace_layout.uuid
             self.__display_panel_uuid = display_panel.uuid
             self.__region_id = region_id
-            self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item) if display_item else None
+            self.__display_item_proxy = display_item.create_proxy() if display_item else None
             self.__d = d
             self.__old_splits = old_splits
             self.__new_display_panel_uuid = new_display_panel.uuid

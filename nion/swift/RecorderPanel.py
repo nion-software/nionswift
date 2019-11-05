@@ -118,7 +118,7 @@ class Recorder:
 
         def perform(self):
             data_item = self.__data_item_fn()
-            self.__data_item_proxy = data_item.container.create_item_proxy(item=data_item)
+            self.__data_item_proxy = data_item.create_proxy()
 
         @property
         def data_item(self):

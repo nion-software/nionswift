@@ -87,7 +87,7 @@ class ComputationModel:
         def __init__(self, document_model, computation: Symbolic.Computation, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None):
             super().__init__(_("Add Computation Variable"))
             self.__document_model = document_model
-            self.__computation_proxy = computation.container.create_item_proxy(item=computation)
+            self.__computation_proxy = computation.create_proxy()
             self.__name = name
             self.__value_type = value_type
             self.__value = value
@@ -145,7 +145,7 @@ class ComputationModel:
         def __init__(self, document_model, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
             super().__init__(_("Remove Computation Variable"))
             self.__document_model = document_model
-            self.__computation_proxy = computation.container.create_item_proxy(item=computation)
+            self.__computation_proxy = computation.create_proxy()
             self.__variable_index = computation.variables.index(variable)
             self.__variable_dict = variable.write_to_dict()
             self.initialize()
@@ -191,7 +191,7 @@ class ComputationModel:
         def __init__(self, document_model, data_item):
             super().__init__(_("Create Computation"))
             self.__document_model = document_model
-            self.__data_item_proxy = data_item.container.create_item_proxy(item=data_item)
+            self.__data_item_proxy = data_item.create_proxy()
 
         def close(self):
             self.__document_model = None
@@ -223,7 +223,7 @@ class ComputationModel:
         def __init__(self, document_model, computation: Symbolic.Computation, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
             super().__init__(title if title else _("Change Computation"), command_id=command_id, is_mergeable=is_mergeable)
             self.__document_model = document_model
-            self.__computation_proxy = computation.container.create_item_proxy(item=computation)
+            self.__computation_proxy = computation.create_proxy()
             self.__properties = {key: getattr(computation, key) for key in kwargs.keys()}
             self.__value_dict = kwargs
             self.initialize()
@@ -268,7 +268,7 @@ class ComputationModel:
         def __init__(self, document_model, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
             super().__init__(title if title else _("Change Computation Variable"), command_id=command_id, is_mergeable=is_mergeable)
             self.__document_model = document_model
-            self.__computation_proxy = computation.container.create_item_proxy(item=computation)
+            self.__computation_proxy = computation.create_proxy()
             self.__variable_index = computation.variables.index(variable)
             self.__property_keys = kwargs.keys()
             self.__properties = copy.deepcopy(kwargs)

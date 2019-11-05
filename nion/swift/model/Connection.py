@@ -20,6 +20,9 @@ from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Persistence
 
+if typing.TYPE_CHECKING:
+    from nion.swift.model import Project
+
 
 class Connection(Observable.Observable, Persistence.PersistentObject):
     """ Represents a connection between two objects. """
@@ -49,6 +52,13 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
     @property
     def container(self):
         return self.__container_weak_ref() if self.__container_weak_ref else None
+
+    @property
+    def project(self) -> "Project.Project":
+        return typing.cast("Project.Project", self.container)
+
+    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+        return self.project.create_item_proxy(item=self)
 
     def prepare_cascade_delete(self) -> typing.List:
         cascade_items = list()

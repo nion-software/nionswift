@@ -642,12 +642,12 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
     def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic], *, existing_graphics: typing.Sequence[Graphics.Graphic] = None):
         super().__init__(_("Insert Graphics"))
         self.__document_controller = document_controller
-        self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
+        self.__display_item_proxy = display_item.create_proxy()
         self.__graphics = graphics  # only used for perform
         self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
         self.__new_workspace_layout = None
         self.__graphics_properties = None
-        self.__graphic_proxies = [Project.get_project_for_item(graphic).create_item_proxy(item=graphic) for graphic in existing_graphics or list()]
+        self.__graphic_proxies = [graphic.create_proxy() for graphic in existing_graphics or list()]
         self.__undelete_logs = list()
         self.initialize()
 
@@ -672,7 +672,7 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         for graphic in graphics:
             display_item.add_graphic(graphic)
             new_graphic = display_item.graphics[-1]
-            self.__graphic_proxies.append(Project.get_project_for_item(new_graphic).create_item_proxy(item=new_graphic))
+            self.__graphic_proxies.append(new_graphic.create_proxy())
         self.__graphics = None
 
     def _get_modified_state(self):
@@ -704,8 +704,8 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, *, title: str=None, command_id: str=None, **kwargs):
         super().__init__(title if title else _("Append Display"), command_id=command_id)
         self.__document_model = document_model
-        self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
-        self.__data_item_proxy = data_item.container.create_item_proxy(item=data_item)
+        self.__display_item_proxy = display_item.create_proxy()
+        self.__data_item_proxy = data_item.create_proxy()
         self.__old_properties = None
         self.__display_data_channel_index = None
         self.__value_dict = kwargs
@@ -751,7 +751,7 @@ class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_data_channel: DisplayItem.DisplayDataChannel, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Change Display"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
-        self.__display_data_channel_proxy = Project.get_project_for_item(display_data_channel).create_item_proxy(item=display_data_channel)
+        self.__display_data_channel_proxy = display_data_channel.create_proxy()
         self.__properties = display_data_channel.save_properties()
         self.__value_dict = kwargs
         self.initialize()
@@ -800,10 +800,10 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         old_display_layer = old_display_item.display_layers[old_display_layer_index]
         old_display_data_channel_index = old_display_layer["data_index"]
         self.__document_model = document_model
-        self.__old_display_item_proxy = old_display_item.container.create_item_proxy(item=old_display_item)
+        self.__old_display_item_proxy = old_display_item.create_proxy()
         self.__old_display_layer_index = old_display_layer_index
         self.__old_display_data_channel_index = old_display_data_channel_index
-        self.__new_display_item_proxy = new_display_item.container.create_item_proxy(item=new_display_item)
+        self.__new_display_item_proxy = new_display_item.create_proxy()
         self.__new_display_layer_index = new_display_layer_index
         self.__new_display_data_channel_index = None
         self.__undelete_logs = list()
@@ -869,7 +869,7 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_item: DisplayItem.DisplayItem, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Change Display"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
-        self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
+        self.__display_item_proxy = display_item.create_proxy()
         self.__properties = display_item.save_properties()
         self.__value_dict = kwargs
         self.initialize()
@@ -913,7 +913,7 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_item, graphics, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Change Graphics"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
-        self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
+        self.__display_item_proxy = display_item.create_proxy()
         self.__graphic_indexes = [display_item.graphics.index(graphic) for graphic in graphics]
         self.__properties = [graphic.write_to_dict() for graphic in graphics]
         self.__value_dict = kwargs
