@@ -701,8 +701,8 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, *, title: str=None, command_id: str=None, **kwargs):
         super().__init__(title if title else _("Append Display"), command_id=command_id)
         self.__document_model = document_model
-        self.__display_item_uuid = display_item.uuid
-        self.__data_item_uuid = data_item.uuid
+        self.__display_item_proxy = display_item.container.create_item_proxy(item=display_item)
+        self.__data_item_proxy = data_item.container.create_item_proxy(item=data_item)
         self.__old_properties = None
         self.__display_data_channel_index = None
         self.__value_dict = kwargs
@@ -710,29 +710,31 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
 
     def close(self):
         self.__document_model = None
-        self.__display_item = None
-        self.__data_item = None
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
+        self.__data_item_proxy.close()
+        self.__data_item_proxy = None
         super().close()
 
     def perform(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        display_item = self.__display_item_proxy.item
+        data_item = self.__data_item_proxy.item
         self.__old_properties = display_item.save_properties()
         display_item.append_display_data_channel_for_data_item(data_item)
         self.__display_data_channel_index = display_item.display_data_channels.index(display_item.get_display_data_channel_for_data_item(data_item))
 
     def _get_modified_state(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        display_item = self.__display_item_proxy.item
+        data_item = self.__data_item_proxy.item
         return data_item.modified_state, display_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        display_item = self.__display_item_proxy.item
+        data_item = self.__data_item_proxy.item
         data_item.modified_state, display_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _undo(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
         display_item.remove_display_data_channel(display_data_channel, safe=True)
         display_item.restore_properties(self.__old_properties)

@@ -189,13 +189,12 @@ class ComputationModel:
         def __init__(self, document_model, data_item):
             super().__init__(_("Create Computation"))
             self.__document_model = document_model
-            self.__data_item_uuid = data_item.uuid
-            self.__computation_uuid = None
+            self.__data_item_proxy = data_item.container.create_item_proxy(item=data_item)
 
         def close(self):
             self.__document_model = None
-            self.__data_item_uuid = None
-            self.__computation_uuid = None
+            self.__data_item_proxy.close()
+            self.__data_item_proxy = None
             super().close()
 
         @property
@@ -203,10 +202,9 @@ class ComputationModel:
             return self.__document_model.create_computation()
 
         def perform(self):
-            data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+            data_item = self.__data_item_proxy.item
             computation = self.__document_model.create_computation()
             self.__document_model.set_data_item_computation(data_item, computation)
-            self.__computation_uuid = computation.uuid
 
         def _get_modified_state(self):
             return self.__document_model.modified_state
@@ -215,7 +213,7 @@ class ComputationModel:
             self.__document_model.modified_state = modified_state
 
         def _undo(self):
-            data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+            data_item = self.__data_item_proxy.item
             self.__document_model.set_data_item_computation(data_item, None)
 
     class ChangeComputationCommand(Undo.UndoableCommand):

@@ -50,6 +50,7 @@ from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
+from nion.utils import Persistence
 from nion.utils import Selection
 
 _ = gettext.gettext
@@ -1265,10 +1266,10 @@ class DocumentController(Window.Window):
         return DocumentController.InsertDataGroupDisplayItemCommand(self.document_model, data_group, before_index, display_item)
 
     class InsertDataGroupDataItemsCommand(Undo.UndoableCommand):
-        def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):
+        def __init__(self, document_controller: "DocumentController", project: Project.Project, data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):
             super().__init__("Insert Data Items")
             self.__document_controller = document_controller
-            self.__data_group_uuid = data_group.uuid
+            self.__data_group_proxy = Persistence.PersistentObjectProxy(document_controller.document_model.profile, None, data_group)
             self.__data_group_indexes = list()
             self.__data_group_uuids = list()
             self.__data_items = data_items  # only in perform
@@ -1279,27 +1280,27 @@ class DocumentController(Window.Window):
 
         def close(self):
             self.__document_controller = None
-            self.__data_group_uuid = None
             self.__data_group_indexes = None
             self.__data_group_uuids = None
-            self.__data_items = None
             self.__display_item_index = None
             for undelete_log in self.__undelete_logs:
                 undelete_log.close()
             self.__undelete_logs = None
+            self.__data_group_proxy.close()
+            self.__data_group_proxy = None
             super().close()
 
         def _get_modified_state(self):
-            data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             return self.__document_controller.document_model.modified_state, data_group.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             self.__document_controller.document_model.modified_state, data_group.modified_state = modified_state
 
         def perform(self):
             document_model = self.__document_controller.document_model
-            data_group = document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             index = self.__display_item_index
             display_items = list()
             for data_item in self.__data_items:
@@ -1317,7 +1318,7 @@ class DocumentController(Window.Window):
 
         def _undo(self) -> None:
             document_model = self.__document_controller.document_model
-            data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             display_items = [data_group.display_items[index] for index in self.__data_group_indexes]
             for display_item in display_items:
                 if display_item in data_group.display_items:
@@ -1329,7 +1330,7 @@ class DocumentController(Window.Window):
 
         def _redo(self) -> None:
             document_model = self.__document_controller.document_model
-            data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
                 undelete_log.close()
@@ -2019,31 +2020,31 @@ class DocumentController(Window.Window):
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
-            self.__data_item_uuid = None
+            self.__data_item_proxy = None
             self.__data_item_fn = data_item_fn
-            self.__data_item_index = None
             self.__undelete_log = None
             self.initialize()
 
         def close(self):
             self.__document_controller = None
-            self.__data_item_uuid = None
             self.__data_item_fn = None
-            self.__data_item_index = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             if self.__undelete_log:
                 self.__undelete_log.close()
                 self.__undelete_log = None
+            if self.__data_item_proxy:
+                self.__data_item_proxy.close()
+                self.__data_item_proxy = None
             super().close()
 
         def perform(self):
             data_item = self.__data_item_fn()
-            self.__data_item_uuid = data_item.uuid if data_item else None
+            self.__data_item_proxy = data_item.container.create_item_proxy(item=data_item) if data_item else None
 
         @property
         def data_item(self):
-            return self.__document_controller.document_model.get_data_item_by_uuid(self.__data_item_uuid)
+            return self.__data_item_proxy.item if self.__data_item_proxy else None
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -2060,13 +2061,11 @@ class DocumentController(Window.Window):
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
             self.__undelete_log.close()
             self.__undelete_log = None
-            self.__data_item_uuid = self.__document_controller.document_model.data_items[self.__data_item_index].uuid
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
         def _undo(self):
-            data_item = self.__document_controller.document_model.get_data_item_by_uuid(self.__data_item_uuid)
+            data_item = self.data_item
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__data_item_index = self.__document_controller.document_model.data_items.index(data_item)
             self.__undelete_log = self.__document_controller.document_model.remove_data_item_with_log(data_item, safe=True)
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
@@ -2490,10 +2489,10 @@ class DocumentController(Window.Window):
     # specified by the index. if the data group is not specified, the item is added
     # at the index within the document model.
     def receive_files(self, files: typing.Sequence[str], data_group=None, index=-1, threaded=True, completion_fn=None,
-                      display_panel: DisplayPanel.DisplayPanel = None) -> typing.Optional[
+                      display_panel: DisplayPanel.DisplayPanel = None, project: Project.Project = None) -> typing.Optional[
         typing.List[DataItem.DataItem]]:
         file_paths = [pathlib.Path(file_path) for file_path in files]
-        return self.__receive_files(file_paths, data_group, index, threaded, completion_fn, display_panel)
+        return self.__receive_files(file_paths, data_group, index, threaded, completion_fn, display_panel, project=project)
 
     def __receive_files(self, file_paths: typing.Sequence[pathlib.Path],
                         data_group=None,
@@ -2537,7 +2536,7 @@ class DocumentController(Window.Window):
 
         def receive_files_complete(index, data_items):
             if data_group and isinstance(data_group, DataGroup.DataGroup):
-                command = DocumentController.InsertDataGroupDataItemsCommand(self, data_group, data_items, index)
+                command = DocumentController.InsertDataGroupDataItemsCommand(self, project, data_group, data_items, index)
                 command.perform()
                 self.push_undo_command(command)
             else:

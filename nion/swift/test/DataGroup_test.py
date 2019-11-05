@@ -408,7 +408,7 @@ class TestDataGroupClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.random.randn(4, 4))
             document_model.append_data_item(data_item2)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
-            command = DocumentController.DocumentController.InsertDataGroupDataItemsCommand(document_controller, data_group, [data_item2, data_item4], 1)
+            command = DocumentController.DocumentController.InsertDataGroupDataItemsCommand(document_controller, document_model.profile.work_project, data_group, [data_item2, data_item4], 1)
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(4, len(document_model.data_items))

@@ -279,7 +279,7 @@ class ChangePropertyCommand(Undo.UndoableCommand):
     def __init__(self, document_model, data_item: DataItem.DataItem, property_name: str, value):
         super().__init__(_("Change Data Item Info"), command_id="change_property_" + property_name, is_mergeable=True)
         self.__document_model = document_model
-        self.__data_item_uuid = data_item.uuid
+        self.__data_item_proxy = data_item.container.create_item_proxy(item=data_item)
         self.__property_name = property_name
         self.__new_value = value
         self.__old_value = getattr(data_item, property_name)
@@ -287,22 +287,23 @@ class ChangePropertyCommand(Undo.UndoableCommand):
 
     def close(self):
         self.__document_model = None
-        self.__data_item_uuid = None
+        self.__data_item_proxy.close()
+        self.__data_item_proxy = None
         self.__property_name = None
         self.__new_value = None
         self.__old_value = None
         super().close()
 
     def perform(self):
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         setattr(data_item, self.__property_name, self.__new_value)
 
     def _get_modified_state(self):
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         return data_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         data_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
@@ -310,7 +311,7 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self) -> None:
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         self.__new_value = getattr(data_item, self.__property_name)
         setattr(data_item, self.__property_name, self.__old_value)
 
@@ -894,28 +895,29 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
     def __init__(self, document_model, data_item: DataItem.DataItem, intensity_calibration: Calibration.Calibration):
         super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
         self.__document_model = document_model
-        self.__data_item_uuid = data_item.uuid
+        self.__data_item_proxy = data_item.container.create_item_proxy(item=data_item)
         self.__new_intensity_calibration = intensity_calibration
         self.__old_intensity_calibration = data_item.intensity_calibration
         self.initialize()
 
     def close(self):
         self.__document_model = None
-        self.__data_item_uuid = None
+        self.__data_item_proxy.close()
+        self.__data_item_proxy = None
         self.__new_intensity_calibration = None
         self.__old_intensity_calibration = None
         super().close()
 
     def perform(self):
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         data_item.set_intensity_calibration(self.__new_intensity_calibration)
 
     def _get_modified_state(self):
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         return data_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         data_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
@@ -923,7 +925,7 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self) -> None:
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         self.__new_intensity_calibration = data_item.intensity_calibration
         data_item.set_intensity_calibration(self.__old_intensity_calibration)
 
@@ -938,21 +940,27 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
     def __init__(self, document_model, data_item: DataItem.DataItem, dimensional_calibrations: typing.List[Calibration.Calibration]):
         super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
         self.__document_model = document_model
-        self.__data_item_uuid = data_item.uuid
+        self.__data_item_proxy = data_item.container.create_item_proxy(item=data_item)
         self.__new_dimensional_calibrations = dimensional_calibrations
         self.__old_dimensional_calibrations = data_item.dimensional_calibrations
         self.initialize()
 
+    def close(self):
+        self.__document_model = None
+        self.__data_item_proxy.close()
+        self.__data_item_proxy = None
+        super().close()
+
     def perform(self):
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         data_item.set_dimensional_calibrations(self.__new_dimensional_calibrations)
 
     def _get_modified_state(self):
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         return data_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         data_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
@@ -960,7 +968,7 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self) -> None:
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         self.__new_dimensional_calibrations = data_item.dimensional_calibrations
         data_item.set_dimensional_calibrations(self.__old_dimensional_calibrations)
 
