@@ -1602,7 +1602,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.computations[0]
             self.assertIsNotNone(computation.get_input("src"))
             document_model.remove_data_item(document_model.data_items[1])
-            self.assertIsNone(computation.get_input("src"))
+            self.assertTrue(computation._closed)
 
     def test_removing_data_item_source_data_item_from_library_is_possible(self):
         document_model = DocumentModel.DocumentModel()
@@ -1614,7 +1614,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_computation(computation)
             self.assertTrue(computation.is_resolved)
             document_model.remove_data_item(data_item)
-            self.assertFalse(computation.is_resolved)
+            self.assertTrue(computation._closed)
 
     def disabled_test_reshape_rgb(self):
         assert False

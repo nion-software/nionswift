@@ -330,8 +330,6 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         if self.__bound_item:
             self.__bound_item_changed_event_listener = self.__bound_item.changed_event.listen(self.changed_event.fire)
             self.__bound_item_removed_event_listener = self.__bound_item.needs_rebind_event.listen(self.needs_rebind_event.fire)
-            # if hasattr(self.__bound_item, "child_removed_event"):
-            #     self.__bound_item_child_removed_event_listener = self.__bound_item.child_removed_event.listen(self.bound_items_model.remove_item)
 
     @property
     def bound_items_model(self):

@@ -1169,6 +1169,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 elif isinstance(container, Project.Project) and isinstance(item, Symbolic.Computation):
                     undelete_log.append(UndeleteItem(self, ComputationsController(self), item))
                     container.remove_item("computations", item)
+                    if item in self.__computation_changed_delay_list:
+                        self.__computation_changed_delay_list.remove(item)
                 elif isinstance(container, Project.Project) and isinstance(item, Connection.Connection):
                     undelete_log.append(UndeleteItem(self, ConnectionsController(self), item))
                     container.remove_item("connections", item)
@@ -2059,7 +2061,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # messages until ALL of the dependencies are updated so as to avoid the computation changed message
         # reestablishing dependencies during the updating of them. UGH. planning a better way...
         if self.__computation_changed_delay_list is not None:
-            self.__computation_changed_delay_list.append(computation)
+            if computation not in self.__computation_changed_delay_list:
+                self.__computation_changed_delay_list.append(computation)
         else:
             self.__computation_update_dependencies(computation)
             self.__computation_needs_update(None, computation)
