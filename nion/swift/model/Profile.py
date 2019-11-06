@@ -47,7 +47,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_root_context()
         self.define_type("profile")
         self.define_relationship("workspaces", WorkspaceLayout.factory)
-        self.define_relationship("data_groups", DataGroup.data_group_factory)
+        self.define_relationship("data_groups", DataGroup.data_group_factory, insert=self.__insert_data_group, remove=self.__remove_data_group)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
         self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
@@ -193,7 +193,10 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.__projects_changed_event_listener = None
         for project in self.__projects:
             project.close()
+        for data_group in copy.copy(self.data_groups):
+            data_group.close()
         self.__container_weak_ref = None
+        super().close()
 
     @property
     def container(self):
@@ -231,6 +234,12 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         else:
             container.remove_item(name, item)
             return Changes.UndeleteLog()
+
+    def __insert_data_group(self, name, before_index, data_group):
+        data_group.about_to_be_inserted(self)
+
+    def __remove_data_group(self, name, index, data_group):
+        data_group.about_to_be_removed()
 
     def transaction_context(self):
         """Return a context object for a document-wide transaction."""

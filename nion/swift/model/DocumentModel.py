@@ -257,7 +257,7 @@ class TransactionManager:
 class UndeleteObjectSpecifiers(Changes.UndeleteBase):
 
     def __init__(self, document_model: "DocumentModel", computation: Symbolic.Computation, index: int, variable_index: int, object_specifier: typing.Dict):
-        self.computation_proxy = computation.container.create_item_proxy(item_uuid=computation.uuid, item=computation)
+        self.computation_proxy = computation.create_proxy()
         self.variable_index = variable_index
         self.specifier = object_specifier
         self.index = index
@@ -279,7 +279,7 @@ class UndeleteDataItems(Changes.UndeleteBase):
         container = data_item.container
         index = container.data_items.index(data_item)
         uuid_order = save_item_order(document_model.data_items)
-        self.project_item_proxy = Persistence.PersistentObjectProxy(document_model.profile, project.uuid, project)
+        self.project_item_proxy = project.create_proxy()
         self.data_item_uuid = data_item.uuid
         self.index = index
         self.order = uuid_order
@@ -297,8 +297,8 @@ class UndeleteDataItems(Changes.UndeleteBase):
 class UndeleteDisplayItemInDataGroup(Changes.UndeleteBase):
 
     def __init__(self, document_model: "DocumentModel", display_item: DisplayItem.DisplayItem, data_group: DataGroup.DataGroup):
-        self.display_item_proxy = display_item.container.create_item_proxy(item_uuid=display_item.uuid, item=display_item)
-        self.data_group_proxy = Persistence.PersistentObjectProxy(document_model.profile, data_group.uuid, data_group)
+        self.display_item_proxy = display_item.create_proxy()
+        self.data_group_proxy = data_group.create_proxy()
         self.index = data_group.display_items.index(display_item)
 
     def close(self) -> None:
@@ -320,7 +320,7 @@ class UndeleteDisplayItem(Changes.UndeleteBase):
         container = display_item.container
         index = container.display_items.index(display_item)
         uuid_order = save_item_order(document_model.display_items)
-        self.project_item_proxy = Persistence.PersistentObjectProxy(document_model.profile, project.uuid, project)
+        self.project_item_proxy = project.create_proxy()
         self.item_dict = display_item.write_to_dict()
         self.index = index
         self.order = uuid_order
@@ -491,8 +491,8 @@ class UndeleteItem(Changes.UndeleteBase):
         project = Project.get_project_for_item(item)
         container = self.__items_controller.get_container(item)
         index = self.__items_controller.item_index(item)
-        self.project_item_proxy = Persistence.PersistentObjectProxy(document_model.profile, project.uuid, project)
-        self.container_item_proxy = project.create_item_proxy(item_uuid=container.uuid, item=container) if container else None
+        self.project_item_proxy = project.create_proxy()
+        self.container_item_proxy = container.create_proxy() if container else None
         self.container_properties = container.save_properties() if hasattr(container, "save_properties") else dict()
         self.item_dict = self.__items_controller.write_to_dict(item)
         self.index = index
@@ -715,6 +715,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def __project_removed(self, project: Project.Project, index: int) -> None:
         self.__project_item_inserted_listeners.pop(index).close()
         self.__project_item_removed_listeners.pop(index).close()
+
+    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+        return self.profile.create_item_proxy(item=typing.cast(Persistence.PersistentObject, self))
 
     @property
     def modified_state(self) -> int:

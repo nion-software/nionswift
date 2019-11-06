@@ -1226,7 +1226,7 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, before_index: int, display_item: DisplayItem.DisplayItem):
             super().__init__("Insert Data Item")
             self.__document_model = document_model
-            self.__data_group_proxy = document_model.profile.create_item_proxy(item=data_group)
+            self.__data_group_proxy = data_group.create_proxy()
             self.__before_index = before_index
             self.__display_item_proxy = display_item.create_proxy()
             self.initialize()
@@ -1271,7 +1271,7 @@ class DocumentController(Window.Window):
         def __init__(self, document_controller: "DocumentController", project: Project.Project, data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):
             super().__init__("Insert Data Items")
             self.__document_controller = document_controller
-            self.__data_group_proxy = Persistence.PersistentObjectProxy(document_controller.document_model.profile, None, data_group)
+            self.__data_group_proxy = data_group.create_proxy()
             self.__data_group_indexes = list()
             self.__data_group_uuids = list()
             self.__data_items = data_items  # only in perform
@@ -1347,7 +1347,7 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, display_items: typing.Sequence[DisplayItem.DisplayItem]):
             super().__init__("Remove Data Item")
             self.__document_model = document_model
-            self.__data_group_proxy = document_model.profile.create_item_proxy(item=data_group)
+            self.__data_group_proxy = data_group.create_proxy()
             combined = [(data_group.display_items.index(display_item), display_item) for display_item in display_items]
             combined = sorted(combined, key=operator.itemgetter(0), reverse=True)
             self.__display_item_indexes = list(map(operator.itemgetter(0), combined))
@@ -1394,7 +1394,7 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, title: str):
             super().__init__("Rename Data Group")
             self.__document_model = document_model
-            self.__data_group_proxy = document_model.profile.create_item_proxy(item=data_group)
+            self.__data_group_proxy = data_group.create_proxy()
             self.__title = title
             self.__new_title = None
             self.initialize()
@@ -1435,7 +1435,7 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, container: typing.Union[DataGroup.DataGroup, DocumentModel.DocumentModel], before_index: int, data_group: DataGroup.DataGroup):
             super().__init__("Insert Data Group")
             self.__document_model = document_model
-            self.__container_proxy = document_model.profile.create_item_proxy(item=container)
+            self.__container_proxy = container.create_proxy()
             self.__before_index = before_index
             self.__data_group_properties = data_group.write_to_dict()
             self.__data_group_proxy = None
@@ -1466,7 +1466,7 @@ class DocumentController(Window.Window):
             data_group = DataGroup.DataGroup()
             data_group.read_from_dict(self.__data_group_properties)
             container.insert_data_group(self.__before_index, data_group)
-            self.__data_group_proxy = self.__document_model.profile.create_item_proxy(item=data_group)
+            self.__data_group_proxy = data_group.create_proxy()
 
         def _undo(self) -> None:
             container = self.__container_proxy.item
@@ -1485,8 +1485,8 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, container: typing.Union[DataGroup.DataGroup, DocumentModel.DocumentModel], data_group: DataGroup.DataGroup):
             super().__init__("Remove Data Group")
             self.__document_model = document_model
-            self.__container_proxy = document_model.profile.create_item_proxy(item=container)
-            self.__data_group_proxy = document_model.profile.create_item_proxy(item=data_group)
+            self.__container_proxy = container.create_proxy()
+            self.__data_group_proxy = data_group.create_proxy()
             self.__data_group_properties = None
             self.__data_group_index = None
             self.initialize()

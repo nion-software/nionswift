@@ -1,7 +1,10 @@
 # standard libraries
 import collections
+import copy
 import gettext
+import typing
 import uuid
+import weakref
 
 # third party libraries
 # None
@@ -10,6 +13,10 @@ import uuid
 from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Persistence
+
+if typing.TYPE_CHECKING:
+    from nion.swift.model import Profile
+
 
 _ = gettext.gettext
 
@@ -86,14 +93,45 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         self.define_property("title", _("Untitled"), validate=self.__validate_title, changed=self.__property_changed)
         self.define_property("display_item_references", list(), validate=self.__validate_display_item_references, converter=UuidsToStringsConverter(), changed=self.__property_changed)
         self.define_relationship("data_groups", data_group_factory, insert=self.__insert_data_group, remove=self.__remove_data_group)
+        self.__container_weak_ref = None
+        self.about_to_be_removed_event = Event.Event()
+        self._about_to_be_removed = False
         self.__get_display_item_by_uuid = None
         self.__display_items = list()
         self.__counted_display_items = collections.Counter()
         self.display_item_inserted_event = Event.Event()
         self.display_item_removed_event = Event.Event()
 
+    def close(self) -> None:
+        for data_group in copy.copy(self.data_groups):
+            data_group.close()
+        self.__container_weak_ref = None
+        super().close()
+
     def __str__(self):
         return self.title
+
+    def about_to_be_inserted(self, container):
+        assert self.__container_weak_ref is None
+        self.__container_weak_ref = weakref.ref(container)
+
+    def about_to_be_removed(self):
+        # called before close and before item is removed from its container
+        self.about_to_be_removed_event.fire()
+        assert not self._about_to_be_removed
+        self._about_to_be_removed = True
+
+    @property
+    def container(self):
+        return self.__container_weak_ref() if self.__container_weak_ref else None
+
+    @property
+    def profile(self) -> "Profile.Profile":
+        container = self.container
+        return container.profile if hasattr(container, "profile") else container
+
+    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+        return self.profile.create_item_proxy(item=self)
 
     def __validate_title(self, value):
         return str(value) if value is not None else str()
@@ -163,12 +201,12 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         self.remove_item("data_groups", data_group)
         self.notify_remove_item("data_groups", data_group, index)
 
-    # watch for insertions data_groups so that smart filters get updated.
     def __insert_data_group(self, name, before_index, data_group):
+        data_group.about_to_be_inserted(self)
         self.update_counted_display_items(data_group.counted_display_items)
 
-    # watch for removals and data_groups so that smart filters get updated.
     def __remove_data_group(self, name, index, data_group):
+        data_group.about_to_be_removed()
         self.subtract_counted_display_items(data_group.counted_display_items)
 
     @property

@@ -72,6 +72,9 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def container(self):
         return self.__container_weak_ref() if self.__container_weak_ref else None
 
+    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+        return self.container.create_item_proxy(item=self)
+
     def about_to_be_inserted(self, container):
         assert self.__container_weak_ref is None
         self.__container_weak_ref = weakref.ref(container)
