@@ -117,7 +117,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
 
     def __configure_reference_proxy(self, property_name, value, item):
         if isinstance(value, dict) and value.get("type") in {"data_item", "display_item", "data_source", "graphic", "structure"} and "uuid" in value:
-            self.__referenced_object_proxies[property_name] = self.create_item_proxy(item_uuid=uuid.UUID(value["uuid"]), item=item)
+            self.__referenced_object_proxies[property_name] = self.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(value["uuid"]), item=item)
 
     def write_to_dict(self):
         properties = super().write_to_dict()
@@ -134,7 +134,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         self.source_uuid = source.uuid if source else None
 
     def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__source_proxy.item_uuid = item_uuid
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
 
     def set_property_value(self, property: str, value) -> None:
         self.__properties[property] = value

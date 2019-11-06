@@ -1571,7 +1571,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         def __init__(self, document_model: "DocumentModel", key: str, project: Project.Project, data_item_uuid: uuid.UUID=None):
             self.__document_model = document_model
             self.__key = key
-            self.__data_item_proxy = project.create_item_proxy(item_uuid=data_item_uuid)
+            self.__data_item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(data_item_uuid))
             self.__starts = 0
             self.__pending_starts = 0
             self.__data_item_transaction = None

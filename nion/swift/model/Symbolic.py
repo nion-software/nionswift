@@ -508,10 +508,7 @@ class BoundData(BoundItemBase):
     def __init__(self, project, specifier):
         super().__init__(specifier)
 
-        specifier_uuid_str = specifier.get("uuid")
-        object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-
-        self.__item_proxy = project.create_item_proxy(item_uuid=object_uuid)
+        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
         self.__data_changed_event_listener = None
 
         def maintain_data_source():
@@ -565,14 +562,8 @@ class BoundDisplayDataChannelBase(BoundItemBase):
     def __init__(self, project, specifier, secondary_specifier):
         super().__init__(specifier)
 
-        specifier_uuid_str = specifier.get("uuid")
-        object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-
-        secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
-        secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
-
-        self.__item_proxy = project.create_item_proxy(item_uuid=object_uuid)
-        self.__graphic_proxy = project.create_item_proxy(item_uuid=secondary_uuid)
+        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__graphic_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(secondary_specifier))
         self.__display_values_changed_event_listener = None
 
         def maintain_data_source():
@@ -630,14 +621,8 @@ class BoundDataSource(BoundItemBase):
     def __init__(self, project, specifier, secondary_specifier):
         super().__init__(specifier)
 
-        specifier_uuid_str = specifier.get("uuid")
-        object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-
-        secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
-        secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
-
-        self.__item_proxy = project.create_item_proxy(item_uuid=object_uuid)
-        self.__graphic_proxy = project.create_item_proxy(item_uuid=secondary_uuid)
+        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__graphic_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(secondary_specifier))
         self.__data_source = None
 
         def maintain_data_source():
@@ -691,10 +676,7 @@ class BoundDataItem(BoundItemBase):
     def __init__(self, project, specifier):
         super().__init__(specifier)
 
-        specifier_uuid_str = specifier.get("uuid")
-        object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-
-        self.__item_proxy = project.create_item_proxy(item_uuid=object_uuid)
+        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
         self.__data_item_changed_event_listener = None
 
         def item_registered(item):
@@ -830,12 +812,9 @@ class BoundDataStructure(BoundItemBase):
     def __init__(self, project, specifier, property_name: str):
         super().__init__(specifier)
 
-        specifier_uuid_str = specifier.get("uuid")
-        object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-
         self.__property_name = property_name
 
-        self.__item_proxy = project.create_item_proxy(item_uuid=object_uuid)
+        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
         self.__changed_listener = None
 
         def data_structure_changed(property_name):
@@ -888,12 +867,9 @@ class BoundGraphic(BoundItemBase):
     def __init__(self, project, specifier, property_name: str):
         super().__init__(specifier)
 
-        specifier_uuid_str = specifier.get("uuid")
-        object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-
         self.__property_name = property_name
 
-        self.__item_proxy = project.create_item_proxy(item_uuid=object_uuid)
+        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
         self.__changed_listener = None
 
         def property_changed(property_name):
@@ -1130,10 +1106,10 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     # override this so it can be short circuited if self.pending_project is available.
     # this is used to check inputs/outputs for circular dependencies before the computation is added to the project.
-    def _get_related_item(self, item_uuid: uuid.UUID) -> typing.Optional[Persistence.PersistentObject]:
-        related_item = super()._get_related_item(item_uuid)
+    def _get_related_item(self, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[Persistence.PersistentObject]:
+        related_item = super()._get_related_item(item_specifier)
         if related_item is None and self.pending_project:
-            related_item = self.pending_project._get_related_item(item_uuid)
+            related_item = self.pending_project._get_related_item(item_specifier)
         return related_item
 
     @property
@@ -1146,7 +1122,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.source_uuid = source.uuid if source else None
 
     def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__source_proxy.item_uuid = item_uuid
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
 
     @property
     def error_text(self) -> typing.Optional[str]:

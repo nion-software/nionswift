@@ -382,8 +382,8 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
         self.__slice_interval = None
 
-        data_item_uuid = uuid.UUID(self.data_item_reference) if self.data_item_reference else None
-        self.__data_item_proxy = self.create_item_proxy(item_uuid=data_item_uuid, item=data_item)
+        data_item_specifier = Persistence.PersistentObjectSpecifier.read(self.data_item_reference) if self.data_item_reference else None
+        self.__data_item_proxy = self.create_item_proxy(item_specifier=data_item_specifier, item=data_item)
 
         self.__old_data_shape = None
 
@@ -515,8 +515,8 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         return self.__data_item_proxy.item
 
     def __data_item_reference_changed(self, name: str, data_item_reference: str) -> None:
-        data_item_uuid = uuid.UUID(data_item_reference) if data_item_reference else None
-        self.__data_item_proxy.item_uuid = data_item_uuid
+        item_uuid = uuid.UUID(data_item_reference) if data_item_reference else None
+        self.__data_item_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
 
     def __connect_data_item_events(self):
 

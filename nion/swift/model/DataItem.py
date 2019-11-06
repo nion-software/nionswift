@@ -438,7 +438,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.source_uuid = source.uuid if source else None
 
     def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__source_proxy.item_uuid = item_uuid
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
 
     def persistent_object_context_changed(self):
         # handle case where persistent object context is set on an item that is already under transaction.

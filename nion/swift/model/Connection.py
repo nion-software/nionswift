@@ -94,7 +94,7 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
         self.parent_uuid = parent.uuid if parent else None
 
     def __parent_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__parent_proxy.item_uuid = item_uuid
+        self.__parent_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
 
 
 class PropertyConnection(Connection):
@@ -186,10 +186,10 @@ class PropertyConnection(Connection):
         return self.__target_proxy.item
 
     def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__source_proxy.item_uuid = item_uuid
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
 
     def __target_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__target_proxy.item_uuid = item_uuid
+        self.__target_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
 
     def __set_target_from_source(self, value):
         assert not self._closed
@@ -299,10 +299,10 @@ class IntervalListConnection(Connection):
         return self.__target_proxy.item
 
     def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__source_proxy.item_uuid = item_uuid
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
 
     def __target_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__target_proxy.item_uuid = item_uuid
+        self.__target_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
 
 
 def connection_factory(lookup_id):

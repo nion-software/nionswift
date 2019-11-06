@@ -108,26 +108,26 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             container.remove_item(name, item)
             return Changes.UndeleteLog()
 
-    def _get_related_item(self, item_uuid: uuid.UUID) -> typing.Optional[Persistence.PersistentObject]:
+    def _get_related_item(self, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[Persistence.PersistentObject]:
         for data_item in self.data_items:
-            if data_item.uuid == item_uuid:
+            if data_item.uuid == item_specifier.item_uuid:
                 return data_item
         for display_item in self.display_items:
-            if display_item.uuid == item_uuid:
+            if display_item.uuid == item_specifier.item_uuid:
                 return display_item
             for display_data_channel in display_item.display_data_channels:
-                if display_data_channel.uuid == item_uuid:
+                if display_data_channel.uuid == item_specifier.item_uuid:
                     return display_data_channel
         for connection in self.connections:
-            if connection.uuid == item_uuid:
+            if connection.uuid == item_specifier.item_uuid:
                 return connection
         for data_structure in self.data_structures:
-            if data_structure.uuid == item_uuid:
+            if data_structure.uuid == item_specifier.item_uuid:
                 return data_structure
         for computation in self.computations:
-            if computation.uuid == item_uuid:
+            if computation.uuid == item_specifier.item_uuid:
                 return computation
-        item = super()._get_related_item(item_uuid)
+        item = super()._get_related_item(item_specifier)
         # if item and get_project_for_item(item) != self:
         #     print(f"!! project {self} {type(item)} {id(item)} {item.uuid}")
         return item

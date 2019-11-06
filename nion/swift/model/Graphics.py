@@ -454,7 +454,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.source_uuid = source.uuid if source else None
 
     def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__source_proxy.item_uuid = item_uuid
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
 
     def _property_changed(self, name, value):
         self.notify_property_changed(name)
