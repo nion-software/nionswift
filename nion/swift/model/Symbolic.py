@@ -1165,19 +1165,21 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.add_variable(variable)
         return variable
 
-    def create_input_item(self, name: str, input_item: ComputationItem, *, property_name: str=None, label: str=None) -> ComputationVariable:
+    def create_input_item(self, name: str, input_item: ComputationItem, *, property_name: str=None, label: str=None, project=None) -> ComputationVariable:
+        # Note: project is only for testing
         if input_item.items is not None:
             variable = ComputationVariable(name, items=input_item.items, label=label)
             self.add_variable(variable)
             return variable
         else:
-            specifier = DataStructure.get_object_specifier(input_item.item, input_item.type)
+            specifier = DataStructure.get_object_specifier(input_item.item, input_item.type, project=project)
             secondary_specifier = DataStructure.get_object_specifier(input_item.secondary_item) if input_item.secondary_item else None
             variable = ComputationVariable(name, specifier=specifier, secondary_specifier=secondary_specifier, property_name=property_name, label=label)
             self.add_variable(variable)
             return variable
 
-    def create_output_item(self, name: str, output_item: ComputationItem=None, *, label: str=None) -> ComputationOutput:
+    def create_output_item(self, name: str, output_item: ComputationItem=None, *, label: str=None, project=None) -> ComputationOutput:
+        # Note: project is only for testing
         if output_item and output_item.items is not None:
             specifiers = [DataStructure.get_object_specifier(item.item) for item in output_item.items]
             result = ComputationOutput(name, specifiers=specifiers, label=label)
@@ -1189,7 +1191,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         elif output_item:
             assert not output_item.type
             assert not output_item.secondary_item
-            specifier = DataStructure.get_object_specifier(output_item.item)
+            specifier = DataStructure.get_object_specifier(output_item.item, project=project)
             result = ComputationOutput(name, specifier=specifier, label=label)
             self.append_item("results", result)
             if self.persistent_object_context:

@@ -181,19 +181,44 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         return list(referenced_object_proxy.item for referenced_object_proxy in self.__referenced_object_proxies.values())
 
 
-def get_object_specifier(object, object_type: str=None) -> typing.Optional[typing.Dict]:
+def get_object_specifier(object, object_type: str=None, project = None) -> typing.Optional[typing.Dict]:
+    # project is passed for testing only
     if isinstance(object, DataItem.DataItem):
-        return {"version": 1, "type": object_type or "data_item", "uuid": str(object.uuid)}
+        project = project or object.project
+        specifier = project.create_specifier(object)
+        d = {"version": 1, "type": object_type or "data_item", "uuid": str(specifier.item_uuid)}
+        if specifier.context_uuid: d["context_uuid"] = str(specifier.context_uuid)
+        return d
     if object and object_type in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
         assert isinstance(object, DisplayItem.DisplayDataChannel)
-        return {"version": 1, "type": object_type, "uuid": str(object.uuid)}
+        project = project or object.project
+        specifier = project.create_specifier(object)
+        d = {"version": 1, "type": object_type, "uuid": str(specifier.item_uuid)}
+        if specifier.context_uuid: d["context_uuid"] = str(specifier.context_uuid)
+        return d
     if isinstance(object, DisplayItem.DisplayDataChannel):
         # should be "data_source" but requires file format change
-        return {"version": 1, "type": "data_source", "uuid": str(object.uuid)}
+        project = project or object.project
+        specifier = project.create_specifier(object)
+        d = {"version": 1, "type": "data_source", "uuid": str(specifier.item_uuid)}
+        if specifier.context_uuid: d["context_uuid"] = str(specifier.context_uuid)
+        return d
     elif isinstance(object, Graphics.Graphic):
-        return {"version": 1, "type": "graphic", "uuid": str(object.uuid)}
+        project = project or object.project
+        specifier = project.create_specifier(object)
+        d = {"version": 1, "type": "graphic", "uuid": str(specifier.item_uuid)}
+        if specifier.context_uuid: d["context_uuid"] = str(specifier.context_uuid)
+        return d
     elif isinstance(object, DataStructure):
-        return {"version": 1, "type": "structure", "uuid": str(object.uuid)}
+        project = project or object.project
+        specifier = project.create_specifier(object)
+        d = {"version": 1, "type": "structure", "uuid": str(specifier.item_uuid)}
+        if specifier.context_uuid: d["context_uuid"] = str(specifier.context_uuid)
+        return d
     elif isinstance(object, DisplayItem.DisplayItem):
-        return {"version": 1, "type": "display_item", "uuid": str(object.uuid)}
+        project = project or object.project
+        specifier = project.create_specifier(object)
+        d = {"version": 1, "type": "display_item", "uuid": str(specifier.item_uuid)}
+        if specifier.context_uuid: d["context_uuid"] = str(specifier.context_uuid)
+        return d
     return None

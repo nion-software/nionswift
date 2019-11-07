@@ -135,10 +135,10 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
             data_item2a.ensure_data_source()
-            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
-            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
+            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
+            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.set_data_item_computation(data_item2a, computation)
             # verify
             self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
@@ -150,10 +150,10 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
             data_item2a.ensure_data_source()
-            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
-            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
+            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
+            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.set_data_item_computation(data_item2a, computation)
             # verify
             self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
@@ -170,10 +170,10 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
             data_item2a.ensure_data_source()
-            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
-            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
+            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
+            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.set_data_item_computation(data_item2a, computation)
             # verify
             self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
@@ -209,10 +209,10 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
             data_item2a.ensure_data_source()
-            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
-            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
+            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
+            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.set_data_item_computation(data_item2a, computation)
             # copy the dependent item
             data_item2a_copy = document_model.copy_data_item(data_item2a)

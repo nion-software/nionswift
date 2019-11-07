@@ -463,7 +463,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def project(self) -> "Project.Project":
-        return typing.cast("Project.Project", self.container.container)
+        return typing.cast("Project.Project", self.container.container) if self.container else None
 
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
         return self.project.create_item_proxy(item=self)
