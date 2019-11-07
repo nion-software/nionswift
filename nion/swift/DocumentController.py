@@ -262,7 +262,7 @@ class DocumentController(Window.Window):
             selected_display_item = self.selected_display_item
             if selected_display_item:
                 self.export_svg(selected_display_item)
-        self._export_action = self._file_menu.add_menu_item(_("Export SVG..."), export_svg)
+        self._export_svg_action = self._file_menu.add_menu_item(_("Export SVG..."), export_svg)
         #self._file_menu.add_separator()
         #self._save_action = self._file_menu.add_menu_item(_("Save"), self.no_operation, key_sequence="save")
         #self._save_as_action = self._file_menu.add_menu_item(_("Save As..."), self.no_operation, key_sequence="save-as")
