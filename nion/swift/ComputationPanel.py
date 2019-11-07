@@ -768,7 +768,7 @@ def make_image_chooser(document_controller, computation, variable, drag_fn):
                 return "copy"
         if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
             display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
-            display_item = document_model.get_display_item_by_key(display_item_uuid)
+            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
             data_item = display_item.data_item if display_item else None
             if data_item:
                 variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
