@@ -1,7 +1,6 @@
 # standard libraries
 import copy
 import typing
-import uuid
 import weakref
 
 # third party libraries
@@ -11,7 +10,6 @@ from nion.swift.model import Changes
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
-from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Persistence
@@ -33,13 +31,12 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         self.__referenced_object_proxies = dict()
         self.define_type("data_structure")
         self.define_property("structure_type", structure_type)
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
+        self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
         # properties is handled explicitly
         self.data_structure_changed_event = Event.Event()
         self.referenced_objects_changed_event = Event.Event()
         self.__source_proxy = self.create_item_proxy(item=source)
-        if source is not None:
-            self.source_uuid = source.uuid
+        self.source_specifier = source.project.create_specifier(source).write() if source else None
 
     def close(self) -> None:
         self.__source_proxy.close()
@@ -131,10 +128,10 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
     @source.setter
     def source(self, source):
         self.__source_proxy.item = source
-        self.source_uuid = source.uuid if source else None
+        self.source_specifier = source.project.create_specifier(source).write() if source else None
 
-    def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
+    def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     def set_property_value(self, property: str, value) -> None:
         self.__properties[property] = value

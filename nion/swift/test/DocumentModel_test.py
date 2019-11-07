@@ -1792,10 +1792,10 @@ class TestDocumentModelClass(unittest.TestCase):
             computation.create_input_item("i1", Symbolic.make_item(interval1))
             computation.create_input_item("i2l", Symbolic.make_item_list([interval2, interval3]))
             computation.source = interval1
+            document_model.append_computation(computation)
             interval1.source = computation
             interval2.source = interval1
             interval3.source = interval1
-            document_model.append_computation(computation)
             document_model.recompute_all()
             document_model.remove_data_item(document_model.data_items[-1])
             self.assertEqual(1, len(document_model.data_items))
@@ -1810,10 +1810,10 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
             data_item2 = DataItem.DataItem()
             data_item3 = DataItem.DataItem()
-            data_item3.source = data_item2
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
+            data_item3.source = data_item2
             computation = document_model.create_computation()
             computation.source = data_item3
             computation.create_input_item("src_xdata", Symbolic.make_item(data_item1, type="xdata"))

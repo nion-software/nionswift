@@ -202,7 +202,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("title", UNTITLED_STR, changed=self.__property_changed)
         self.define_property("caption", changed=self.__property_changed)
         self.define_property("description", changed=self.__property_changed)
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
+        self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__property_changed)
         self.define_property("session", dict(), changed=self.__property_changed)
         self.define_property("category", "persistent", changed=self.__property_changed)
@@ -435,10 +435,10 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     @source.setter
     def source(self, source):
         self.__source_proxy.item = source
-        self.source_uuid = source.uuid if source else None
+        self.source_specifier = source.project.create_specifier(source).write() if source else None
 
-    def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
+    def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     def persistent_object_context_changed(self):
         # handle case where persistent object context is set on an item that is already under transaction.

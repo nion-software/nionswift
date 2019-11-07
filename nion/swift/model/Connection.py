@@ -35,10 +35,9 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
         self._about_to_be_removed = False
         self._closed = False
         self.define_type(type)
-        self.define_property("parent_uuid", converter=Converter.UuidToStringConverter(), changed=self.__parent_uuid_changed)
+        self.define_property("parent_specifier", changed=self.__parent_specifier_changed, key="parent_uuid")
         self.__parent_proxy = self.create_item_proxy(item=parent)
-        if parent is not None:
-            self.parent_uuid = parent.uuid
+        self.parent_specifier = parent.project.create_specifier(parent).write() if parent else None
 
     def close(self) -> None:
         self.__parent_proxy.close()
@@ -91,10 +90,10 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
     @parent.setter
     def parent(self, parent):
         self.__parent_proxy.item = parent
-        self.parent_uuid = parent.uuid if parent else None
+        self.parent_specifier = parent.project.create_specifier(parent).write() if parent else None
 
-    def __parent_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__parent_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
+    def __parent_specifier_changed(self, name: str, d: typing.Dict) -> None:
+        self.__parent_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
 
 class PropertyConnection(Connection):
@@ -102,9 +101,9 @@ class PropertyConnection(Connection):
 
     def __init__(self, source=None, source_property=None, target=None, target_property=None, *, parent=None):
         super().__init__("property-connection", parent=parent)
-        self.define_property("source_uuid", source.uuid if source else None, converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
+        self.define_property("source_specifier", source.project.create_specifier(source).write() if source else None, changed=self.__source_specifier_changed, key="source_uuid")
         self.define_property("source_property")
-        self.define_property("target_uuid", target.uuid if target else None, converter=Converter.UuidToStringConverter(), changed=self.__target_uuid_changed)
+        self.define_property("target_specifier", target.project.create_specifier(target).write() if target else None, changed=self.__target_specifier_changed, key="target_uuid")
         self.define_property("target_property")
         # these are only set in persistent object context changed
         self.__binding = None
@@ -185,11 +184,11 @@ class PropertyConnection(Connection):
     def _target(self):
         return self.__target_proxy.item
 
-    def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
+    def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
-    def __target_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__target_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
+    def __target_specifier_changed(self, name: str, d: typing.Dict) -> None:
+        self.__target_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     def __set_target_from_source(self, value):
         assert not self._closed
@@ -215,8 +214,8 @@ class IntervalListConnection(Connection):
 
     def __init__(self, display_item=None, line_profile=None, *, parent=None):
         super().__init__("interval-list-connection", parent=parent)
-        self.define_property("source_uuid", display_item.uuid if display_item else None, converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
-        self.define_property("target_uuid", line_profile.uuid if line_profile else None, converter=Converter.UuidToStringConverter(), changed=self.__target_uuid_changed)
+        self.define_property("source_specifier", display_item.project.create_specifier(display_item).write() if display_item else None, changed=self.__source_specifier_changed, key="source_uuid")
+        self.define_property("target_specifier", line_profile.project.create_specifier(line_profile).write() if line_profile else None, changed=self.__target_specifier_changed, key="target_uuid")
         # these are only set in persistent object context changed
         self.__item_inserted_event_listener = None
         self.__item_removed_event_listener = None
@@ -298,11 +297,11 @@ class IntervalListConnection(Connection):
     def __target(self):
         return self.__target_proxy.item
 
-    def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
+    def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
-    def __target_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__target_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
+    def __target_specifier_changed(self, name: str, d: typing.Dict) -> None:
+        self.__target_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
 
 def connection_factory(lookup_id):

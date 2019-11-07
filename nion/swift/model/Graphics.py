@@ -358,7 +358,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self._closed = False
         self.define_type(type)
         self.define_property("graphic_id", None, changed=self._property_changed, validate=lambda s: str(s) if s else None)
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
+        self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
         self.define_property("color", "#F80", changed=self._property_changed)
         self.define_property("label", changed=self._property_changed, validate=lambda s: str(s) if s else None)
         self.define_property("is_position_locked", False, changed=self._property_changed)
@@ -451,10 +451,10 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
     @source.setter
     def source(self, source):
         self.__source_proxy.item = source
-        self.source_uuid = source.uuid if source else None
+        self.source_specifier = source.project.create_specifier(source).write() if source else None
 
-    def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
+    def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     def _property_changed(self, name, value):
         self.notify_property_changed(name)

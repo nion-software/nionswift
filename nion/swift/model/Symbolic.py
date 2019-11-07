@@ -1021,7 +1021,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self._about_to_be_removed = False
         self._closed = False
         self.define_type("computation")
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter(), changed=self.__source_uuid_changed)
+        self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
         self.define_property("original_expression", expression)
         self.define_property("error_text", hidden=True, changed=self.__error_changed)
         self.define_property("label", changed=self.__label_changed)
@@ -1081,8 +1081,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__container_weak_ref = None
 
     def read_properties_from_dict(self, d):
-        if "source_uuid" in d:
-            self.source_uuid = uuid.UUID(d["source_uuid"])
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d.get("source_uuid", None))
         self.original_expression = d.get("original_expression", self.original_expression)
         self.error_text = d.get("error_text", self.error_text)
         self.label = d.get("label", self.label)
@@ -1119,10 +1118,10 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     @source.setter
     def source(self, source):
         self.__source_proxy.item = source
-        self.source_uuid = source.uuid if source else None
+        self.source_specifier = source.project.create_specifier(source).write() if source else None
 
-    def __source_uuid_changed(self, name: str, item_uuid: uuid.UUID) -> None:
-        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
+    def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     @property
     def error_text(self) -> typing.Optional[str]:

@@ -3542,11 +3542,11 @@ class TestStorageClass(unittest.TestCase):
                 data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
                 data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
                 data_item3 = DataItem.DataItem(numpy.zeros((2, 2)))
-                data_item1.source = data_item2
-                data_item3.source = data_item2
                 document_model.append_data_item(data_item1)
                 document_model.append_data_item(data_item2)
                 document_model.append_data_item(data_item3)
+                data_item1.source = data_item2
+                data_item3.source = data_item2
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 self.assertEqual(3, len(document_model.data_items))
