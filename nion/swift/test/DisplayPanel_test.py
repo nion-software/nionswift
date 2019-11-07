@@ -26,6 +26,7 @@ from nion.swift.model import Profile
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import TestUI
+from nion.ui import UserInterface
 from nion.utils import Geometry
 
 
@@ -61,11 +62,14 @@ def create_1d_data(length=1024, data_min=0.0, data_max=1.0):
 class TestDisplayPanel:
     def __init__(self):
         self.drop_region = None
-    def handle_drag_enter(self, mime_data):
+
+    def handle_drag_enter(self, mime_data: UserInterface.MimeData) -> str:
         return "copy"
-    def handle_drag_move(self, mime_data, x, y):
+
+    def handle_drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         return "copy"
-    def handle_drop(self, mime_data, region, x, y):
+
+    def handle_drop(self, mime_data: UserInterface.MimeData, region, x: int, y: int) -> str:
         self.drop_region = region
         return "copy"
 

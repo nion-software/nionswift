@@ -11,6 +11,7 @@ from nion.swift import Thumbnails
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.ui import CanvasItem
+from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.utils import Geometry
 
@@ -32,7 +33,7 @@ class AbstractThumbnailSource:
     def _set_thumbnail_data(self, thumbnail_data):
         self.__thumbnail_data = thumbnail_data
 
-    def populate_mime_data_for_drag(self, mime_data, size: Geometry.IntSize):
+    def populate_mime_data_for_drag(self, mime_data: UserInterface.MimeData, size: Geometry.IntSize):
         return False, None
 
 
@@ -93,17 +94,17 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             drawing_context.line_width = 4.0
             drawing_context.stroke()
 
-    def drag_enter(self, mime_data):
+    def drag_enter(self, mime_data: UserInterface.MimeData) -> str:
         self.__dropping = True
         self.update()
         return "ignore"
 
-    def drag_leave(self):
+    def drag_leave(self) -> None:
         self.__dropping = False
         self.update()
         return False
 
-    def drop(self, mime_data, x, y):
+    def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         if callable(self.on_drop_mime_data):
             result = self.on_drop_mime_data(mime_data, x, y)
             if result:
@@ -158,10 +159,10 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
                 if valid:
                     on_drag(mime_data, thumbnail, x, y)
 
-        def drop_mime_data(mime_data, x, y):
+        def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
             if callable(self.on_drop_mime_data):
                 return self.on_drop_mime_data(mime_data, x, y)
-            return None
+            return "ignore"
 
         def delete():
             on_delete = self.on_delete
@@ -202,12 +203,12 @@ class ThumbnailWidget(Widgets.CompositeWidgetBase):
         self.on_drag = None
         self.on_delete = None
 
-        def drop_mime_data(mime_data, x, y):
+        def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
             if callable(self.on_drop_mime_data):
                 return self.on_drop_mime_data(mime_data, x, y)
-            return None
+            return "ignore"
 
-        def drag(mime_data, thumbnail, x, y):
+        def drag(mime_data: UserInterface.MimeData, thumbnail, x: int, y: int) -> None:
             on_drag = self.on_drag
             if callable(on_drag):
                 on_drag(mime_data, thumbnail, x, y)
@@ -296,7 +297,7 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
             self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(self.__update_thumbnail)
         self.__update_thumbnail()
 
-    def populate_mime_data_for_drag(self, mime_data, size: Geometry.IntSize):
+    def populate_mime_data_for_drag(self, mime_data: UserInterface.MimeData, size: Geometry.IntSize):
         if self.__display_item:
             mime_data.set_data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE, str(self.__display_item.uuid))
             rgba_image_data = self.__thumbnail_source.thumbnail_data

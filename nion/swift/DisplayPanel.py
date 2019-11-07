@@ -26,11 +26,11 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Project
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
+from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
@@ -251,12 +251,12 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             self.on_context_menu_event(x, y, gx, gy)
         return False
 
-    def wants_drag_event(self, mime_data, x, y) -> bool:
+    def wants_drag_event(self, mime_data: UserInterface.MimeData, x: int, y: int) -> bool:
         if self.on_wants_drag_event:
             return self.on_wants_drag_event(mime_data)
         return False
 
-    def drag_enter(self, mime_data):
+    def drag_enter(self, mime_data: UserInterface.MimeData) -> str:
         self.__is_dragging = True
         self.__set_drop_region("none")
         if self.on_drag_enter:
@@ -1767,7 +1767,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def begin_mouse_tracking(self):
         self.__mouse_tracking_transaction = self.__document_controller.document_model.begin_display_item_transaction(self.__display_item)
 
-    def create_mime_data(self):
+    def create_mime_data(self) -> UserInterface.MimeData:
         return self.ui.create_mime_data()
 
     def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int):

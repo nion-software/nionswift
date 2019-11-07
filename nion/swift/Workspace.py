@@ -19,6 +19,7 @@ from nion.swift import Undo
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
+from nion.ui import UserInterface
 
 
 _ = gettext.gettext
@@ -729,7 +730,7 @@ class Workspace:
         message_box_widget.remove_now = remove_box
         return message_box_widget
 
-    def handle_drag_enter(self, display_panel, mime_data):
+    def handle_drag_enter(self, display_panel, mime_data: UserInterface.MimeData) -> str:
         if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
             return "copy"
         if mime_data.has_format("text/uri-list"):
@@ -741,7 +742,7 @@ class Workspace:
     def handle_drag_leave(self, display_panel):
         return False
 
-    def handle_drag_move(self, display_panel, mime_data, x, y):
+    def handle_drag_move(self, display_panel, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
             return "copy"
         if mime_data.has_format("text/uri-list"):
@@ -753,7 +754,7 @@ class Workspace:
     def should_handle_drag_for_mime_data(self, mime_data):
         return mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE) or mime_data.has_format("text/uri-list") or mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE)
 
-    def handle_drop(self, display_panel, mime_data, region, x, y):
+    def handle_drop(self, display_panel, mime_data: UserInterface.MimeData, region, x: int, y: int) -> str:
         document_model = self.document_model
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
             d = json.loads(mime_data.data_as_string(MimeTypes.DISPLAY_PANEL_MIME_TYPE))

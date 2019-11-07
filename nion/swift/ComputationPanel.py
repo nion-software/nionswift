@@ -6,6 +6,7 @@ import json
 import operator
 import random
 import string
+import typing
 import uuid
 import weakref
 
@@ -16,10 +17,10 @@ import weakref
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import MimeTypes
 from nion.swift import Undo
-from nion.swift.model import DataItem
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
 from nion.ui import Dialog
+from nion.ui import UserInterface
 from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Event
@@ -731,6 +732,48 @@ class ComputationPanelSection:
         self.__variable_type_changed_event_listener = None
 
 
+def drop_mime_data(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
+    document_model = document_controller.document_model
+    data_source_mime_str = mime_data.data_as_string(MimeTypes.DATA_SOURCE_MIME_TYPE)
+    if data_source_mime_str:
+        data_source_mime_data = json.loads(data_source_mime_str)
+        display_item_uuid = uuid.UUID(data_source_mime_data["display_item_uuid"])
+        display_item = document_model.get_display_item_by_uuid(display_item_uuid)
+        data_item = display_item.data_item if display_item else None
+        if data_item:
+            variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
+            secondary_specifier = None
+            if "graphic_uuid" in data_source_mime_data:
+                graphic_uuid = uuid.UUID(data_source_mime_data["graphic_uuid"])
+                graphic = document_model.get_graphic_by_uuid(graphic_uuid)
+                if graphic:
+                    secondary_specifier = document_model.get_object_specifier(graphic)
+            properties = {"variable_type": "data_source", "secondary_specifier": secondary_specifier, "specifier": variable_specifier}
+            command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
+            command.perform()
+            document_controller.push_undo_command(command)
+            return "copy"
+    if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
+        display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
+        display_item = document_model.get_display_item_by_uuid(display_item_uuid)
+        data_item = display_item.data_item if display_item else None
+        if data_item:
+            variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
+            properties = {"variable_type": "data_source", "secondary_specifier": dict(), "specifier": variable_specifier}
+            command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
+            command.perform()
+            document_controller.push_undo_command(command)
+            return "copy"
+    return None
+
+
+def data_item_delete(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
+    variable_specifier = {"type": variable.variable_type, "version": 1, "uuid": str(uuid.uuid4())}
+    command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), specifier=variable_specifier)
+    command.perform()
+    document_controller.push_undo_command(command)
+
+
 def make_image_chooser(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, drag_fn):
     ui = document_controller.ui
     document_model = document_controller.document_model
@@ -745,45 +788,6 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
     label_row.add_stretch()
     data_item = computation.get_input(variable.name).data_item
 
-    def drop_mime_data(mime_data, x, y):
-        data_source_mime_str = mime_data.data_as_string(MimeTypes.DATA_SOURCE_MIME_TYPE)
-        if data_source_mime_str:
-            data_source_mime_data = json.loads(data_source_mime_str)
-            display_item_uuid = uuid.UUID(data_source_mime_data["display_item_uuid"])
-            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
-            data_item = display_item.data_item if display_item else None
-            if data_item:
-                variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
-                secondary_specifier = None
-                if "graphic_uuid" in data_source_mime_data:
-                    graphic_uuid = uuid.UUID(data_source_mime_data["graphic_uuid"])
-                    graphic = document_model.get_graphic_by_uuid(graphic_uuid)
-                    if graphic:
-                        secondary_specifier = document_model.get_object_specifier(graphic)
-                properties = {"variable_type": "data_source", "secondary_specifier": secondary_specifier, "specifier": variable_specifier}
-                command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
-                command.perform()
-                document_controller.push_undo_command(command)
-                return "copy"
-        if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
-            display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
-            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
-            data_item = display_item.data_item if display_item else None
-            if data_item:
-                variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
-                properties = {"variable_type": "data_source", "secondary_specifier": dict(), "specifier": variable_specifier}
-                command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
-                command.perform()
-                document_controller.push_undo_command(command)
-                return "copy"
-        return None
-
-    def data_item_delete():
-        variable_specifier = {"type": variable.variable_type, "version": 1, "uuid": str(uuid.uuid4())}
-        command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), specifier=variable_specifier)
-        command.perform()
-        document_controller.push_undo_command(command)
-
     display_item = document_model.get_display_item_for_data_item(data_item)
     data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, display_item=display_item)
     data_item_chooser_widget = DataItemThumbnailWidget.ThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(80, 80))
@@ -793,8 +797,8 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
         drag_fn(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
     data_item_chooser_widget.on_drag = thumbnail_widget_drag
-    data_item_chooser_widget.on_delete = data_item_delete
-    data_item_chooser_widget.on_drop_mime_data = drop_mime_data
+    data_item_chooser_widget.on_delete = functools.partial(data_item_delete, document_controller, computation, variable)
+    data_item_chooser_widget.on_drop_mime_data = functools.partial(drop_mime_data, document_controller, computation, variable)
 
     def property_changed(key):
         if key == "specifier":
