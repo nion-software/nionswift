@@ -1258,12 +1258,12 @@ class DocumentController(Window.Window):
         return DocumentController.InsertDataGroupDisplayItemCommand(self.document_model, data_group, before_index, display_item)
 
     class InsertDataGroupDataItemsCommand(Undo.UndoableCommand):
-        def __init__(self, document_controller: "DocumentController", project: Project.Project, data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):
+        def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):
             super().__init__("Insert Data Items")
             self.__document_controller = document_controller
             self.__data_group_proxy = data_group.create_proxy()
             self.__data_group_indexes = list()
-            self.__data_group_uuids = list()
+            self.__data_group_display_item_proxies = list()
             self.__data_items = data_items  # only in perform
             self.__display_item_index = index
             self.__display_item_indexes = list()
@@ -1273,7 +1273,9 @@ class DocumentController(Window.Window):
         def close(self):
             self.__document_controller = None
             self.__data_group_indexes = None
-            self.__data_group_uuids = None
+            for display_item_proxy in self.__data_group_display_item_proxies:
+                display_item_proxy.close()
+            self.__data_group_display_item_proxies = None
             self.__display_item_index = None
             for undelete_log in self.__undelete_logs:
                 undelete_log.close()
@@ -1296,7 +1298,7 @@ class DocumentController(Window.Window):
             index = self.__display_item_index
             display_items = list()
             for data_item in self.__data_items:
-                if not document_model.get_data_item_by_uuid(data_item.uuid):
+                if not document_model.does_item_already_exist(data_item):
                     self.__display_item_indexes.append(len(document_model.display_items))
                     document_model.append_data_item(data_item)
                 display_items.append(document_model.get_display_item_for_data_item(data_item))
@@ -1304,7 +1306,7 @@ class DocumentController(Window.Window):
                 if not display_item in data_group.display_items:
                     data_group.insert_display_item(index, display_item)
                     self.__data_group_indexes.append(index)
-                    self.__data_group_uuids.append(display_item.uuid)
+                    self.__data_group_display_item_proxies.append(display_item.project.create_item_proxy(item=display_item))
                     index += 1
             self.__display_items = None
 
@@ -1321,14 +1323,13 @@ class DocumentController(Window.Window):
                     self.__undelete_logs.append(document_model.remove_display_item_with_log(display_item, safe=True))
 
         def _redo(self) -> None:
-            document_model = self.__document_controller.document_model
             data_group = self.__data_group_proxy.item
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
                 undelete_log.close()
             self.__undelete_logs.clear()
             index = self.__display_item_index
-            display_items = [document_model.get_display_item_by_uuid(display_item_uuid) for display_item_uuid in reversed(self.__data_group_uuids)]
+            display_items = [display_item_proxy.item for display_item_proxy in reversed(self.__data_group_display_item_proxies)]
             for display_item in display_items:
                 if not display_item in data_group.display_items:
                     data_group.insert_display_item(index, display_item)
@@ -2461,7 +2462,7 @@ class DocumentController(Window.Window):
             document_model = self.__document_controller.document_model
             index = self.__data_item_index
             for data_item in self.__data_items:
-                if not document_model.get_data_item_by_uuid(data_item.uuid):
+                if not document_model.does_item_already_exist(data_item):
                     document_model.insert_data_item(index, data_item, auto_display=True, project=self.__project)
                     self.__data_item_indexes.append(index)
                     index += 1
@@ -2556,7 +2557,7 @@ class DocumentController(Window.Window):
 
         def receive_files_complete(index, data_items):
             if data_group and isinstance(data_group, DataGroup.DataGroup):
-                command = DocumentController.InsertDataGroupDataItemsCommand(self, project, data_group, data_items, index)
+                command = DocumentController.InsertDataGroupDataItemsCommand(self, data_group, data_items, index)
                 command.perform()
                 self.push_undo_command(command)
             else:

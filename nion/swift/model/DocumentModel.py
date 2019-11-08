@@ -762,13 +762,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def projects_selection(self) -> Selection.IndexedSelection:
         return self.__profile.projects_selection
 
-    @property
-    def _s2tm(self):
-        return self.__dependency_tree_source_to_target_map
-
-    @property
-    def _t2sm(self):
-        return self.__dependency_tree_target_to_source_map
+    def does_item_already_exist(self, item: Persistence.PersistentObject) -> bool:
+        item_specifier = self.profile.work_project.create_specifier(item, allow_partial=False)
+        item_proxy = self.profile.work_project.create_item_proxy(item_specifier=item_specifier)
+        with contextlib.closing(item_proxy):
+            return item_proxy.item is not None
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -1444,12 +1442,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     # access data items by uuid
     def get_data_item_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DataItem.DataItem]:
         return self.__uuid_to_data_item.get(uuid)
-
-    def get_display_item_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DisplayItem.DisplayItem]:
-        for display_item in self.display_items:
-            if display_item.uuid == uuid:
-                return display_item
-        return None
 
     def get_display_items_for_data_item(self, data_item: DataItem.DataItem) -> typing.Sequence[DisplayItem.DisplayItem]:
         display_items = list()
