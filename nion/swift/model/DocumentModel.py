@@ -565,7 +565,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__dependency_tree_lock = threading.RLock()
         self.__dependency_tree_source_to_target_map = dict()
         self.__dependency_tree_target_to_source_map = dict()
-        self.__uuid_to_data_item = dict()
         self.__computation_changed_listeners = dict()
         self.__computation_output_changed_listeners = dict()
         self.__computation_changed_delay_list = None
@@ -807,13 +806,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def __handle_data_item_inserted(self, project: Project.Project, data_item: DataItem.DataItem) -> None:
         assert data_item is not None
         assert data_item not in self.data_items
-        # assert data_item.uuid not in self.__uuid_to_data_item
         # data item bookkeeping
         data_item.set_storage_cache(self.storage_cache)
         # insert in internal list
         before_index = len(self.__data_items)
         self.__data_items.append(data_item)
-        self.__uuid_to_data_item[data_item.uuid] = data_item
         self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
         data_item._document_model = self
         data_item.set_session_manager(self)
@@ -827,7 +824,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def __handle_data_item_removed(self, project: Project.Project, data_item: DataItem.DataItem) -> None:
         self.__transaction_manager._remove_item(data_item)
-        assert data_item.uuid in self.__uuid_to_data_item
         library_computation = self.get_data_item_computation(data_item)
         with self.__computation_queue_lock:
             computation_pending_queue = self.__computation_pending_queue
@@ -844,7 +840,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         assert data_item is not None
         assert data_item in self.data_items
         index = self.data_items.index(data_item)
-        self.__uuid_to_data_item.pop(data_item.uuid, None)
         if data_item.r_var:
             data_item_variables = self.__profile.data_item_variables
             del data_item_variables[data_item.r_var]
@@ -976,7 +971,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         return r_var
                 return str()
             data_item_var = find_var()
-            data_item_variables[data_item_var] = str(data_item.uuid)
+            data_item_variables[data_item_var] = data_item.project.create_specifier(data_item, allow_partial=False).write()
             data_item.set_r_value(data_item_var)
             self.__profile.data_item_variables = data_item_variables
         return data_item.r_var
@@ -984,12 +979,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def variable_to_data_item_map(self) -> typing.Mapping[str, DataItem.DataItem]:
         m = dict()
         data_item_variables = self.__profile.data_item_variables
-        for variable, data_item_uuid_str in data_item_variables.items():
-            data_item = self.__uuid_to_data_item.get(uuid.UUID(data_item_uuid_str), None)
+        for variable, data_item_specifier_d in data_item_variables.items():
+            data_item_specifier = Persistence.PersistentObjectSpecifier.read(data_item_specifier_d)
+            with contextlib.closing(self.profile.work_project.create_item_proxy(item_specifier=data_item_specifier)) as data_item_proxy:
+                data_item = typing.cast(DataItem.DataItem, data_item_proxy.item) if data_item_proxy.item else None
             if data_item:
                 m[variable] = data_item
             else:
-                logging.warning(f"Missing {variable}: {data_item_uuid_str}")
+                logging.warning(f"Missing {variable}: {data_item_specifier.write()}")
         return m
 
     def __build_cascade(self, item, items: list, dependencies: list) -> None:
@@ -1446,10 +1443,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             if data_group.uuid == uuid:
                 return data_group
         return None
-
-    # access data items by uuid
-    def get_data_item_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DataItem.DataItem]:
-        return self.__uuid_to_data_item.get(uuid)
 
     def get_display_items_for_data_item(self, data_item: DataItem.DataItem) -> typing.Sequence[DisplayItem.DisplayItem]:
         display_items = list()

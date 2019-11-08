@@ -35,6 +35,7 @@
 """
 
 # standard libraries
+import contextlib
 import copy
 import collections
 import datetime
@@ -71,6 +72,7 @@ from nion.swift.model import Utility
 from nion.ui import CanvasItem as CanvasItemModule
 from nion.ui import Declarative
 from nion.utils import Geometry
+from nion.utils import Persistence
 
 __all__ = ["get_api"]
 
@@ -167,7 +169,10 @@ class ObjectSpecifier:
                     return DisplayPanel(display_panel)
             return None
         elif object_type == "data_item":
-            return DataItem(document_model.get_data_item_by_uuid(uuid_module.UUID(object_uuid_str)))
+            data_item_uuid = uuid_module.UUID(object_uuid_str)
+            data_item_specifier = Persistence.PersistentObjectSpecifier(item_uuid=data_item_uuid)
+            with contextlib.closing(document_model.profile.work_project.create_item_proxy(item_specifier=data_item_specifier)) as data_item_proxy:
+                return DataItem(typing.cast(DataItemModule.DataItem, data_item_proxy.item)) if data_item_proxy.item else None
         elif object_type == "data_group":
             return DataGroup(document_model.get_data_group_by_uuid(uuid_module.UUID(object_uuid_str)))
         elif object_type in ("region", "graphic"):
@@ -2432,8 +2437,9 @@ class Library(metaclass=SharedInstance):
         Status: Provisional
         Scriptable: Yes
         """
-        data_item = self._document_model.get_data_item_by_uuid(data_item_uuid)
-        return DataItem(data_item) if data_item else None
+        data_item_specifier = Persistence.PersistentObjectSpecifier(item_uuid=data_item_uuid)
+        with contextlib.closing(self._document_model.profile.work_project.create_item_proxy(item_specifier=data_item_specifier)) as data_item_proxy:
+            return DataItem(typing.cast(DataItemModule.DataItem, data_item_proxy.item)) if data_item_proxy.item else None
 
     def get_graphic_by_uuid(self, graphic_uuid: uuid_module.UUID) -> Graphic:
         """Get the graphic with the given UUID.
