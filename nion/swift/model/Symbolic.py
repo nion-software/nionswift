@@ -27,6 +27,7 @@ from nion.data import DataAndMetadata
 from nion.swift.model import Changes
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
+from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.utils import Converter
 from nion.utils import Event
@@ -550,11 +551,10 @@ class BoundData(BoundItemBase):
 
     @property
     def _object(self):
-        data_item = self.__item_proxy.item
-        if not isinstance(data_item, DataItem.DataItem):
-            display_data_channel = data_item
-            data_item = display_data_channel.data_item if display_data_channel else None
-        return data_item
+        item = self.__item_proxy.item
+        if isinstance(item, DisplayItem.DisplayDataChannel):
+            item = item.data_item
+        return item
 
 
 class BoundDisplayDataChannelBase(BoundItemBase):

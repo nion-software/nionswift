@@ -1,7 +1,7 @@
 """
 The MIME types used in the application.
 """
-import copy
+import contextlib
 import json
 import typing
 
@@ -30,10 +30,14 @@ def mime_data_get_data_source(mime_data: UserInterface.MimeData, project: Projec
     if mime_data.has_format(DATA_SOURCE_MIME_TYPE):
         data_source_mime_data = json.loads(mime_data.data_as_string(DATA_SOURCE_MIME_TYPE))
         display_item_specifier = Persistence.PersistentObjectSpecifier.read(data_source_mime_data["display_item_specifier"])
-        display_item = project.create_item_proxy(item_specifier=display_item_specifier).item
-        if "graphic_specifier" in data_source_mime_data:
-            graphic_specifier = Persistence.PersistentObjectSpecifier.read(data_source_mime_data["graphic_specifier"])
-            graphic = project.create_item_proxy(item_specifier=graphic_specifier).item
+        display_item_proxy = project.create_item_proxy(item_specifier=display_item_specifier)
+        with contextlib.closing(display_item_proxy):
+            display_item = display_item_proxy.item
+            if "graphic_specifier" in data_source_mime_data:
+                graphic_specifier = Persistence.PersistentObjectSpecifier.read(data_source_mime_data["graphic_specifier"])
+                graphic_proxy = project.create_item_proxy(item_specifier=graphic_specifier)
+                with contextlib.closing(graphic_proxy):
+                    graphic = graphic_proxy.item
     return display_item, graphic
 
 
@@ -50,7 +54,9 @@ def mime_data_get_display_item(mime_data: UserInterface.MimeData, project: Proje
     if mime_data.has_format(DISPLAY_ITEM_MIME_TYPE):
         data_source_mime_data = json.loads(mime_data.data_as_string(DISPLAY_ITEM_MIME_TYPE))
         display_item_specifier = Persistence.PersistentObjectSpecifier.read(data_source_mime_data["display_item_specifier"])
-        display_item = project.create_item_proxy(item_specifier=display_item_specifier).item
+        display_item_proxy = project.create_item_proxy(item_specifier=display_item_specifier)
+        with contextlib.closing(display_item_proxy):
+            display_item = display_item_proxy.item
     return display_item
 
 
@@ -84,7 +90,9 @@ def mime_data_get_layer(mime_data: UserInterface.MimeData, project: Project.Proj
     mime_dict = json.loads(mime_data.data_as_string(LAYER_MIME_TYPE))
     legend_data = mime_dict["legend_data"]
     display_item_specifier = Persistence.PersistentObjectSpecifier.read(mime_dict["display_item_specifier"])
-    display_item = project.create_item_proxy(item_specifier=display_item_specifier).item
+    display_item_proxy = project.create_item_proxy(item_specifier=display_item_specifier)
+    with contextlib.closing(display_item_proxy):
+        display_item = display_item_proxy.item
     return legend_data, display_item
 
 
@@ -109,7 +117,9 @@ def mime_data_get_panel(mime_data: UserInterface.MimeData, project: Project.Proj
         d = json.loads(mime_data.data_as_string(DISPLAY_PANEL_MIME_TYPE))
         if "display_item_specifier" in d:
             display_item_specifier = Persistence.PersistentObjectSpecifier.read(d["display_item_specifier"])
-            display_item = project.create_item_proxy(item_specifier=display_item_specifier).item
+            display_item_proxy = project.create_item_proxy(item_specifier=display_item_specifier)
+            with contextlib.closing(display_item_proxy):
+                display_item = display_item_proxy.item
     return display_item, d
 
 

@@ -435,6 +435,8 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
             connect_data_item(data_item)
 
     def close(self) -> None:
+        self.__data_item_proxy.close()
+        self.__data_item_proxy = None
         self.__disconnect_data_item_events()
         assert self._about_to_be_removed
         assert not self._closed

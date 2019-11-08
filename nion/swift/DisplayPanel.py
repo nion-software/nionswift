@@ -1326,7 +1326,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 display_item = None
                 if "display_item_specifier" in d:
                     display_item_specifier = Persistence.PersistentObjectSpecifier.read(d["display_item_specifier"])
-                    display_item = self.document_controller.document_model.profile.work_project.create_item_proxy(item_specifier=display_item_specifier).item
+                    display_item_proxy = self.document_controller.document_model.profile.work_project.create_item_proxy(item_specifier=display_item_specifier)
+                    with contextlib.closing(display_item_proxy):
+                        display_item = display_item_proxy.item
                 self.set_display_item(display_item)
                 self.__update_selection_to_display()
                 if d.get("browser_type") == "horizontal":

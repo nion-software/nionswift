@@ -49,7 +49,8 @@ class TestDataGroupClass(unittest.TestCase):
             data_group_copy = copy.deepcopy(data_group)
             display_item_specifier = Persistence.PersistentObjectSpecifier.read(data_group_copy.display_item_specifiers[0])
             display_item_proxy = document_model.profile.work_project.create_item_proxy(item_specifier=display_item_specifier)
-            self.assertEqual(display_item, display_item_proxy.item)
+            with contextlib.closing(display_item_proxy):
+                self.assertEqual(display_item, display_item_proxy.item)
 
     def test_counted_display_items(self):
         # TODO: split test_counted_display_items into separate tests

@@ -2,6 +2,7 @@
 import abc
 import asyncio
 import collections
+import contextlib
 import copy
 import datetime
 import functools
@@ -501,6 +502,9 @@ class UndeleteItem(Changes.UndeleteBase):
     def close(self) -> None:
         self.project_item_proxy.close()
         self.project_item_proxy = None
+        if self.container_item_proxy:
+            self.container_item_proxy.close()
+            self.container_item_proxy = None
 
     def undelete(self, document_model: "DocumentModel") -> None:
         project = typing.cast(Project.Project, self.project_item_proxy.item)
@@ -580,8 +584,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__profile.read_projects()
         self.__prune()
 
-        def resolve_display_item_specifier(display_item_specifier: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:
-            return self.profile.work_project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(display_item_specifier)).item
+        def resolve_display_item_specifier(display_item_specifier_d: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:
+            display_item_specifier = Persistence.PersistentObjectSpecifier.read(display_item_specifier_d)
+            display_item_proxy = self.profile.work_project.create_item_proxy(item_specifier=display_item_specifier)
+            with contextlib.closing(display_item_proxy):
+                return display_item_proxy.item
 
         for data_group in self.data_groups:
             data_group.connect_display_items(resolve_display_item_specifier)
@@ -1150,6 +1157,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     if t is not None:
                         index, variable_index, object_specifier = t
                         undelete_log.append(UndeleteObjectSpecifiers(self, computation, index, variable_index, object_specifier))
+            for item in reversed(items):
                 container = item.container
                 # if container is None, then this object has already been removed
                 if isinstance(container, Project.Project) and isinstance(item, DataItem.DataItem):
