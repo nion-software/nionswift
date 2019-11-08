@@ -75,8 +75,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
         return self.container.create_item_proxy(item=self)
 
-    def create_specifier(self, item: Persistence.PersistentObject) -> Persistence.PersistentObjectSpecifier:
-        if item.project == self:
+    def create_specifier(self, item: Persistence.PersistentObject, *, allow_partial: bool = True) -> Persistence.PersistentObjectSpecifier:
+        if item.project == self and allow_partial:
             return Persistence.PersistentObjectSpecifier(item=item)
         else:
             return Persistence.PersistentObjectSpecifier(item=item, context=item.project)

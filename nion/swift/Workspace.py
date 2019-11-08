@@ -770,19 +770,17 @@ class Workspace:
                 command = self.__replace_displayed_display_item(display_panel, None, d)
                 self.document_controller.push_undo_command(command)
             return "move"
-        if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
-            display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
-            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
-            if display_item:
-                if display_panel.handle_drop_display_item(region, display_item):
-                    pass  # already handled
-                elif region == "right" or region == "left" or region == "top" or region == "bottom":
-                    command = self.insert_display_panel(display_panel, region, display_item)
-                    self.document_controller.push_undo_command(command)
-                else:
-                    command = self.__replace_displayed_display_item(display_panel, display_item)
-                    self.document_controller.push_undo_command(command)
-                return "copy"
+        display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model.profile.work_project)
+        if display_item:
+            if display_panel.handle_drop_display_item(region, display_item):
+                pass  # already handled
+            elif region == "right" or region == "left" or region == "top" or region == "bottom":
+                command = self.insert_display_panel(display_panel, region, display_item)
+                self.document_controller.push_undo_command(command)
+            else:
+                command = self.__replace_displayed_display_item(display_panel, display_item)
+                self.document_controller.push_undo_command(command)
+            return "copy"
         if mime_data.has_format("text/uri-list"):
             index = len(document_model.data_items)
             self.document_controller.receive_files(mime_data.file_paths, None, index, threaded=True, display_panel=display_panel)

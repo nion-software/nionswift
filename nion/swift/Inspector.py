@@ -2487,16 +2487,14 @@ def make_image_chooser(document_controller, unbinder: Unbinder, computation: Sym
     data_item = computation.get_input(variable.name).data_item
 
     def drop_mime_data(mime_data, x, y):
-        if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
-            display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
-            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
-            data_item = display_item.data_item if display_item else None
-            if data_item:
-                variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
-                command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
-                command.perform()
-                document_controller.push_undo_command(command)
-                return "copy"
+        display_item = MimeTypes.mime_data_get_display_item(mime_data, computation.project)
+        data_item = display_item.data_item if display_item else None
+        if data_item:
+            variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
+            command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
+            command.perform()
+            document_controller.push_undo_command(command)
+            return "copy"
         return None
 
     def data_item_delete():

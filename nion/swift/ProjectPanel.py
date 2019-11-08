@@ -355,8 +355,7 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             # if the display item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
-            display_item = list_display_item.document_model.get_display_item_by_uuid(display_item_uuid)
+            display_item = MimeTypes.mime_data_get_display_item(mime_data, list_display_item.document_model.profile.work_project)
             return display_item is not None
         return False
 
@@ -367,8 +366,7 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             # if the display item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
-            display_item = list_display_item.document_model.get_display_item_by_uuid(display_item_uuid)
+            display_item = MimeTypes.mime_data_get_display_item(mime_data, list_display_item.document_model.profile.work_project)
             if display_item:
                 document_controller = list_display_item.document_controller
                 data_group = list_display_item.data_group

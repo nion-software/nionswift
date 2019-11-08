@@ -152,7 +152,7 @@ class DisplayItemAdapter:
         if self.__display_item:
             mime_data = self.ui.create_mime_data()
             if self.__display_item:
-                mime_data.set_data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE, str(self.__display_item.uuid))
+                MimeTypes.mime_data_put_display_item(mime_data, self.__display_item)
             self.__create_thumbnail_source()
             thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
             return mime_data, thumbnail_data

@@ -26,6 +26,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Project
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
@@ -1037,17 +1038,16 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             display_canvas_item = self.display_canvas_item
             if display_canvas_item and hasattr(display_canvas_item, "get_drop_regions_map"):
                 # give the display canvas item a chance to provide drop regions based on the display item being dropped
-                display_item_uuid = None
+                display_item = None
                 if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
                     d = json.loads(mime_data.data_as_string(MimeTypes.DISPLAY_PANEL_MIME_TYPE))
                     display_item_uuid_str = d.get("display_item_uuid", None)
                     display_item_uuid = uuid.UUID(display_item_uuid_str) if display_item_uuid_str else None
-                if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
-                    display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
-                if display_item_uuid:
                     display_item = document_controller.document_model.get_display_item_by_uuid(display_item_uuid)
-                    if display_item:
-                        self.__content_canvas_item.drop_regions_map = display_canvas_item.get_drop_regions_map(display_item)
+                if not display_item:
+                    display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model.profile.work_project)
+                if display_item:
+                    self.__content_canvas_item.drop_regions_map = display_canvas_item.get_drop_regions_map(display_item)
             else:
                 self.__content_canvas_item.drop_regions_map = None
             if workspace_controller:
@@ -1570,7 +1570,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def __handle_begin_drag(self):
         mime_data = self.ui.create_mime_data()
         if self.__display_item:
-            mime_data.set_data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE, str(self.__display_item.uuid))
+            MimeTypes.mime_data_put_display_item(mime_data, self.__display_item)
         mime_data.set_data_as_string(MimeTypes.DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
         thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(self.__display_item)
         self.__begin_drag(mime_data, thumbnail_data)
@@ -1773,11 +1773,11 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int):
         return self.ui.create_rgba_image(drawing_context, width, height)
 
-    def get_display_item_uuid(self) -> uuid.UUID:
-        return self.display_item.uuid
+    def get_display_item(self) -> DisplayItem.DisplayItem:
+        return self.display_item
 
-    def get_display_item_by_uuid(self, id: uuid.UUID) -> DisplayItem:
-        return self.document_controller.document_model.get_display_item_by_uuid(id)
+    def get_project(self) -> Project.Project:
+        return self.document_controller.document_model.profile.work_project
 
     def end_mouse_tracking(self, undo_command):
         self.__mouse_tracking_transaction.close()
@@ -1821,11 +1821,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         display_item = self.display_item
         if display_item:
             mime_data = self.ui.create_mime_data()
-            mime_data_content = dict()
-            mime_data_content["display_item_uuid"] = str(display_item.uuid)
-            if graphics and len(graphics) == 1:
-                mime_data_content["graphic_uuid"] = str(graphics[0].uuid)
-            mime_data.set_data_as_string(MimeTypes.DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
+            MimeTypes.mime_data_put_data_source(mime_data, display_item, graphics[0] if len(graphics) == 1 else None)
             thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(display_item)
             self.__begin_drag(mime_data, thumbnail_data)
 
@@ -1845,12 +1841,10 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> ChangeDisplayCommand:
         return ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item, command_id=command_id, is_mergeable=is_mergeable)
 
-    def create_move_display_layer_command(self, src_id: uuid.UUID, src_index: int, target_index: int) -> MoveDisplayLayerCommand:
-        src_display_item = self.__document_controller.document_model.get_display_item_by_uuid(src_id)
-        return MoveDisplayLayerCommand(self.__document_controller.document_model, src_display_item, src_index, self.__display_item, target_index)
+    def create_move_display_layer_command(self, display_item: DisplayItem.DisplayItem, src_index: int, target_index: int) -> MoveDisplayLayerCommand:
+        return MoveDisplayLayerCommand(self.__document_controller.document_model, display_item, src_index, self.__display_item, target_index)
 
-    def create_change_display_item_property_command(self, id: uuid.UUID, property_name: str, value) -> Inspector.ChangeDisplayItemPropertyCommand:
-        display_item = self.__document_controller.document_model.get_display_item_by_uuid(id)
+    def create_change_display_item_property_command(self, display_item: DisplayItem.DisplayItem, property_name: str, value) -> Inspector.ChangeDisplayItemPropertyCommand:
         return Inspector.ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, display_item, property_name, value)
 
     def create_change_graphics_command(self) -> ChangeGraphicsCommand:

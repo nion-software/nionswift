@@ -434,7 +434,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
             "is_bounds_constrained": self.is_bounds_constrained,
         }
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
+    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
         self.color = graphic_dict.get("color", self.color)
         self.label = graphic_dict.get("label", self.label)
         self.is_position_locked = graphic_dict.get("is_position_locked", self.is_position_locked)
@@ -442,7 +442,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.is_bounds_constrained = graphic_dict.get("is_bounds_constrained", self.is_bounds_constrained)
 
     def read_properties_from_dict(self, d: typing.Mapping):
-        self.read_from_mime_data(d, True)
+        self.read_from_mime_data(d)
 
     @property
     def source(self):
@@ -606,8 +606,8 @@ class RectangleTypeGraphic(Graphic):
         d["rotation"] = self.rotation
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
-        super().read_from_mime_data(graphic_dict, is_same_source)
+    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+        super().read_from_mime_data(graphic_dict)
         self.bounds = graphic_dict.get("bounds", self.bounds)
         self.rotation = graphic_dict.get("rotation", self.rotation)
 
@@ -971,14 +971,14 @@ class LineTypeGraphic(Graphic):
         d["end_arrow_enabled"] = self.start_arrow_enabled
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
-        super().read_from_mime_data(graphic_dict, is_same_source)
+    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+        super().read_from_mime_data(graphic_dict)
         self.vector = graphic_dict.get("vector", self.vector)
         self.start_arrow_enabled = graphic_dict.get("start_arrow_enabled", self.start_arrow_enabled)
         self.end_arrow_enabled = graphic_dict.get("end_arrow_enabled", self.end_arrow_enabled)
 
     def read_properties_from_dict(self, d: typing.Mapping):
-        super().read_from_mime_data(d, True)
+        super().read_from_mime_data(d)
         start = d.get("start", self.vector[0])
         end = d.get("end", self.vector[1])
         self.vector = (start, end)
@@ -1193,8 +1193,8 @@ class LineProfileGraphic(LineTypeGraphic):
         d["line_width"] = self.width
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
-        super().read_from_mime_data(graphic_dict, is_same_source)
+    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+        super().read_from_mime_data(graphic_dict)
         self.width = graphic_dict.get("line_width", self.width)
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
@@ -1267,8 +1267,8 @@ class PointTypeGraphic(Graphic):
         d["position"] = self.position
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
-        super().read_from_mime_data(graphic_dict, is_same_source)
+    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+        super().read_from_mime_data(graphic_dict)
         self.position = graphic_dict.get("position", self.position)
 
     # test is required for Graphic interface
@@ -1393,12 +1393,12 @@ class IntervalGraphic(Graphic):
         d["interval"] = self.interval
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
-        super().read_from_mime_data(graphic_dict, is_same_source)
+    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+        super().read_from_mime_data(graphic_dict)
         self.interval = graphic_dict.get("interval", self.interval)
 
     def read_properties_from_dict(self, d: typing.Mapping):
-        super().read_from_mime_data(d, True)
+        super().read_from_mime_data(d)
         start = d.get("start", self.interval[0])
         end = d.get("end", self.interval[1])
         self.interval = (start, end)
@@ -1486,8 +1486,8 @@ class ChannelGraphic(Graphic):
         d["position"] = self.position
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
-        super().read_from_mime_data(graphic_dict, is_same_source)
+    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+        super().read_from_mime_data(graphic_dict)
         self.position = graphic_dict.get("position", self.position)
 
     def __channel_changed(self, name, value):
@@ -1540,8 +1540,8 @@ class SpotGraphic(Graphic):
         d["bounds"] = self.bounds
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
-        super().read_from_mime_data(graphic_dict, is_same_source)
+    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+        super().read_from_mime_data(graphic_dict)
         self.bounds = graphic_dict.get("bounds", self.bounds)
 
     # accessors
@@ -1779,8 +1779,8 @@ class WedgeGraphic(Graphic):
         d["angle_interval"] = self.angle_interval
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
-        super().read_from_mime_data(graphic_dict, is_same_source)
+    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+        super().read_from_mime_data(graphic_dict)
         self.angle_interval = graphic_dict.get("angle_interval", self.angle_interval)
 
     @property
@@ -1960,8 +1960,8 @@ class RingGraphic(Graphic):
         d["mode"] = self.mode
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
-        super().read_from_mime_data(graphic_dict, is_same_source)
+    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+        super().read_from_mime_data(graphic_dict)
         self.radius_1 = graphic_dict.get("radius_1", self.radius_1)
         self.radius_2 = graphic_dict.get("radius_2", self.radius_2)
         self.mode = graphic_dict.get("mode", self.mode)
@@ -2148,8 +2148,8 @@ class LatticeGraphic(Graphic):
         d["radius"] = self.radius
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
-        super().read_from_mime_data(graphic_dict, is_same_source)
+    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+        super().read_from_mime_data(graphic_dict)
         self.u_pos = graphic_dict.get("u_pos", self.u_pos)
         self.v_pos = graphic_dict.get("v_pos", self.v_pos)
         self.radius = graphic_dict.get("radius", self.radius)
