@@ -556,9 +556,9 @@ class TestWorkspaceClass(unittest.TestCase):
             # record the new layout
             new_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
             self.assertNotEqual(old_workspace_layout, new_workspace_layout)
-            self.assertEqual(old_workspace_layout["children"][0]["display_item_uuid"], new_workspace_layout["children"][1]["display_item_uuid"])
-            self.assertIsNone(old_workspace_layout["children"][1].get("display_item_uuid"))
-            self.assertIsNone(new_workspace_layout["children"][0].get("display_item_uuid"))
+            self.assertEqual(old_workspace_layout["children"][0]["display_item_specifier"], new_workspace_layout["children"][1]["display_item_specifier"])
+            self.assertIsNone(old_workspace_layout["children"][1].get("display_item_specifier"))
+            self.assertIsNone(new_workspace_layout["children"][0].get("display_item_specifier"))
             # undo the remove
             document_controller.handle_undo()
             document_controller.selected_display_panel = workspace_controller.display_panels[1]  # display_panel will have changed now
@@ -793,7 +793,8 @@ class TestWorkspaceClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
             display_panel.set_display_panel_display_item(display_item)
-            mime_data = MimeData(MimeTypes.DISPLAY_PANEL_MIME_TYPE, json.dumps({}))
+            mime_data = TestUI.MimeData()
+            MimeTypes.mime_data_put_panel(mime_data, None, {})
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
             # check that there are now two image panels
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
@@ -813,7 +814,8 @@ class TestWorkspaceClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
             display_panel.set_display_panel_display_item(display_item)
-            mime_data = MimeData(MimeTypes.DISPLAY_PANEL_MIME_TYPE, json.dumps({"browser_type": "horizontal"}))
+            mime_data = TestUI.MimeData()
+            MimeTypes.mime_data_put_panel(mime_data, None, {"browser_type": "horizontal"})
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
             # check that there are now two image panels
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
@@ -833,7 +835,8 @@ class TestWorkspaceClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
             display_panel.set_display_panel_display_item(display_item)
-            mime_data = MimeData(MimeTypes.DISPLAY_PANEL_MIME_TYPE, json.dumps({"browser_type": "grid"}))
+            mime_data = TestUI.MimeData()
+            MimeTypes.mime_data_put_panel(mime_data, None, {"browser_type": "grid"})
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
             # check that there are now two image panels
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
@@ -853,7 +856,8 @@ class TestWorkspaceClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
             display_panel.set_display_panel_display_item(display_item)
-            mime_data = MimeData(MimeTypes.DISPLAY_PANEL_MIME_TYPE, json.dumps({"display_item_uuid": str(display_item.uuid), "browser_type": "horizontal"}))
+            mime_data = TestUI.MimeData()
+            MimeTypes.mime_data_put_panel(mime_data, display_item, {"browser_type": "horizontal"})
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
             # check that there are now two image panels
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)

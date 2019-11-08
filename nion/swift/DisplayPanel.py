@@ -3,7 +3,6 @@ import contextlib
 import copy
 import functools
 import gettext
-import json
 import math
 import random
 import string
@@ -35,6 +34,7 @@ from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
+from nion.utils import Persistence
 
 
 _ = gettext.gettext
@@ -1040,10 +1040,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 # give the display canvas item a chance to provide drop regions based on the display item being dropped
                 display_item = None
                 if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
-                    d = json.loads(mime_data.data_as_string(MimeTypes.DISPLAY_PANEL_MIME_TYPE))
-                    display_item_uuid_str = d.get("display_item_uuid", None)
-                    display_item_uuid = uuid.UUID(display_item_uuid_str) if display_item_uuid_str else None
-                    display_item = document_controller.document_model.get_display_item_by_uuid(display_item_uuid)
+                    display_item, d = MimeTypes.mime_data_get_panel(mime_data, self.document_controller.document_model.profile.work_project)
                 if not display_item:
                     display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model.profile.work_project)
                 if display_item:
@@ -1308,7 +1305,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
         if self.__display_item:
-            d["display_item_uuid"] = str(self.display_item.uuid)
+            d["display_item_specifier"] = self.__display_item.project.create_specifier(self.__display_item, allow_partial=False).write()
         if self.__display_panel_controller is None and self.__horizontal_browser_canvas_item.visible:
             d["browser_type"] = "horizontal"
         if self.__display_panel_controller is None and self.__grid_browser_canvas_item.visible:
@@ -1327,9 +1324,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             self.__set_display_panel_controller(DisplayPanelManager().make_display_panel_controller(controller_type, self, d))
             if not self.__display_panel_controller:
                 display_item = None
-                display_item_uuid_str = d.get("display_item_uuid")
-                if display_item_uuid_str:
-                    display_item = self.__document_controller.document_model.get_display_item_by_uuid(uuid.UUID(display_item_uuid_str))
+                if "display_item_specifier" in d:
+                    display_item_specifier = Persistence.PersistentObjectSpecifier.read(d["display_item_specifier"])
+                    display_item = self.document_controller.document_model.profile.work_project.create_item_proxy(item_specifier=display_item_specifier).item
                 self.set_display_item(display_item)
                 self.__update_selection_to_display()
                 if d.get("browser_type") == "horizontal":
@@ -1439,7 +1436,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def set_display_panel_display_item(self, display_item: DisplayItem.DisplayItem, detect_controller: bool=False) -> None:
         if display_item:
-            d = {"type": "image", "display_item_uuid": str(display_item.uuid)}
+            d = {"type": "image", "display_item_specifier": display_item.project.create_specifier(display_item, allow_partial=False).write()}
             if detect_controller:
                 data_item = display_item.data_item
                 if display_item == self.document_controller.document_model.get_any_display_item_for_data_item(data_item):
@@ -1571,7 +1568,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         mime_data = self.ui.create_mime_data()
         if self.__display_item:
             MimeTypes.mime_data_put_display_item(mime_data, self.__display_item)
-        mime_data.set_data_as_string(MimeTypes.DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
+        MimeTypes.mime_data_put_panel(mime_data, None, self.save_contents())
         thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(self.__display_item)
         self.__begin_drag(mime_data, thumbnail_data)
 
@@ -2008,7 +2005,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
     def switch_to_display_content(self, document_controller, display_panel: DisplayPanel, display_panel_type, display_item: DisplayItem.DisplayItem = None):
         d = {"type": "image", "display-panel-type": display_panel_type}
         if display_item and display_panel_type != "empty-display-panel":
-            d["display_item_uuid"] = str(display_item.uuid)
+            d["display_item_specifier"] = display_item.project.create_specifier(display_item, allow_partial=False).write()
         command = ReplaceDisplayPanelCommand(document_controller.workspace_controller)
         display_panel.change_display_panel_content(d)
         document_controller.push_undo_command(command)

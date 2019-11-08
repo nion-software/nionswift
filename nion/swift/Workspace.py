@@ -757,10 +757,7 @@ class Workspace:
     def handle_drop(self, display_panel, mime_data: UserInterface.MimeData, region, x: int, y: int) -> str:
         document_model = self.document_model
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
-            d = json.loads(mime_data.data_as_string(MimeTypes.DISPLAY_PANEL_MIME_TYPE))
-            display_item_uuid_str = d.get("display_item_uuid", None)
-            display_item_uuid = uuid.UUID(display_item_uuid_str) if display_item_uuid_str else None
-            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
+            display_item, d = MimeTypes.mime_data_get_panel(mime_data, self.document_model.profile.work_project)
             if display_item and display_panel.handle_drop_display_item(region, display_item):
                 pass  # already handled
             elif region == "right" or region == "left" or region == "top" or region == "bottom":

@@ -1,6 +1,7 @@
 """
 The MIME types used in the application.
 """
+import copy
 import json
 import typing
 
@@ -80,9 +81,9 @@ def mime_data_put_graphics(mime_data: UserInterface.MimeData, graphics: typing.S
 
 
 def mime_data_get_layer(mime_data: UserInterface.MimeData, project: Project.Project) -> typing.Tuple[typing.Dict, typing.Optional[DisplayItem.DisplayItem]]:
-    mime_data = json.loads(mime_data.data_as_string(LAYER_MIME_TYPE))
-    legend_data = mime_data["legend_data"]
-    display_item_specifier = Persistence.PersistentObjectSpecifier.read(mime_data["display_item_specifier"])
+    mime_dict = json.loads(mime_data.data_as_string(LAYER_MIME_TYPE))
+    legend_data = mime_dict["legend_data"]
+    display_item_specifier = Persistence.PersistentObjectSpecifier.read(mime_dict["display_item_specifier"])
     display_item = project.create_item_proxy(item_specifier=display_item_specifier).item
     return legend_data, display_item
 
@@ -99,3 +100,21 @@ def mime_data_put_layer(mime_data: UserInterface.MimeData, index: int, display_i
         "display_item_specifier": display_item.project.create_specifier(display_item, allow_partial=False).write()
     }
     mime_data.set_data_as_string(LAYER_MIME_TYPE, json.dumps(mime_dict))
+
+
+def mime_data_get_panel(mime_data: UserInterface.MimeData, project: Project.Project) -> typing.Tuple[typing.Optional[DisplayItem.DisplayItem], typing.Dict]:
+    display_item = None
+    d = dict()
+    if mime_data.has_format(DISPLAY_PANEL_MIME_TYPE):
+        d = json.loads(mime_data.data_as_string(DISPLAY_PANEL_MIME_TYPE))
+        if "display_item_specifier" in d:
+            display_item_specifier = Persistence.PersistentObjectSpecifier.read(d["display_item_specifier"])
+            display_item = project.create_item_proxy(item_specifier=display_item_specifier).item
+    return display_item, d
+
+
+def mime_data_put_panel(mime_data: UserInterface.MimeData, display_item: typing.Optional[DisplayItem.DisplayItem], d: typing.Sequence) -> None:
+    if display_item:
+        d = dict(d)
+        d["display_item_specifier"] = display_item.project.create_specifier(display_item, allow_partial=False).write()
+    mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(d))
