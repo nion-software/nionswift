@@ -13,6 +13,7 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.ui import TestUI
+from nion.utils import Persistence
 
 
 class TestDataGroupClass(unittest.TestCase):
@@ -46,7 +47,9 @@ class TestDataGroupClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_group.append_display_item(display_item)
             data_group_copy = copy.deepcopy(data_group)
-            self.assertEqual(display_item.uuid, data_group_copy.display_item_references[0])
+            display_item_specifier = Persistence.PersistentObjectSpecifier.read(data_group_copy.display_item_specifiers[0])
+            display_item_proxy = document_model.profile.work_project.create_item_proxy(item_specifier=display_item_specifier)
+            self.assertEqual(display_item, display_item_proxy.item)
 
     def test_counted_display_items(self):
         # TODO: split test_counted_display_items into separate tests

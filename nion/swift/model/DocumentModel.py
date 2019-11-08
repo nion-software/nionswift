@@ -580,8 +580,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__profile.read_projects()
         self.__prune()
 
+        def resolve_display_item_specifier(display_item_specifier: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:
+            return self.profile.work_project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(display_item_specifier)).item
+
         for data_group in self.data_groups:
-            data_group.connect_display_items(self.get_display_item_by_uuid)
+            data_group.connect_display_items(resolve_display_item_specifier)
 
         self.__data_channel_updated_listeners = dict()
         self.__data_channel_start_listeners = dict()
