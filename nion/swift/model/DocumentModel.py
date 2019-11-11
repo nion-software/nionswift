@@ -629,12 +629,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 self.__computation_active_item.valid = False
                 self.__computation_active_item = None
 
-        # close connections
-        for connection in copy.copy(self.connections):
-            connection.about_to_be_removed()
-        for connection in copy.copy(self.connections):
-            connection.close()
-
         # close hardware source related stuff
         self.__hardware_source_added_event_listener.close()
         self.__hardware_source_added_event_listener = None

@@ -332,6 +332,9 @@ class TestProjectClass(unittest.TestCase):
                 self.assertEqual(data_item0, list(profile.projects[0].computations[0].input_items)[0])
                 self.assertEqual(data_item1, list(profile.projects[1].computations[0].input_items)[0])
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            profile = document_model.profile
+            data_item0 = document_model.data_items[0]
+            data_item1 = document_model.data_items[2]
             with contextlib.closing(document_model):
                 self.assertEqual(4, len(document_model.data_items))
                 self.assertEqual(2, len(profile.projects[0].data_items))
@@ -365,6 +368,9 @@ class TestProjectClass(unittest.TestCase):
                 self.assertEqual(data_item0, list(profile.projects[0].computations[0].input_items)[0])
                 self.assertEqual(data_item1, list(profile.projects[1].computations[0].input_items)[0])
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            profile = document_model.profile
+            data_item0 = document_model.data_items[0]
+            data_item1 = document_model.data_items[2]
             with contextlib.closing(document_model):
                 self.assertEqual(4, len(document_model.data_items))
                 self.assertEqual(2, len(profile.projects[0].data_items))

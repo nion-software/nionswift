@@ -67,6 +67,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         for data_item in self.data_items:
             data_item.close()
         self.__container_weak_ref = None
+        super().close()
 
     @property
     def container(self):
