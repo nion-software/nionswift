@@ -351,10 +351,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
 
     def __init__(self, type):
         super().__init__()
-        self.__container_weak_ref = None
-        self.about_to_be_removed_event = Event.Event()
         self.about_to_cascade_delete_event = Event.Event()
-        self._about_to_be_removed = False
         self._closed = False
         self.define_type(type)
         self.define_property("graphic_id", None, changed=self._property_changed, validate=lambda s: str(s) if s else None)
@@ -373,15 +370,9 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
     def close(self) -> None:
         self.__source_proxy.close()
         self.__source_proxy = None
-        assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
-        self.__container_weak_ref = None
         super().close()
-
-    @property
-    def container(self):
-        return self.__container_weak_ref() if self.__container_weak_ref else None
 
     @property
     def project(self) -> "Project.Project":
@@ -395,25 +386,14 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.about_to_cascade_delete_event.fire(cascade_items)
         return cascade_items
 
-    def about_to_be_inserted(self, container):
-        assert self.__container_weak_ref is None
-        self.__container_weak_ref = weakref.ref(container)
-
-    def about_to_be_removed(self):
-        # called before close and before item is removed from its container
-        self.about_to_be_removed_event.fire()
-        assert not self._about_to_be_removed
-        self._about_to_be_removed = True
-        self.__container_weak_ref = None
-
     def insert_model_item(self, container, name, before_index, item):
-        if self.__container_weak_ref:
+        if self.container:
             self.container.insert_model_item(container, name, before_index, item)
         else:
             container.insert_item(name, before_index, item)
 
     def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
-        if self.__container_weak_ref:
+        if self.container:
             return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)

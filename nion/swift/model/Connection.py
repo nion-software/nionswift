@@ -29,10 +29,7 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
 
     def __init__(self, type, *, parent=None):
         super().__init__()
-        self.__container_weak_ref = None
-        self.about_to_be_removed_event = Event.Event()
         self.about_to_cascade_delete_event = Event.Event()
-        self._about_to_be_removed = False
         self._closed = False
         self.define_type(type)
         self.define_property("parent_specifier", changed=self.__parent_specifier_changed, key="parent_uuid")
@@ -42,15 +39,9 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
     def close(self) -> None:
         self.__parent_proxy.close()
         self.__parent_proxy = None
-        assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
-        self.__container_weak_ref = None
         super().close()
-
-    @property
-    def container(self):
-        return self.__container_weak_ref() if self.__container_weak_ref else None
 
     @property
     def project(self) -> "Project.Project":
@@ -63,17 +54,6 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
         cascade_items = list()
         self.about_to_cascade_delete_event.fire(cascade_items)
         return cascade_items
-
-    def about_to_be_inserted(self, container):
-        assert self.__container_weak_ref is None
-        self.__container_weak_ref = weakref.ref(container)
-
-    def about_to_be_removed(self):
-        # called before close and before item is removed from its container
-        self.about_to_be_removed_event.fire()
-        assert not self._about_to_be_removed
-        self._about_to_be_removed = True
-        self.__container_weak_ref = None
 
     def clone(self) -> "Connection":
         connection = copy.deepcopy(self)

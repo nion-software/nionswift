@@ -93,9 +93,6 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         self.define_property("title", _("Untitled"), validate=self.__validate_title, changed=self.__property_changed)
         self.define_property("display_item_specifiers", list(), validate=self.__validate_display_item_specifiers, changed=self.__property_changed, key="display_item_references")
         self.define_relationship("data_groups", data_group_factory, insert=self.__insert_data_group, remove=self.__remove_data_group)
-        self.__container_weak_ref = None
-        self.about_to_be_removed_event = Event.Event()
-        self._about_to_be_removed = False
         self.__lookup_display_item = None
         self.__display_items = list()
         self.__counted_display_items = collections.Counter()
@@ -105,25 +102,10 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
     def close(self) -> None:
         for data_group in copy.copy(self.data_groups):
             data_group.close()
-        self.__container_weak_ref = None
         super().close()
 
     def __str__(self):
         return self.title
-
-    def about_to_be_inserted(self, container):
-        assert self.__container_weak_ref is None
-        self.__container_weak_ref = weakref.ref(container)
-
-    def about_to_be_removed(self):
-        # called before close and before item is removed from its container
-        self.about_to_be_removed_event.fire()
-        assert not self._about_to_be_removed
-        self._about_to_be_removed = True
-
-    @property
-    def container(self):
-        return self.__container_weak_ref() if self.__container_weak_ref else None
 
     @property
     def profile(self) -> "Profile.Profile":
@@ -205,11 +187,9 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         self.notify_remove_item("data_groups", data_group, index)
 
     def __insert_data_group(self, name, before_index, data_group):
-        data_group.about_to_be_inserted(self)
         self.update_counted_display_items(data_group.counted_display_items)
 
     def __remove_data_group(self, name, index, data_group):
-        data_group.about_to_be_removed()
         self.subtract_counted_display_items(data_group.counted_display_items)
 
     @property

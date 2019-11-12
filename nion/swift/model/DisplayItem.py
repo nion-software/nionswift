@@ -357,7 +357,6 @@ class DisplayValues:
 class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, data_item: DataItem.DataItem = None):
         super().__init__()
-        self.__container_weak_ref = None
 
         self.define_type("display_data_channel")
         # conversion to scalar
@@ -409,9 +408,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.__data_item_data_changed_listener = None
         self.__data_item_description_changed_listener = None
 
-        self.about_to_be_removed_event = Event.Event()
         self.about_to_cascade_delete_event = Event.Event()
-        self._about_to_be_removed = False
         self._closed = False
 
         self.__last_data_item = None
@@ -438,10 +435,8 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.__data_item_proxy.close()
         self.__data_item_proxy = None
         self.__disconnect_data_item_events()
-        assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
-        self.__container_weak_ref = None
         super().close()
 
     def __deepcopy__(self, memo):
@@ -460,10 +455,6 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         return display_data_channel
 
     @property
-    def container(self):
-        return self.__container_weak_ref() if self.__container_weak_ref else None
-
-    @property
     def project(self) -> "Project.Project":
         return typing.cast("Project.Project", self.container.container) if self.container else None
 
@@ -475,24 +466,14 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.about_to_cascade_delete_event.fire(cascade_items)
         return cascade_items
 
-    def about_to_be_inserted(self, container):
-        assert self.__container_weak_ref is None
-        self.__container_weak_ref = weakref.ref(container)
-
-    def about_to_be_removed(self):
-        # called before close and before item is removed from its container
-        self.about_to_be_removed_event.fire()
-        assert not self._about_to_be_removed
-        self._about_to_be_removed = True
-
     def insert_model_item(self, container, name, before_index, item):
-        if self.__container_weak_ref:
+        if self.container:
             self.container.insert_model_item(container, name, before_index, item)
         else:
             container.insert_item(name, before_index, item)
 
     def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
-        if self.__container_weak_ref:
+        if self.container:
             return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
@@ -818,7 +799,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, item_uuid: uuid.UUID = None, *, data_item: DataItem.DataItem = None):
         super().__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
-        self.__container_weak_ref = None
         self.define_property("created", datetime.datetime.utcnow(), converter=DataItem.DatetimeToStringConverter(), changed=self.__property_changed)
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
         # this is not my favorite solution since it limits library item creation to 1000/s but until I find a better solution, this is my compromise.
@@ -870,9 +850,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.graphics_changed_event = Event.Event()
         self.display_values_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
-        self.about_to_be_removed_event = Event.Event()
         self.about_to_cascade_delete_event = Event.Event()
-        self._about_to_be_removed = False
         self._closed = False
 
         def graphic_selection_changed():
@@ -898,10 +876,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             self.__disconnect_graphic(graphic, 0)
             graphic.close()
         self.graphic_selection = None
-        assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
-        self.__container_weak_ref = None
         super().close()
 
     def __copy__(self):
@@ -929,10 +905,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         return display_item_copy
 
     @property
-    def container(self):
-        return self.__container_weak_ref() if self.__container_weak_ref else None
-
-    @property
     def project(self) -> "Project.Project":
         return typing.cast("Project.Project", self.container)
 
@@ -947,19 +919,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.about_to_cascade_delete_event.fire(cascade_items)
         return cascade_items
 
-    def about_to_be_inserted(self, container):
-        assert self.__container_weak_ref is None
-        self.__container_weak_ref = weakref.ref(container)
-
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
         for display_data_channel in self.display_data_channels:
             display_data_channel.about_to_be_removed()
         for graphic in self.graphics:
             graphic.about_to_be_removed()
-        self.about_to_be_removed_event.fire()
-        assert not self._about_to_be_removed
-        self._about_to_be_removed = True
+        super().about_to_be_removed()
 
     def insert_model_item(self, container, name, before_index, item):
         """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
@@ -967,7 +933,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         Passing responsibility to this item's container allows the library to easily track dependencies.
         However, if this item isn't yet in the library hierarchy, then do the operation directly.
         """
-        if self.__container_weak_ref:
+        if self.container:
             self.container.insert_model_item(container, name, before_index, item)
         else:
             container.insert_item(name, before_index, item)
@@ -978,7 +944,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         Passing responsibility to this item's container allows the library to easily track dependencies.
         However, if this item isn't yet in the library hierarchy, then do the operation directly.
         """
-        if self.__container_weak_ref:
+        if self.container:
             return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
@@ -1356,7 +1322,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__set_cascaded_value("session_id", str(value) if value is not None else str())
 
     def __insert_display_data_channel(self, name, before_index, display_data_channel: DisplayDataChannel) -> None:
-        display_data_channel.about_to_be_inserted(self)
         display_data_channel.increment_display_ref_count(self._display_ref_count)
         self.__display_data_channel_property_changed_event_listeners.insert(before_index, display_data_channel.property_changed_event.listen(self.__display_channel_property_changed))
         self.__display_data_channel_data_item_will_change_event_listeners.insert(before_index, display_data_channel.data_item_will_change_event.listen(self.__data_item_will_change))
@@ -1368,7 +1333,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def __remove_display_data_channel(self, name, index, display_data_channel: DisplayDataChannel) -> None:
         display_data_channel.decrement_display_ref_count(self._display_ref_count)
-        display_data_channel.about_to_be_removed()
         self.__disconnect_display_data_channel(display_data_channel, index)
         # adjust the display layers
         assert not self._is_reading
@@ -1460,7 +1424,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         return [self.graphics[i] for i in self.graphic_selection.indexes]
 
     def __insert_graphic(self, name, before_index, graphic):
-        graphic.about_to_be_inserted(self)
         graphic_changed_listener = graphic.graphic_changed_event.listen(functools.partial(self.__graphic_changed, graphic))
         self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
         self.graphic_selection.insert_index(before_index)
@@ -1468,7 +1431,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__graphic_changed(graphic)
 
     def __remove_graphic(self, name, index, graphic):
-        graphic.about_to_be_removed()
         self.__disconnect_graphic(graphic, index)
 
     def __disconnect_graphic(self, graphic, index):

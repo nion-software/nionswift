@@ -35,8 +35,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, storage_system=None, storage_cache=None, *, auto_project: bool = True):
         super().__init__()
 
-        self.__container_weak_ref = None
-
         # handle special case of auto project - make the auto project active
         project_uuid_str = None
         active_project_uuids = list()
@@ -47,7 +45,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_root_context()
         self.define_type("profile")
         self.define_relationship("workspaces", WorkspaceLayout.factory)
-        self.define_relationship("data_groups", DataGroup.data_group_factory, insert=self.__insert_data_group, remove=self.__remove_data_group)
+        self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
         self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
@@ -195,22 +193,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             project.close()
         for data_group in copy.copy(self.data_groups):
             data_group.close()
-        self.__container_weak_ref = None
         super().close()
-
-    @property
-    def container(self):
-        return self.__container_weak_ref() if self.__container_weak_ref else None
-
-    def about_to_be_inserted(self, container):
-        assert self.__container_weak_ref is None
-        self.__container_weak_ref = weakref.ref(container)
-
-    def about_to_be_removed(self):
-        # called before close and before item is removed from its container
-        self.about_to_be_removed_event.fire()
-        assert not self._about_to_be_removed
-        self._about_to_be_removed = True
 
     def insert_model_item(self, container, name, before_index, item):
         """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
@@ -218,7 +201,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         Passing responsibility to this item's container allows the library to easily track dependencies.
         However, if this item isn't yet in the library hierarchy, then do the operation directly.
         """
-        if self.__container_weak_ref:
+        if self.container:
             self.container.insert_model_item(container, name, before_index, item)
         else:
             container.insert_item(name, before_index, item)
@@ -229,17 +212,11 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         Passing responsibility to this item's container allows the library to easily track dependencies.
         However, if this item isn't yet in the library hierarchy, then do the operation directly.
         """
-        if self.__container_weak_ref:
+        if self.container:
             return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
             return Changes.UndeleteLog()
-
-    def __insert_data_group(self, name, before_index, data_group):
-        data_group.about_to_be_inserted(self)
-
-    def __remove_data_group(self, name, index, data_group):
-        data_group.about_to_be_removed()
 
     def transaction_context(self):
         """Return a context object for a document-wide transaction."""

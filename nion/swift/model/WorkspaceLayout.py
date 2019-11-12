@@ -16,7 +16,7 @@ class WorkspaceLayout(Persistence.PersistentObject):
         content of each of those panels.
     """
     def __init__(self):
-        super(WorkspaceLayout, self).__init__()
+        super().__init__()
         self.define_type("workspace")
         self.define_property("name")
         self.define_property("layout")

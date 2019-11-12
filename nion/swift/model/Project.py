@@ -37,8 +37,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystem, project_reference: typing.Dict):
         super().__init__()
 
-        self.__container_weak_ref = None
-
         self.define_type("project")
         self.define_relationship("data_items", data_item_factory, insert=self.__data_item_inserted, remove=self.__data_item_removed)
         self.define_relationship("display_items", display_item_factory, insert=self.__display_item_inserted, remove=self.__display_item_removed)
@@ -66,12 +64,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             data_item.about_to_be_removed()
         for data_item in self.data_items:
             data_item.close()
-        self.__container_weak_ref = None
         super().close()
-
-    @property
-    def container(self):
-        return self.__container_weak_ref() if self.__container_weak_ref else None
 
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
         return self.container.create_item_proxy(item=self)
@@ -82,23 +75,13 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         else:
             return Persistence.PersistentObjectSpecifier(item=item, context=item.project)
 
-    def about_to_be_inserted(self, container):
-        assert self.__container_weak_ref is None
-        self.__container_weak_ref = weakref.ref(container)
-
-    def about_to_be_removed(self):
-        # called before close and before item is removed from its container
-        self.about_to_be_removed_event.fire()
-        assert not self._about_to_be_removed
-        self._about_to_be_removed = True
-
     def insert_model_item(self, container, name, before_index, item):
         """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
 
         Passing responsibility to this item's container allows the library to easily track dependencies.
         However, if this item isn't yet in the library hierarchy, then do the operation directly.
         """
-        if self.__container_weak_ref:
+        if self.container:
             self.container.insert_model_item(container, name, before_index, item)
         else:
             container.insert_item(name, before_index, item)
@@ -109,7 +92,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         Passing responsibility to this item's container allows the library to easily track dependencies.
         However, if this item isn't yet in the library hierarchy, then do the operation directly.
         """
-        if self.__container_weak_ref:
+        if self.container:
             return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
@@ -184,43 +167,33 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         return self.__storage_system
 
     def __data_item_inserted(self, name: str, before_index: int, data_item: DataItem.DataItem) -> None:
-        data_item.about_to_be_inserted(self)
         self.notify_insert_item("data_items", data_item, before_index)
 
     def __data_item_removed(self, name: str, index: int, data_item: DataItem.DataItem) -> None:
-        data_item.about_to_be_removed()
         self.notify_remove_item("data_items", data_item, index)
 
     def __display_item_inserted(self, name: str, before_index: int, display_item: DisplayItem.DisplayItem) -> None:
-        display_item.about_to_be_inserted(self)
         self.notify_insert_item("display_items", display_item, before_index)
 
     def __display_item_removed(self, name: str, index: int, display_item: DisplayItem.DisplayItem) -> None:
-        display_item.about_to_be_removed()
         self.notify_remove_item("display_items", display_item, index)
 
     def __data_structure_inserted(self, name: str, before_index: int, data_structure: DataStructure.DataStructure) -> None:
-        data_structure.about_to_be_inserted(self)
         self.notify_insert_item("data_structures", data_structure, before_index)
 
     def __data_structure_removed(self, name: str, index: int, data_structure: DataStructure.DataStructure) -> None:
-        data_structure.about_to_be_removed()
         self.notify_remove_item("data_structures", data_structure, index)
 
     def __computation_inserted(self, name: str, before_index: int, computation: Symbolic.Computation) -> None:
-        computation.about_to_be_inserted(self)
         self.notify_insert_item("computations", computation, before_index)
 
     def __computation_removed(self, name: str, index: int, computation: Symbolic.Computation) -> None:
-        computation.about_to_be_removed()
         self.notify_remove_item("computations", computation, index)
 
     def __connection_inserted(self, name: str, before_index: int, connection: Connection.Connection) -> None:
-        connection.about_to_be_inserted(self)
         self.notify_insert_item("connections", connection, before_index)
 
     def __connection_removed(self, name: str, index: int, connection: Connection.Connection) -> None:
-        connection.about_to_be_removed()
         self.notify_remove_item("connections", connection, index)
 
     def _get_relationship_persistent_dict(self, item, key: str, index: int) -> typing.Dict:

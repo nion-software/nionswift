@@ -176,7 +176,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         super().__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
         self.large_format = large_format
-        self.__container_weak_ref = None
         self._document_model = None  # used only for Facade
         self.define_type("data-item")
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
@@ -240,9 +239,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__content_changed = False
         self.__suspendable_storage_cache = None
         self.r_var = None
-        self.about_to_be_removed_event = Event.Event()
         self.about_to_cascade_delete_event = Event.Event()
-        self._about_to_be_removed = False
         self._closed = False
         if data is not None:
             data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, timezone=self.timezone, timezone_offset=self.timezone_offset)
@@ -278,15 +275,9 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__source_proxy.close()
         self.__source_proxy = None
         self.__data_and_metadata = None
-        assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
-        self.__container_weak_ref = None
         super().close()
-
-    @property
-    def container(self):
-        return self.__container_weak_ref() if self.__container_weak_ref else None
 
     @property
     def project(self) -> "Project.Project":
@@ -303,23 +294,13 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.about_to_cascade_delete_event.fire(cascade_items)
         return cascade_items
 
-    def about_to_be_inserted(self, container):
-        assert self.__container_weak_ref is None
-        self.__container_weak_ref = weakref.ref(container)
-
-    def about_to_be_removed(self):
-        # called before close and before item is removed from its container
-        self.about_to_be_removed_event.fire()
-        assert not self._about_to_be_removed
-        self._about_to_be_removed = True
-
     def insert_model_item(self, container, name, before_index, item):
         """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
 
         Passing responsibility to this item's container allows the library to easily track dependencies.
         However, if this item isn't yet in the library hierarchy, then do the operation directly.
         """
-        if self.__container_weak_ref:
+        if self.container:
             self.container.insert_model_item(container, name, before_index, item)
         else:
             container.insert_item(name, before_index, item)
@@ -330,7 +311,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         Passing responsibility to this item's container allows the library to easily track dependencies.
         However, if this item isn't yet in the library hierarchy, then do the operation directly.
         """
-        if self.__container_weak_ref:
+        if self.container:
             return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
