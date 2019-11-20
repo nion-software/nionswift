@@ -240,7 +240,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__suspendable_storage_cache = None
         self.r_var = None
         self.about_to_cascade_delete_event = Event.Event()
-        self._closed = False
         if data is not None:
             data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, timezone=self.timezone, timezone_offset=self.timezone_offset)
             self.__set_data_metadata_direct(data_and_metadata)
@@ -275,8 +274,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__source_proxy.close()
         self.__source_proxy = None
         self.__data_and_metadata = None
-        assert not self._closed
-        self._closed = True
         super().close()
 
     @property

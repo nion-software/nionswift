@@ -191,8 +191,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.__projects_changed_event_listener = None
         for project in self.__projects:
             project.close()
-        for data_group in copy.copy(self.data_groups):
-            data_group.close()
         super().close()
 
     def insert_model_item(self, container, name, before_index, item):

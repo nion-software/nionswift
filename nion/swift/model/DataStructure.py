@@ -23,7 +23,6 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, *, structure_type: str=None, source=None):
         super().__init__()
         self.about_to_cascade_delete_event = Event.Event()
-        self._closed = False
         self.__properties = dict()
         self.__referenced_object_proxies = dict()
         self.define_type("data_structure")
@@ -41,8 +40,6 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         for referenced_proxy in self.__referenced_object_proxies.values():
             referenced_proxy.close()
         self.__referenced_object_proxies.clear()
-        assert not self._closed
-        self._closed = True
         super().close()
 
     def __getattr__(self, name):

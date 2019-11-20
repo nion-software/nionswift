@@ -99,11 +99,6 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         self.display_item_inserted_event = Event.Event()
         self.display_item_removed_event = Event.Event()
 
-    def close(self) -> None:
-        for data_group in copy.copy(self.data_groups):
-            data_group.close()
-        super().close()
-
     def __str__(self):
         return self.title
 

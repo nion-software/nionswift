@@ -57,11 +57,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def open(self) -> None:
         self.__storage_system.reset()  # this makes storage reusable during tests
 
-    def close(self):
-        for data_item in self.data_items:
-            data_item.close()
-        super().close()
-
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
         return self.container.create_item_proxy(item=self)
 

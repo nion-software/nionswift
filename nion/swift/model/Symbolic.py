@@ -1016,7 +1016,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, expression: str=None):
         super().__init__()
         self.about_to_cascade_delete_event = Event.Event()
-        self._closed = False
         self.define_type("computation")
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
         self.define_property("original_expression", expression)
@@ -1044,8 +1043,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def close(self) -> None:
         self.__source_proxy.close()
         self.__source_proxy = None
-        assert not self._closed
-        self._closed = True
         super().close()
 
     @property

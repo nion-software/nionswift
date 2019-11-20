@@ -30,7 +30,6 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, type, *, parent=None):
         super().__init__()
         self.about_to_cascade_delete_event = Event.Event()
-        self._closed = False
         self.define_type(type)
         self.define_property("parent_specifier", changed=self.__parent_specifier_changed, key="parent_uuid")
         self.__parent_proxy = self.create_item_proxy(item=parent)
@@ -39,8 +38,6 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
     def close(self) -> None:
         self.__parent_proxy.close()
         self.__parent_proxy = None
-        assert not self._closed
-        self._closed = True
         super().close()
 
     @property

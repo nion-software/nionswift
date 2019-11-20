@@ -409,7 +409,6 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.__data_item_description_changed_listener = None
 
         self.about_to_cascade_delete_event = Event.Event()
-        self._closed = False
 
         self.__last_data_item = None
 
@@ -435,8 +434,6 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.__data_item_proxy.close()
         self.__data_item_proxy = None
         self.__disconnect_data_item_events()
-        assert not self._closed
-        self._closed = True
         super().close()
 
     def __deepcopy__(self, memo):
@@ -851,7 +848,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.display_values_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
         self.about_to_cascade_delete_event = Event.Event()
-        self._closed = False
 
         def graphic_selection_changed():
             # relay the message
@@ -871,13 +867,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__graphic_selection_changed_event_listener = None
         for display_data_channel in copy.copy(self.display_data_channels):
             self.__disconnect_display_data_channel(display_data_channel, 0)
-            display_data_channel.close()
         for graphic in copy.copy(self.graphics):
             self.__disconnect_graphic(graphic, 0)
-            graphic.close()
         self.graphic_selection = None
-        assert not self._closed
-        self._closed = True
         super().close()
 
     def __copy__(self):
