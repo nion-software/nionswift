@@ -243,12 +243,10 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         # insert item in internal storage
         item.persistent_dict = item.write_to_dict()
         item.persistent_storage = self
-        item.persistent_object_context = parent.persistent_object_context
         self._insert_item(parent, name, before_index, item)
 
     def remove_item(self, parent, name: str, index: int, item) -> None:
         self._remove_item(parent, name, index, item)
-        item.persistent_object_context = None
         item.persistent_dict = None
         item.persistent_storage = None
 
@@ -275,12 +273,10 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
                 item.persistent_dict = item.write_to_dict()
                 item.persistent_storage = self
                 storage_dict[name] = item.persistent_dict
-            item.persistent_object_context = parent.persistent_object_context
         else:
             # clear the item
             with self.__properties_lock:
                 storage_dict.pop(name, None)
-                item.persistent_object_context = None
                 item.persistent_dict = None
                 item.persistent_storage = None
         self.__write_properties_if_not_delayed(parent)
