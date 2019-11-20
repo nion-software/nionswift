@@ -59,10 +59,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
     def close(self):
         for data_item in self.data_items:
-            data_item.about_to_close()
-        for data_item in self.data_items:
-            data_item.about_to_be_removed()
-        for data_item in self.data_items:
             data_item.close()
         super().close()
 

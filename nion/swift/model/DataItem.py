@@ -286,9 +286,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
         return self.project.create_item_proxy(item=self)
 
-    def about_to_close(self):
-        pass
-
     def prepare_cascade_delete(self) -> typing.List:
         cascade_items = list()
         self.about_to_cascade_delete_event.fire(cascade_items)
