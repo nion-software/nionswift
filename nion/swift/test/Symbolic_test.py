@@ -338,6 +338,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation.create_input_item("a", Symbolic.make_item(data_item))
             data_node_dict = computation.write_to_dict()
             data_node_dict["uuid"] = str(uuid.uuid4())
+            data_node_dict["variables"][0]["uuid"] = str(uuid.uuid4())
             computation2 = document_model.create_computation()
             computation2.read_from_dict(data_node_dict)
             computation2.needs_update = True
@@ -861,6 +862,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation.create_input_item("a", Symbolic.make_item(display_data_channel))
             data_node_dict = computation.write_to_dict()
             data_node_dict["uuid"] = str(uuid.uuid4())
+            data_node_dict["variables"][0]["uuid"] = str(uuid.uuid4())
             computation2 = document_model.create_computation()
             computation2.read_from_dict(data_node_dict)
             computation2.needs_update = True
@@ -972,6 +974,8 @@ class TestSymbolicClass(unittest.TestCase):
             computation.create_input_item("a", Symbolic.make_item(data_item))
             d = computation.write_to_dict()
             d["uuid"] = str(uuid.uuid4())
+            d["variables"][0]["uuid"] = str(uuid.uuid4())
+            d["variables"][1]["uuid"] = str(uuid.uuid4())
             computation2 = document_model.create_computation()
             computation2.read_from_dict(d)
             computation2.needs_update = True
@@ -1035,6 +1039,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(computation).data, src_data + 5))
             d = computation.write_to_dict()
             d["uuid"] = str(uuid.uuid4())
+            d["variables"][0]["uuid"] = str(uuid.uuid4())
+            d["variables"][1]["uuid"] = str(uuid.uuid4())
             read_computation = document_model.create_computation()
             read_computation.read_from_dict(d)
             read_computation.needs_update = True
@@ -1168,6 +1174,8 @@ class TestSymbolicClass(unittest.TestCase):
             computation.create_input_item("a", Symbolic.make_item(data_item))
             d = computation.write_to_dict()
             d["uuid"] = str(uuid.uuid4())
+            d["variables"][0]["uuid"] = str(uuid.uuid4())
+            d["variables"][1]["uuid"] = str(uuid.uuid4())
             computation2 = document_model.create_computation()
             computation2.read_from_dict(d)
             computation2.needs_update = True
