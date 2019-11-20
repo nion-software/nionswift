@@ -183,14 +183,23 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             project.open()
         self.__document_model = document_model
 
+    def about_to_be_removed(self, container):
+        for project in self.__projects:
+            project.about_to_be_removed(self)
+        super().about_to_be_removed(container)
+
+    def close_relationships(self) -> None:
+        for project in self.__projects:
+            project.persistent_object_context = None
+            project.close()
+        super().close_relationships()
+
     def close(self):
         # detach project listeners
         self.__projects_selection_changed_event_listener.close()
         self.__projects_selection_changed_event_listener = None
         self.__projects_changed_event_listener.close()
         self.__projects_changed_event_listener = None
-        for project in self.__projects:
-            project.close()
         super().close()
 
     def insert_model_item(self, container, name, before_index, item):

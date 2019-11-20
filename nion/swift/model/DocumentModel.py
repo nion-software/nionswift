@@ -677,6 +677,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__project_removed_event_listener.close()
         self.__project_removed_event_listener = None
 
+        self.__profile.about_to_be_removed(self)
         self.__profile.close()
         self.__profile = None
 
