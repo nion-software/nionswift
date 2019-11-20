@@ -911,14 +911,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.about_to_cascade_delete_event.fire(cascade_items)
         return cascade_items
 
-    def about_to_be_removed(self):
-        # called before close and before item is removed from its container
-        for display_data_channel in self.display_data_channels:
-            display_data_channel.about_to_be_removed()
-        for graphic in self.graphics:
-            graphic.about_to_be_removed()
-        super().about_to_be_removed()
-
     def insert_model_item(self, container, name, before_index, item):
         """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
 
