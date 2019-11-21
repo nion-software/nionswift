@@ -176,6 +176,11 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem",
 
     assert library_properties["version"] == PROJECT_VERSION
 
+    # propagate the UUID
+    source_library_properties = source_project_storage_system.get_storage_properties()
+    if "uuid" in source_library_properties:
+        library_properties["uuid"] = source_library_properties["uuid"]
+
     target_project_storage_system._migrate_library_properties(library_properties, reader_info_list)
 
 
@@ -638,6 +643,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                     if project_data_path.parent == self.__project_path.parent:
                         project_data_path = project_data_path.relative_to(project_data_path.parent)
                     project_data_paths.append(project_data_path)
+                project_uuid = uuid.uuid4()
+                properties.setdefault("uuid", str(project_uuid))
                 properties["project_data_folders"] = [str(project_data_path) for project_data_path in project_data_paths]
                 json.dump(properties, fp)
             os.replace(temp_filepath, self.__project_path)
@@ -952,7 +959,7 @@ def make_storage_system(profile_context, d: typing.Dict) -> typing.Optional[Proj
     elif d.get("type") == "memory":
         storage_system_uuid = uuid.UUID(d.get("uuid"))
         # the profile context must be valid here.
-        new_project_properties = profile_context.x_project_properties.setdefault(storage_system_uuid, {"version": PROJECT_VERSION})
+        new_project_properties = profile_context.x_project_properties.setdefault(storage_system_uuid, {"version": PROJECT_VERSION, "uuid": str(storage_system_uuid)})
         new_data_properties_map = profile_context.x_data_properties_map.setdefault(storage_system_uuid, dict())
         new_data_map = profile_context.x_data_map.setdefault(storage_system_uuid, dict())
         new_trash_map = profile_context.x_trash_map.setdefault(storage_system_uuid, dict())

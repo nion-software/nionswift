@@ -37,6 +37,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystem, project_reference: typing.Dict):
         super().__init__()
 
+        self.uuid = uuid.UUID(project_reference["uuid"])
+
         self.define_type("project")
         self.define_relationship("data_items", data_item_factory, insert=self.__data_item_inserted, remove=self.__data_item_removed)
         self.define_relationship("display_items", display_item_factory, insert=self.__display_item_inserted, remove=self.__display_item_removed)
@@ -199,12 +201,18 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         else:
             return super()._get_relationship_persistent_dict_by_uuid(item, key)
 
-    def read_project(self) -> None:
-        # first read the library (for deletions) and the library items from the primary storage systems
+    def prepare_read_project(self) -> None:
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")
-        properties = self.__storage_system.read_project_properties()  # combines library and data item properties
+        self._raw_properties = self.__storage_system.read_project_properties()  # combines library and data item properties
+        self.project_uuid_str = self._raw_properties["uuid"]
+        self.uuid = uuid.UUID(self.project_uuid_str)
+
+    def read_project(self) -> None:
+        properties = self._raw_properties
         self.__project_version = properties.get("version", None)
-        if self.__project_version is not None and self.__project_version in (FileStorageSystem.PROJECT_VERSION, 2):
+        if self.project_reference["uuid"] != self.project_uuid_str:
+            self.__project_state = "uuid_mismatch"
+        elif self.__project_version is not None and self.__project_version in (FileStorageSystem.PROJECT_VERSION, 2):
             for item_d in properties.get("data_items", list()):
                 data_item = DataItem.DataItem()
                 data_item.begin_reading()
@@ -247,7 +255,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             self.__project_state = "needs_upgrade"
         else:
             self.__project_state = "missing"
-        self._raw_properties = properties
 
     def append_data_item(self, data_item: DataItem.DataItem) -> None:
         assert data_item.uuid not in {data_item.uuid for data_item in self.data_items}
@@ -308,6 +315,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.__storage_system.migrate_to_latest()
         self.__storage_system.load_properties()
         self.update_storage_system()  # reload the properties
+        self.prepare_read_project()
         self.read_project()
 
     def unmount(self) -> None:

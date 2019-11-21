@@ -275,14 +275,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         # create project objects for each project reference
         for project_reference in self.project_references:
-            # note: project context is passed for use during testing
-            project = Project.make_project(self.profile_context, project_reference)
-            if project:
-                self.__append_project(project_reference["uuid"], project)
-
-    def read_projects(self) -> None:
-        for project in self.__projects:
-            project.read_project()
+            self.read_project(project_reference)
 
         # attempt to establish existing work project
         if self.work_project_reference_uuid:
@@ -301,19 +294,18 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
                     suffix = f" {datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
                     project_path =  project_path.parent / f"Work{suffix}.nsproj"
                 logging.getLogger("loader").warning(f"Created work project {project_path.parent / project_path.stem}")
-                project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": [f"Work Data{suffix}"]})
+                project_uuid = uuid.uuid4()
+                project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": [f"Work Data{suffix}"]})
                 project_path.write_text(project_data_json, "utf-8")
-                return {"type": "project_index", "uuid": str(uuid.uuid4()), "project_path": str(project_path)}
+                return {"type": "project_index", "uuid": str(project_uuid), "project_path": str(project_path)}
 
             project_path = self.storage_system.path
             work_project_reference = create_work_project_files(project_path)
 
             if work_project_reference:
-                project = Project.make_project(self.profile_context, work_project_reference)
+                project = self.read_project(work_project_reference)
                 if project:
                     self.add_project_reference(work_project_reference)
-                    self.__append_project(work_project_reference["uuid"], project)
-                    project.read_project()
                     self.work_project_reference_uuid = uuid.UUID(work_project_reference["uuid"])
                     self.__work_project = project
 
@@ -325,14 +317,13 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         project_data_path = pathlib.Path(library_name + " Data")
         project_path = project_dir / project_name.with_suffix(".nsproj")
         project_dir.mkdir(parents=True, exist_ok=True)
-        project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": [str(project_data_path)]})
+        project_uuid = uuid.uuid4()
+        project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": [str(project_data_path)]})
         project_path.write_text(project_data_json, "utf-8")
-        project_reference = {"type": "project_index", "uuid": str(uuid.uuid4()), "project_path": str(project_path)}
-        project = Project.make_project(self.profile_context, project_reference)
+        project_reference = {"type": "project_index", "uuid": str(project_uuid), "project_path": str(project_path)}
+        project = self.read_project(project_reference)
         if project:
             self.add_project_reference(project_reference)
-            self.__append_project(project_reference["uuid"], project)
-            project.read_project()
 
     def open_project(self, path: pathlib.Path) -> None:
         project_reference = None
@@ -340,11 +331,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             project_reference = self.add_project_folder(pathlib.Path(path.parent))
         elif path.suffix == ".nsproj":
             project_reference = self.add_project_index(path)
-        if project_reference:
-            project = Project.make_project(self.profile_context, project_reference)
-            if project:
-                self.__append_project(project_reference["uuid"], project)
-                project.read_project()
+        self.read_project(project_reference)
 
     def upgrade_project(self, project: Project) -> None:
         assert project in self.__projects
@@ -353,17 +340,25 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             target_project_path = legacy_path.with_suffix(".nsproj")
             target_data_path = legacy_path.parent / (str(legacy_path.stem) + " Data")
             logging.getLogger("loader").info(f"Created new project {target_project_path} {target_data_path}")
-            target_project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": [str(target_data_path.stem)]})
+            target_project_uuid = uuid.uuid4()
+            target_project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(target_project_uuid), "project_data_folders": [str(target_data_path.stem)]})
             target_project_path.write_text(target_project_data_json, "utf-8")
             new_storage_system = FileStorageSystem.FileProjectStorageSystem(target_project_path)
             new_storage_system.load_properties()
             FileStorageSystem.migrate_to_latest(project.project_storage_system, new_storage_system)
             self.remove_project(project)
-            project_reference = self.add_project_index(target_project_path)
-            new_project = Project.make_project(self.profile_context, project_reference)
-            if new_project:
-                self.__append_project(project_reference["uuid"], new_project)
-                new_project.read_project()
+            self.read_project(self.add_project_index(target_project_path))
+
+    def read_project(self, project_reference: typing.Dict) -> typing.Optional[Project.Project]:
+        if project_reference:
+            # note: project context is passed for use during testing
+            project = Project.make_project(self.profile_context, project_reference)
+            if project:
+                project.prepare_read_project()
+                self.__append_project(project)
+                project.read_project()
+            return project
+        return None
 
     def remove_project(self, project: Project) -> None:
         if project in self.__projects and project != self.work_project:
@@ -442,7 +437,11 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
     def add_project_index(self, project_path: pathlib.Path) -> typing.Dict:
         # add a project reference for the project index. does not create or add project.
         # must be called before read_projects, where project will be created.
-        project_reference = {"type": "project_index", "uuid": str(uuid.uuid4()), "project_path": str(project_path)}
+        # note: this is an extra "read" of the project that might be avoid through revision of flow in the future
+        storage_system = FileStorageSystem.FilePersistentStorageSystem(project_path)
+        storage_system.load_properties()
+        project_uuid_str = storage_system.get_storage_properties()["uuid"]
+        project_reference = {"type": "project_index", "uuid": project_uuid_str, "project_path": str(project_path)}
         self.add_project_reference(project_reference)
         return project_reference
 
@@ -460,12 +459,11 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.add_project_reference(project_reference)
         return project_reference
 
-    def __append_project(self, project_uuid_str: str, project: Project.Project) -> None:
+    def __append_project(self, project: Project.Project) -> None:
         self.update_item_context(project)
         project.about_to_be_inserted(self)
         project_index = len(self.__projects)
         self.__projects.append(project)
-        project.project_uuid_str = project_uuid_str
         self.projects_model.value = copy.copy(self.__projects)
         self.project_inserted_event.fire(project, project_index)
 
@@ -496,10 +494,19 @@ class MemoryProfileContext:
         self._test_data_read_event = Event.Event()
         self.__profile = None
 
+    def reset_profile(self):
+        self.__profile = None
+        self.profile_properties.clear()
+        self.project_uuid = None
+        self.project_properties = None
+        self.data_properties_map = None
+        self.data_map = None
+        self.trash_map = None
+
     def create_legacy_project(self) -> None:
         """Create a legacy project."""
         self.project_uuid = uuid.uuid4()
-        self.project_properties = self.x_project_properties[self.project_uuid] = dict()
+        self.project_properties = self.x_project_properties[self.project_uuid] = {"uuid": str(self.project_uuid)}
         self.data_properties_map = self.x_data_properties_map[self.project_uuid] = dict()
         self.data_map = self.x_data_map[self.project_uuid] = dict()
         self.trash_map = self.x_trash_map[self.project_uuid] = dict()
@@ -512,8 +519,8 @@ class MemoryProfileContext:
             profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
             profile.storage_system = storage_system
             profile.profile_context = self
-            project_reference_uuid = uuid.UUID(profile.add_project_memory(self.project_uuid)["uuid"])
-            profile.work_project_reference_uuid = project_reference_uuid
+            self.project_uuid = uuid.UUID(profile.add_project_memory(self.project_uuid)["uuid"])
+            profile.work_project_reference_uuid = self.project_uuid
             self.__profile = profile
             return profile
         else:

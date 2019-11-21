@@ -145,6 +145,7 @@ class TestProjectClass(unittest.TestCase):
             profile_context.x_data_properties_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_properties_map[project_keys[0]])
             profile_context.x_data_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_map[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]] = copy.deepcopy(profile_context.x_project_properties[project_keys[0]])
+            profile_context.x_project_properties[project_keys[1]]["uuid"] = str(project_keys[1])
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 self.assertEqual(2, len(document_model.profile.projects))
@@ -170,6 +171,7 @@ class TestProjectClass(unittest.TestCase):
             profile_context.x_data_properties_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_properties_map[project_keys[0]])
             profile_context.x_data_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_map[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]] = copy.deepcopy(profile_context.x_project_properties[project_keys[0]])
+            profile_context.x_project_properties[project_keys[1]]["uuid"] = str(project_keys[1])
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 project0 = document_model.profile.projects[0]
@@ -198,6 +200,7 @@ class TestProjectClass(unittest.TestCase):
             profile_context.x_data_properties_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_properties_map[project_keys[0]])
             profile_context.x_data_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_map[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]] = copy.deepcopy(profile_context.x_project_properties[project_keys[0]])
+            profile_context.x_project_properties[project_keys[1]]["uuid"] = str(project_keys[1])
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 project0 = document_model.profile.projects[0]
@@ -227,6 +230,7 @@ class TestProjectClass(unittest.TestCase):
             profile_context.x_data_properties_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_properties_map[project_keys[0]])
             profile_context.x_data_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_map[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]] = copy.deepcopy(profile_context.x_project_properties[project_keys[0]])
+            profile_context.x_project_properties[project_keys[1]]["uuid"] = str(project_keys[1])
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 project0 = document_model.profile.projects[0]
@@ -252,6 +256,7 @@ class TestProjectClass(unittest.TestCase):
             profile_context.x_data_properties_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_properties_map[project_keys[0]])
             profile_context.x_data_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_map[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]] = copy.deepcopy(profile_context.x_project_properties[project_keys[0]])
+            profile_context.x_project_properties[project_keys[1]]["uuid"] = str(project_keys[1])
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 project0 = document_model.profile.projects[0]
@@ -297,6 +302,7 @@ class TestProjectClass(unittest.TestCase):
             profile_context.x_data_properties_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_properties_map[project_keys[0]])
             profile_context.x_data_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_map[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]] = copy.deepcopy(profile_context.x_project_properties[project_keys[0]])
+            profile_context.x_project_properties[project_keys[1]]["uuid"] = str(project_keys[1])
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 project0 = document_model.profile.projects[0]
@@ -379,3 +385,51 @@ class TestProjectClass(unittest.TestCase):
                 self.assertEqual(1, len(profile.projects[1].computations))
                 self.assertEqual(data_item0, list(profile.projects[0].computations[0].input_items)[0])
                 self.assertEqual(data_item1, list(profile.projects[1].computations[0].input_items)[0])
+
+    def test_project_reloads_with_same_uuid(self):
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+                project_uuid = document_model.profile.projects[0].uuid
+                project_specifier = document_model.profile.projects[0].item_specifier
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                self.assertEqual(project_uuid, document_model.profile.projects[0].uuid)
+                self.assertEqual(document_model.profile.projects[0], document_model.profile.persistent_object_context.get_registered_object(project_specifier))
+
+    def test_memory_project_opens_with_same_uuid(self):
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+                project_uuid = document_model.profile.projects[0].uuid
+                project_specifier = document_model.profile.projects[0].item_specifier
+            profile_context.reset_profile()
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                document_model.profile.read_project(document_model.profile.add_project_memory(project_uuid))
+                self.assertEqual(project_uuid, document_model.profile.projects[1].uuid)
+                self.assertEqual(document_model.profile.projects[1], document_model.profile.persistent_object_context.get_registered_object(project_specifier))
+
+    def test_memory_project_with_wrong_uuid_does_not_load(self):
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+                project_uuid = document_model.profile.projects[0].uuid
+            profile_context.project_properties["uuid"] = str(uuid.uuid4())
+            profile_context.reset_profile()
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                document_model.profile.read_project(document_model.profile.add_project_memory(project_uuid))
+                self.assertEqual(2, len(document_model.profile.projects))
+                self.assertEqual(0, len(document_model.profile.projects[1].data_items))
+
+    # do not import same project (by uuid) twice

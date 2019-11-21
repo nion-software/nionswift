@@ -580,7 +580,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.session_id = None
         self.start_new_session()
         self.__profile.read_profile()
-        self.__profile.read_projects()
         self.__prune()
 
         def resolve_display_item_specifier(display_item_specifier_d: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:

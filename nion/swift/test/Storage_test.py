@@ -71,7 +71,7 @@ class TempProfileContext:
             profile_json = json.dumps({"version": FileStorageSystem.PROFILE_VERSION, "uuid": str(uuid.uuid4())})
             profile_path.write_text(profile_json, "utf-8")
             project_path = self.projects_dir / pathlib.Path(project_name or "Project").with_suffix(".nsproj")
-            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": ["Data"]})
+            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": [project_data_name or "Data"]})
             project_path.write_text(project_data_json, "utf-8")
             cache_path = self.profiles_dir / "ProfileCache.cache"
             storage_cache = Cache.DbStorageCache(cache_path)
@@ -81,7 +81,8 @@ class TempProfileContext:
             profile.add_project_index(project_path)
             profile.storage_cache = storage_cache
             profile.storage_system = storage_system
-            profile.work_project_reference_uuid = uuid.UUID(profile.project_references[0].get("uuid"))
+            project_uuid = uuid.UUID(profile.project_references[0].get("uuid"))
+            profile.work_project_reference_uuid = project_uuid
             self.__profile = profile
             return profile
         else:
@@ -94,6 +95,9 @@ class TempProfileContext:
             profile.storage_cache = storage_cache
             profile.storage_system = storage_system
             return profile
+
+    def reset_profile(self):
+        self.__profile = None
 
     @property
     def _file_handlers(self):
@@ -3227,7 +3231,6 @@ class TestStorageClass(unittest.TestCase):
             data_item.title = "Title"
             profile = profile_context.create_profile()
             profile.read_profile()
-            profile.read_projects()
             with contextlib.closing(profile):
                 handler = profile.projects[0].project_storage_system._make_storage_handler(data_item)
                 handler.write_properties(data_item.write_to_dict(), datetime.datetime.utcnow())
@@ -4097,6 +4100,23 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
             # confirm a new work project was created
             self.assertNotEqual(work_project_path, pathlib.Path(profile.work_project.project_reference["project_path"]))
+
+    def test_file_project_opens_with_same_uuid(self):
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile(project_name="Project2", project_data_name="Data2")
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+                project_uuid = document_model.profile.projects[0].uuid
+                project_specifier = document_model.profile.projects[0].item_specifier
+                project_path = pathlib.Path(document_model.profile.projects[0].project_reference["project_path"])
+            profile_context.reset_profile()
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                document_model.profile.read_project(document_model.profile.add_project_index(project_path))
+                self.assertEqual(project_uuid, document_model.profile.projects[1].uuid)
+                self.assertEqual(document_model.profile.projects[1], document_model.profile.persistent_object_context.get_registered_object(project_specifier))
 
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
