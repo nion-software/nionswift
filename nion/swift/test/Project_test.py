@@ -432,4 +432,32 @@ class TestProjectClass(unittest.TestCase):
                 self.assertEqual(2, len(document_model.profile.projects))
                 self.assertEqual(0, len(document_model.profile.projects[1].data_items))
 
+    def test_partial_uuid_is_not_bound_to_items_in_another_project(self):
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.add_project_memory()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            item_uuid_0_src = uuid.uuid4()
+            item_uuid_0_dst = uuid.uuid4()
+            item_uuid_1_src = uuid.uuid4()
+            item_uuid_1_dst = uuid.uuid4()
+            with contextlib.closing(document_model):
+                data_item_0_src = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid_0_src)
+                data_item_0_dst = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid_0_dst)
+                data_item_1_src = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid_1_src)
+                data_item_1_dst = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid_1_dst)
+                document_model.append_data_item(data_item_0_src, project=profile.projects[0])
+                document_model.append_data_item(data_item_0_dst, project=profile.projects[0])
+                data_item_0_dst.source = data_item_0_src
+                document_model.append_data_item(data_item_1_src, project=profile.projects[1])
+                document_model.append_data_item(data_item_1_dst, project=profile.projects[1])
+                data_item_1_dst.source = data_item_1_src
+            # make the source in first project point to the data item in the other project. should not load.
+            list(profile_context.x_data_properties_map.values())[0][str(item_uuid_0_dst)]["source_uuid"] = str(item_uuid_1_dst)
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                self.assertEqual(4, len(document_model.data_items))
+                self.assertIsNone(document_model.data_items[1].source)
+                self.assertEqual(document_model.data_items[3].source.project, document_model.data_items[3].project)
+
     # do not import same project (by uuid) twice

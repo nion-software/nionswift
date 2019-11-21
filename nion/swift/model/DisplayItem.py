@@ -458,6 +458,10 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
         return self.project.create_item_proxy(item=self)
 
+    @property
+    def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
+        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
+
     def prepare_cascade_delete(self) -> typing.List:
         cascade_items = list()
         self.about_to_cascade_delete_event.fire(cascade_items)
@@ -902,6 +906,10 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
         return self.project.create_item_proxy(item=self)
+
+    @property
+    def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
+        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
 
     def about_to_close(self):
         self.__disconnect_data_sources()

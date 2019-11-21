@@ -110,6 +110,10 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
         return self.profile.create_item_proxy(item=self)
 
+    @property
+    def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
+        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.profile.uuid)
+
     def __validate_title(self, value):
         return str(value) if value is not None else str()
 

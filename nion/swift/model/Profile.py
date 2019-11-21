@@ -225,6 +225,26 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             container.remove_item(name, item)
             return Changes.UndeleteLog()
 
+    def _get_related_item(self, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[Persistence.PersistentObject]:
+
+        def check_data_group(data_group: DataGroup.DataGroup, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[DataGroup.DataGroup]:
+            for data_group in data_group.data_groups:
+                if data_group.uuid == item_specifier.item_uuid:
+                    return data_group
+                matching_data_group = check_data_group(data_group, item_specifier)
+                if matching_data_group:
+                    return matching_data_group
+            return None
+
+        for data_group in self.data_groups:
+            if data_group.uuid == item_specifier.item_uuid:
+                return data_group
+            matching_data_group = check_data_group(data_group, item_specifier)
+            if matching_data_group:
+                return matching_data_group
+
+        return super()._get_related_item(item_specifier)
+
     def transaction_context(self):
         """Return a context object for a document-wide transaction."""
         class Transaction:

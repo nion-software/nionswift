@@ -62,6 +62,10 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
         return self.container.create_item_proxy(item=self)
 
+    @property
+    def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
+        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
+
     def create_specifier(self, item: Persistence.PersistentObject, *, allow_partial: bool = True) -> Persistence.PersistentObjectSpecifier:
         if item.project == self and allow_partial:
             return Persistence.PersistentObjectSpecifier(item=item)
@@ -101,6 +105,9 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             for display_data_channel in display_item.display_data_channels:
                 if display_data_channel.uuid == item_specifier.item_uuid:
                     return display_data_channel
+            for graphic in display_item.graphics:
+                if graphic.uuid == item_specifier.item_uuid:
+                    return graphic
         for connection in self.connections:
             if connection.uuid == item_specifier.item_uuid:
                 return connection
