@@ -4173,6 +4173,27 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual("loaded", document_model.profile.projects[0].project_state)
                 self.assertEqual("missing", document_model.profile.projects[1].project_state)
 
+    def test_data_item_variable_reloads(self):
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.add_project_memory()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            item_uuid = uuid.uuid4()
+            with contextlib.closing(document_model):
+                data_item0 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid)
+                document_model.append_data_item(data_item0, project=profile.projects[0])
+                data_item1 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid)
+                document_model.append_data_item(data_item1, project=profile.projects[1])
+                key0 = document_model.assign_variable_to_data_item(data_item0)
+                key1 = document_model.assign_variable_to_data_item(data_item1)
+                self.assertEqual(key0, document_model.data_items[0].r_var)
+                self.assertEqual(key1, document_model.data_items[1].r_var)
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                variable_to_data_item_map = document_model.variable_to_data_item_map()
+                self.assertEqual(key0, document_model.data_items[0].r_var)
+                self.assertEqual(key1, document_model.data_items[1].r_var)
+
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
         document_model = DocumentModel.DocumentModel()

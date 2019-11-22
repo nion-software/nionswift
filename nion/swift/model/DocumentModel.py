@@ -587,6 +587,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for key, data_item_specifier in data_item_references.items():
             self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, profile.work_project, Persistence.PersistentObjectSpecifier.read(data_item_specifier)))
 
+        # handle the reference variable assignments
+        data_item_variables = self.profile._get_persistent_property_value("data_item_variables")
+        new_data_item_variables = dict()
+        for r_var, data_item_specifier_d in data_item_variables.items():
+            data_item_proxy = self.profile.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(data_item_specifier_d))
+            data_item = typing.cast(DataItem.DataItem, data_item_proxy.item) if data_item_proxy.item else None
+            if data_item:
+                new_data_item_variables[r_var] = data_item.item_specifier.write()
+                data_item.set_r_value(r_var, notify_changed=False)
+        self.profile._set_persistent_property_value("data_item_variables", new_data_item_variables)
+
         def resolve_display_item_specifier(display_item_specifier_d: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:
             display_item_specifier = Persistence.PersistentObjectSpecifier.read(display_item_specifier_d)
             display_item_proxy = self.profile.work_project.create_item_proxy(item_specifier=display_item_specifier)
