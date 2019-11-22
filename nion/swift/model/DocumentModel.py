@@ -582,6 +582,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__profile.read_profile()
         self.__prune()
 
+        # update the data item references
+        data_item_references = self.__profile.data_item_references
+        for key, data_item_specifier in data_item_references.items():
+            self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, profile.work_project, Persistence.PersistentObjectSpecifier.read(data_item_specifier)))
+
         def resolve_display_item_specifier(display_item_specifier_d: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:
             display_item_specifier = Persistence.PersistentObjectSpecifier.read(display_item_specifier_d)
             display_item_proxy = self.profile.work_project.create_item_proxy(item_specifier=display_item_specifier)
@@ -809,10 +814,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         data_item._document_model = self
         data_item.set_session_manager(self)
         self.notify_insert_item("data_items", data_item, before_index)
-        # update the data item references
-        data_item_references = self.__profile.data_item_references
-        for key, data_item_uuid in data_item_references.items():
-            self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, project, data_item_uuid))
         self.__rebind_computations()  # rebind any unresolved that may now be resolved
         self.__transaction_manager._add_item(data_item)
 
@@ -1558,10 +1559,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         This class will also track when the data item is deleted and handle it appropriately if it
         happens while the acquisition thread is using it.
         """
-        def __init__(self, document_model: "DocumentModel", key: str, project: Project.Project, data_item_uuid: uuid.UUID=None):
+        def __init__(self, document_model: "DocumentModel", key: str, project: Project.Project, data_item_specifier: Persistence.PersistentObjectSpecifier=None):
             self.__document_model = document_model
             self.__key = key
-            self.__data_item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(data_item_uuid))
+            self.__data_item_proxy = project.create_item_proxy(item_specifier=data_item_specifier)
             self.__starts = 0
             self.__pending_starts = 0
             self.__data_item_transaction = None
@@ -1732,6 +1733,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def setup_channel(self, data_item_reference_key: str, data_item: DataItem.DataItem) -> None:
         data_item_reference = self.get_data_item_reference(data_item_reference_key)
         data_item_reference.data_item = data_item
+        self._update_data_item_reference(data_item_reference_key, data_item)
 
     def __construct_data_item_reference(self, hardware_source: HardwareSource.HardwareSource, data_channel: HardwareSource.DataChannel):
         """Construct a data item reference.

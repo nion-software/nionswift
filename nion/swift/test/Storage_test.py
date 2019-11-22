@@ -3278,6 +3278,39 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.get_data_item_reference("key").data_item, document_model.data_items[0])
 
+    def test_data_reference_is_reloaded(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                self.assertEqual(len(document_model.data_items), 0)
+                data_item = DataItem.DataItem(numpy.zeros((256, 256)))
+                document_model.append_data_item(data_item)
+                document_model.setup_channel("key", data_item)
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                self.assertEqual(document_model.data_items[0], document_model.get_data_item_reference('key').data_item)
+
+    def test_data_reference_is_reloaded_with_multiple_projects(self):
+        # test a data item reference pointing to a data item in the non-initial project that gets reloaded
+        # resolves its reference.
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.add_project_memory()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                profile.set_work_project(profile.projects[1])
+                self.assertEqual(len(document_model.data_items), 0)
+                data_item = DataItem.DataItem(numpy.zeros((256, 256)))
+                document_model.append_data_item(data_item, project=profile.projects[0])
+                data_item = DataItem.DataItem(numpy.zeros((256, 256)))
+                document_model.append_data_item(data_item, project=profile.projects[1])
+                document_model.setup_channel("key", data_item)
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                self.assertEqual(document_model.data_items[1], document_model.get_data_item_reference('key').data_item)
+
     def test_data_item_with_connected_crop_region_should_not_update_modification_when_loading(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         with create_memory_profile_context() as profile_context:

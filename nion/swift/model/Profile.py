@@ -432,17 +432,17 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def data_item_references(self) -> typing.Dict[str, uuid.UUID]:
-        return {k: uuid.UUID(v) for k, v in self._get_persistent_property_value("data_item_references").items()}
+        return {k: v for k, v in self._get_persistent_property_value("data_item_references").items()}
 
     def set_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
         data_item_references = self.data_item_references
-        data_item_references[key] = data_item.uuid
-        self._set_persistent_property_value("data_item_references", {k: str(v) for k, v in data_item_references.items()})
+        data_item_references[key] = data_item.item_specifier.write()
+        self._set_persistent_property_value("data_item_references", {k: v for k, v in data_item_references.items()})
 
     def clear_data_item_reference(self, key: str) -> None:
         data_item_references = self.data_item_references
         del data_item_references[key]
-        self._set_persistent_property_value("data_item_references", {k: str(v) for k, v in data_item_references.items()})
+        self._set_persistent_property_value("data_item_references", {k: v for k, v in data_item_references.items()})
 
     def add_project_reference(self, project_reference: typing.Dict) -> None:
         assert "type" in project_reference
