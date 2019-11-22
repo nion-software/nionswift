@@ -211,13 +211,15 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def prepare_read_project(self) -> None:
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")
         self._raw_properties = self.__storage_system.read_project_properties()  # combines library and data item properties
-        self.project_uuid_str = self._raw_properties["uuid"]
+        self.project_uuid_str = self._raw_properties.get("uuid", str(uuid.uuid4()))
         self.uuid = uuid.UUID(self.project_uuid_str)
 
     def read_project(self) -> None:
         properties = self._raw_properties
         self.__project_version = properties.get("version", None)
-        if self.project_reference["uuid"] != self.project_uuid_str:
+        if not self._raw_properties:
+            self.__project_state = "missing"
+        elif self.project_reference["uuid"] != self.project_uuid_str:
             self.__project_state = "uuid_mismatch"
         elif self.__project_version is not None and self.__project_version in (FileStorageSystem.PROJECT_VERSION, 2):
             for item_d in properties.get("data_items", list()):

@@ -4151,6 +4151,28 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(project_uuid, document_model.profile.projects[1].uuid)
                 self.assertEqual(document_model.profile.projects[1], document_model.profile.persistent_object_context.get_registered_object(project_specifier))
 
+    def test_missing_project_does_not_prevent_other_projects_from_loading(self):
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            # create a 2nd project
+            project_path = profile_context.projects_dir / pathlib.Path("Project2").with_suffix(".nsproj")
+            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": ["Data2"]})
+            project_path.write_text(project_data_json, "utf-8")
+            profile.add_project_index(project_path)
+            # first load document normally
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            with contextlib.closing(document_model):
+                self.assertEqual(2, len(document_model.profile.projects))
+                self.assertEqual("loaded", document_model.profile.projects[0].project_state)
+                self.assertEqual("loaded", document_model.profile.projects[1].project_state)
+            # now load with missing 2nd project
+            project_path.unlink()
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                self.assertEqual(2, len(document_model.profile.projects))
+                self.assertEqual("loaded", document_model.profile.projects[0].project_state)
+                self.assertEqual("missing", document_model.profile.projects[1].project_state)
+
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
         document_model = DocumentModel.DocumentModel()
