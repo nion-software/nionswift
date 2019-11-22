@@ -2437,9 +2437,11 @@ class Library(metaclass=SharedInstance):
         Status: Provisional
         Scriptable: Yes
         """
-        data_item_specifier = Persistence.PersistentObjectSpecifier(item_uuid=data_item_uuid)
-        with contextlib.closing(self._document_model.profile.work_project.create_item_proxy(item_specifier=data_item_specifier)) as data_item_proxy:
-            return DataItem(typing.cast(DataItemModule.DataItem, data_item_proxy.item)) if data_item_proxy.item else None
+        data_items = list()
+        for data_item in self._document_model.data_items:
+            if data_item.uuid == data_item_uuid:
+                data_items.append(data_item)
+        return DataItem(data_items[0]) if len(data_items) == 1 else None
 
     def get_graphic_by_uuid(self, graphic_uuid: uuid_module.UUID) -> Graphic:
         """Get the graphic with the given UUID.
@@ -2449,11 +2451,12 @@ class Library(metaclass=SharedInstance):
         Status: Provisional
         Scriptable: Yes
         """
+        graphics = list()
         for display_item in self._document_model.display_items:
             for graphic in display_item.graphics:
                 if graphic.uuid == graphic_uuid:
-                    return Graphic(graphic)
-        return None
+                    graphics.append(graphic)
+        return Graphic(graphics[0]) if len(graphics) == 1 else None
 
     def has_library_value(self, key: str) -> bool:
         """Return whether the library value for the given key exists.

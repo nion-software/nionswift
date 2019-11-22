@@ -481,6 +481,19 @@ class TestFacadeClass(unittest.TestCase):
             self.assertEqual(display_item1, api.application.document_windows[0].target_display._display_item)
             self.assertEqual(display_item1_ref, api.application.document_windows[0].target_display)
 
+    def test_get_data_item_by_uuid_in_second_project_succeeds(self):
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.add_project_memory()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_controller = self.app.create_document_controller(document_model, "library")
+            with contextlib.closing(document_controller):
+                # configure data items
+                data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+                document_model.append_data_item(data_item, project=profile.projects[1])
+                api = Facade.get_api("~1.0", "~1.0")
+                self.assertEqual(data_item, api.library.get_data_item_by_uuid(data_item.uuid)._data_item)
+
 
 if __name__ == '__main__':
     unittest.main()
