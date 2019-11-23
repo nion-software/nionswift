@@ -2174,7 +2174,7 @@ class Library(metaclass=SharedInstance):
     release = ["uuid", "data_item_count", "data_items", "display_items", "create_data_item",
                "create_data_item_from_data", "create_data_item_from_data_and_metadata",
                "get_or_create_data_group", "data_ref_for_data_item", "get_data_item_for_hardware_source",
-               "get_data_item_for_reference_key", "get_data_item_by_uuid", "get_graphic_by_uuid",
+               "get_data_item_for_reference_key", "get_data_item_by_uuid", "get_graphic_by_uuid", "get_item_by_specifier",
                "get_source_data_items", "get_dependent_data_items", "has_library_value", "get_library_value",
                "set_library_value", "delete_library_value",
                "copy_data_item", "snapshot_data_item"]
@@ -2433,6 +2433,8 @@ class Library(metaclass=SharedInstance):
         """Get the data item with the given UUID.
 
         .. versionadded:: 1.0
+        .. deprecated:: 2.0
+           Use :py:meth:`~nion.swift.Facade.API_1.get_item_by_specifier` instead.
 
         Status: Provisional
         Scriptable: Yes
@@ -2447,6 +2449,8 @@ class Library(metaclass=SharedInstance):
         """Get the graphic with the given UUID.
 
         .. versionadded:: 1.0
+        .. deprecated:: 2.0
+           Use :py:meth:`~nion.swift.Facade.API_1.get_item_by_specifier` instead.
 
         Status: Provisional
         Scriptable: Yes
@@ -2457,6 +2461,16 @@ class Library(metaclass=SharedInstance):
                 if graphic.uuid == graphic_uuid:
                     graphics.append(graphic)
         return Graphic(graphics[0]) if len(graphics) == 1 else None
+
+    def get_item_by_specifier(self, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[Persistence.PersistentObject]:
+        """Get the library item with the given item specifier.
+
+        .. versionadded:: 2.0
+
+        Scriptable: No
+        """
+        with contextlib.closing(self.__document_model.profile.create_item_proxy(item_specifier=item_specifier)) as item_proxy:
+            return item_proxy.item
 
     def has_library_value(self, key: str) -> bool:
         """Return whether the library value for the given key exists.
@@ -2888,8 +2902,8 @@ class API_1:
 
     release = ["create_calibration", "create_data_descriptor", "create_data_and_metadata",
                "create_data_and_metadata_from_data", "create_data_and_metadata_io_handler",
-               "create_menu_item", "create_hardware_source", "create_panel", "get_all_hardware_source_ids",
-               "get_all_instrument_ids",
+               "create_menu_item", "create_hardware_source", "create_panel", "create_specifier",
+               "get_all_hardware_source_ids", "get_all_instrument_ids",
                "get_hardware_source_by_id", "get_instrument_by_id", "application", "library", "queue_task",
                "clear_queued_tasks"]
 
@@ -3163,6 +3177,15 @@ class API_1:
                     self.__panel_delegate = None
 
         return PanelReference()
+
+    def create_specifier(self, item_uuid: uuid_module.UUID, context_uuid: uuid_module.UUID) -> Persistence.PersistentObjectSpecifier:
+        """Create an item specifier from item_uuid and context_uuid.
+
+        .. versionadded:: 2.0
+
+        Scriptable: No
+        """
+        return Persistence.PersistentObjectSpecifier(item_uuid=item_uuid, context_uuid=context_uuid)
 
     def create_unary_operation(self, unary_operation_delegate):
         return None
