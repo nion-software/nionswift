@@ -763,7 +763,11 @@ class RectangleGraphic(RectangleTypeGraphic):
 
     # rectangle
     def adjust_part(self, mapping, original, current, part, modifiers):
-        self.bounds, self.rotation = adjust_rectangle_like(mapping, self.rotation, False, original, current, part, modifiers, self._constraints)
+        bounds, rotation = adjust_rectangle_like(mapping, self.rotation, False, original, current, part, modifiers, self._constraints)
+        if bounds != self.bounds:
+            self.bounds = bounds
+        if rotation != self.rotation:
+            self.rotation = rotation
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         # origin is top left
@@ -855,7 +859,11 @@ class EllipseGraphic(RectangleTypeGraphic):
 
     # rectangle
     def adjust_part(self, mapping, original, current, part, modifiers):
-        self.bounds, self.rotation = adjust_rectangle_like(mapping, self.rotation, True, original, current, part, modifiers, self._constraints)
+        bounds, rotation = adjust_rectangle_like(mapping, self.rotation, True, original, current, part, modifiers, self._constraints)
+        if bounds != self.bounds:
+            self.bounds = bounds
+        if rotation != self.rotation:
+            self.rotation = rotation
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         # origin is top left
