@@ -436,8 +436,8 @@ class ComputationModel:
             computation = self.__computation
             if computation:
                 document_model = self.document_controller.document_model
-                def computation_updated(data_item, computation):
-                    if data_item == self.__get_data_item():
+                def computation_updated(computation):
+                    if computation == self.__computation:
                         self.__update_computation_display()
                 def property_changed(property):
                     if property == "error_text":

@@ -988,6 +988,7 @@ class BoundList:
         if needs_rebind_listener:
             needs_rebind_listener.close()
 
+
 class Computation(Observable.Observable, Persistence.PersistentObject):
     """A computation on data and other inputs.
 

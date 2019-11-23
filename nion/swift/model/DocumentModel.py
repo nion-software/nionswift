@@ -58,9 +58,8 @@ def restore_item_order(name: str, projects: typing.List[Project.Project], uuid_o
 
 
 class ComputationQueueItem:
-    def __init__(self, *, data_item=None, computation=None):
+    def __init__(self, *, computation=None):
         self.computation = computation
-        self.data_item = data_item
         self.valid = True
 
     def recompute(self) -> typing.Optional[typing.Tuple[Symbolic.Computation, typing.Callable[[], None]]]:
@@ -539,7 +538,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         self.computation_updated_event = Event.Event()
 
-        self.__thread_pool = ThreadPool.ThreadPool()
         self.__computation_thread_pool = ThreadPool.ThreadPool()
 
         self.__profile = profile if profile else Profile.Profile(auto_project=True)
@@ -673,7 +671,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__data_channel_start_listeners = None
         self.__data_channel_stop_listeners = None
 
-        self.__thread_pool.close()
         self.__computation_thread_pool.close()
         self.storage_cache.close()
         self.__transaction_manager.close()
@@ -821,7 +818,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # insert in internal list
         before_index = len(self.__data_items)
         self.__data_items.append(data_item)
-        self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
         data_item._document_model = self
         data_item.set_session_manager(self)
         self.notify_insert_item("data_items", data_item, before_index)
@@ -835,7 +831,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             computation_pending_queue = self.__computation_pending_queue
             self.__computation_pending_queue = list()
             for computation_queue_item in computation_pending_queue:
-                if not computation_queue_item.data_item is data_item and not computation_queue_item.computation is library_computation:
+                if not computation_queue_item.computation is library_computation:
                     self.__computation_pending_queue.append(computation_queue_item)
             if self.__computation_active_item and data_item is self.__computation_active_item.data_item:
                 self.__computation_active_item.valid = False
@@ -1251,20 +1247,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 dependent_display_items = self.get_dependent_display_items(display_item) if display_item else list()
                 self.related_items_changed.fire(display_item, source_display_items, dependent_display_items)
 
-    def __computation_needs_update(self, data_item, computation):
+    def __computation_needs_update(self, computation: Symbolic.Computation) -> None:
         # When the computation for a data item is set or mutated, this function will be called.
         # This function looks through the existing pending computation queue, and if this data
         # item is not already in the queue, it adds it and ensures the dispatch thread eventually
         # executes the computation.
         with self.__computation_queue_lock:
             for computation_queue_item in self.__computation_pending_queue:
-                if data_item and computation_queue_item.data_item == data_item:
-                    return
                 if computation and computation_queue_item.computation == computation:
                     return
-            computation_queue_item = ComputationQueueItem(data_item=data_item, computation=computation)
+            computation_queue_item = ComputationQueueItem(computation=computation)
             self.__computation_pending_queue.append(computation_queue_item)
-        self.dispatch_task2(self.__recompute)
+        self.dispatch_task(self.__recompute)
 
     def __establish_computation_dependencies(self, old_inputs: typing.Set, new_inputs: typing.Set, old_outputs: typing.Set, new_outputs: typing.Set) -> None:
         # establish dependencies between input and output items.
@@ -1484,9 +1478,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         return Symbolic.Computation(expression)
 
     def dispatch_task(self, task, description=None):
-        self.__thread_pool.queue_fn(task, description)
-
-    def dispatch_task2(self, task, description=None):
         self.__computation_thread_pool.queue_fn(task, description)
 
     def recompute_all(self, merge=True):
@@ -1506,25 +1497,27 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.perform_data_item_merge()
 
     def start_dispatcher(self):
-        self.__thread_pool.start()
         self.__computation_thread_pool.start(1)
 
     def __recompute(self):
-        computation_queue_item = None
-        with self.__computation_queue_lock:
-            if not self.__computation_active_item and self.__computation_pending_queue:
-                computation_queue_item = self.__computation_pending_queue.pop(0)
-                self.__computation_active_item = computation_queue_item
+        while True:
+            computation_queue_item = None
+            with self.__computation_queue_lock:
+                if not self.__computation_active_item and self.__computation_pending_queue:
+                    computation_queue_item = self.__computation_pending_queue.pop(0)
+                    self.__computation_active_item = computation_queue_item
 
-        if computation_queue_item:
-            # an item was put into the active queue, so compute it, then merge
-            pending_data_item_merge = computation_queue_item.recompute()
-            if pending_data_item_merge is not None:
-                with self.__pending_data_item_merge_lock:
-                    self.__pending_data_item_merge = pending_data_item_merge
-                self.__call_soon(self.perform_data_item_merge)
+            if computation_queue_item:
+                # an item was put into the active queue, so compute it, then merge
+                pending_data_item_merge = computation_queue_item.recompute()
+                if pending_data_item_merge is not None:
+                    with self.__pending_data_item_merge_lock:
+                        self.__pending_data_item_merge = pending_data_item_merge
+                    self.__call_soon(self.perform_data_item_merge)
+                else:
+                    self.__computation_active_item = None
             else:
-                self.__computation_active_item = None
+                break
 
     def perform_data_item_merge(self):
         with self.__pending_data_item_merge_lock:
@@ -1541,7 +1534,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 with self.__computation_queue_lock:
                     self.__computation_active_item = None
                 computation.is_initial_computation_complete.set()
-        self.dispatch_task2(self.__recompute)
+        self.dispatch_task(self.__recompute)
 
     async def compute_immediate(self, event_loop: asyncio.AbstractEventLoop, computation: Symbolic.Computation, timeout: float=None) -> None:
         if computation:
@@ -1989,8 +1982,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 # remove old computation without cascade (it would delete this data item itself)
                 old_computation.valid = False
                 old_computation.container.remove_computation(old_computation)
-            if old_computation is not computation:
-                self.__data_item_computation_changed(data_item, old_computation, computation)
 
     def append_computation(self, computation: Symbolic.Computation, *, project: Project.Project = None) -> None:
         project = project or self.__profile.target_project_for_item(computation)
@@ -2071,7 +2062,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 self.__computation_changed_delay_list.append(computation)
         else:
             self.__computation_update_dependencies(computation)
-            self.__computation_needs_update(None, computation)
+            self.__computation_needs_update(computation)
+        self.computation_updated_event.fire(computation)
 
     def __finish_computation_changed(self):
         computation_changed_delay_list = self.__computation_changed_delay_list
@@ -2088,33 +2080,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__establish_computation_dependencies(computation._inputs, input_items, computation._outputs, output_items)
         computation._inputs = input_items
         computation._outputs = output_items
-
-    def __data_item_computation_changed(self, data_item, old_computation, new_computation):
-        # when the computation for a data item changes, this method is called to tear down the old listeners and
-        # configure the new listeners. it is called when the document loads the data item, when a data item is
-        # inserted, when a data item is removed, and when a data item is changed.
-        assert data_item is not None
-
-        def computation_mutated():
-            # when the computation is mutated, this function is called. it calls the handle computation
-            # changed or mutated method to resolve computation variables and update dependencies between
-            # library objects. it also fires the computation_updated_event to allow the user interface
-            # to update.
-            input_items = new_computation.input_items if new_computation else set()
-            old_input_items = set(self.__dependency_tree_target_to_source_map.get(weakref.ref(data_item), list()))
-            self.__establish_computation_dependencies(old_input_items, input_items, {data_item}, {data_item})
-            self.computation_updated_event.fire(data_item, new_computation)
-
-        if old_computation:
-            # remove computation_changed_listener associated with the old computation
-            computation_changed_listener = self.__computation_changed_listeners.pop(data_item, None)
-            if computation_changed_listener: computation_changed_listener.close()
-
-        if new_computation:
-            # add computation_changed_listener to the new computation
-            self.__computation_changed_listeners[data_item] = new_computation.computation_mutated_event.listen(computation_mutated)
-
-        computation_mutated()  # ensure the initial mutation is reported
 
     def make_data_item_with_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
         return self.__make_computation(processing_id, inputs, region_list_map)
