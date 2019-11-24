@@ -1093,7 +1093,40 @@ class CalibrationToObservable(Observable.Observable):
         self.notify_property_changed("units")
 
 
-def make_calibration_style_chooser(document_controller, unbinder: Unbinder, display_item: DisplayItem.DisplayItem):
+class InspectorSectionWidget(Widgets.CompositeWidgetBase):
+    def __init__(self, ui):
+        super().__init__(ui.create_column_widget())
+        self.__unbinder = Unbinder()
+        self.__closeables = list()
+
+    def close(self):
+        self.__unbinder.close()
+        for closeable in self.__closeables:
+            closeable.close()
+        self.__closeables = None
+        super().close()
+
+    def add_closeable(self, closeable) -> None:
+        self.__closeables.append(closeable)
+
+    def add_closeables(self, *closeables) -> None:
+        for closeable in closeables:
+            self.add_closeable(closeable)
+
+    def add_unbinder(self, items, unbinders: typing.Sequence[typing.Callable[[], None]]) -> None:
+        self.__unbinder.add(items, unbinders)
+
+    def add(self, widget) -> None:
+        self.content_widget.add(widget)
+
+    def add_spacing(self, spacing: int) -> None:
+        self.content_widget.add_spacing(spacing)
+
+    def find_widget_by_id(self, widget_id: str):
+        return self.content_widget.find_widget_by_id(widget_id)
+
+
+def make_calibration_style_chooser(document_controller, display_item: DisplayItem.DisplayItem) -> InspectorSectionWidget:
     ui = document_controller.ui
 
     calibration_styles = DisplayItem.get_calibration_styles()
@@ -1114,13 +1147,18 @@ def make_calibration_style_chooser(document_controller, unbinder: Unbinder, disp
     display_calibration_style_chooser = ui.create_combo_box_widget(items=display_calibration_style_options, item_getter=operator.itemgetter(0))
     display_calibration_style_chooser.bind_current_index(ChangeDisplayItemPropertyBinding(document_controller, display_item, "calibration_style_id", converter=CalibrationStyleIndexConverter(), fallback=0))
 
-    unbinder.add([display_item], [display_calibration_style_chooser.unbind_current_index])
+    widget = InspectorSectionWidget(ui)
 
-    return display_calibration_style_chooser
+    widget.add(display_calibration_style_chooser)
+
+    widget.add_unbinder([display_item], [display_calibration_style_chooser.unbind_current_index])
+
+    return widget
 
 
-def make_calibration_row_widget(ui, unbinder: Unbinder, data_item: DataItem.DataItem, calibration_observable, label: str=None):
+def make_calibration_row_widget(ui, data_item: DataItem.DataItem, calibration_observable, label: str=None) -> InspectorSectionWidget:
     """Called when an item (calibration_observable) is inserted into the list widget. Returns a widget."""
+    widget = InspectorSectionWidget(ui)
     calibration_row = ui.create_row_widget()
     row_label = ui.create_label_widget(label, properties={"width": 60})
     row_label.widget_id = "label"
@@ -1143,8 +1181,9 @@ def make_calibration_row_widget(ui, unbinder: Unbinder, data_item: DataItem.Data
     calibration_row.add_spacing(12)
     calibration_row.add(units_field)
     calibration_row.add_stretch()
-    unbinder.add([data_item], [offset_field.unbind_text, scale_field.unbind_text, units_field.unbind_text])
-    return calibration_row
+    widget.add(calibration_row)
+    widget.add_unbinder([data_item], [offset_field.unbind_text, scale_field.unbind_text, units_field.unbind_text])
+    return widget
 
 
 class CalibrationsInspectorSection(InspectorSection):
@@ -1174,7 +1213,7 @@ class CalibrationsInspectorSection(InspectorSection):
             document_controller.push_undo_command(command)
 
         self.__intensity_calibration_observable = CalibrationToObservable(intensity_calibration, change_intensity_calibration)
-        intensity_row = make_calibration_row_widget(ui, self._unbinder, data_item, self.__intensity_calibration_observable, _("Intensity"))
+        intensity_row = make_calibration_row_widget(ui, data_item, self.__intensity_calibration_observable, _("Intensity"))
 
         def handle_data_item_changed():
             # handle threading specially for tests
@@ -1190,7 +1229,7 @@ class CalibrationsInspectorSection(InspectorSection):
         # create the display calibrations check box row
         self.display_calibrations_row = self.ui.create_row_widget()
         self.display_calibrations_row.add(self.ui.create_label_widget(_("Display"), properties={"width": 60}))
-        self.display_calibrations_row.add(make_calibration_style_chooser(document_controller, self._unbinder, self.__display_item))
+        self.display_calibrations_row.add(make_calibration_style_chooser(document_controller, self.__display_item))
         self.display_calibrations_row.add_stretch()
         self.add_widget_to_content(self.display_calibrations_row)
         self.finish_widget_content()
@@ -1267,7 +1306,7 @@ class CalibrationsInspectorSection(InspectorSection):
     def __create_list_item_widget(self, ui, calibration_observable):
         """Called when an item (calibration_observable) is inserted into the list widget. Returns a widget."""
         data_item = self.__display_data_channel.data_item
-        calibration_row = make_calibration_row_widget(ui, self._unbinder, data_item, calibration_observable)
+        calibration_row = make_calibration_row_widget(ui, data_item, calibration_observable)
         column = ui.create_column_widget()
         column.add_spacing(4)
         column.add(calibration_row)
@@ -1828,8 +1867,9 @@ class CalibratedLengthBinding(Binding.Binding):
         return self.__size_converter.convert_calibrated_value_to_str(calibrated_value)
 
 
-def make_point_type_inspector(document_controller, unbinder: Unbinder, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
+def make_point_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
+    graphic_widget = InspectorSectionWidget(ui)
     # create the ui
     graphic_position_row = ui.create_row_widget()
     graphic_position_row.add_spacing(20)
@@ -1867,13 +1907,16 @@ def make_point_type_inspector(document_controller, unbinder: Unbinder, graphic_w
         graphic_position_x_line_edit.bind_text(Binding.TuplePropertyBinding(position_model, "value", 1))
         graphic_position_y_line_edit.bind_text(Binding.TuplePropertyBinding(position_model, "value", 0))
 
-    unbinder.add([display_item, graphic], [graphic_position_x_line_edit.unbind_text, graphic_position_y_line_edit.unbind_text])
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_position_x_line_edit.unbind_text, graphic_position_y_line_edit.unbind_text])
 
-    return [position_model]
+    graphic_widget.add_closeable(position_model)
+
+    return graphic_widget
 
 
-def make_line_type_inspector(document_controller, unbinder: Unbinder, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
+def make_line_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
+    graphic_widget = InspectorSectionWidget(ui)
     # create the ui
     graphic_start_row = ui.create_row_widget()
     graphic_start_row.add_spacing(20)
@@ -1961,13 +2004,15 @@ def make_line_type_inspector(document_controller, unbinder: Unbinder, graphic_wi
         graphic_param_l_line_edit.bind_text(ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "length"))
         graphic_param_a_line_edit.bind_text(ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "angle", RadianToDegreeStringConverter()))
 
-    unbinder.add([display_item, graphic], [graphic_start_x_line_edit.unbind_text, graphic_start_y_line_edit.unbind_text, graphic_end_x_line_edit.unbind_text, graphic_end_y_line_edit.unbind_text, graphic_param_l_line_edit.unbind_text, graphic_param_a_line_edit.unbind_text])
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_start_x_line_edit.unbind_text, graphic_start_y_line_edit.unbind_text, graphic_end_x_line_edit.unbind_text, graphic_end_y_line_edit.unbind_text, graphic_param_l_line_edit.unbind_text, graphic_param_a_line_edit.unbind_text])
 
-    return [start_model, end_model]
+    graphic_widget.add_closeables(start_model, end_model)
+
+    return graphic_widget
 
 
-def make_line_profile_inspector(document_controller, unbinder: Unbinder, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
-    items_to_close = make_line_type_inspector(document_controller, unbinder, graphic_widget, display_item, graphic)
+def make_line_profile_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
+    graphic_widget = make_line_type_inspector(document_controller, display_item, graphic)
 
     ui = document_controller.ui
     # configure the bindings
@@ -1985,14 +2030,15 @@ def make_line_profile_inspector(document_controller, unbinder: Unbinder, graphic
     graphic_widget.add(graphic_width_row)
     graphic_widget.add_spacing(4)
 
-    unbinder.add([display_item, graphic], [graphic_width_line_edit.unbind_text])
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_width_line_edit.unbind_text])
 
-    return items_to_close
+    return graphic_widget
 
 
-def make_rectangle_type_inspector(document_controller, unbinder: Unbinder, graphic_widget, display_item: DisplayItem.DisplayItem, graphic, graphic_name: str, rotation: bool = False):
+def make_rectangle_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic, graphic_name: str, rotation: bool = False) -> InspectorSectionWidget:
     ui = document_controller.ui
-    graphic_widget.widget_id = "rectangle_type_inspector"
+    graphic_widget = InspectorSectionWidget(ui)
+    graphic_widget.content_widget.widget_id = "rectangle_type_inspector"
     # create the ui
     graphic_center_row = ui.create_row_widget()
     graphic_center_row.add_spacing(20)
@@ -2056,9 +2102,9 @@ def make_rectangle_type_inspector(document_controller, unbinder: Unbinder, graph
         graphic_size_width_line_edit.bind_text(Binding.TuplePropertyBinding(size_model, "value", 1))
         graphic_size_height_line_edit.bind_text(Binding.TuplePropertyBinding(size_model, "value", 0))
 
-    unbinder.add([display_item, graphic], [graphic_center_x_line_edit.unbind_text, graphic_center_y_line_edit.unbind_text, graphic_size_width_line_edit.unbind_text, graphic_size_height_line_edit.unbind_text])
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_center_x_line_edit.unbind_text, graphic_center_y_line_edit.unbind_text, graphic_size_width_line_edit.unbind_text, graphic_size_height_line_edit.unbind_text])
 
-    closeables = [center_model, size_model]
+    graphic_widget.add_closeables(center_model, size_model)
 
     if rotation:
         rotation_row = ui.create_row_widget()
@@ -2081,15 +2127,17 @@ def make_rectangle_type_inspector(document_controller, unbinder: Unbinder, graph
         rotation_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
         rotation_line_edit.bind_text(Binding.PropertyBinding(rotation_model, "value", converter=RadianToDegreeStringConverter()))
 
-        unbinder.add([display_item, graphic], [rotation_line_edit.unbind_text])
+        graphic_widget.add_unbinder([display_item, graphic], [rotation_line_edit.unbind_text])
 
-        closeables.append(rotation_model)
+        graphic_widget.add_closeable(rotation_model)
 
-    return closeables
+    return graphic_widget
 
-def make_wedge_type_inspector(document_controller, unbinder: Unbinder, graphic_widget, display_item: DisplayItem.DisplayItem, graphic: Graphics.WedgeGraphic):
+
+def make_wedge_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic: Graphics.WedgeGraphic) -> InspectorSectionWidget:
     ui = document_controller.ui
-    graphic_widget.widget_id = "wedge_inspector"
+    graphic_widget = InspectorSectionWidget(ui)
+    graphic_widget.content_widget.widget_id = "wedge_inspector"
     # create the ui
     graphic_center_start_angle_row = ui.create_row_widget()
     graphic_center_start_angle_row.add_spacing(20)
@@ -2113,11 +2161,14 @@ def make_wedge_type_inspector(document_controller, unbinder: Unbinder, graphic_w
     graphic_center_start_angle_line_edit.bind_text(Binding.TuplePropertyBinding(angle_interval_model, "value", 0, RadianToDegreeStringConverter()))
     graphic_center_angle_measure_line_edit.bind_text(Binding.TuplePropertyBinding(angle_interval_model, "value", 1, RadianToDegreeStringConverter()))
 
-    unbinder.add([display_item, graphic], [graphic_center_start_angle_line_edit.unbind_text, graphic_center_angle_measure_line_edit.unbind_text])
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_center_start_angle_line_edit.unbind_text, graphic_center_angle_measure_line_edit.unbind_text])
 
-    return [angle_interval_model]
+    graphic_widget.add_closeable(angle_interval_model)
 
-def make_annular_ring_mode_chooser(document_controller, unbinder: Unbinder, display_item: DisplayItem.DisplayItem, graphic: Graphics.RingGraphic):
+    return graphic_widget
+
+
+def make_annular_ring_mode_chooser(document_controller, graphic_widget: InspectorSectionWidget, display_item: DisplayItem.DisplayItem, graphic: Graphics.RingGraphic):
     ui = document_controller.ui
     annular_ring_mode_options = ((_("Band Pass"), "band-pass"), (_("Low Pass"), "low-pass"), (_("High Pass"), "high-pass"))
     annular_ring_mode_reverse_map = {"band-pass": 0, "low-pass": 1, "high-pass": 2}
@@ -2137,14 +2188,16 @@ def make_annular_ring_mode_chooser(document_controller, unbinder: Unbinder, disp
     display_calibration_style_chooser = ui.create_combo_box_widget(items=annular_ring_mode_options, item_getter=operator.itemgetter(0))
     display_calibration_style_chooser.bind_current_index(ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "mode", converter=AnnularRingModeIndexConverter(), fallback=0))
 
-    unbinder.add([display_item, graphic], [display_calibration_style_chooser.unbind_current_index])
+    graphic_widget.add_unbinder([display_item, graphic], [display_calibration_style_chooser.unbind_current_index])
 
     return display_calibration_style_chooser
 
-def make_ring_type_inspector(document_controller, unbinder: Unbinder, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
-    ui = document_controller.ui
 
-    graphic_widget.widget_id = "ring_inspector"
+def make_ring_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
+    ui = document_controller.ui
+    graphic_widget = InspectorSectionWidget(ui)
+
+    graphic_widget.content_widget.widget_id = "ring_inspector"
 
     # create the ui
     graphic_radius_1_row = ui.create_row_widget()
@@ -2162,7 +2215,7 @@ def make_ring_type_inspector(document_controller, unbinder: Unbinder, graphic_wi
     ring_mode_row = ui.create_row_widget()
     ring_mode_row.add_spacing(20)
     ring_mode_row.add(ui.create_label_widget(_("Mode"), properties={"width": 60}))
-    chooser = make_annular_ring_mode_chooser(document_controller, unbinder, display_item, graphic)
+    chooser = make_annular_ring_mode_chooser(document_controller, graphic_widget, display_item, graphic)
     ring_mode_row.add(chooser)
     ring_mode_row.add_stretch()
 
@@ -2173,13 +2226,14 @@ def make_ring_type_inspector(document_controller, unbinder: Unbinder, graphic_wi
     graphic_radius_1_line_edit.bind_text(CalibratedSizeBinding(0, display_item, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "radius_1")))
     graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(0, display_item, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "radius_2")))
 
-    unbinder.add([display_item, graphic], [graphic_radius_1_line_edit.unbind_text, graphic_radius_2_line_edit.unbind_text])
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_radius_1_line_edit.unbind_text, graphic_radius_2_line_edit.unbind_text])
 
-    return []
+    return graphic_widget
 
 
-def make_interval_type_inspector(document_controller, unbinder: Unbinder, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
+def make_interval_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
+    graphic_widget = InspectorSectionWidget(ui)
     # configure the bindings
     start_binding = CalibratedValueBinding(-1, display_item, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "start"))
     end_binding = CalibratedValueBinding(-1, display_item, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "end"))
@@ -2206,9 +2260,9 @@ def make_interval_type_inspector(document_controller, unbinder: Unbinder, graphi
     graphic_widget.add(graphic_end_row)
     graphic_widget.add_spacing(4)
 
-    unbinder.add([display_item, graphic], [graphic_start_line_edit.unbind_text, graphic_end_line_edit.unbind_text])
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_start_line_edit.unbind_text, graphic_end_line_edit.unbind_text])
 
-    return []
+    return graphic_widget
 
 
 class GraphicsInspectorSection(InspectorSection):
@@ -2223,7 +2277,6 @@ class GraphicsInspectorSection(InspectorSection):
         self.__document_controller = document_controller
         self.__display_item = display_item
         self.__graphics = display_item.graphics
-        self.__items_to_close = list()
         # ui
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
@@ -2235,17 +2288,12 @@ class GraphicsInspectorSection(InspectorSection):
         # create the display calibrations check box row
         display_calibrations_row = self.ui.create_row_widget()
         display_calibrations_row.add(self.ui.create_label_widget(_("Display"), properties={"width": 60}))
-        display_calibrations_row.add(make_calibration_style_chooser(document_controller, self._unbinder, self.__display_item))
+        display_calibrations_row.add(make_calibration_style_chooser(document_controller, self.__display_item))
         display_calibrations_row.add_stretch()
         self.add_widget_to_content(display_calibrations_row)
         self.finish_widget_content()
         # add unbinders
         self._unbinder.add([display_item], [list_widget.unbind_items])
-
-    def close(self):
-        while self.__items_to_close:
-            self.__items_to_close.pop().close()
-        super().close()
 
     def __create_header_widget(self):
         return self.ui.create_row_widget()
@@ -2274,31 +2322,31 @@ class GraphicsInspectorSection(InspectorSection):
         # create the graphic specific widget
         if isinstance(graphic, Graphics.PointGraphic):
             graphic_type_label.text = _("Point")
-            self.__items_to_close.extend(make_point_type_inspector(self.__document_controller, self._unbinder, graphic_widget, self.__display_item, graphic))
+            graphic_widget.add(make_point_type_inspector(self.__document_controller, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.LineProfileGraphic):
             graphic_type_label.text = _("Line Profile")
-            self.__items_to_close.extend(make_line_profile_inspector(self.__document_controller, self._unbinder, graphic_widget, self.__display_item, graphic))
+            graphic_widget.add(make_line_profile_inspector(self.__document_controller, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.LineGraphic):
             graphic_type_label.text = _("Line")
-            self.__items_to_close.extend(make_line_type_inspector(self.__document_controller, self._unbinder, graphic_widget, self.__display_item, graphic))
+            graphic_widget.add(make_line_type_inspector(self.__document_controller, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.RectangleGraphic):
             graphic_type_label.text = _("Rectangle")
-            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, self._unbinder, graphic_widget, self.__display_item, graphic, graphic_type_label.text, rotation=True))
+            graphic_widget.add(make_rectangle_type_inspector(self.__document_controller, self.__display_item, graphic, graphic_type_label.text, rotation=True))
         elif isinstance(graphic, Graphics.EllipseGraphic):
             graphic_type_label.text = _("Ellipse")
-            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, self._unbinder, graphic_widget, self.__display_item, graphic, graphic_type_label.text, rotation=True))
+            graphic_widget.add(make_rectangle_type_inspector(self.__document_controller, self.__display_item, graphic, graphic_type_label.text, rotation=True))
         elif isinstance(graphic, Graphics.IntervalGraphic):
             graphic_type_label.text = _("Interval")
-            self.__items_to_close.extend(make_interval_type_inspector(self.__document_controller, self._unbinder, graphic_widget, self.__display_item, graphic))
+            graphic_widget.add(make_interval_type_inspector(self.__document_controller, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.SpotGraphic):
             graphic_type_label.text = _("Spot")
-            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, self._unbinder, graphic_widget, self.__display_item, graphic, graphic_type_label.text))
+            graphic_widget.add(make_rectangle_type_inspector(self.__document_controller, self.__display_item, graphic, graphic_type_label.text))
         elif isinstance(graphic, Graphics.WedgeGraphic):
             graphic_type_label.text = _("Wedge")
-            self.__items_to_close.extend(make_wedge_type_inspector(self.__document_controller, self._unbinder, graphic_widget, self.__display_item, graphic))
+            graphic_widget.add(make_wedge_type_inspector(self.__document_controller, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.RingGraphic):
             graphic_type_label.text = _("Annular Ring")
-            self.__items_to_close.extend(make_ring_type_inspector(self.__document_controller, self._unbinder, graphic_widget, self.__display_item, graphic))
+            graphic_widget.add(make_ring_type_inspector(self.__document_controller, self.__display_item, graphic))
         column = self.ui.create_column_widget()
         column.add_spacing(4)
         column.add(graphic_widget)
@@ -2404,6 +2452,7 @@ def make_checkbox(document_controller, unbinder: Unbinder, computation, variable
     unbinder.add([computation], [check_box_widget.unbind_checked])
     return column, []
 
+
 def make_slider_int(document_controller, unbinder: Unbinder, computation, variable, converter):
     ui = document_controller.ui
     column = ui.create_column_widget()
@@ -2428,6 +2477,7 @@ def make_slider_int(document_controller, unbinder: Unbinder, computation, variab
     column.add_spacing(4)
     unbinder.add([computation], [label_widget.unbind_text, slider_widget.unbind_value, line_edit_widget.unbind_text])
     return column, []
+
 
 def make_slider_float(document_controller, unbinder: Unbinder, computation, variable, converter):
     ui = document_controller.ui
@@ -2454,6 +2504,7 @@ def make_slider_float(document_controller, unbinder: Unbinder, computation, vari
     unbinder.add([computation], [label_widget.unbind_text, slider_widget.unbind_value, line_edit_widget.unbind_text])
     return column, []
 
+
 def make_field(document_controller, unbinder: Unbinder, computation, variable, converter):
     ui = document_controller.ui
     column = ui.create_column_widget()
@@ -2472,8 +2523,10 @@ def make_field(document_controller, unbinder: Unbinder, computation, variable, c
     unbinder.add([computation], [label_widget.unbind_text, line_edit_widget.unbind_text])
     return column, []
 
-def make_image_chooser(document_controller, unbinder: Unbinder, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
+
+def make_image_chooser(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
     ui = document_controller.ui
+    widget = InspectorSectionWidget(ui)
     document_model = document_controller.document_model
     column = ui.create_column_widget()
     row = ui.create_row_widget()
@@ -2527,9 +2580,11 @@ def make_image_chooser(document_controller, unbinder: Unbinder, computation: Sym
     column.add(row)
     column.add_spacing(4)
 
-    unbinder.add([computation], [label_widget.unbind_text])
+    widget.add(column)
+    widget.add_unbinder([computation], [label_widget.unbind_text])
+    widget.add_closeable(property_changed_listener)
 
-    return column, [property_changed_listener]
+    return widget
 
 
 class VariableWidget(Widgets.CompositeWidgetBase):
@@ -2586,9 +2641,7 @@ class VariableWidget(Widgets.CompositeWidgetBase):
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "data_source":
-            widget, closeables = make_image_chooser(document_controller, self.__unbinder, computation, variable)
-            self.content_widget.add(widget)
-            self.closeables.extend(closeables)
+            self.content_widget.add(make_image_chooser(document_controller, computation, variable))
         elif variable.variable_type == "string":
             widget, closeables = make_field(document_controller, self.__unbinder, computation, variable, None)
             self.content_widget.add(widget)
