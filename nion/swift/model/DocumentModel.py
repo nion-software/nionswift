@@ -2745,8 +2745,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft({src}))",
                 "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "use_filtered_data": True, "requirements": [requirement_2d]}]}
             requirement_is_sequence = {"type": "is_sequence"}
-            vs["sequence-register"] = {"title": _("Shifts"), "expression": "xd.sequence_register_translation({src}, 100)",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
+            vs["sequence-register"] = {"title": _("Shifts"), "expression": "xd.sequence_squeeze_measurement(xd.sequence_measure_relative_translation({src}, {src}[numpy.unravel_index(0, {src}.navigation_dimension_shape)], 100))",
+                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d]}]}
             vs["sequence-align"] = {"title": _("Alignment"), "expression": "xd.sequence_align({src}, 100)",
                 "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
             vs["sequence-integrate"] = {"title": _("Integrate"), "expression": "xd.sequence_integrate({src})",
