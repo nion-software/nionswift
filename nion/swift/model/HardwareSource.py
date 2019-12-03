@@ -35,10 +35,10 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Persistence
 from nion.swift.model import Utility
 from nion.utils import Event
 from nion.utils import Observable
-from nion.utils import Persistence
 
 _ = gettext.gettext
 

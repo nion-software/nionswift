@@ -5,7 +5,7 @@
 # None
 
 # local libraries
-from nion.utils import Persistence
+from nion.swift.model import Persistence
 
 
 class WorkspaceLayout(Persistence.PersistentObject):

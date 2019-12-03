@@ -31,10 +31,10 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import FileStorageSystem
 from nion.swift.model import Graphics
+from nion.swift.model import Persistence
 from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.ui import TestUI
-from nion.utils import Persistence
 
 
 Facade.initialize()

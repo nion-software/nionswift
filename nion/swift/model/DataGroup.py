@@ -10,9 +10,9 @@ import weakref
 # None
 
 # local libraries
+from nion.swift.model import Persistence
 from nion.utils import Event
 from nion.utils import Observable
-from nion.utils import Persistence
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import Profile

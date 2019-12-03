@@ -15,9 +15,9 @@ from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import FileStorageSystem
+from nion.swift.model import Persistence
 from nion.utils import ListModel
 from nion.utils import Observable
-from nion.utils import Persistence
 
 
 ProjectItemType = typing.Union[DataItem.DataItem, DisplayItem.DisplayItem, DataStructure.DataStructure, Connection.Connection, Symbolic.Computation]

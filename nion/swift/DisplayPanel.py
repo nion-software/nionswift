@@ -25,6 +25,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Persistence
 from nion.swift.model import Project
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
@@ -34,7 +35,6 @@ from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
-from nion.utils import Persistence
 
 
 _ = gettext.gettext

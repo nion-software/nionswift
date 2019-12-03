@@ -18,6 +18,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import FileStorageSystem
+from nion.swift.model import Persistence
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
@@ -26,7 +27,6 @@ from nion.utils import Event
 from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Observable
-from nion.utils import Persistence
 from nion.utils import Selection
 
 

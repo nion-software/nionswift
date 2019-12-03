@@ -10,9 +10,9 @@ from nion.swift.model import Changes
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
+from nion.swift.model import Persistence
 from nion.utils import Event
 from nion.utils import Observable
-from nion.utils import Persistence
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import Project

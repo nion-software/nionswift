@@ -29,13 +29,13 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
+from nion.swift.model import Persistence
 from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
 from nion.utils import Event
 from nion.utils import Observable
-from nion.utils import Persistence
 from nion.utils import Recorder
 from nion.utils import ReferenceCounting
 from nion.utils import Selection

@@ -12,8 +12,8 @@ from nion.swift import DocumentController
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import Persistence
 from nion.ui import TestUI
-from nion.utils import Persistence
 
 
 class TestDataGroupClass(unittest.TestCase):

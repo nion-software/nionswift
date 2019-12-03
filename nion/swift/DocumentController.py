@@ -39,6 +39,7 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Persistence
 from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
@@ -50,7 +51,6 @@ from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
-from nion.utils import Persistence
 from nion.utils import Selection
 
 _ = gettext.gettext

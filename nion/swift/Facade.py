@@ -66,13 +66,13 @@ from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource as HardwareSourceModule
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Metadata
+from nion.swift.model import Persistence
 from nion.swift.model import PlugInManager
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.ui import CanvasItem as CanvasItemModule
 from nion.ui import Declarative
 from nion.utils import Geometry
-from nion.utils import Persistence
 
 __all__ = ["get_api"]
 

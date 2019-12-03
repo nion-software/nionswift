@@ -6,9 +6,9 @@ import json
 import typing
 
 from nion.ui import UserInterface
-from nion.utils import Persistence
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
+from nion.swift.model import Persistence
 from nion.swift.model import Project
 
 if typing.TYPE_CHECKING:

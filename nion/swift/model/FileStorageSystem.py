@@ -15,9 +15,9 @@ from nion.swift.model import DataItem
 from nion.swift.model import HDF5Handler
 from nion.swift.model import Migration
 from nion.swift.model import NDataHandler
+from nion.swift.model import Persistence
 from nion.swift.model import Utility
 from nion.utils import Event
-from nion.utils import Persistence
 
 
 # define the versions that get stored in the JSON files

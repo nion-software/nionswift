@@ -23,11 +23,10 @@ from nion.swift.model import Cache
 from nion.swift.model import Changes
 from nion.swift.model import Graphics
 from nion.swift.model import Metadata
+from nion.swift.model import Persistence
 from nion.swift.model import Utility
-from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Observable
-from nion.utils import Persistence
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import Project
