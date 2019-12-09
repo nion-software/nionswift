@@ -149,13 +149,15 @@ class TestComputationPanelClass(unittest.TestCase):
             computation.create_variable("x", value_type="integral", value=5)
             document_model.set_data_item_computation(data_item2, computation)
             panel1 = ComputationPanel.EditComputationDialog(document_controller, data_item1)
-            document_controller.periodic()  # execute queue
-            self.assertEqual(len(panel1._sections_for_testing), 0)
-            panel2 = ComputationPanel.EditComputationDialog(document_controller, data_item2)
-            document_controller.periodic()  # execute queue
-            self.assertEqual(len(panel2._sections_for_testing), 2)
-            document_controller.periodic()  # execute queue
-            self.assertEqual(len(panel1._sections_for_testing), 0)
+            with contextlib.closing(panel1):
+                document_controller.periodic()  # execute queue
+                self.assertEqual(len(panel1._sections_for_testing), 0)
+                panel2 = ComputationPanel.EditComputationDialog(document_controller, data_item2)
+                with contextlib.closing(panel2):
+                    document_controller.periodic()  # execute queue
+                    self.assertEqual(len(panel2._sections_for_testing), 2)
+                    document_controller.periodic()  # execute queue
+                    self.assertEqual(len(panel1._sections_for_testing), 0)
 
     def test_change_variable_command_resulting_in_error_undo_redo(self):
         document_model = DocumentModel.DocumentModel()

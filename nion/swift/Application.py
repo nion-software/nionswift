@@ -1,6 +1,5 @@
 # standard libraries
 import asyncio
-import concurrent.futures
 import copy
 import datetime
 import gettext
@@ -40,6 +39,7 @@ from nion.ui import Application as UIApplication
 from nion.ui import Dialog
 from nion.ui import Widgets
 from nion.utils import Event
+from nion.utils import Process
 from nion.utils import Selection
 
 _ = gettext.gettext
@@ -125,20 +125,7 @@ class Application(UIApplication.Application):
         PlugInManager.unload_plug_ins()
         with open(os.path.join(self.ui.get_data_location(), "PythonConfig.ini"), 'w') as f:
             f.write(sys.prefix + '\n')
-        # give cancelled tasks a chance to finish
-        self.__event_loop.stop()
-        self.__event_loop.run_forever()
-        try:
-            # this assumes that all outstanding tasks finish in a reasonable time (i.e. no infinite loops).
-            self.__event_loop.run_until_complete(asyncio.gather(*asyncio.Task.all_tasks(loop=self.__event_loop), loop=self.__event_loop))
-        except concurrent.futures.CancelledError:
-            pass
-        # now close
-        # due to a bug in Python libraries, the default executor needs to be shutdown explicitly before the event loop
-        # see http://bugs.python.org/issue28464
-        if self.__event_loop._default_executor:
-            self.__event_loop._default_executor.shutdown()
-        self.__event_loop.close()
+        Process.close_event_loop(self.__event_loop)
         self.__event_loop = None
         self.ui.close()
 
