@@ -138,15 +138,21 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertIsNone(weak_data_item())
 
     def test_document_controller_releases_itself(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        weak_document_controller = weakref.ref(document_controller)
-        document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
-        document_controller.periodic()
-        document_controller.close()
-        document_controller = None
-        gc.collect()
-        self.assertIsNone(weak_document_controller())
+        i = 0
+        try:
+            for i in range(100):
+                document_model = DocumentModel.DocumentModel()
+                document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+                weak_document_controller = weakref.ref(document_controller)
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+                document_controller.periodic()
+                document_controller.close()
+                document_controller = None
+                gc.collect()
+                self.assertIsNone(weak_document_controller())
+        except Exception as e:
+            print(i)
+            raise
 
     def test_flat_data_groups(self):
         document_controller = construct_test_document(self.app)
