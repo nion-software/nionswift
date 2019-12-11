@@ -5,7 +5,6 @@ import datetime
 import functools
 import gettext
 import itertools
-import json
 import logging
 import math
 import operator
@@ -39,7 +38,6 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
-from nion.swift.model import Persistence
 from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
