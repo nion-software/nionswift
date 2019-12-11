@@ -24,6 +24,8 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
+from nion.ui import Declarative
+from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Converter
@@ -3057,3 +3059,37 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
     def focus_default(self):
         if self.__focus_default:
             self.__focus_default()
+
+
+class DeclarativeImageChooserConstructor:
+
+    def __init__(self, app):
+        self.__app = app
+
+    def construct(self, d_type: str, ui: UserInterface.UserInterface, window, d: typing.Mapping, handler, finishes: typing.Sequence[typing.Callable[[], None]] = None):
+        if d_type == "image_chooser":
+            properties = Declarative.construct_sizing_properties(d)
+            thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, window=window)
+
+            def drop_mime_data(mime_data, x, y):
+                document_model = self.__app.document_model
+                display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model.profile.work_project)
+                thumbnail_source.display_item = display_item
+                if display_item:
+                    return "copy"
+                return None
+
+            def data_item_delete():
+                thumbnail_source.display_item = None
+
+            widget = DataItemThumbnailWidget.ThumbnailWidget(ui, thumbnail_source, Geometry.IntSize(80, 80))
+            widget.on_drag = widget.drag
+            widget.on_drop_mime_data = drop_mime_data
+            widget.on_delete = data_item_delete
+
+            if handler:
+                Declarative.connect_name(widget, d, handler)
+                Declarative.connect_reference_value(thumbnail_source, d, handler, "display_item", finishes)
+                Declarative.connect_attributes(widget, d, handler, finishes)
+
+            return widget

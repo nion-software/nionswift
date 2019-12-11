@@ -2684,6 +2684,8 @@ class DocumentWindow(metaclass=SharedInstance):
 
     def show_modeless_dialog(self, item, handler=None):
         if isinstance(item, dict) and item.get("type") == "modeless_dialog":
+            if handler and not getattr(handler, "get_object_converter", None):
+                handler.get_object_converter = lambda c: ObjectConverter(self, c)
             window = self._document_controller
             dialog = Declarative.construct(window.ui, window, item, handler)
             dialog.show()
@@ -3457,6 +3459,24 @@ def set_property(api, pickled_object, name, pickled_value):
     object = Unpickler(io.BytesIO(base64.b64decode(pickled_object.encode('utf-8'))), api).load()
     value = Unpickler(io.BytesIO(base64.b64decode(pickled_value.encode('utf-8'))), api).load()
     setattr(object, name, value)
+
+
+class ObjectConverter:
+
+    def __init__(self, item, converter):
+        self.__converter = converter
+
+    def convert(self, value):
+        """ Convert value to string using format string """
+        if value.__class__.__name__ == "Display":
+            value = value._item
+        return self.__converter.convert(value) if self.__converter else value
+
+    def convert_back(self, formatted_value):
+        """ Convert string to value using standard int conversion """
+        if formatted_value.__class__.__name__ == "DisplayItem":
+            formatted_value = Display(formatted_value)
+        return self.__converter.convert_back(formatted_value) if self.__converter else formatted_value
 
 
 def runOnThread(api):

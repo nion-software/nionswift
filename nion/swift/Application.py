@@ -39,6 +39,7 @@ from nion.swift.model import Profile
 from nion.ui import Application as UIApplication
 from nion.utils import Event
 from nion.utils import Process
+from nion.utils import Registry
 
 _ = gettext.gettext
 
@@ -82,6 +83,8 @@ class Application(UIApplication.Application):
         # respond in this class by creating a new document controller.
         self.__did_close_event_listeners = dict()
         self.__create_new_event_listeners = dict()
+
+        Registry.register_component(Inspector.DeclarativeImageChooserConstructor(self), {"declarative_constructor"})
 
         workspace_manager = Workspace.WorkspaceManager()
         workspace_manager.register_panel(SessionPanel.SessionPanel, "session-panel", _("Session"), ["left", "right"], "right", {"min-width": 320, "height": 80})
