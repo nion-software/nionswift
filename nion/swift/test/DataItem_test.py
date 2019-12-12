@@ -1361,6 +1361,22 @@ class TestDataItemClass(unittest.TestCase):
                 data_item.set_data(numpy.zeros((16, 16)))
             self.assertEqual(0, data_item_xdata._data_ref_count)
 
+    def test_filter_xdata_returns_ones_when_no_graphics(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            # setup by adding data item and a dependent data item
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation("target.xdata = src")
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            computation.create_input_item("src", Symbolic.make_item(display_item.display_data_channel, type="filter_xdata"))
+            document_model.set_data_item_computation(data_item2, computation)
+            document_model.recompute_all()
+            # verify
+            self.assertTrue(numpy.array_equal(data_item2.xdata.data, numpy.ones((8, 8))))
+
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot
 

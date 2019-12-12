@@ -1136,6 +1136,18 @@ def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> Da
     return data_item
 
 
+def create_mask_data(graphics: typing.Sequence[Graphics.Graphic], shape) -> numpy.ndarray:
+    mask = None
+    for graphic in graphics:
+        if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+            if mask is None:
+                mask = numpy.zeros(shape)
+            mask = numpy.logical_or(mask, graphic.get_mask(shape))
+    if mask is None:
+        mask = numpy.ones(shape)
+    return mask
+
+
 class DataSource:
     def __init__(self, display_data_channel, graphic, changed_event):
         self.__display_item = display_data_channel.container
@@ -1262,19 +1274,9 @@ class DataSource:
     def filtered_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         xdata = self.xdata
         if self.__display_item and xdata.is_data_2d and xdata.is_data_complex_type:
-            shape = xdata.data_shape
-            mask = numpy.zeros(shape)
-            for graphic in self.__display_item.graphics:
-                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                    mask = numpy.logical_or(mask, graphic.get_mask(shape))
-            return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
+            return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, xdata.data_shape)))
         return xdata
 
     @property
     def filter_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        shape = self.display_xdata.data_shape
-        mask = numpy.zeros(shape)
-        for graphic in self.__display_item.graphics:
-            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                mask = numpy.logical_or(mask, graphic.get_mask(shape))
-        return DataAndMetadata.DataAndMetadata.from_data(mask)
+        return DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, self.display_xdata.data_shape))

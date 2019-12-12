@@ -757,10 +757,7 @@ class BoundFilterData(BoundDisplayDataChannelBase):
         # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
         if display_item:
             shape = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
-            mask = numpy.zeros(shape)
-            for graphic in display_item.graphics:
-                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                    mask = numpy.logical_or(mask, graphic.get_mask(shape))
+            mask = DataItem.create_mask_data(display_item.graphics, shape)
             return DataAndMetadata.DataAndMetadata.from_data(mask)
         return None
 
@@ -787,10 +784,7 @@ class BoundFilteredData(BoundDisplayDataChannelBase):
             xdata = self._display_data_channel.data_item.xdata
             if xdata.is_data_2d and xdata.is_data_complex_type:
                 shape = xdata.data_shape
-                mask = numpy.zeros(shape)
-                for graphic in display_item.graphics:
-                    if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                        mask = numpy.logical_or(mask, graphic.get_mask(shape))
+                mask = DataItem.create_mask_data(display_item.graphics, shape)
                 return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
             return xdata
         return None

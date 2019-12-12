@@ -1314,10 +1314,7 @@ class DataItem(metaclass=SharedInstance):
         """
         display_data_channel = self.__display_item.display_data_channel
         shape = display_data_channel.display_data_shape
-        mask = numpy.zeros(shape)
-        for graphic in self.__display_item.graphics:
-            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                mask = numpy.logical_or(mask, graphic.get_mask(shape))
+        mask = DataItemModule.create_mask_data(self.__display_item.graphics, shape)
         return DataAndMetadata.DataAndMetadata.from_data(mask)
 
     def data_item_to_svg(self):
