@@ -366,7 +366,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.define_property("color_map_id", changed=self.__color_map_id_changed)
         # slicing data to 1d or 2d
         self.define_property("sequence_index", 0, validate=self.__validate_sequence_index, changed=self.__property_changed)
-        self.define_property("collection_index", (0, 0, 0), validate=self.__validate_collection_index, changed=self.__property_changed)
+        self.define_property("collection_index", (0, 0, 0), validate=self.__validate_collection_index, changed=self.__collection_index_changed)
         self.define_property("slice_center", 0, validate=self.__validate_slice_center, changed=self.__slice_interval_changed)
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
         self.define_property("data_item_reference", str(data_item.uuid) if data_item else None, changed=self.__data_item_reference_changed)
@@ -587,6 +587,26 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
             if data_metadata and data_metadata.dimensional_shape is not None:
                 return max(min(int(value), data_metadata.max_sequence_index - 1), 0) if data_metadata.is_sequence else 0
         return value if self._is_reading else 0
+
+    @property
+    def collection_point(self):
+        data_metadata = self._get_data_metadata()
+        if data_metadata and data_metadata.collection_dimension_count == 2:
+            return (self.collection_index[0] / data_metadata.collection_dimension_shape[0],
+                    self.collection_index[1] / data_metadata.collection_dimension_shape[1])
+        return None
+
+    @collection_point.setter
+    def collection_point(self, collection_point):
+        data_metadata = self._get_data_metadata()
+        if data_metadata and data_metadata.collection_dimension_count == 2:
+            self.collection_index = (collection_point[0] * data_metadata.collection_dimension_shape[0],
+                                     collection_point[1] * data_metadata.collection_dimension_shape[1])
+
+    def __collection_index_changed(self, name, value):
+        # notify for dependent slice_interval property
+        self.__property_changed(name, value)
+        self.notify_property_changed("collection_point")
 
     def __validate_collection_index(self, value: typing.Tuple[int, int, int]) -> typing.Tuple[int, int, int]:
         if not self._is_reading:
