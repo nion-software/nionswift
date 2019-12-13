@@ -631,7 +631,7 @@ class BoundDataSource(BoundItemBase):
                 self.__data_source = None
             display_data_channel = self.__item_proxy.item
             if display_data_channel and display_data_channel.data_item:
-                self.__data_source = DataItem.DataSource(display_data_channel, self.__graphic_proxy.item, self.changed_event)
+                self.__data_source = DataItem.MonitoredDataSource(display_data_channel, self.__graphic_proxy.item, self.changed_event)
             self.valid = self.__data_source is not None
 
         def item_registered(item):

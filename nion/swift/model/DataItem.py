@@ -29,6 +29,7 @@ from nion.utils import Event
 from nion.utils import Observable
 
 if typing.TYPE_CHECKING:
+    from nion.swift.model import DisplayItem
     from nion.swift.model import Project
 
 _ = gettext.gettext
@@ -1149,7 +1150,95 @@ def create_mask_data(graphics: typing.Sequence[Graphics.Graphic], shape) -> nump
 
 
 class DataSource:
+    def __init__(self, display_item: "DisplayItem.DisplayItem", graphic: Graphics.Graphic, xdata: DataAndMetadata.DataAndMetadata = None):
+        self.__display_item = display_item
+        self.__data_item = display_item.data_item if display_item else None
+        self.__graphic = graphic
+        self.__xdata = xdata
+
+    @property
+    def display_item(self) -> typing.Optional["DisplayItem.DisplayItem"]:
+        return self.__display_item
+
+    @property
+    def data_item(self) -> typing.Optional[DataItem]:
+        return self.__data_item
+
+    @property
+    def graphic(self) -> typing.Optional[Graphics.Graphic]:
+        return self.__graphic
+
+    @property
+    def data(self) -> typing.Optional[numpy.ndarray]:
+        return self.xdata.data if self.xdata else None
+
+    @property
+    def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        if self.__xdata is not None:
+            return self.__xdata
+        if self.data_item:
+            return self.data_item.xdata
+        return None
+
+    @property
+    def display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
+        if display_data_channel:
+            if self.__xdata is not None:
+                return Core.function_convert_to_scalar(self.xdata, display_data_channel.complex_display_type)
+            else:
+                return display_data_channel.get_calculated_display_values(True).display_data_and_metadata
+        return None
+
+    @property
+    def cropped_display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        data_item = self.data_item
+        if data_item:
+            displayed_xdata = self.display_xdata
+            graphic = self.__graphic
+            if graphic:
+                if hasattr(graphic, "bounds") and displayed_xdata.is_data_2d:
+                    if graphic.rotation:
+                        return Core.function_crop_rotated(displayed_xdata, graphic.bounds, graphic.rotation)
+                    else:
+                        return Core.function_crop(displayed_xdata, graphic.bounds)
+                if hasattr(graphic, "interval") and displayed_xdata.is_data_1d:
+                    return Core.function_crop_interval(displayed_xdata, graphic.interval)
+            return displayed_xdata
+        return None
+
+    @property
+    def cropped_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        data_item = self.data_item
+        if data_item:
+            xdata = self.xdata
+            graphic = self.__graphic
+            if graphic:
+                if hasattr(graphic, "bounds"):
+                    if graphic.rotation:
+                        return Core.function_crop_rotated(xdata, graphic.bounds, graphic.rotation)
+                    else:
+                        return Core.function_crop(xdata, graphic.bounds)
+                if hasattr(graphic, "interval"):
+                    return Core.function_crop_interval(xdata, graphic.interval)
+            return xdata
+        return None
+
+    @property
+    def filtered_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        xdata = self.xdata
+        if self.__display_item and xdata.is_data_2d and xdata.is_data_complex_type:
+            return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, xdata.data_shape)))
+        return xdata
+
+    @property
+    def filter_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, self.display_xdata.data_shape))
+
+
+class MonitoredDataSource(DataSource):
     def __init__(self, display_data_channel, graphic, changed_event):
+        super().__init__(display_data_channel.container, graphic)
         self.__display_item = display_data_channel.container
         self.__graphic = graphic
         self.__changed_event = changed_event  # not public since it is passed in
@@ -1210,73 +1299,3 @@ class DataSource:
         self.__display_item = None
         self.__graphic = None
         self.__changed_event = None
-        self.__data_item = None
-        self.__display = None
-
-    @property
-    def data_item(self) -> typing.Optional[DataItem]:
-        return self.__data_item
-
-    @property
-    def graphic(self) -> typing.Optional[Graphics.Graphic]:
-        return self.__graphic
-
-    @property
-    def data(self) -> typing.Optional[numpy.ndarray]:
-        data_item = self.data_item
-        return data_item.data if data_item else None
-
-    @property
-    def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        data_item = self.data_item
-        return data_item.xdata if data_item else None
-
-    @property
-    def display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
-        return display_data_channel.get_calculated_display_values(True).display_data_and_metadata if display_data_channel else None
-
-    @property
-    def cropped_display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        data_item = self.data_item
-        if data_item:
-            displayed_xdata = self.display_xdata
-            graphic = self.__graphic
-            if graphic:
-                if hasattr(graphic, "bounds") and displayed_xdata.is_data_2d:
-                    if graphic.rotation:
-                        return Core.function_crop_rotated(displayed_xdata, graphic.bounds, graphic.rotation)
-                    else:
-                        return Core.function_crop(displayed_xdata, graphic.bounds)
-                if hasattr(graphic, "interval") and displayed_xdata.is_data_1d:
-                    return Core.function_crop_interval(displayed_xdata, graphic.interval)
-            return displayed_xdata
-        return None
-
-    @property
-    def cropped_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        data_item = self.data_item
-        if data_item:
-            xdata = self.xdata
-            graphic = self.__graphic
-            if graphic:
-                if hasattr(graphic, "bounds"):
-                    if graphic.rotation:
-                        return Core.function_crop_rotated(xdata, graphic.bounds, graphic.rotation)
-                    else:
-                        return Core.function_crop(xdata, graphic.bounds)
-                if hasattr(graphic, "interval"):
-                    return Core.function_crop_interval(xdata, graphic.interval)
-            return xdata
-        return None
-
-    @property
-    def filtered_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        xdata = self.xdata
-        if self.__display_item and xdata.is_data_2d and xdata.is_data_complex_type:
-            return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, xdata.data_shape)))
-        return xdata
-
-    @property
-    def filter_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, self.display_xdata.data_shape))
