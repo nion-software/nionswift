@@ -1348,8 +1348,16 @@ class DataSource(metaclass=SharedInstance):
         return ObjectSpecifier("data_source", uuid_module.uuid4())
 
     @property
+    def display_item(self) -> "Display":
+        return Display(self.__data_source.display_item)
+
+    @property
     def data_item(self) -> DataItem:
         return DataItem(self.__data_source.data_item)
+
+    @property
+    def graphic(self) -> Graphic:
+        return Graphic(self.__data_source.graphic)
 
     @property
     def cropped_display_xdata(self) -> DataAndMetadata.DataAndMetadata:
