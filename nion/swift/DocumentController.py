@@ -327,6 +327,8 @@ class DocumentController(Window.Window):
         self._processing_reduce_menu.add_menu_item(_("Pick Region (Sum)"), functools.partial(self.__processing_new, self.document_model.get_pick_region_new))
         self._processing_reduce_menu.add_menu_item(_("Pick Region (Average)"), functools.partial(self.__processing_new, self.document_model.get_pick_region_average_new))
         self._processing_reduce_menu.add_menu_item(_("Projection (Sum)"), functools.partial(self.__processing_new, self.document_model.get_projection_new))
+        self._processing_reduce_menu.add_menu_item(_("Mapped Sum"), functools.partial(self.__processing_new, self.document_model.get_mapped_sum_new))
+        self._processing_reduce_menu.add_menu_item(_("Mapped Average"), functools.partial(self.__processing_new, self.document_model.get_mapped_average_new))
 
         self._processing_fourier_menu = self.create_sub_menu()
         self._processing_menu.add_sub_menu(_("Fourier"), self._processing_fourier_menu)

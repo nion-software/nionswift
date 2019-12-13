@@ -27,6 +27,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Persistence
+from nion.swift.model import Processing
 from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
@@ -35,10 +36,13 @@ from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Recorder
 from nion.utils import ReferenceCounting
+from nion.utils import Registry
 from nion.utils import Selection
 from nion.utils import ThreadPool
 
 _ = gettext.gettext
+
+Processing.init()
 
 
 def save_item_order(items: typing.List[Persistence.PersistentObject]) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
@@ -2358,6 +2362,26 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             requirement_2d_to_3d = {"type": "dimensionality", "min": 2, "max": 3}
             requirement_2d_to_4d = {"type": "dimensionality", "min": 2, "max": 4}
 
+            for processing_component in typing.cast(typing.Sequence[Processing.ProcessingBase], Registry.get_components_by_type("processing-component")):
+                processing_component.register_computation()
+                vs[processing_component.processing_id] = {
+                    "title": processing_component.title,
+                    "sources": processing_component.sources,
+                    "parameters": processing_component.parameters,
+                }
+                if processing_component.is_mappable and not processing_component.is_scalar:
+                    mapping_param = {"name": "mapping", "label": _("Sequence/Collection Mapping"), "type": "string", "value": "none", "value_default": "none", "control_type": "choice"}
+                    vs[processing_component.processing_id].setdefault("parameters", list()).insert(0, mapping_param)
+                if processing_component.is_mappable and processing_component.is_scalar:
+                    map_out_region = {"name": "pick_point", "type": "point", "params": {"label": _("Pick")}}
+                    map_connection = {"type": "property", "src": "display_data_channel", "src_prop": "collection_point", "dst": "pick_point", "dst_prop": "position"}
+                    vs[processing_component.processing_id]["out_regions"] = [map_out_region]
+                    vs[processing_component.processing_id]["connections"] = [map_connection]
+                    # TODO: generalize this so that other sequence/collections can be accepted by making a coordinate system monitor or similar
+                    # TODO: processing should declare its relationship to input coordinate system and swift should automatically connect pickers
+                    # TODO: in appropriate places.
+                    vs[processing_component.processing_id]["requirements"] = [requirement_4d]
+
             vs["fft"] = {"title": _("FFT"), "expression": "xd.fft({src}.cropped_display_xdata)", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
             vs["inverse-fft"] = {"title": _("Inverse FFT"), "expression": "xd.ifft({src}.xdata)",
                 "sources": [{"name": "src", "label": _("Source")}]}
@@ -2573,6 +2597,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def get_subtract_region_average_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
         return self.__make_computation("subtract-mask-average", [(display_item, crop_region)], {"src": [pick_region]})
+
+    def get_mapped_sum_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("mapped-sum", [(display_item, crop_region)])
+
+    def get_mapped_average_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("mapped-average", [(display_item, crop_region)])
 
     def get_line_profile_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, line_region: Graphics.LineTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("line-profile", [(display_item, crop_region)], {"src": [line_region]})

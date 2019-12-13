@@ -2526,6 +2526,38 @@ def make_field(document_controller, unbinder: Unbinder, computation, variable, c
     return column, []
 
 
+def make_choice(document_controller, unbinder: Unbinder, computation, variable, converter):
+    ui = typing.cast(UserInterface.UserInterface, document_controller.ui)
+    column = ui.create_column_widget()
+    row = ui.create_row_widget()
+    label_widget = ui.create_label_widget(variable.display_label, properties={"width": 80})
+    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
+    choices = [(_("None"), "none"), (_("Mapped"), "mapped")]
+    choice_widget = ui.create_combo_box_widget(items=choices, item_getter=operator.itemgetter(0))
+
+    class ChoiceConverter:
+        def convert(self, value: str) -> int:
+            for index, choice in enumerate(choices):
+                if choice[1] == value:
+                    return index
+            return 0
+        def convert_back(self, value: int) -> str:
+            if value >= 0 and value < len(choices):
+                return choices[value][1]
+            else:
+                return "none"
+
+    choice_widget.bind_current_index(ChangeComputationVariablePropertyBinding(document_controller, computation, variable, "value", converter=ChoiceConverter()))
+    row.add(label_widget)
+    row.add_spacing(8)
+    row.add(choice_widget)
+    row.add_stretch()
+    column.add(row)
+    column.add_spacing(4)
+    unbinder.add([computation], [label_widget.unbind_text, choice_widget.unbind_current_index])
+    return column, []
+
+
 def make_image_chooser(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
     ui = document_controller.ui
     widget = InspectorSectionWidget(ui)
@@ -2644,6 +2676,10 @@ class VariableWidget(Widgets.CompositeWidgetBase):
             self.closeables.extend(closeables)
         elif variable.variable_type == "data_source":
             self.content_widget.add(make_image_chooser(document_controller, computation, variable))
+        elif variable.variable_type == "string" and variable.control_type == "choice":
+            widget, closeables = make_choice(document_controller, self.__unbinder, computation, variable, None)
+            self.content_widget.add(widget)
+            self.closeables.extend(closeables)
         elif variable.variable_type == "string":
             widget, closeables = make_field(document_controller, self.__unbinder, computation, variable, None)
             self.content_widget.add(widget)
