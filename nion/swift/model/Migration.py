@@ -485,7 +485,8 @@ def migrate_to_v9(reader_info_list):
                                     var["value"] = operation_dict["values"].get(var_name, var.get("value"))
                                     variables_list.append(var)
                             computation_dict["variables"] = variables_list
-                            computation_dict["original_expression"] = info[operation_id].expression.format(**kws)
+                            if info[operation_id].expression:
+                                computation_dict["original_expression"] = info[operation_id].expression.format(**kws)
                             data_source_dict["computation"] = computation_dict
                 properties["version"] = 9
                 logging.getLogger("migration").debug("Updated {} to {} (operation to computation)".format(storage_handler.reference, properties["version"]))

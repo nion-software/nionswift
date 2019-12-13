@@ -1709,6 +1709,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.fft(src.cropped_display_xdata)"))
                 self.assertEqual(len(computation.variables), 1)
                 self.assertEqual(computation.get_input("src").data_item, document_model.data_items[0])
+                self.assertEqual(computation.get_output("target"), document_model.data_items[1])
                 data = numpy.arange(64).reshape((8, 8))
                 document_model.data_items[0].set_data(data)
                 self.assertIsNotNone(DocumentModel.evaluate_data(computation).data)

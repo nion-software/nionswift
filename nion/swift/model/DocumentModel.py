@@ -14,9 +14,6 @@ import typing
 import uuid
 import weakref
 
-# third party libraries
-import numpy
-
 # local libraries
 from nion.data import DataAndMetadata
 from nion.swift.model import ApplicationData
@@ -2136,7 +2133,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 xdata_property = "cropped_" + xdata_property
             elif src_dict.get("use_filtered_data", False):
                 xdata_property = "filtered_" + xdata_property
-            src_text = "{}.{}".format(src_name, xdata_property)
+            src_text = f"{src_name}.{xdata_property}"
             src_names.append(src_name)
             src_texts.append(src_text)
             src_labels.append(src_label)
@@ -2221,15 +2218,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 elif region_type == "interval":
                     if region:
                         assert isinstance(region, Graphics.IntervalGraphic)
-                        interval_region = region
+                        interval_graphic = region
                     else:
-                        interval_region = Graphics.IntervalGraphic()
+                        interval_graphic = Graphics.IntervalGraphic()
                         for k, v in region_params.items():
-                            setattr(interval_region, k, v)
+                            setattr(interval_graphic, k, v)
                         if display_item:
-                            display_item.add_graphic(interval_region)
-                    regions.append((region_name, interval_region, region_params.get("label")))
-                    region_map[region_name] = interval_region
+                            display_item.add_graphic(interval_graphic)
+                    regions.append((region_name, interval_graphic, region_params.get("label")))
+                    region_map[region_name] = interval_graphic
                 elif region_type == "channel":
                     if region:
                         assert isinstance(region, Graphics.ChannelGraphic)
@@ -2244,15 +2241,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     region_map[region_name] = channel_region
 
         # now extract the script (full script) or expression (implied imports and return statement)
-        script = processing_description.get("script")
-        if not script:
-            expression = processing_description.get("expression")
-            if expression:
-                script = Symbolic.xdata_expression(expression)
-        assert script
+        script = None
+        expression = processing_description.get("expression")
+        if expression:
+            script = Symbolic.xdata_expression(expression)
+            script = script.format(**dict(zip(src_names, src_texts)))
 
         # construct the computation
-        script = script.format(**dict(zip(src_names, src_texts)))
         computation = self.create_computation(script)
         computation.label = processing_description["title"]
         computation.processing_id = processing_id
@@ -2300,11 +2295,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             region_name = out_region_dict["name"]
             region_params = out_region_dict.get("params", dict())
             if region_type == "interval":
-                interval_region = Graphics.IntervalGraphic()
+                interval_graphic = Graphics.IntervalGraphic()
                 for k, v in region_params.items():
-                    setattr(interval_region, k, v)
-                new_display_item.add_graphic(interval_region)
-                new_regions[region_name] = interval_region
+                    setattr(interval_graphic, k, v)
+                new_display_item.add_graphic(interval_graphic)
+                new_regions[region_name] = interval_graphic
+            elif region_type == "point":
+                point_graphic = Graphics.PointGraphic()
+                for k, v in region_params.items():
+                    setattr(point_graphic, k, v)
+                new_display_item.add_graphic(point_graphic)
+                new_regions[region_name] = point_graphic
 
         # now come the connections between the source and target
         for connection_dict in processing_description.get("connections", list()):
@@ -2357,6 +2358,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def _get_builtin_processing_descriptions(cls) -> typing.Dict:
         if not cls._builtin_processing_descriptions:
             vs = dict()
+
+            requirement_2d = {"type": "dimensionality", "min": 2, "max": 2}
+            requirement_3d = {"type": "dimensionality", "min": 3, "max": 3}
+            requirement_4d = {"type": "dimensionality", "min": 4, "max": 4}
+            requirement_2d_to_3d = {"type": "dimensionality", "min": 2, "max": 3}
+            requirement_2d_to_4d = {"type": "dimensionality", "min": 2, "max": 4}
+
             vs["fft"] = {"title": _("FFT"), "expression": "xd.fft({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
             vs["inverse-fft"] = {"title": _("Inverse FFT"), "expression": "xd.ifft({src})",
                 "sources": [{"name": "src", "label": _("Source"), "use_display_data": False}]}
@@ -2409,10 +2417,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             vs["invert"] = {"title": _("Negate"), "expression": "xd.invert({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
             vs["convert-to-scalar"] = {"title": _("Scalar"), "expression": "{src}",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-            requirement_2d = {"type": "dimensionality", "min": 2, "max": 2}
-            requirement_3d = {"type": "dimensionality", "min": 3, "max": 3}
-            requirement_2d_to_3d = {"type": "dimensionality", "min": 2, "max": 3}
-            requirement_2d_to_4d = {"type": "dimensionality", "min": 2, "max": 4}
             vs["crop"] = {"title": _("Crop"), "expression": "{src}",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
             vs["sum"] = {"title": _("Sum"), "expression": "xd.sum({src}, src.xdata.datum_dimension_indexes[0])",
@@ -2611,12 +2615,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         return self.__make_computation("sequence-extract", [(display_item, crop_region)])
 
 
-
 DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_processing_descriptions())
+
 
 def evaluate_data(computation) -> DataAndMetadata.DataAndMetadata:
     api = PlugInManager.api_broker_fn("~1.0", None)
     api_data_item = api._new_api_object(DataItem.new_data_item(None))
-    error_text = computation.evaluate_with_target(api, api_data_item)
-    computation.error_text = error_text
-    return api_data_item.data_and_metadata
+    if computation.expression:
+        error_text = computation.evaluate_with_target(api, api_data_item)
+        computation.error_text = error_text
+        return api_data_item.data_and_metadata
+    else:
+        compute_obj, error_text = computation.evaluate(api)
+        compute_obj.commit()
+        computation.error_text = error_text
+        return computation.get_output("target").xdata
