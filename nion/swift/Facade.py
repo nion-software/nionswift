@@ -2475,7 +2475,7 @@ class Library(metaclass=SharedInstance):
         Scriptable: No
         """
         with contextlib.closing(self.__document_model.profile.create_item_proxy(item_specifier=item_specifier)) as item_proxy:
-            return item_proxy.item
+            return _new_api_object(item_proxy.item)
 
     def has_library_value(self, key: str) -> bool:
         """Return whether the library value for the given key exists.
