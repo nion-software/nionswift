@@ -768,7 +768,7 @@ class BoundFilterData(BoundDisplayDataChannelBase):
         objects = {data_item, display_item}
         graphics = display_item.graphics if display_item else list()
         for graphic in graphics:
-            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+            if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                 objects.add(graphic)
         return objects
 
@@ -796,7 +796,7 @@ class BoundFilteredData(BoundDisplayDataChannelBase):
         objects = {data_item, display_item}
         graphics = display_item.graphics if display_item else list()
         for graphic in graphics:
-            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+            if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                 objects.add(graphic)
         return objects
 

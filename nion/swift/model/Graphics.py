@@ -322,6 +322,26 @@ def adjust_rectangle_like(mapping, rotation, is_center_constant_by_default, orig
     return (mapping.map_point_image_to_image_norm(new_bounds.origin), mapping.map_size_image_to_image_norm(new_bounds.size)), new_rotation
 
 
+def draw_ellipse(ctx, cx, cy, rx, ry, stroke_style, fill_style):
+    with ctx.saver():
+        ra = 0.0  # rotation angle
+        ctx.begin_path()
+        for i in numpy.arange(0, 2 * math.pi, 0.1):
+            x = cx - (ry * 0.5 * math.sin(i)) * math.sin(ra * math.pi) + (rx * 0.5 * math.cos(i)) * math.cos(
+                ra * math.pi)
+            y = cy + (rx * 0.5 * math.cos(i)) * math.sin(ra * math.pi) + (ry * 0.5 * math.sin(i)) * math.cos(
+                ra * math.pi)
+            if i == 0:
+                ctx.move_to(x, y)
+            else:
+                ctx.line_to(x, y)
+        ctx.close_path()
+        ctx.stroke_style = stroke_style
+        ctx.stroke()
+        ctx.fill_style = fill_style
+        ctx.fill()
+
+
 def draw_arrow(ctx, p1, p2, arrow_size=8):
     angle = math.atan2(p2[0] - p1[0], p2[1] - p1[1])
     ctx.move_to(p2[1], p2[0])
@@ -355,11 +375,13 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.define_type(type)
         self.define_property("graphic_id", None, changed=self._property_changed, validate=lambda s: str(s) if s else None)
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
-        self.define_property("color", "#F80", changed=self._property_changed)
+        self.define_property("stroke_color", None, changed=self._property_changed)
+        self.define_property("fill_color", None, changed=self._property_changed)
         self.define_property("label", changed=self._property_changed, validate=lambda s: str(s) if s else None)
         self.define_property("is_position_locked", False, changed=self._property_changed)
         self.define_property("is_shape_locked", False, changed=self._property_changed)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed)
+        self.define_property("role", None, changed=self._property_changed)
         self.__region = None
         self.graphic_changed_event = Event.Event()
         self.label_padding = 4
@@ -408,7 +430,8 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
     def mime_data_dict(self) -> dict:
         return {
             "type": self.type,
-            "color": self.color,
+            "stroke_color": self.stroke_color,
+            "fill_color": self.fill_color,
             "label": self.label,
             "is_position_locked": self.is_position_locked,
             "is_shape_locked": self.is_shape_locked,
@@ -416,13 +439,18 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         }
 
     def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
-        self.color = graphic_dict.get("color", self.color)
+        self.stroke_color = graphic_dict.get("stroke_color", self.stroke_color)
+        self.fill_color = graphic_dict.get("fill_color", self.fill_color)
         self.label = graphic_dict.get("label", self.label)
         self.is_position_locked = graphic_dict.get("is_position_locked", self.is_position_locked)
         self.is_shape_locked = graphic_dict.get("is_shape_locked", self.is_shape_locked)
         self.is_bounds_constrained = graphic_dict.get("is_bounds_constrained", self.is_bounds_constrained)
 
     def read_properties_from_dict(self, d: typing.Mapping):
+        d = dict(d)
+        stroke_color = d.pop("color", "#F80")
+        if stroke_color != "#F80":
+            d["stroke_color"] = stroke_color
         self.read_from_mime_data(d)
 
     @property
@@ -439,6 +467,38 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
 
     def _property_changed(self, name, value):
         self.notify_property_changed(name)
+
+    @property
+    def used_role(self) -> typing.Optional[str]:
+        return self.role
+
+    @property
+    def used_stroke_style(self) -> typing.Optional[str]:
+        if self.stroke_color:
+            return self.stroke_color
+        if self.used_role == "fourier_mask":
+            return "#F08"
+        elif self.used_role == "mask":
+            return "#00F"
+        return "#F80"
+
+    @property
+    def used_fill_style(self) -> typing.Optional[str]:
+        if self.fill_color:
+            return self.fill_color
+        if self.used_role == "fourier_mask":
+            return "rgba(255, 0, 127, 0.1)"
+        elif self.used_role == "mask":
+            return "rgba(0, 0, 255, 0.1)"
+        return None
+
+    @property
+    def color(self) -> typing.Optional[str]:
+        return self.used_stroke_style
+
+    @color.setter
+    def color(self, value: typing.Optional[str]) -> None:
+        self.stroke_color = value
 
     @property
     def region(self):
@@ -500,23 +560,6 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
                 return self.test_inside_bounds(bounds, test_point, 2)
         return False
 
-    def draw_ellipse(self, ctx, cx, cy, rx, ry):
-        with ctx.saver():
-            ra = 0.0  # rotation angle
-            ctx.begin_path()
-            for i in numpy.arange(0, 2 * math.pi, 0.1):
-                x = cx - (ry * 0.5 * math.sin(i)) * math.sin(ra * math.pi) + (rx * 0.5 * math.cos(i)) * math.cos(
-                    ra * math.pi)
-                y = cy + (rx * 0.5 * math.cos(i)) * math.sin(ra * math.pi) + (ry * 0.5 * math.sin(i)) * math.cos(
-                    ra * math.pi)
-                if i == 0:
-                    ctx.move_to(x, y)
-                else:
-                    ctx.line_to(x, y)
-            ctx.close_path()
-            ctx.stroke()
-            ctx.fill()
-
     def draw_marker(self, ctx, p, fill_style=None):
         with ctx.saver():
             ctx.fill_style = fill_style if fill_style else '#00FF00'
@@ -547,7 +590,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
                 ctx.close_path()
                 ctx.fill_style = "rgba(255, 255, 255, 0.6)"
                 ctx.fill()
-                ctx.stroke_style = self.color
+                ctx.stroke_style = self.used_stroke_style
                 ctx.stroke()
                 ctx.font = font
                 ctx.text_baseline = "middle"
@@ -800,8 +843,10 @@ class RectangleGraphic(RectangleTypeGraphic):
             draw_arrow(ctx, Geometry.FloatPoint(y=rect.top + 10, x=center.x), Geometry.FloatPoint(y=rect.top + 2, x=center.x), arrow_size=4)
             ctx.close_path()
             ctx.line_width = 1
-            ctx.stroke_style = self.color
+            ctx.stroke_style = self.used_stroke_style
             ctx.stroke()
+            ctx.fill_style = self.used_fill_style
+            ctx.fill()
         if is_selected:
             self.draw_marker(ctx, top_left)
             self.draw_marker(ctx, top_right)
@@ -820,16 +865,20 @@ class RectangleGraphic(RectangleTypeGraphic):
                     ctx.begin_path()
                     ctx.move_to(mid_x - 0.5 * mark_size, mid_y)
                     ctx.line_to(mid_x + 0.5 * mark_size, mid_y)
-                    ctx.stroke_style = self.color
+                    ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
+                    ctx.fill_style = self.used_fill_style
+                    ctx.fill()
                 if size[1] > mark_size:
                     mid_x = origin[1] + 0.5 * size[1]
                     mid_y = origin[0] + 0.5 * size[0]
                     ctx.begin_path()
                     ctx.move_to(mid_x, mid_y - 0.5 * mark_size)
                     ctx.line_to(mid_x, mid_y + 0.5 * mark_size)
-                    ctx.stroke_style = self.color
+                    ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
+                    ctx.fill_style = self.used_fill_style
+                    ctx.fill()
         self.draw_label(ctx, get_font_metrics_fn, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
@@ -886,16 +935,17 @@ class EllipseGraphic(RectangleTypeGraphic):
                 ctx.rotate(-self.rotation)
                 ctx.translate(-center.x, -center.y)
             ctx.line_width = 1
-            ctx.stroke_style = self.color
-            self.draw_ellipse(ctx, origin[1] + size[1] * 0.5, origin[0] + size[0] * 0.5, size[1], size[0])
+            draw_ellipse(ctx, origin[1] + size[1] * 0.5, origin[0] + size[0] * 0.5, size[1], size[0], self.used_stroke_style, self.used_fill_style)
             ctx.begin_path()
             ctx.move_to(center.x, rect.top + 10)
             ctx.line_to(center.x, rect.top + 2)
             draw_arrow(ctx, Geometry.FloatPoint(y=rect.top + 10, x=center.x), Geometry.FloatPoint(y=rect.top + 2, x=center.x), arrow_size=4)
             ctx.close_path()
             ctx.line_width = 1
-            ctx.stroke_style = self.color
+            ctx.stroke_style = self.used_stroke_style
             ctx.stroke()
+            ctx.fill_style = self.used_fill_style
+            ctx.fill()
         if is_selected:
             self.draw_marker(ctx, top_left)
             self.draw_marker(ctx, top_right)
@@ -914,7 +964,7 @@ class EllipseGraphic(RectangleTypeGraphic):
                     ctx.begin_path()
                     ctx.move_to(mid_x - 0.5 * mark_size, mid_y)
                     ctx.line_to(mid_x + 0.5 * mark_size, mid_y)
-                    ctx.stroke_style = self.color
+                    ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
                 if size[1] > mark_size:
                     mid_x = origin[1] + 0.5 * size[1]
@@ -922,7 +972,7 @@ class EllipseGraphic(RectangleTypeGraphic):
                     ctx.begin_path()
                     ctx.move_to(mid_x, mid_y - 0.5 * mark_size)
                     ctx.line_to(mid_x, mid_y + 0.5 * mark_size)
-                    ctx.stroke_style = self.color
+                    ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
         self.draw_label(ctx, get_font_metrics_fn, mapping)
 
@@ -1156,7 +1206,7 @@ class LineGraphic(LineTypeGraphic):
             if self.end_arrow_enabled:
                 draw_arrow(ctx, p1, p2)
             ctx.line_width = 1
-            ctx.stroke_style = self.color
+            ctx.stroke_style = self.used_stroke_style
             ctx.stroke()
         if is_selected:
             self.draw_marker(ctx, p1)
@@ -1175,7 +1225,6 @@ class LineProfileGraphic(LineTypeGraphic):
         self.define_property("width", 1.0, changed=self._property_changed, validate=lambda value: float(value))
         self.define_property("interval_descriptors", list(), changed=self._property_changed)
         self.end_arrow_enabled = True
-        # self.interval_descriptors = [{"interval": (0.1, 0.3), "color": "#F00"}, {"interval": (0.7, 0.74), "color": "#0F0"}]
 
     def mime_data_dict(self) -> dict:
         d = super().mime_data_dict()
@@ -1199,7 +1248,7 @@ class LineProfileGraphic(LineTypeGraphic):
             if self.end_arrow_enabled:
                 draw_arrow(ctx, p1, p2)
             ctx.line_width = 1
-            ctx.stroke_style = self.color
+            ctx.stroke_style = self.used_stroke_style
             ctx.stroke()
             length = math.sqrt(math.pow(p2[0] - p1[0],2) + math.pow(p2[1] - p1[1], 2))
             dy = (p2[0] - p1[0]) / length if length > 0 else 0.0
@@ -1215,11 +1264,11 @@ class LineProfileGraphic(LineTypeGraphic):
                     ctx.close_path()
                     ctx.line_width = 1
                     ctx.line_dash = 2
-                    ctx.stroke_style = self.color
+                    ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
             for interval_descriptor in self.interval_descriptors:
                 interval = interval_descriptor.get("interval")
-                color = interval_descriptor.get("color", self.color)
+                color = interval_descriptor.get("color", self.stroke_color)
                 interval_marker_half_width = 4
                 if interval:
                     with ctx.saver():
@@ -1339,7 +1388,7 @@ class PointGraphic(PointTypeGraphic):
             ctx.move_to(p.x, p.y + inner_size)
             ctx.line_to(p.x, p.y + cross_hair_size)
             ctx.line_width = 1
-            ctx.stroke_style = self.color
+            ctx.stroke_style = self.used_stroke_style
             ctx.stroke()
             self.draw_label(ctx, get_font_metrics_fn, mapping)
         if is_selected:
@@ -1533,6 +1582,10 @@ class SpotGraphic(Graphic):
         super().read_from_mime_data(graphic_dict)
         self.bounds = graphic_dict.get("bounds", self.bounds)
 
+    @property
+    def used_role(self) -> typing.Optional[str]:
+        return "fourier_mask"
+
     # accessors
 
     def __validate_bounds(self, value):
@@ -1689,16 +1742,16 @@ class SpotGraphic(Graphic):
         center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
         with ctx.saver():
             ctx.line_width = 1
-            ctx.stroke_style = self.color
-            ctx.fill_style = "rgba(255, 0, 127, 0.1)"
+            ctx.stroke_style = self.used_stroke_style
+            ctx.fill_style = self.used_fill_style
             cx0 = origin[1] + size[1] * 0.5
             cy0 = origin[0] + size[0] * 0.5
-            self.draw_ellipse(ctx, cx0, cy0, size[1], size[0])
-            ctx.stroke_style = self.color
-            ctx.fill_style = "rgba(255, 0, 127, 0.1)"
+            draw_ellipse(ctx, cx0, cy0, size[1], size[0], self.used_stroke_style, self.used_fill_style)
+            ctx.stroke_style = self.used_stroke_style
+            ctx.fill_style = self.used_fill_style
             cx1 = 2 * center[1] - cx0
             cy1 = 2 * center[0] - cy0
-            self.draw_ellipse(ctx, cx1, cy1, size[1], size[0])
+            draw_ellipse(ctx, cx1, cy1, size[1], size[0], self.used_stroke_style, self.used_fill_style)
         if is_selected:
             self.draw_marker(ctx, rotate_180_around_center(origin, center))  # bottom right
             self.draw_marker(ctx, rotate_180_around_center((origin[0] + size[0], origin[1]), center))  # top right
@@ -1719,12 +1772,12 @@ class SpotGraphic(Graphic):
                     ctx.begin_path()
                     ctx.move_to(mid_x0 - 0.5 * mark_size, mid_y0)
                     ctx.line_to(mid_x0 + 0.5 * mark_size, mid_y0)
-                    ctx.stroke_style = self.color
+                    ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
                     ctx.begin_path()
                     ctx.move_to(mid_x1 - 0.5 * mark_size, mid_y1)
                     ctx.line_to(mid_x1 + 0.5 * mark_size, mid_y1)
-                    ctx.stroke_style = self.color
+                    ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
             if size[1] > mark_size:
                 mid_x0 = origin[1] + 0.5 * size[1]
@@ -1734,12 +1787,12 @@ class SpotGraphic(Graphic):
                     ctx.begin_path()
                     ctx.move_to(mid_x0, mid_y0 - 0.5 * mark_size)
                     ctx.line_to(mid_x0, mid_y0 + 0.5 * mark_size)
-                    ctx.stroke_style = self.color
+                    ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
                     ctx.begin_path()
                     ctx.move_to(mid_x1, mid_y1 - 0.5 * mark_size)
                     ctx.line_to(mid_x1, mid_y1 + 0.5 * mark_size)
-                    ctx.stroke_style = self.color
+                    ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
         self.draw_label(ctx, get_font_metrics_fn, mapping)
 
@@ -1754,7 +1807,7 @@ class WedgeGraphic(Graphic):
         super().__init__("wedge-graphic")
         self.title = _("Wedge")
 
-        def validate_angles(value: typing.Tuple[float, float]) -> typing.Tuple[typing.Tuple[float], typing.Tuple[float]]:
+        def validate_angles(value: typing.Tuple[float, float]) -> typing.Tuple[float, float]:
             start_angle = float(value[0])
             end_angle =  float(value[1])
             return start_angle, end_angle
@@ -1771,6 +1824,10 @@ class WedgeGraphic(Graphic):
     def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
         super().read_from_mime_data(graphic_dict)
         self.angle_interval = graphic_dict.get("angle_interval", self.angle_interval)
+
+    @property
+    def used_role(self) -> typing.Optional[str]:
+        return "fourier_mask"
 
     @property
     def start_angle(self) -> float:
@@ -1917,8 +1974,8 @@ class WedgeGraphic(Graphic):
                     ctx.line_to(*corner_endpoint)
                 ctx.line_to(*end_line_endpoint)
                 ctx.line_width = 1
-                ctx.stroke_style = self.color
-                ctx.fill_style = "rgba(255, 0, 127, 0.1)"
+                ctx.stroke_style = self.used_stroke_style
+                ctx.fill_style = self.used_fill_style
                 ctx.fill()
                 ctx.stroke()
         if is_selected:
@@ -1954,6 +2011,10 @@ class RingGraphic(Graphic):
         self.radius_1 = graphic_dict.get("radius_1", self.radius_1)
         self.radius_2 = graphic_dict.get("radius_2", self.radius_2)
         self.mode = graphic_dict.get("mode", self.mode)
+
+    @property
+    def used_role(self) -> typing.Optional[str]:
+        return "fourier_mask"
 
     # test is required for Graphic interface
     def test(self, mapping, get_font_metrics_fn, test_point: typing.Tuple[float, float], move_only: bool) -> typing.Tuple[str, bool]:
@@ -2046,8 +2107,8 @@ class RingGraphic(Graphic):
         radius_2_widget = mapping.map_size_image_norm_to_widget((self.radius_2, self.radius_2))
         with ctx.saver():
             ctx.line_width = 1
-            ctx.stroke_style = self.color
-            self.draw_ellipse(ctx, center[1], center[0], radius_1_widget[1] * 2, radius_1_widget[0] * 2)
+            ctx.stroke_style = self.used_stroke_style
+            draw_ellipse(ctx, center[1], center[0], radius_1_widget[1] * 2, radius_1_widget[0] * 2, self.used_stroke_style, self.used_fill_style)
             if is_selected:
                 self.draw_marker(ctx, (center[0] + radius_1_widget[0], center[1]))
                 self.draw_marker(ctx, (center[0] - radius_1_widget[0], center[1]))
@@ -2055,15 +2116,15 @@ class RingGraphic(Graphic):
                 self.draw_marker(ctx, (center[0], center[1] - radius_1_widget[1]))
             if not self.mode == "low-pass" and not self.mode == "high-pass":
                 ctx.line_width = 1
-                ctx.stroke_style = self.color
-                self.draw_ellipse(ctx, center[1], center[0], radius_2_widget[1] * 2, radius_2_widget[0] * 2)
+                ctx.stroke_style = self.used_stroke_style
+                draw_ellipse(ctx, center[1], center[0], radius_2_widget[1] * 2, radius_2_widget[0] * 2, self.used_stroke_style, self.used_fill_style)
                 if is_selected:
                     self.draw_marker(ctx, (center[0] + radius_2_widget[0], center[1]))
                     self.draw_marker(ctx, (center[0] - radius_2_widget[0], center[1]))
                     self.draw_marker(ctx, (center[0], center[1] + radius_2_widget[1]))
                     self.draw_marker(ctx, (center[0], center[1] - radius_2_widget[1]))
             # draw 2 thick arcs
-            ctx.fill_style = "rgba(255, 0, 127, 0.1)"
+            ctx.fill_style = self.used_fill_style
             # ctx.stroke_style = "#0000FF"
             # ra = 0.0  # rotation angle
             if self.mode == "band-pass":
@@ -2142,6 +2203,10 @@ class LatticeGraphic(Graphic):
         self.u_pos = graphic_dict.get("u_pos", self.u_pos)
         self.v_pos = graphic_dict.get("v_pos", self.v_pos)
         self.radius = graphic_dict.get("radius", self.radius)
+
+    @property
+    def used_role(self) -> typing.Optional[str]:
+        return "fourier_mask"
 
     # test is required for Graphic interface
     def test(self, mapping, get_font_metrics_fn, test_point: typing.Tuple[float], move_only: bool) -> typing.Tuple[str, bool]:
@@ -2366,20 +2431,20 @@ class LatticeGraphic(Graphic):
             ctx.line_to(u_pos_widget[1], u_pos_widget[0])
             draw_arrow(ctx, start_widget, u_pos_widget)
             ctx.line_width = 1
-            ctx.stroke_style = self.color
+            ctx.stroke_style = self.used_stroke_style
             ctx.stroke()
-            ctx.fill_style = "rgba(255, 0, 127, 0.1)"
-            self.draw_ellipse(ctx, u_pos_widget.x, u_pos_widget.y, size_widget[1], size_widget[0])
+            ctx.fill_style = self.used_fill_style
+            draw_ellipse(ctx, u_pos_widget.x, u_pos_widget.y, size_widget[1], size_widget[0], self.used_stroke_style, self.used_fill_style)
         with ctx.saver():
             ctx.begin_path()
             ctx.move_to(start_widget[1], start_widget[0])
             ctx.line_to(v_pos_widget[1], v_pos_widget[0])
             draw_arrow(ctx, start_widget, v_pos_widget)
             ctx.line_width = 1
-            ctx.stroke_style = self.color
+            ctx.stroke_style = self.used_stroke_style
             ctx.stroke()
-            ctx.fill_style = "rgba(255, 0, 127, 0.1)"
-            self.draw_ellipse(ctx, v_pos_widget.x, v_pos_widget.y, size_widget[1], size_widget[0])
+            ctx.fill_style = self.used_fill_style
+            draw_ellipse(ctx, v_pos_widget.x, v_pos_widget.y, size_widget[1], size_widget[0], self.used_stroke_style, self.used_fill_style)
 
         # uv_pos = u_pos + (v_pos - start)
         # uv_pos_widget = mapping.map_point_image_norm_to_widget(uv_pos)
@@ -2389,14 +2454,14 @@ class LatticeGraphic(Graphic):
         #     ctx.line_to(uv_pos_widget[1], uv_pos_widget[0])
         #     draw_arrow(ctx, start_widget, uv_pos_widget)
         #     ctx.line_width = 1
-        #     ctx.stroke_style = self.color
+        #     ctx.stroke_style = self.used_color
         #     ctx.stroke()
 
         bounds = Geometry.FloatRect.from_tlbr(0, 0, 1, 1).inset(-radius, -radius)
         with ctx.saver():
             ctx.line_width = 1
-            ctx.stroke_style = self.color
-            ctx.fill_style = "rgba(255, 0, 127, 0.1)"
+            ctx.stroke_style = self.used_stroke_style
+            ctx.fill_style = self.used_fill_style
             mx = 0
             drawn = True
             while drawn and mx < 32:
@@ -2409,7 +2474,7 @@ class LatticeGraphic(Graphic):
                             p = start + ui * (u_pos - start) + vi * (v_pos - start)
                             if bounds.contains_point(p):
                                 p_widget = mapping.map_point_image_norm_to_widget(p)
-                                self.draw_ellipse(ctx, p_widget.x, p_widget.y, size_widget[1], size_widget[0])
+                                draw_ellipse(ctx, p_widget.x, p_widget.y, size_widget[1], size_widget[0], self.used_stroke_style, self.used_fill_style)
                                 drawn = True
                 mx += 1
 

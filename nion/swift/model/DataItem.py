@@ -2,6 +2,7 @@
 import abc
 import copy
 import datetime
+import functools
 import gettext
 import pathlib
 import threading
@@ -9,7 +10,6 @@ import time
 import typing
 import uuid
 import warnings
-import weakref
 
 # third party libraries
 import numpy
@@ -1140,10 +1140,11 @@ def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> Da
 def create_mask_data(graphics: typing.Sequence[Graphics.Graphic], shape) -> numpy.ndarray:
     mask = None
     for graphic in graphics:
-        if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-            if mask is None:
-                mask = numpy.zeros(shape)
-            mask = numpy.logical_or(mask, graphic.get_mask(shape))
+        if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+            if graphic.used_role in ("mask", "fourier_mask"):
+                if mask is None:
+                    mask = numpy.zeros(shape)
+                mask = numpy.logical_or(mask, graphic.get_mask(shape))
     if mask is None:
         mask = numpy.ones(shape)
     return mask
@@ -1227,8 +1228,11 @@ class DataSource:
     @property
     def filtered_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         xdata = self.xdata
-        if self.__display_item and xdata.is_data_2d and xdata.is_data_complex_type:
-            return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, xdata.data_shape)))
+        if self.__display_item and xdata.is_data_2d:
+            if xdata.is_data_complex_type:
+                return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, xdata.data_shape)))
+            else:
+                return DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, xdata.data_shape)) * self.display_xdata
         return xdata
 
     @property
@@ -1252,14 +1256,15 @@ class MonitoredDataSource(DataSource):
             self.__changed_event.fire()
         if self.__graphic:
             self.__property_changed_listener = self.__graphic.property_changed_event.listen(property_changed)
-        def filter_property_changed(key):
-            self.__changed_event.fire()
+        def filter_property_changed(graphic, key):
+            if key == "role" or graphic.used_role == "mask":
+                self.__changed_event.fire()
         self.__graphic_property_changed_listeners = list()
         def graphic_inserted(key, value, before_index):
             if key == "graphics":
                 property_changed_listener = None
-                if isinstance(self.__graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                    property_changed_listener = value.property_changed_event.listen(filter_property_changed)
+                if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                    property_changed_listener = value.property_changed_event.listen(functools.partial(filter_property_changed, graphic))
                     self.__changed_event.fire()
                 self.__graphic_property_changed_listeners.insert(before_index, property_changed_listener)
         def graphic_removed(key, value, index):
@@ -1272,8 +1277,8 @@ class MonitoredDataSource(DataSource):
         self.__graphic_removed_event_listener = self.__display_item.item_removed_event.listen(graphic_removed) if self.__display_item else None
         for graphic in self.__display_item.graphics if self.__display_item else list():
             property_changed_listener = None
-            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                property_changed_listener = graphic.property_changed_event.listen(filter_property_changed)
+            if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                property_changed_listener = graphic.property_changed_event.listen(functools.partial(filter_property_changed, graphic))
             self.__graphic_property_changed_listeners.append(property_changed_listener)
 
     def close(self):

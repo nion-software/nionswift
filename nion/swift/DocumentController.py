@@ -290,6 +290,9 @@ class DocumentController(Window.Window):
         self._processing_graphics_menu.add_menu_item(_("Add Point Graphic"), self.add_point_graphic)
         self._processing_graphics_menu.add_menu_item(_("Add Interval Graphic"), self.add_interval_graphic)
         self._processing_graphics_menu.add_menu_item(_("Add Channel Graphic"), self.add_channel_graphic)
+        self._processing_graphics_menu.add_separator()
+        self._processing_graphics_menu.add_menu_item(_("Add to Mask"), self.add_graphic_mask)
+        self._processing_graphics_menu.add_menu_item(_("Remove from Mask"), self.remove_graphic_mask)
 
         self._processing_menu.add_menu_item(_("Snapshot"), self.processing_snapshot, key_sequence="Ctrl+S")
         self._processing_menu.add_menu_item(_("Duplicate"), self.processing_duplicate, key_sequence="Ctrl+D")
@@ -317,6 +320,9 @@ class DocumentController(Window.Window):
         self._processing_arithmetic_menu.add_menu_item(_("Divide"), functools.partial(self.__processing_new2, self.document_model.get_divide_new))
         self._processing_arithmetic_menu.add_menu_item(_("Negate"), functools.partial(self.__processing_new, self.document_model.get_invert_new))
         self._processing_arithmetic_menu.add_separator()
+        self._processing_arithmetic_menu.add_menu_item(_("Masked"), functools.partial(self.__processing_new, self.document_model.get_masked_new))
+        self._processing_arithmetic_menu.add_menu_item(_("Mask"), functools.partial(self.__processing_new, self.document_model.get_mask_new))
+        self._processing_arithmetic_menu.add_separator()
         self._processing_arithmetic_menu.add_menu_item(_("Subtract Region Average"), functools.partial(self.__processing_new, self.document_model.get_subtract_region_average_new))
 
         self._processing_reduce_menu = self.create_sub_menu()
@@ -339,10 +345,10 @@ class DocumentController(Window.Window):
         self._processing_fourier_menu.add_menu_item(_("Cross Correlate"), self.processing_cross_correlate_new)
         self._processing_fourier_menu.add_menu_item(_("Fourier Filter"), self.processing_fourier_filter_new)
         self._processing_fourier_menu.add_separator()
-        self._processing_fourier_menu.add_menu_item(_("Add Spot Mask"), self.add_spot_graphic)
-        self._processing_fourier_menu.add_menu_item(_("Add Angle Mask"), self.add_angle_graphic)
-        self._processing_fourier_menu.add_menu_item(_("Add Band Pass Mask"), self.add_band_pass_graphic)
-        self._processing_fourier_menu.add_menu_item(_("Add Lattice Mask"), self.add_lattice_graphic)
+        self._processing_fourier_menu.add_menu_item(_("Add Spot Filter"), self.add_spot_graphic)
+        self._processing_fourier_menu.add_menu_item(_("Add Angle Filter"), self.add_angle_graphic)
+        self._processing_fourier_menu.add_menu_item(_("Add Band Pass Filter"), self.add_band_pass_graphic)
+        self._processing_fourier_menu.add_menu_item(_("Add Lattice Filter"), self.add_lattice_graphic)
 
         self._processing_filter_menu = self.create_sub_menu()
         self._processing_menu.add_sub_menu(_("Filter"), self._processing_filter_menu)
@@ -1656,6 +1662,25 @@ class DocumentController(Window.Window):
             display_item.graphic_selection.set(display_item.graphics.index(graphic))
             return graphic
         return None
+
+    def __change_graphics_role(self, role: typing.Optional[str]) -> bool:
+        display_item = self.selected_display_item
+        if display_item:
+            if display_item.graphic_selection.has_selection:
+                graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
+                graphics = itertools.filterfalse(lambda graphic: isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)), graphics)
+                if graphics:
+                    command = DisplayPanel.ChangeGraphicsCommand(self.document_model, display_item, graphics, command_id="change_role", is_mergeable=True, role=role)
+                    command.perform()
+                    self.push_undo_command(command)
+                    return True
+        return False
+
+    def add_graphic_mask(self) -> bool:
+        return self.__change_graphics_role("mask")
+
+    def remove_graphic_mask(self) -> bool:
+        return self.__change_graphics_role(None)
 
     def copy_selected_graphics(self):
         display_item = self.selected_display_item

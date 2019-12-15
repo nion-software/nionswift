@@ -2432,6 +2432,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             vs["divide"] = {"title": _("Divide"), "expression": "{src1}.cropped_display_xdata / {src2}.cropped_display_xdata",
                 "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
             vs["invert"] = {"title": _("Negate"), "expression": "xd.invert({src}.cropped_display_xdata)", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+            vs["masked"] = {"title": _("Masked"), "expression": "{src}.filtered_xdata", "sources": [{"name": "src", "label": _("Source")}]}
+            vs["mask"] = {"title": _("Mask"), "expression": "{src}.filter_xdata", "sources": [{"name": "src", "label": _("Source")}]}
             vs["convert-to-scalar"] = {"title": _("Scalar"), "expression": "{src}.cropped_display_xdata",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
             vs["crop"] = {"title": _("Crop"), "expression": "{src}.cropped_display_xdata",
@@ -2545,6 +2547,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def get_invert_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("invert", [(display_item, crop_region)])
+
+    def get_masked_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("masked", [(display_item, crop_region)])
+
+    def get_mask_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("mask", [(display_item, crop_region)])
 
     def get_convert_to_scalar_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("convert-to-scalar", [(display_item, crop_region)])
