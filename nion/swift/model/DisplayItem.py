@@ -1444,6 +1444,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def __remove_graphic(self, name, index, graphic):
         self.__disconnect_graphic(graphic, index)
+        self.notify_remove_item("graphics", graphic, index)
 
     def __disconnect_graphic(self, graphic, index):
         graphic_changed_listener = self.__graphic_changed_listeners[index]
@@ -1451,7 +1452,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__graphic_changed_listeners.remove(graphic_changed_listener)
         self.graphic_selection.remove_index(index)
         self.__graphic_changed(graphic)
-        self.notify_remove_item("graphics", graphic, index)
 
     def insert_graphic(self, before_index, graphic):
         """Insert a graphic before the index, but do it through the container, so dependencies can be tracked."""
