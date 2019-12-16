@@ -1384,6 +1384,23 @@ class TestStorageClass(unittest.TestCase):
                     self.assertFalse(document_model.get_data_item_computation(data_item).needs_update)
                     self.assertEqual(data_item.modified, modifieds[data_item_uuid])
 
+    def test_line_profile_with_intervals_does_not_recompute_when_reloaded(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                line_profile_data_item = document_model.get_line_profile_new(display_item)
+                line_profile_display_item = document_model.get_display_item_for_data_item(line_profile_data_item)
+                line_profile_display_item.add_graphic(Graphics.IntervalGraphic())
+                document_model.recompute_all()
+                self.assertFalse(document_model.get_data_item_computation(document_model.data_items[1]).needs_update)
+            # reload and check data item does not need recompute
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                self.assertFalse(document_model.get_data_item_computation(document_model.data_items[1]).needs_update)
+
     def test_cropped_data_item_with_region_does_not_need_recompute_when_reloaded(self):
         with create_memory_profile_context() as profile_context:
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())

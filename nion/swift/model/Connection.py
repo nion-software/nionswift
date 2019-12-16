@@ -219,7 +219,8 @@ class IntervalListConnection(Connection):
                         interval_descriptors.append(interval_descriptor)
                         self.__interval_mutated_listeners.append(region.property_changed_event.listen(lambda k: reattach()))
             if self.__target:
-                self.__target.interval_descriptors = interval_descriptors
+                if self.__target.interval_descriptors != interval_descriptors:
+                    self.__target.interval_descriptors = interval_descriptors
 
         def item_inserted(key, value, before_index):
             if key == "graphics" and self.__target:
