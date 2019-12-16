@@ -931,9 +931,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
 
-    def about_to_close(self):
-        self.__disconnect_data_sources()
-
     def prepare_cascade_delete(self) -> typing.List:
         cascade_items = list()
         self.about_to_cascade_delete_event.fire(cascade_items)
