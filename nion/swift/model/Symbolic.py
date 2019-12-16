@@ -1637,20 +1637,11 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             expression = processing_description.get("expression")
             if expression:
                 src_names = list()
-                src_texts = list()
                 source_dicts = processing_description["sources"]
                 for i, source_dict in enumerate(source_dicts):
                     src_names.append(source_dict["name"])
-                    use_display_data = source_dict.get("use_display_data", True)
-                    xdata_property = "display_xdata" if use_display_data else "xdata"
-                    if source_dict.get("croppable"):
-                        xdata_property = "cropped_" + xdata_property
-                    elif source_dict.get("use_filtered_data", False):
-                        xdata_property = "filtered_" + xdata_property
-                    data_expression = source_dict["name"] + "." + xdata_property
-                    src_texts.append(data_expression)
                 script = xdata_expression(expression)
-                script = script.format(**dict(zip(src_names, src_texts)))
+                script = script.format(**dict(zip(src_names, src_names)))
                 self._get_persistent_property("original_expression").value = script
 
 # for computations
