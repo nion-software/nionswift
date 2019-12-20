@@ -78,6 +78,7 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         for needs_rebind_event_listener in self.__needs_rebind_event_listeners:
             needs_rebind_event_listener.close()
         self.__needs_rebind_event_listeners = None
+        super().close()
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -172,6 +173,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         if self.__bound_items_model_item_removed_event_listener:
             self.__bound_items_model_item_removed_event_listener.close()
             self.__bound_items_model_item_removed_event_listener = None
+        super().close()
 
     def __repr__(self):
         return "{} ({} {} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self.specifier, self.secondary_specifier)

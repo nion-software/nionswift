@@ -191,3 +191,4 @@ class ToolbarPanel(Panel.Panel):
     def close(self):
         self.__tool_mode_changed_event_listener.close()
         self.__tool_mode_changed_event_listener = None
+        super().close()

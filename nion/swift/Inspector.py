@@ -430,6 +430,7 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
         self.__display_item_proxy = None
         self.__graphic_proxy.close()
         self.__graphic_proxy = None
+        super().close()
 
     def __set_value(self, value):
         display_item = self.__display_item_proxy.item
