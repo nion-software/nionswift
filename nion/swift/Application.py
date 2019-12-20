@@ -52,6 +52,7 @@ class Application(UIApplication.Application):
     def __init__(self, ui, set_global=True, resources_path=None):
         super().__init__(ui)
 
+        logging.disable(logging.DEBUG)  # this will disallow new loggers from outputting debug messages. talking to you imread/png.
         logging.getLogger("migration").setLevel(logging.ERROR)
         logging.getLogger("loader").setLevel(logging.ERROR)
 
