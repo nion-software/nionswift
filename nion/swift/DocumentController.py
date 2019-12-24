@@ -38,6 +38,7 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Processing
 from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
@@ -49,6 +50,7 @@ from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
+from nion.utils import Registry
 from nion.utils import Selection
 
 _ = gettext.gettext
@@ -344,6 +346,16 @@ class DocumentController(Window.Window):
         self._processing_fourier_menu.add_menu_item(_("Auto Correlate"), functools.partial(self.__processing_new, self.document_model.get_auto_correlate_new))
         self._processing_fourier_menu.add_menu_item(_("Cross Correlate"), self.processing_cross_correlate_new)
         self._processing_fourier_menu.add_menu_item(_("Fourier Filter"), self.processing_fourier_filter_new)
+
+        processing_components = list()
+        for processing_component in typing.cast(typing.Sequence[Processing.ProcessingBase], Registry.get_components_by_type("processing-component")):
+            if "windows" in processing_component.sections:
+                processing_components.append(processing_component)
+        if processing_components:
+            self._processing_fourier_menu.add_separator()
+            for processing_component in sorted(processing_components, key=operator.attrgetter("title")):
+                self._processing_fourier_menu.add_menu_item(processing_component.title, functools.partial(self.processing_new, processing_component.processing_id))
+
         self._processing_fourier_menu.add_separator()
         self._processing_fourier_menu.add_menu_item(_("Add Spot Filter"), self.add_spot_graphic)
         self._processing_fourier_menu.add_menu_item(_("Add Angle Filter"), self.add_angle_graphic)
@@ -2385,6 +2397,13 @@ class DocumentController(Window.Window):
         data_item = display_item.data_item if display_item else None
         if data_item:
             return self._perform_processing(display_item, None, self.document_model.get_fourier_filter_new)
+        return None
+
+    def processing_new(self, processing_id: str) -> typing.Optional[DataItem.DataItem]:
+        display_item = self.selected_display_item
+        data_item = display_item.data_item if display_item else None
+        if data_item:
+            return self._perform_processing(display_item, None, functools.partial(self.document_model.get_processing_new, processing_id))
         return None
 
     def __change_to_previous_workspace(self):
