@@ -347,16 +347,21 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         return self.bound_item.base_objects if self.bound_item and not getattr(self.bound_item, "is_list", False) else set()
 
     def __property_changed(self, name, value):
+        # rebind first, so that property changed listeners get the right value
+        if name in ("specifier", "secondary_specifier"):
+            self.needs_rebind_event.fire()
+        # send the primary property changed event
         self.notify_property_changed(name)
+        # now send out dependent property changed events
         if name in ["name", "label"]:
             self.notify_property_changed("display_label")
         if name in ("specifier"):
             self.notify_property_changed("specifier_uuid_str")
-            self.needs_rebind_event.fire()
         if name in ("secondary_specifier"):
             self.notify_property_changed("secondary_specifier_uuid_str")
-            self.needs_rebind_event.fire()
+        # send out the changed event
         self.changed_event.fire()
+        # finally send out the rebuild event for the inspectors
         if name in ["value_type", "value_min", "value_max", "control_type"]:
             self.needs_rebuild_event.fire()
 
