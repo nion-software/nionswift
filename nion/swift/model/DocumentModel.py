@@ -2117,6 +2117,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             requirements = src_dict.get("requirements", list())
             for requirement in requirements:
                 requirement_type = requirement["type"]
+                if requirement_type == "datum_rank":
+                    values = requirement.get("values")
+                    if not data_item.datum_dimension_count in values:
+                        return None
+                if requirement_type == "datum_calibrations":
+                    if requirement.get("units") == "equal":
+                        if len(set([calibration.units for calibration in data_item.xdata.datum_dimensional_calibrations])) != 1:
+                            return None
                 if requirement_type == "dimensionality":
                     min_dimension = requirement.get("min")
                     max_dimension = requirement.get("max")
@@ -2264,7 +2272,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             parameter_value = parameters.get(param_dict["name"], param_dict["value"])
             computation.create_variable(param_dict["name"], param_dict["type"], parameter_value, value_default=param_dict.get("value_default"),
                                         value_min=param_dict.get("value_min"), value_max=param_dict.get("value_max"),
-                                        control_type=param_dict.get("control_type"), label=param_dict["label"])
+                                        control_type=param_dict.get("control_type"), label=param_dict.get("label"))
 
         data_item0 = inputs[0][0].data_items[0]
         new_data_item = DataItem.new_data_item()
