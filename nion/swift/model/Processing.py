@@ -1,11 +1,12 @@
 # standard libraries
-import copy
 import functools
 import gettext
+import math
 import typing
 
 # third party libraries
 import numpy
+import scipy.signal
 
 # local libraries
 from nion.data import DataAndMetadata
@@ -74,6 +75,7 @@ class ProcessingBase:
     def __init__(self):
         self.processing_id = str()
         self.title = str()
+        self.sections = set()
         self.sources = list()
         self.parameters = list()
         self.is_mappable = False
@@ -109,8 +111,9 @@ class ProcessingFFT(ProcessingBase):
         super().__init__()
         self.processing_id = "fft"
         self.title = _("FFT")
+        self.sections = {"fourier"}
         self.sources = [
-            {"name": "src", "label": _("Source"), "croppable": True},
+            {"name": "src", "label": _("Source"), "croppable": True, "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
         ]
         self.is_mappable = True
 
@@ -123,12 +126,96 @@ class ProcessingIFFT(ProcessingBase):
         super().__init__()
         self.processing_id = "inverse-fft"
         self.title = _("Inverse FFT")
+        self.sections = {"fourier"}
         self.sources = [
-            {"name": "src", "label": _("Source"), "use_display_data": False},
+            {"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
         ]
 
     def process(self, *, src: DataItem.DataSource, **kwargs) -> typing.Union[DataAndMetadata.DataAndMetadata, DataAndMetadata.ScalarAndMetadata]:
         return xd.ifft(src.xdata)
+
+
+class ProcessingGaussianWindow(ProcessingBase):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.processing_id = "gaussian-window"
+        self.title = _("Gaussian Window")
+        self.sections = {"windows"}
+        self.sources = [
+            {
+                "name": "src",
+                "label": _("Source"),
+                "croppable": True,
+                "requirements": [
+                    {"type": "datum_rank", "values": (1, 2)},
+                    {"type": "datum_calibrations", "units": "equal"},
+                ]
+            },
+        ]
+        self.parameters = [
+            {"name": "sigma", "type": "real", "value": 1.0}
+        ]
+        self.is_mappable = True
+
+    def process(self, *, src: DataItem.DataSource, **kwargs) -> typing.Union[DataAndMetadata.DataAndMetadata, DataAndMetadata.ScalarAndMetadata]:
+        sigma = kwargs.get("sigma", 1.0)
+        if src.xdata.datum_dimension_count == 1:
+            w = src.xdata.datum_dimension_shape[0]
+            return src.xdata * scipy.signal.gaussian(src.xdata.datum_dimension_shape[0], std=w/2)
+        elif src.xdata.datum_dimension_count == 2:
+            # uses circularly rotated approach of generating 2D filter from 1D
+            h, w = src.xdata.datum_dimension_shape
+            y, x = numpy.meshgrid(numpy.linspace(-h / 2, h / 2, h), numpy.linspace(-w / 2, w / 2, w))
+            s = 1 / (min(w, h) * sigma)
+            r = numpy.sqrt(y * y + x * x) * s
+            return src.xdata * numpy.exp(-0.5 * r * r)
+        return None
+
+
+class ProcessingHammingWindow(ProcessingBase):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.processing_id = "hamming-window"
+        self.title = _("Hamming Window")
+        self.sections = {"windows"}
+        self.sources = [
+            {"name": "src", "label": _("Source"), "croppable": True, "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
+        ]
+        self.is_mappable = True
+
+    def process(self, *, src: DataItem.DataSource, **kwargs) -> typing.Union[DataAndMetadata.DataAndMetadata, DataAndMetadata.ScalarAndMetadata]:
+        if src.xdata.datum_dimension_count == 1:
+            return src.xdata * scipy.signal.hamming(src.xdata.datum_dimension_shape[0])
+        elif src.xdata.datum_dimension_count == 2:
+            # uses outer product approach of generating 2D filter from 1D
+            h, w = src.xdata.datum_dimension_shape
+            w0 = numpy.reshape(scipy.signal.hamming(w), (1, w))
+            w1 = numpy.reshape(scipy.signal.hamming(h), (h, 1))
+            return src.xdata * w0 * w1
+        return None
+
+
+class ProcessingHannWindow(ProcessingBase):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.processing_id = "hann-window"
+        self.title = _("Hann Window")
+        self.sections = {"windows"}
+        self.sources = [
+            {"name": "src", "label": _("Source"), "croppable": True, "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
+        ]
+        self.is_mappable = True
+
+    def process(self, *, src: DataItem.DataSource, **kwargs) -> typing.Union[DataAndMetadata.DataAndMetadata, DataAndMetadata.ScalarAndMetadata]:
+        if src.xdata.datum_dimension_count == 1:
+            return src.xdata * scipy.signal.hann(src.xdata.datum_dimension_shape[0])
+        elif src.xdata.datum_dimension_count == 2:
+            # uses outer product approach of generating 2D filter from 1D
+            h, w = src.xdata.datum_dimension_shape
+            w0 = numpy.reshape(scipy.signal.hann(w), (1, w))
+            w1 = numpy.reshape(scipy.signal.hann(h), (h, 1))
+            return src.xdata * w0 * w1
+        return None
 
 
 class ProcessingMappedSum(ProcessingBase):
@@ -136,8 +223,9 @@ class ProcessingMappedSum(ProcessingBase):
         super().__init__()
         self.processing_id = "mapped-sum"
         self.title = _("Mapped Sum")
+        self.sections = {"scalar-maps"}
         self.sources = [
-            {"name": "src", "label": _("Source"), "croppable": True},
+            {"name": "src", "label": _("Source"), "croppable": True, "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
         ]
         self.is_mappable = True
         self.is_scalar = True
@@ -152,8 +240,9 @@ class ProcessingMappedAverage(ProcessingBase):
         super().__init__()
         self.processing_id = "mapped-average"
         self.title = _("Mapped Average")
+        self.sections = {"scalar-maps"}
         self.sources = [
-            {"name": "src", "label": _("Source"), "croppable": True},
+            {"name": "src", "label": _("Source"), "croppable": True, "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
         ]
         self.is_mappable = True
         self.is_scalar = True
@@ -165,6 +254,9 @@ class ProcessingMappedAverage(ProcessingBase):
 
 # Registry.register_component(ProcessingFFT(), {"processing-component"})
 # Registry.register_component(ProcessingIFFT(), {"processing-component"})
+Registry.register_component(ProcessingGaussianWindow(), {"processing-component"})
+Registry.register_component(ProcessingHammingWindow(), {"processing-component"})
+Registry.register_component(ProcessingHannWindow(), {"processing-component"})
 Registry.register_component(ProcessingMappedSum(), {"processing-component"})
 Registry.register_component(ProcessingMappedAverage(), {"processing-component"})
 
