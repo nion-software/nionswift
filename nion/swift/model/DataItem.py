@@ -1257,7 +1257,7 @@ class MonitoredDataSource(DataSource):
         if self.__graphic:
             self.__property_changed_listener = self.__graphic.property_changed_event.listen(property_changed)
         def filter_property_changed(graphic, key):
-            if key == "role" or graphic.used_role == "mask":
+            if key == "role" or graphic.used_role in ("mask", "fourier_mask"):
                 self.__changed_event.fire()
         self.__graphic_property_changed_listeners = list()
         def graphic_inserted(key, value, before_index):
