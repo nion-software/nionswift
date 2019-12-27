@@ -2137,7 +2137,106 @@ def make_rectangle_type_inspector(document_controller, display_item: DisplayItem
     return graphic_widget
 
 
-def make_wedge_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic: Graphics.WedgeGraphic) -> InspectorSectionWidget:
+def make_spot_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic, graphic_name: str, rotation: bool = False) -> InspectorSectionWidget:
+    ui = document_controller.ui
+    graphic_widget = InspectorSectionWidget(ui)
+    graphic_widget.content_widget.widget_id = "spot_inspector"
+    # create the ui
+    graphic_center_row = ui.create_row_widget()
+    graphic_center_row.add_spacing(20)
+    graphic_center_x_row = ui.create_row_widget()
+    graphic_center_x_row.add(ui.create_label_widget(_("X"), properties={"width": 26}))
+    graphic_center_x_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_center_x_line_edit.widget_id = "x"
+    graphic_center_x_row.add(graphic_center_x_line_edit)
+    graphic_center_y_row = ui.create_row_widget()
+    graphic_center_y_row.add(ui.create_label_widget(_("Y"), properties={"width": 26}))
+    graphic_center_y_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_center_y_line_edit.widget_id = "y"
+    graphic_center_y_row.add(graphic_center_y_line_edit)
+    graphic_center_row.add(graphic_center_x_row)
+    graphic_center_row.add_spacing(8)
+    graphic_center_row.add(graphic_center_y_row)
+    graphic_center_row.add_stretch()
+    graphic_size_row = ui.create_row_widget()
+    graphic_size_row.add_spacing(20)
+    graphic_center_w_row = ui.create_row_widget()
+    graphic_center_w_row.add(ui.create_label_widget(_("W"), properties={"width": 26}))
+    graphic_size_width_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_size_width_line_edit.widget_id = "width"
+    graphic_center_w_row.add(graphic_size_width_line_edit)
+    graphic_center_h_row = ui.create_row_widget()
+    graphic_center_h_row.add(ui.create_label_widget(_("H"), properties={"width": 26}))
+    graphic_size_height_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_size_height_line_edit.widget_id = "height"
+    graphic_center_h_row.add(graphic_size_height_line_edit)
+    graphic_size_row.add(graphic_center_w_row)
+    graphic_size_row.add_spacing(8)
+    graphic_size_row.add(graphic_center_h_row)
+    graphic_size_row.add_stretch()
+    graphic_widget.add_spacing(4)
+    graphic_widget.add(graphic_center_row)
+    graphic_widget.add_spacing(4)
+    graphic_widget.add(graphic_size_row)
+    graphic_widget.add_spacing(4)
+
+    data_item = display_item.data_item if display_item else None
+
+    center_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
+
+    size_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
+
+    # calculate values from rectangle type graphic
+    image_size = data_item.display_data_shape
+    if len(image_size) > 1:
+        # signal_index
+        center_x_binding = CalibratedSizeBinding(1, display_item, Binding.TuplePropertyBinding(center_model, "value", 1))
+        center_y_binding = CalibratedSizeBinding(0, display_item, Binding.TuplePropertyBinding(center_model, "value", 0))
+        size_width_binding = CalibratedSizeBinding(1, display_item, Binding.TuplePropertyBinding(size_model, "value", 1))
+        size_height_binding = CalibratedSizeBinding(0, display_item, Binding.TuplePropertyBinding(size_model, "value", 0))
+        graphic_center_x_line_edit.bind_text(center_x_binding)
+        graphic_center_y_line_edit.bind_text(center_y_binding)
+        graphic_size_width_line_edit.bind_text(size_width_binding)
+        graphic_size_height_line_edit.bind_text(size_height_binding)
+    else:
+        graphic_center_x_line_edit.bind_text(Binding.TuplePropertyBinding(center_model, "value", 1))
+        graphic_center_y_line_edit.bind_text(Binding.TuplePropertyBinding(center_model, "value", 0))
+        graphic_size_width_line_edit.bind_text(Binding.TuplePropertyBinding(size_model, "value", 1))
+        graphic_size_height_line_edit.bind_text(Binding.TuplePropertyBinding(size_model, "value", 0))
+
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_center_x_line_edit.unbind_text, graphic_center_y_line_edit.unbind_text, graphic_size_width_line_edit.unbind_text, graphic_size_height_line_edit.unbind_text])
+
+    graphic_widget.add_closeables(center_model, size_model)
+
+    if rotation:
+        rotation_row = ui.create_row_widget()
+        rotation_row.add_spacing(20)
+
+        rotation_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+        rotation_line_edit.widget_id = "rotation"
+
+        rotation_row2 = ui.create_row_widget()
+        rotation_row2.add(ui.create_label_widget(_("Rotation (deg)")))
+        rotation_row2.add_spacing(8)
+        rotation_row2.add(rotation_line_edit)
+
+        rotation_row.add(rotation_row2)
+        rotation_row.add_stretch()
+
+        graphic_widget.add(rotation_row)
+        graphic_widget.add_spacing(4)
+
+        rotation_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
+        rotation_line_edit.bind_text(Binding.PropertyBinding(rotation_model, "value", converter=RadianToDegreeStringConverter()))
+
+        graphic_widget.add_unbinder([display_item, graphic], [rotation_line_edit.unbind_text])
+
+        graphic_widget.add_closeable(rotation_model)
+
+    return graphic_widget
+
+
+def make_wedge_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic: Graphics.WedgeGraphic) -> InspectorSectionWidget:
     ui = document_controller.ui
     graphic_widget = InspectorSectionWidget(ui)
     graphic_widget.content_widget.widget_id = "wedge_inspector"
@@ -2196,7 +2295,7 @@ def make_annular_ring_mode_chooser(document_controller, graphic_widget: Inspecto
     return display_calibration_style_chooser
 
 
-def make_ring_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
+def make_ring_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
     graphic_widget = InspectorSectionWidget(ui)
 
@@ -2343,13 +2442,13 @@ class GraphicsInspectorSection(InspectorSection):
             graphic_widget.add(make_interval_type_inspector(self.__document_controller, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.SpotGraphic):
             graphic_type_label.text = _("Spot")
-            graphic_widget.add(make_rectangle_type_inspector(self.__document_controller, self.__display_item, graphic, graphic_type_label.text))
+            graphic_widget.add(make_spot_inspector(self.__document_controller, self.__display_item, graphic, graphic_type_label.text))
         elif isinstance(graphic, Graphics.WedgeGraphic):
             graphic_type_label.text = _("Wedge")
-            graphic_widget.add(make_wedge_type_inspector(self.__document_controller, self.__display_item, graphic))
+            graphic_widget.add(make_wedge_inspector(self.__document_controller, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.RingGraphic):
             graphic_type_label.text = _("Annular Ring")
-            graphic_widget.add(make_ring_type_inspector(self.__document_controller, self.__display_item, graphic))
+            graphic_widget.add(make_ring_inspector(self.__document_controller, self.__display_item, graphic))
         column = self.ui.create_column_widget()
         column.add_spacing(4)
         column.add(graphic_widget)

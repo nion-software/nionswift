@@ -144,18 +144,18 @@ class TestRegionClass(unittest.TestCase):
         self.assertEqual(mask.data[200, 300], 0)  # bottom left
         self.assertEqual(mask.data[300, 300], 0)  # bottom right
         self.assertEqual(mask.data[300, 200], 0)  # bottom left
-        self.assertEqual(mask.data[250, 200], 1)  # center top
+        self.assertEqual(mask.data[250, 201], 1)  # center top
         self.assertEqual(mask.data[300, 250], 1)  # center right
         self.assertEqual(mask.data[250, 300], 1)  # center bottom
-        self.assertEqual(mask.data[200, 250], 1)  # center left
+        self.assertEqual(mask.data[201, 250], 1)  # center left
 
         self.assertEqual(mask.data[800, 800], 0)  # top left
         self.assertEqual(mask.data[800, 700], 0)  # bottom left
         self.assertEqual(mask.data[700, 700], 0)  # bottom right
         self.assertEqual(mask.data[700, 800], 0)  # bottom left
         self.assertEqual(mask.data[750, 800], 1)  # center top
-        self.assertEqual(mask.data[700, 750], 1)  # center right
-        self.assertEqual(mask.data[750, 700], 1)  # center bottom
+        self.assertEqual(mask.data[701, 750], 1)  # center right
+        self.assertEqual(mask.data[750, 701], 1)  # center bottom
         self.assertEqual(mask.data[800, 750], 1)  # center left
 
     def test_region_mask_rect(self):

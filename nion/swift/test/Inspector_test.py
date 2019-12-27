@@ -851,10 +851,10 @@ class TestInspectorClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
-            self.assertIsNone(inspector_panel.column.find_widget_by_id("rectangle_type_inspector"))
+            self.assertIsNone(inspector_panel.column.find_widget_by_id("spot_inspector"))
             document_controller.add_spot_graphic()
             document_controller.periodic()
-            self.assertIsNotNone(inspector_panel.column.find_widget_by_id("rectangle_type_inspector"))
+            self.assertIsNotNone(inspector_panel.column.find_widget_by_id("spot_inspector"))
 
     def test_band_pass_graphic_inspector_updates_without_exception(self):
         document_model = DocumentModel.DocumentModel()

@@ -1643,22 +1643,28 @@ class SpotGraphic(Graphic):
         mask = numpy.zeros(data_shape)
         center = calibrated_origin
 
-        bounds_int = ((int(center[0] + data_shape[0] * self.bounds[0][0]), int(center[1] + data_shape[1] * self.bounds[0][1])),
-                      (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
+        bounds = Geometry.FloatRect.make(self.bounds)
+        bounds = Geometry.FloatRect(origin=Geometry.FloatPoint(y=center.y + data_shape[0] * bounds.top,
+                                                               x=center.x + data_shape[1] * bounds.left),
+                                    size=Geometry.FloatSize(h=data_shape[0] * bounds.height,
+                                                             w=data_shape[1] * bounds.width))
 
-        if bounds_int[1][0] <= 0 or bounds_int[1][1] <= 0:
+        if bounds.height <= 0 or bounds.width <= 0:
             return mask
 
-        a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
+        a, b = bounds.center.y, bounds.center.x
         y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
-        mask_eq1 = x * x / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + y * y / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
+        mask_eq1 = x * x / ((bounds.width / 2) * (bounds.width / 2)) + y * y / ((bounds.height / 2) * (bounds.height / 2)) <= 1
 
-        bounds_int = ((int(center[0] - data_shape[0] * self.bounds[0][0]), int(center[1] - data_shape[1] * self.bounds[0][1])),
-                      (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
+        bounds = Geometry.FloatRect.make(self.bounds)
+        bounds = Geometry.FloatRect(origin=Geometry.FloatPoint(y=center.y - data_shape[0] * bounds.bottom,
+                                                               x=center.x - data_shape[1] * bounds.right),
+                                    size=Geometry.FloatSize(h=data_shape[0] * bounds.height,
+                                                             w=data_shape[1] * bounds.width))
 
-        a, b = bounds_int[0][0] - bounds_int[1][0] * 0.5, bounds_int[0][1] - bounds_int[1][1] * 0.5
+        a, b = bounds.center.y, bounds.center.x
         y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
-        mask_eq2 = x * x / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + y * y / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
+        mask_eq2 = x * x / ((bounds.width / 2) * (bounds.width / 2)) + y * y / ((bounds.height / 2) * (bounds.height / 2)) <= 1
 
         mask[mask_eq1] = 1
         mask[mask_eq2] = 1
@@ -1917,7 +1923,7 @@ class WedgeGraphic(Graphic):
         y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
         mask1[get_slope_eq(x, y, self.__start_angle_internal)] = 1
         mask1[get_slope_eq(x, y, self.__end_angle_internal)] = 0
-        mask1[int(a), int(b)] = 1
+        mask1[round(a), round(b)] = 1
         mask2[get_slope_eq(x, y, (self.__start_angle_internal + math.pi) % (math.pi * 2))] = 1
         mask2[get_slope_eq(x, y, (self.__end_angle_internal + math.pi) % (math.pi * 2))] = 0
         return numpy.logical_or(mask1, mask2)
@@ -2373,17 +2379,15 @@ class LatticeGraphic(Graphic):
                     if ui == -mx or ui == mx or vi == -mx or vi == mx:
                         p = start + ui * u_pos + vi * v_pos
                         if bounds.contains_point(p):
-
-                            bounds_int = ((int(data_shape[0] * (p[0] - radius)), int(data_shape[1] * (p[1] - radius))),
-                                          (int(data_shape[0] * size[0]), int(data_shape[1] * size[1])))
-
-                            if bounds_int[1][0] > 0 and bounds_int[1][1] > 0:
-                                a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
+                            r = Geometry.FloatRect(origin=Geometry.FloatPoint(y=data_shape[0] * (p.y - radius),
+                                                                              x=data_shape[1] * (p.x - radius)),
+                                                   size=Geometry.FloatSize(h=data_shape[0] * size.height,
+                                                                           w=data_shape[1] * size.width))
+                            if r.width > 0 and r.height > 0:
+                                a, b = round(r.top + 0.5 * r.height), round(r.left + 0.5 * r.width)
                                 y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
-                                mask_eq1 = x * x / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + y * y / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
-
+                                mask_eq1 = x * x / ((r.height / 2) * (r.height / 2)) + y * y / ((r.width / 2) * (r.width / 2)) <= 1
                                 mask[mask_eq1] = 1
-
                             drawn = True
             mx += 1
 
