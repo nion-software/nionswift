@@ -79,7 +79,7 @@ class LinePlotCanvasItemDelegate:
 
     def nudge_slice(self, delta) -> None: ...
 
-    def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers) -> None: ...
+    def adjust_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers) -> None: ...
 
     def show_display_context_menu(self, gx, gy) -> bool: ...
 
@@ -336,7 +336,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__last_xdata_list = copy.copy(self.__xdata_list)
         super().update()
 
-    def update_graphics(self, graphics, graphic_selection, display_calibration_info):
+    def update_graphics_coordinate_system(self, graphics, graphic_selection, display_calibration_info):
         dimensional_scales = display_calibration_info.displayed_dimensional_scales
 
         self.__graphics = copy.copy(graphics)
@@ -879,7 +879,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__update_cursor_info()
             if self.__graphic_drag_items:
                 widget_mapping = self.__get_mouse_mapping()
-                self.delegate.update_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
+                self.delegate.adjust_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
                                               self.__graphic_part_data, self.__graphic_drag_start_pos, pos, modifiers)
                 self.__graphic_drag_changed = True
                 self.__line_graph_regions_canvas_item.update()

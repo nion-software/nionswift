@@ -1314,7 +1314,9 @@ class DataItem(metaclass=SharedInstance):
         """
         display_data_channel = self.__display_item.display_data_channel
         shape = display_data_channel.display_data_shape
-        mask = DataItemModule.create_mask_data(self.__display_item.graphics, shape)
+        calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+        mask = DataItemModule.create_mask_data(self.__display_item.graphics, shape, calibrated_origin)
         return DataAndMetadata.DataAndMetadata.from_data(mask)
 
     def data_item_to_svg(self):

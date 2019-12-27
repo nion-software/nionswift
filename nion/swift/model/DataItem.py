@@ -26,6 +26,7 @@ from nion.swift.model import Metadata
 from nion.swift.model import Persistence
 from nion.swift.model import Utility
 from nion.utils import Event
+from nion.utils import Geometry
 from nion.utils import Observable
 
 if typing.TYPE_CHECKING:
@@ -1137,14 +1138,14 @@ def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> Da
     return data_item
 
 
-def create_mask_data(graphics: typing.Sequence[Graphics.Graphic], shape) -> numpy.ndarray:
+def create_mask_data(graphics: typing.Sequence[Graphics.Graphic], shape, calibrated_origin: Geometry.FloatPoint) -> numpy.ndarray:
     mask = None
     for graphic in graphics:
         if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
             if graphic.used_role in ("mask", "fourier_mask"):
                 if mask is None:
                     mask = numpy.zeros(shape)
-                mask = numpy.logical_or(mask, graphic.get_mask(shape))
+                mask = numpy.logical_or(mask, graphic.get_mask(shape, calibrated_origin))
     if mask is None:
         mask = numpy.ones(shape)
     return mask
@@ -1229,15 +1230,24 @@ class DataSource:
     def filtered_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         xdata = self.xdata
         if self.__display_item and xdata.is_data_2d:
+            shape = self.display_xdata.data_shape
+            calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                    x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
             if xdata.is_data_complex_type:
-                return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, xdata.data_shape)))
+                return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, shape, calibrated_origin)))
             else:
-                return DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, xdata.data_shape)) * self.display_xdata
+                return DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, shape, calibrated_origin)) * self.display_xdata
         return xdata
 
     @property
     def filter_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, self.display_xdata.data_shape))
+        xdata = self.xdata
+        if self.__display_item and xdata.is_data_2d:
+            shape = self.display_xdata.data_shape
+            calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                    x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+            return DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, shape, calibrated_origin))
+        return None
 
 
 class MonitoredDataSource(DataSource):

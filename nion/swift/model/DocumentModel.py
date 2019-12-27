@@ -2212,8 +2212,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         spot_region = region
                     else:
                         spot_region = Graphics.SpotGraphic()
-                        spot_region.center = 0.25, 0.75
-                        spot_region.size = 0.1, 0.1
+                        spot_region.bounds = Geometry.FloatRect.from_center_and_size((0.25, 0.25), (0.25, 0.25))
                         for k, v in region_params.items():
                             setattr(spot_region, k, v)
                         if display_item:

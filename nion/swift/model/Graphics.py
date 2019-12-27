@@ -2,8 +2,6 @@
 import copy
 import gettext
 import math
-import uuid
-import weakref
 
 # third party libraries
 import numpy  # for arange
@@ -12,7 +10,6 @@ import typing
 # local libraries
 from nion.swift.model import Changes
 from nion.swift.model import Persistence
-from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
@@ -22,10 +19,6 @@ if typing.TYPE_CHECKING:
 
 
 _ = gettext.gettext
-
-
-def rotate_180_around_center(point, center):
-    return 2 * center[0] - point[0], 2 * center[1] - point[1]
 
 
 def angle_between(n, a, b):
@@ -322,7 +315,9 @@ def adjust_rectangle_like(mapping, rotation, is_center_constant_by_default, orig
     return (mapping.map_point_image_to_image_norm(new_bounds.origin), mapping.map_size_image_to_image_norm(new_bounds.size)), new_rotation
 
 
-def draw_ellipse(ctx, cx, cy, rx, ry, stroke_style, fill_style):
+def draw_ellipse(ctx, center: Geometry.FloatPoint, size: Geometry.FloatSize, stroke_style, fill_style):
+    cx, cy = center.x, center.y
+    rx, ry = size.width, size.height
     with ctx.saver():
         ra = 0.0  # rotation angle
         ctx.begin_path()
@@ -348,6 +343,25 @@ def draw_arrow(ctx, p1, p2, arrow_size=8):
     ctx.line_to(p2[1] - arrow_size * math.cos(angle - math.pi / 6), p2[0] - arrow_size * math.sin(angle - math.pi / 6))
     ctx.move_to(p2[1], p2[0])
     ctx.line_to(p2[1] - arrow_size * math.cos(angle + math.pi / 6), p2[0] - arrow_size * math.sin(angle + math.pi / 6))
+
+
+def draw_marker(ctx, p, fill_style=None):
+    with ctx.saver():
+        ctx.fill_style = fill_style if fill_style else '#00FF00'
+        ctx.begin_path()
+        ctx.move_to(p[1] - 3, p[0] - 3)
+        ctx.line_to(p[1] + 3, p[0] - 3)
+        ctx.line_to(p[1] + 3, p[0] + 3)
+        ctx.line_to(p[1] - 3, p[0] + 3)
+        ctx.close_path()
+        ctx.fill()
+
+
+def draw_rect_marker(ctx, r: Geometry.FloatRect, fill_style=None):
+    draw_marker(ctx, r.top_left, fill_style)
+    draw_marker(ctx, r.top_right, fill_style)
+    draw_marker(ctx, r.bottom_right, fill_style)
+    draw_marker(ctx, r.bottom_left, fill_style)
 
 
 class NullModifiers(object):
@@ -518,7 +532,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
             constraints.add("bounds")
         return constraints
 
-    def get_mask(self, data_shape: typing.Sequence[int]) -> numpy.ndarray:
+    def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
         return numpy.zeros(data_shape)
 
     # test whether points are close
@@ -559,17 +573,6 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
                 bounds = Geometry.FloatRect.from_center_and_size(text_pos, Geometry.FloatSize(width=font_metrics.width + padding * 2, height=font_metrics.height + padding * 2))
                 return self.test_inside_bounds(bounds, test_point, 2)
         return False
-
-    def draw_marker(self, ctx, p, fill_style=None):
-        with ctx.saver():
-            ctx.fill_style = fill_style if fill_style else '#00FF00'
-            ctx.begin_path()
-            ctx.move_to(p[1] - 3, p[0] - 3)
-            ctx.line_to(p[1] + 3, p[0] - 3)
-            ctx.line_to(p[1] + 3, p[0] + 3)
-            ctx.line_to(p[1] - 3, p[0] + 3)
-            ctx.close_path()
-            ctx.fill()
 
     def draw_label(self, ctx, get_font_metrics_fn, mapping):
         if self.label:
@@ -699,7 +702,7 @@ class RectangleTypeGraphic(Graphic):
     def _rotated_bottom_left(self):  # useful for testing
         return rotate(self._bounds.bottom_left, self._bounds.center, self.rotation)
 
-    def get_mask(self, data_shape: typing.Sequence[int]) -> numpy.ndarray:
+    def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
         mask = numpy.zeros(data_shape)
         bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
                       (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
@@ -848,10 +851,10 @@ class RectangleGraphic(RectangleTypeGraphic):
             ctx.fill_style = self.used_fill_style
             ctx.fill()
         if is_selected:
-            self.draw_marker(ctx, top_left)
-            self.draw_marker(ctx, top_right)
-            self.draw_marker(ctx, bottom_right)
-            self.draw_marker(ctx, bottom_left)
+            draw_marker(ctx, top_left)
+            draw_marker(ctx, top_right)
+            draw_marker(ctx, bottom_right)
+            draw_marker(ctx, bottom_left)
             with ctx.saver():
                 if self.rotation:
                     ctx.translate(center.x, center.y)
@@ -891,7 +894,7 @@ class EllipseGraphic(RectangleTypeGraphic):
     def __init__(self):
         super().__init__("ellipse-graphic", _("Ellipse"))
 
-    def get_mask(self, data_shape: typing.Sequence[int]) -> numpy.ndarray:
+    def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
         mask = numpy.zeros(data_shape)
         bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
                       (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
@@ -935,7 +938,7 @@ class EllipseGraphic(RectangleTypeGraphic):
                 ctx.rotate(-self.rotation)
                 ctx.translate(-center.x, -center.y)
             ctx.line_width = 1
-            draw_ellipse(ctx, origin[1] + size[1] * 0.5, origin[0] + size[0] * 0.5, size[1], size[0], self.used_stroke_style, self.used_fill_style)
+            draw_ellipse(ctx, origin + size / 2, size, self.used_stroke_style, self.used_fill_style)
             ctx.begin_path()
             ctx.move_to(center.x, rect.top + 10)
             ctx.line_to(center.x, rect.top + 2)
@@ -947,10 +950,10 @@ class EllipseGraphic(RectangleTypeGraphic):
             ctx.fill_style = self.used_fill_style
             ctx.fill()
         if is_selected:
-            self.draw_marker(ctx, top_left)
-            self.draw_marker(ctx, top_right)
-            self.draw_marker(ctx, bottom_right)
-            self.draw_marker(ctx, bottom_left)
+            draw_marker(ctx, top_left)
+            draw_marker(ctx, top_right)
+            draw_marker(ctx, bottom_right)
+            draw_marker(ctx, bottom_left)
             # draw center marker
             with ctx.saver():
                 if self.rotation:
@@ -1209,8 +1212,8 @@ class LineGraphic(LineTypeGraphic):
             ctx.stroke_style = self.used_stroke_style
             ctx.stroke()
         if is_selected:
-            self.draw_marker(ctx, p1)
-            self.draw_marker(ctx, p2)
+            draw_marker(ctx, p1)
+            draw_marker(ctx, p2)
         self.draw_label(ctx, get_font_metrics_fn, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
@@ -1283,8 +1286,8 @@ class LineProfileGraphic(LineTypeGraphic):
                         ctx.stroke_style = color
                         ctx.stroke()
         if is_selected:
-            self.draw_marker(ctx, p1)
-            self.draw_marker(ctx, p2)
+            draw_marker(ctx, p1)
+            draw_marker(ctx, p2)
         self.draw_label(ctx, get_font_metrics_fn, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
@@ -1392,10 +1395,10 @@ class PointGraphic(PointTypeGraphic):
             ctx.stroke()
             self.draw_label(ctx, get_font_metrics_fn, mapping)
         if is_selected:
-            self.draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, cross_hair_size))
-            self.draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, -cross_hair_size))
-            self.draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, cross_hair_size))
-            self.draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, -cross_hair_size))
+            draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, cross_hair_size))
+            draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, -cross_hair_size))
+            draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, cross_hair_size))
+            draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, -cross_hair_size))
 
     def label_position(self, mapping, font_metrics, padding):
         p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(self.position))
@@ -1634,9 +1637,13 @@ class SpotGraphic(Graphic):
         self.center = bounds[0][0] + bounds[1][0] * 0.5, bounds[0][1] + bounds[1][1] * 0.5
         self.size = bounds[1]
 
-    def get_mask(self, data_shape: typing.Sequence[int]) -> numpy.ndarray:
+    def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[0] * 0.5 + 0.5)
+
         mask = numpy.zeros(data_shape)
-        bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
+        center = calibrated_origin
+
+        bounds_int = ((int(center[0] + data_shape[0] * self.bounds[0][0]), int(center[1] + data_shape[1] * self.bounds[0][1])),
                       (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
 
         if bounds_int[1][0] <= 0 or bounds_int[1][1] <= 0:
@@ -1646,8 +1653,7 @@ class SpotGraphic(Graphic):
         y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
         mask_eq1 = x * x / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + y * y / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
 
-        rotated_origin = rotate_180_around_center(self.bounds[0], (0.5, 0.5))
-        bounds_int = ((int(data_shape[0] * rotated_origin[0]), int(data_shape[1] * rotated_origin[1])),
+        bounds_int = ((int(center[0] - data_shape[0] * self.bounds[0][0]), int(center[1] - data_shape[1] * self.bounds[0][1])),
                       (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
 
         a, b = bounds_int[0][0] - bounds_int[1][0] * 0.5, bounds_int[0][1] - bounds_int[1][1] * 0.5
@@ -1662,53 +1668,31 @@ class SpotGraphic(Graphic):
     def test(self, mapping, get_font_metrics_fn, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
-        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
-        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
-        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
-        top_left = origin
-        top_right = origin[0], origin[1] + size[1]
-        bottom_right = origin[0] + size[0], origin[1] + size[1]
-        bottom_left = origin[0] + size[0], origin[1]
-        # top left
-        if self.test_point(origin, test_point, 4):
+        center_widget = mapping.calibrated_origin_widget
+        relative_rect_widget = Geometry.FloatRect.from_center_and_size(
+            mapping.map_size_image_norm_to_widget(self.center), mapping.map_size_image_norm_to_widget(self.size))
+        rect_widget = center_widget + relative_rect_widget
+        rect_inverted_widget = center_widget - relative_rect_widget
+        if self.test_point(rect_widget.top_left, test_point, 4):
             return "top-left", True
-        # top right
-        if self.test_point(top_right, test_point, 4):
+        if self.test_point(rect_widget.top_right, test_point, 4):
             return "top-right", True
-        # bottom right
-        if self.test_point(bottom_right, test_point, 4):
+        if self.test_point(rect_widget.bottom_right, test_point, 4):
             return "bottom-right", True
-        # bottom left
-        if self.test_point(bottom_left, test_point, 4):
+        if self.test_point(rect_widget.bottom_left, test_point, 4):
             return "bottom-left", True
-        rotated_center = rotate_180_around_center(origin, center)
-        if self.test_point((rotated_center[0] - size[0], rotated_center[1] - size[1]), test_point, 4):
-            return "inverted-bottom-right", True
-        if self.test_point((rotated_center[0] - size[0], rotated_center[1]), test_point, 4):
-            return "inverted-bottom-left", True
-        if self.test_point((rotated_center[0], rotated_center[1] - size[1]), test_point, 4):
-            return "inverted-top-right", True
-        if self.test_point((rotated_center[0], rotated_center[1]), test_point, 4):
+        if self.test_point(rect_inverted_widget.bottom_right, test_point, 4):
             return "inverted-top-left", True
-        # top line
-        if self.test_line(top_left, top_right, test_point, 4):
+        if self.test_point(rect_inverted_widget.bottom_left, test_point, 4):
+            return "inverted-top-right", True
+        if self.test_point(rect_inverted_widget.top_right, test_point, 4):
+            return "inverted-bottom-left", True
+        if self.test_point(rect_inverted_widget.top_left, test_point, 4):
+            return "inverted-bottom-right", True
+        if self.test_inside_bounds(rect_widget, test_point, 4):
             return "all", True
-        # bottom line
-        if self.test_line(bottom_left, bottom_right, test_point, 4):
-            return "all", True
-        # left line
-        if self.test_line(top_left, bottom_left, test_point, 4):
-            return "all", True
-        # right line
-        if self.test_line(top_right, bottom_right, test_point, 4):
-            return "all", True
-        # center
-        if self.test_inside_bounds((origin, size), test_point, 4):
-            return "all", True
-
-        if self.test_inside_bounds(((rotated_center[0] - size[0], rotated_center[1] - size[1]), (size[0], size[1])), test_point, 4):
+        if self.test_inside_bounds(rect_inverted_widget, test_point, 4):
             return "inverted-all", True
-
         # label
         if self.test_label(get_font_metrics_fn, mapping, test_point):
             return "all", True
@@ -1737,68 +1721,56 @@ class SpotGraphic(Graphic):
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         # origin is top left
-        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
-        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
-        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        center_widget = mapping.calibrated_origin_widget
+        relative_rect_widget = Geometry.FloatRect.from_center_and_size(
+            mapping.map_size_image_norm_to_widget(self.center), mapping.map_size_image_norm_to_widget(self.size))
+        rect_widget = center_widget + relative_rect_widget
+        rect_inverted_widget = center_widget - relative_rect_widget
         with ctx.saver():
             ctx.line_width = 1
             ctx.stroke_style = self.used_stroke_style
             ctx.fill_style = self.used_fill_style
-            cx0 = origin[1] + size[1] * 0.5
-            cy0 = origin[0] + size[0] * 0.5
-            draw_ellipse(ctx, cx0, cy0, size[1], size[0], self.used_stroke_style, self.used_fill_style)
-            ctx.stroke_style = self.used_stroke_style
-            ctx.fill_style = self.used_fill_style
-            cx1 = 2 * center[1] - cx0
-            cy1 = 2 * center[0] - cy0
-            draw_ellipse(ctx, cx1, cy1, size[1], size[0], self.used_stroke_style, self.used_fill_style)
+            draw_ellipse(ctx, rect_widget.center, rect_widget.size, self.used_stroke_style, self.used_fill_style)
+            draw_ellipse(ctx, rect_inverted_widget.center, rect_inverted_widget.size, self.used_stroke_style, self.used_fill_style)
         if is_selected:
-            self.draw_marker(ctx, rotate_180_around_center(origin, center))  # bottom right
-            self.draw_marker(ctx, rotate_180_around_center((origin[0] + size[0], origin[1]), center))  # top right
-            self.draw_marker(ctx, rotate_180_around_center((origin[0] + size[0], origin[1] + size[1]), center))  # top left
-            self.draw_marker(ctx, rotate_180_around_center((origin[0], origin[1] + size[1]), center))  # bottom left
-
-            self.draw_marker(ctx, origin)
-            self.draw_marker(ctx, (origin[0] + size[0], origin[1]))
-            self.draw_marker(ctx, (origin[0] + size[0], origin[1] + size[1]))
-            self.draw_marker(ctx, (origin[0], origin[1] + size[1]))
+            draw_rect_marker(ctx, rect_widget)
+            draw_rect_marker(ctx, rect_inverted_widget)
             # draw center marker
             mark_size = 8
-            if size[0] > mark_size:
-                mid_x0 = origin[1] + 0.5 * size[1]
-                mid_y0 = origin[0] + 0.5 * size[0]
-                mid_y1, mid_x1 = rotate_180_around_center((mid_y0, mid_x0), center)
+            mid0 = rect_widget.center
+            mid1 = rect_inverted_widget.center
+            if rect_widget.height > mark_size:
                 with ctx.saver():
                     ctx.begin_path()
-                    ctx.move_to(mid_x0 - 0.5 * mark_size, mid_y0)
-                    ctx.line_to(mid_x0 + 0.5 * mark_size, mid_y0)
+                    ctx.move_to(mid0.x - 0.5 * mark_size, mid0.y)
+                    ctx.line_to(mid0.x + 0.5 * mark_size, mid0.y)
                     ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
                     ctx.begin_path()
-                    ctx.move_to(mid_x1 - 0.5 * mark_size, mid_y1)
-                    ctx.line_to(mid_x1 + 0.5 * mark_size, mid_y1)
+                    ctx.move_to(mid1.x - 0.5 * mark_size, mid1.y)
+                    ctx.line_to(mid1.x + 0.5 * mark_size, mid1.y)
                     ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
-            if size[1] > mark_size:
-                mid_x0 = origin[1] + 0.5 * size[1]
-                mid_y0 = origin[0] + 0.5 * size[0]
-                mid_y1, mid_x1 = rotate_180_around_center((mid_y0, mid_x0), center)
+            if rect_widget.width > mark_size:
                 with ctx.saver():
                     ctx.begin_path()
-                    ctx.move_to(mid_x0, mid_y0 - 0.5 * mark_size)
-                    ctx.line_to(mid_x0, mid_y0 + 0.5 * mark_size)
+                    ctx.move_to(mid0.x, mid0.y - 0.5 * mark_size)
+                    ctx.line_to(mid0.x, mid0.y + 0.5 * mark_size)
                     ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
                     ctx.begin_path()
-                    ctx.move_to(mid_x1, mid_y1 - 0.5 * mark_size)
-                    ctx.line_to(mid_x1, mid_y1 + 0.5 * mark_size)
+                    ctx.move_to(mid1.x, mid1.y - 0.5 * mark_size)
+                    ctx.line_to(mid1.x, mid1.y + 0.5 * mark_size)
                     ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
         self.draw_label(ctx, get_font_metrics_fn, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
-        bounds = Geometry.FloatRect.make(self.bounds)
-        p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(bounds.top, bounds.center.x)))
+        center_widget = mapping.calibrated_origin_widget
+        relative_rect_widget = Geometry.FloatRect.from_center_and_size(
+            mapping.map_size_image_norm_to_widget(self.center), mapping.map_size_image_norm_to_widget(self.size))
+        rect_widget = center_widget + relative_rect_widget
+        p = Geometry.FloatPoint(rect_widget.top, rect_widget.center.x)
         return p + Geometry.FloatPoint(-font_metrics.height * 0.5 - padding * 2, 0.0)
 
 
@@ -1872,7 +1844,7 @@ class WedgeGraphic(Graphic):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         length = 10000  # safe line length
-        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        center = mapping.calibrated_origin_widget
         start_line_endpoint = (center[0] + length * math.cos(self.__start_angle_internal + math.pi / 2), center[1] + length * math.sin(self.__start_angle_internal + math.pi / 2))
         end_line_endpoint = (center[0] + length * math.cos(self.__end_angle_internal + math.pi / 2), center[1] + length * math.sin(self.__end_angle_internal + math.pi / 2))
         start_angle_inverted = (self.__start_angle_internal + math.pi) % (math.pi * 2)
@@ -1907,7 +1879,7 @@ class WedgeGraphic(Graphic):
     def adjust_part(self, mapping, original, current, part, modifiers):
         start_angle_original = part[1]
         end_angle_original = part[2]
-        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        center = mapping.calibrated_origin_widget
         o_angle = math.pi - math.atan2(center[0] - original[0], center[1] - original[1])
         c_angle = math.pi - math.atan2(center[0] - current[0], center[1] - current[1])
         d_angle = angle_diff(o_angle, c_angle)
@@ -1937,21 +1909,21 @@ class WedgeGraphic(Graphic):
             self.__inverted_drag = not self.__inverted_drag
         return None, None
 
-    def get_mask(self, data_shape: typing.Sequence[int]) -> numpy.ndarray:
+    def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[0] * 0.5 + 0.5)
         mask1 = numpy.zeros(data_shape)
         mask2 = numpy.zeros(data_shape)
-        bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
-        a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
+        a, b = calibrated_origin.y, calibrated_origin.x
         y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
         mask1[get_slope_eq(x, y, self.__start_angle_internal)] = 1
         mask1[get_slope_eq(x, y, self.__end_angle_internal)] = 0
-        mask1[int(bounds_int[1][0] / 2), int(bounds_int[1][0] / 2)] = 1
+        mask1[int(a), int(b)] = 1
         mask2[get_slope_eq(x, y, (self.__start_angle_internal + math.pi) % (math.pi * 2))] = 1
         mask2[get_slope_eq(x, y, (self.__end_angle_internal + math.pi) % (math.pi * 2))] = 0
         return numpy.logical_or(mask1, mask2)
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
-        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        center = mapping.calibrated_origin_widget
         size = mapping.map_size_image_norm_to_widget((1.0, 1.0))
         start_length = get_length_for_angle(self.__start_angle_internal, (size[1], size[0]))
         end_length = get_length_for_angle(self.__end_angle_internal, (size[1], size[0]))
@@ -1979,11 +1951,11 @@ class WedgeGraphic(Graphic):
                 ctx.fill()
                 ctx.stroke()
         if is_selected:
-            self.draw_marker(ctx, center)
+            draw_marker(ctx, center)
         self.draw_label(ctx, get_font_metrics_fn, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
-        p1 = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        p1 = mapping.calibrated_origin_widget
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
 
 
@@ -2020,16 +1992,17 @@ class RingGraphic(Graphic):
     def test(self, mapping, get_font_metrics_fn, test_point: typing.Tuple[float, float], move_only: bool) -> typing.Tuple[str, bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
-        top_marker_outer = mapping.map_point_image_norm_to_widget((0.5, 0.5 - self.radius_1))
-        left_marker_outer = mapping.map_point_image_norm_to_widget((0.5 - self.radius_1, 0.5))
-        right_marker_outer = mapping.map_point_image_norm_to_widget((0.5 + self.radius_1, 0.5))
-        bottom_marker_outer = mapping.map_point_image_norm_to_widget((0.5, 0.5 + self.radius_1))
-        top_marker_inner = mapping.map_point_image_norm_to_widget((0.5, 0.5 - self.radius_2))
-        left_marker_inner = mapping.map_point_image_norm_to_widget((0.5 - self.radius_2, 0.5))
-        right_marker_inner = mapping.map_point_image_norm_to_widget((0.5 + self.radius_2, 0.5))
-        bottom_marker_inner = mapping.map_point_image_norm_to_widget((0.5, 0.5 + self.radius_2))
+        calibrated_origin = mapping.calibrated_origin_image_norm
+        top_marker_outer = mapping.map_point_image_norm_to_widget((calibrated_origin[0], calibrated_origin[1] - self.radius_1))
+        left_marker_outer = mapping.map_point_image_norm_to_widget((calibrated_origin[0] - self.radius_1, calibrated_origin[1]))
+        right_marker_outer = mapping.map_point_image_norm_to_widget((calibrated_origin[0] + self.radius_1, calibrated_origin[1]))
+        bottom_marker_outer = mapping.map_point_image_norm_to_widget((calibrated_origin[0], calibrated_origin[1] + self.radius_1))
+        top_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0], calibrated_origin[1] - self.radius_2))
+        left_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0] - self.radius_2, calibrated_origin[1]))
+        right_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0] + self.radius_2, calibrated_origin[1]))
+        bottom_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0], calibrated_origin[1] + self.radius_2))
         image_norm_test_point = mapping.map_point_widget_to_image_norm(test_point)
-        test_radius = math.sqrt((image_norm_test_point[0] - 0.5) ** 2 + (image_norm_test_point[1] - 0.5) ** 2)
+        test_radius = math.sqrt((image_norm_test_point[0] - calibrated_origin[0]) ** 2 + (image_norm_test_point[1] - calibrated_origin[1]) ** 2)
         if self.test_point(top_marker_outer, test_point, 4):
             return "radius_1", True
         if self.test_point(bottom_marker_outer, test_point, 4):
@@ -2069,18 +2042,20 @@ class RingGraphic(Graphic):
         pass
 
     def adjust_part(self, mapping, original, current, part, modifiers):
+        calibrated_origin = mapping.calibrated_origin_image_norm
         current_norm = mapping.map_point_widget_to_image_norm(current)
-        radius = math.sqrt((current_norm[1] - 0.5) ** 2 + (current_norm[0] - 0.5) ** 2)
+        radius = math.sqrt((current_norm[1] - calibrated_origin[0]) ** 2 + (current_norm[0] - calibrated_origin[1]) ** 2)
         if part[0] == "radius_1":
             self.radius_1 = radius
         if part[0] == "radius_2":
             self.radius_2 = radius
         return None, None
 
-    def get_mask(self, data_shape: typing.Tuple[int]):
+    def get_mask(self, data_shape: typing.Tuple[int], calibrated_origin: Geometry.FloatPoint = None):
+        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[0] * 0.5 + 0.5)
         mask = numpy.zeros(data_shape, dtype=numpy.float)
         bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
-        a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
+        a, b = calibrated_origin.y, calibrated_origin.x
         y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
         outer_radius = self.radius_1 if self.radius_1 > self.radius_2 else self.radius_2
         inner_radius = self.radius_1 if self.radius_1 < self.radius_2 else self.radius_2
@@ -2100,7 +2075,7 @@ class RingGraphic(Graphic):
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         # origin is top left
-        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        center = mapping.calibrated_origin_widget
         bounds0 = mapping.map_point_image_norm_to_widget((0.0, 0.0))
         bounds1 = mapping.map_point_image_norm_to_widget((1.0, 1.0))
         radius_1_widget = mapping.map_size_image_norm_to_widget((self.radius_1, self.radius_1))
@@ -2108,21 +2083,21 @@ class RingGraphic(Graphic):
         with ctx.saver():
             ctx.line_width = 1
             ctx.stroke_style = self.used_stroke_style
-            draw_ellipse(ctx, center[1], center[0], radius_1_widget[1] * 2, radius_1_widget[0] * 2, self.used_stroke_style, self.used_fill_style)
+            draw_ellipse(ctx, center, Geometry.FloatSize(width=radius_1_widget[1] * 2, height=radius_1_widget[0] * 2), self.used_stroke_style, None)
             if is_selected:
-                self.draw_marker(ctx, (center[0] + radius_1_widget[0], center[1]))
-                self.draw_marker(ctx, (center[0] - radius_1_widget[0], center[1]))
-                self.draw_marker(ctx, (center[0], center[1] + radius_1_widget[1]))
-                self.draw_marker(ctx, (center[0], center[1] - radius_1_widget[1]))
+                draw_marker(ctx, (center[0] + radius_1_widget[0], center[1]))
+                draw_marker(ctx, (center[0] - radius_1_widget[0], center[1]))
+                draw_marker(ctx, (center[0], center[1] + radius_1_widget[1]))
+                draw_marker(ctx, (center[0], center[1] - radius_1_widget[1]))
             if not self.mode == "low-pass" and not self.mode == "high-pass":
                 ctx.line_width = 1
                 ctx.stroke_style = self.used_stroke_style
-                draw_ellipse(ctx, center[1], center[0], radius_2_widget[1] * 2, radius_2_widget[0] * 2, self.used_stroke_style, self.used_fill_style)
+                draw_ellipse(ctx, center, Geometry.FloatSize(width=radius_2_widget[1] * 2, height=radius_2_widget[0] * 2), self.used_stroke_style, None)
                 if is_selected:
-                    self.draw_marker(ctx, (center[0] + radius_2_widget[0], center[1]))
-                    self.draw_marker(ctx, (center[0] - radius_2_widget[0], center[1]))
-                    self.draw_marker(ctx, (center[0], center[1] + radius_2_widget[1]))
-                    self.draw_marker(ctx, (center[0], center[1] - radius_2_widget[1]))
+                    draw_marker(ctx, (center[0] + radius_2_widget[0], center[1]))
+                    draw_marker(ctx, (center[0] - radius_2_widget[0], center[1]))
+                    draw_marker(ctx, (center[0], center[1] + radius_2_widget[1]))
+                    draw_marker(ctx, (center[0], center[1] - radius_2_widget[1]))
             # draw 2 thick arcs
             ctx.fill_style = self.used_fill_style
             # ctx.stroke_style = "#0000FF"
@@ -2136,6 +2111,7 @@ class RingGraphic(Graphic):
                         ctx.move_to(x, y)
                     else:
                         ctx.line_to(x, y)
+                ctx.close_path()
                 for i in numpy.arange(0, 2 * math.pi, 0.1):
                     x = center[1] + radius_2_widget[1] * math.cos(2 * math.pi - i)
                     y = center[0] + radius_2_widget[0] * math.sin(2 * math.pi - i)
@@ -2177,7 +2153,7 @@ class RingGraphic(Graphic):
         self.draw_label(ctx, get_font_metrics_fn, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
-        p1 = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        p1 = mapping.calibrated_origin_widget
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
 
 
@@ -2185,8 +2161,8 @@ class LatticeGraphic(Graphic):
     def __init__(self):
         super().__init__("lattice-graphic")
         self.title = _("Lattice")
-        self.define_property("u_pos", (0.5, 0.75), validate=lambda value: tuple(value), changed=self._property_changed)
-        self.define_property("v_pos", (0.25, 0.5), validate=lambda value: tuple(value), changed=self._property_changed)
+        self.define_property("u_pos", (0.0, 0.25), validate=lambda value: tuple(value), changed=self._property_changed)
+        self.define_property("v_pos", (-0.25, 0.0), validate=lambda value: tuple(value), changed=self._property_changed)
         self.define_property("u_count", 1, changed=self._property_changed)
         self.define_property("v_count", 1, changed=self._property_changed)
         self.define_property("radius", 0.1, changed=self._property_changed)
@@ -2212,9 +2188,9 @@ class LatticeGraphic(Graphic):
     def test(self, mapping, get_font_metrics_fn, test_point: typing.Tuple[float], move_only: bool) -> typing.Tuple[str, bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
-        start = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(x=0.5, y=0.5))
-        u_end = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint.make(self.u_pos))
-        v_end = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint.make(self.v_pos))
+        start = mapping.calibrated_origin_widget
+        u_end = start + mapping.map_size_image_norm_to_widget(Geometry.FloatSize.make(self.u_pos))
+        v_end = start + mapping.map_size_image_norm_to_widget(Geometry.FloatSize.make(self.v_pos))
         # print(f"test {u_end} {v_end} {test_point}")
 
         radius = self.radius
@@ -2302,7 +2278,7 @@ class LatticeGraphic(Graphic):
         p_norm = Geometry.FloatPoint.make(mapping.map_point_widget_to_image_norm(current))
         o_norm = Geometry.FloatPoint.make(mapping.map_point_widget_to_image_norm(original))
         delta = p_norm - o_norm
-        start_image = mapping.map_point_image_norm_to_image((0.5, 0.5))
+        start_image = mapping.calibrated_origin_widget
         constraints = self._constraints
 
         radius = part[3]
@@ -2377,53 +2353,51 @@ class LatticeGraphic(Graphic):
 
         return None, None
 
-    def get_mask(self, data_shape: typing.Sequence[int]) -> numpy.ndarray:
-        try:
-            mask = numpy.zeros(data_shape)
+    def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[0] * 0.5 + 0.5)
+        mask = numpy.zeros(data_shape)
 
-            start = Geometry.FloatPoint(x=0.5, y=0.5)
-            u_pos = Geometry.FloatPoint.make(self.u_pos)
-            v_pos = Geometry.FloatPoint.make(self.v_pos)
-            radius = self.radius
-            size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
-
-            bounds = Geometry.FloatRect.from_tlbr(0, 0, 1, 1).inset(-radius, -radius)
-            mx = 0
-            drawn = True
-            while drawn and mx < 32:
-                drawn = False
-                for ui in range(-mx, mx + 1):
-                    for vi in range(-mx, mx + 1):
-                        if ui == -mx or ui == mx or vi == -mx or vi == mx:
-                            p = start + ui * (u_pos - start) + vi * (v_pos - start)
-                            if bounds.contains_point(p):
-
-                                bounds_int = ((int(data_shape[0] * (p[0] - radius)), int(data_shape[1] * (p[1] - radius))),
-                                              (int(data_shape[0] * size[0]), int(data_shape[1] * size[1])))
-
-                                if bounds_int[1][0] > 0 and bounds_int[1][1] > 0:
-                                    a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
-                                    y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
-                                    mask_eq1 = x * x / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + y * y / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
-
-                                    mask[mask_eq1] = 1
-
-                                drawn = True
-                mx += 1
-
-            return mask
-        except Exception as e:
-            print(e)
-
-    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
-        start = Geometry.FloatPoint(x=0.5, y=0.5)
+        start = Geometry.FloatPoint(y=calibrated_origin.y / data_shape[0], x=calibrated_origin.x / data_shape[0])
         u_pos = Geometry.FloatPoint.make(self.u_pos)
         v_pos = Geometry.FloatPoint.make(self.v_pos)
         radius = self.radius
         size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
+
+        bounds = Geometry.FloatRect.from_tlbr(0, 0, 1, 1).inset(-radius, -radius)
+        mx = 0
+        drawn = True
+        while drawn and mx < 32:
+            drawn = False
+            for ui in range(-mx, mx + 1):
+                for vi in range(-mx, mx + 1):
+                    if ui == -mx or ui == mx or vi == -mx or vi == mx:
+                        p = start + ui * u_pos + vi * v_pos
+                        if bounds.contains_point(p):
+
+                            bounds_int = ((int(data_shape[0] * (p[0] - radius)), int(data_shape[1] * (p[1] - radius))),
+                                          (int(data_shape[0] * size[0]), int(data_shape[1] * size[1])))
+
+                            if bounds_int[1][0] > 0 and bounds_int[1][1] > 0:
+                                a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
+                                y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
+                                mask_eq1 = x * x / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + y * y / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
+
+                                mask[mask_eq1] = 1
+
+                            drawn = True
+            mx += 1
+
+        return mask
+
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+        start = mapping.calibrated_origin_image_norm
+        u_pos = Geometry.FloatSize.make(self.u_pos)
+        v_pos = Geometry.FloatSize.make(self.v_pos)
+        radius = self.radius
+        size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
         start_widget = mapping.map_point_image_norm_to_widget(start)
-        u_pos_widget = mapping.map_point_image_norm_to_widget(u_pos)
-        v_pos_widget = mapping.map_point_image_norm_to_widget(v_pos)
+        u_pos_widget = start_widget + mapping.map_size_image_norm_to_widget(u_pos)
+        v_pos_widget = start_widget + mapping.map_size_image_norm_to_widget(v_pos)
         size_widget = mapping.map_size_image_norm_to_widget(size)
         with ctx.saver():
             ctx.begin_path()
@@ -2434,7 +2408,7 @@ class LatticeGraphic(Graphic):
             ctx.stroke_style = self.used_stroke_style
             ctx.stroke()
             ctx.fill_style = self.used_fill_style
-            draw_ellipse(ctx, u_pos_widget.x, u_pos_widget.y, size_widget[1], size_widget[0], self.used_stroke_style, self.used_fill_style)
+            draw_ellipse(ctx, u_pos_widget, size_widget, self.used_stroke_style, self.used_fill_style)
         with ctx.saver():
             ctx.begin_path()
             ctx.move_to(start_widget[1], start_widget[0])
@@ -2444,7 +2418,7 @@ class LatticeGraphic(Graphic):
             ctx.stroke_style = self.used_stroke_style
             ctx.stroke()
             ctx.fill_style = self.used_fill_style
-            draw_ellipse(ctx, v_pos_widget.x, v_pos_widget.y, size_widget[1], size_widget[0], self.used_stroke_style, self.used_fill_style)
+            draw_ellipse(ctx, v_pos_widget, size_widget, self.used_stroke_style, self.used_fill_style)
 
         # uv_pos = u_pos + (v_pos - start)
         # uv_pos_widget = mapping.map_point_image_norm_to_widget(uv_pos)
@@ -2471,29 +2445,23 @@ class LatticeGraphic(Graphic):
                         if (ui == 1 and vi == 0) or (ui == 0 and vi == 1):
                             continue
                         if ui == -mx or ui == mx or vi == -mx or vi == mx:
-                            p = start + ui * (u_pos - start) + vi * (v_pos - start)
+                            p = start + ui * u_pos + vi * v_pos
                             if bounds.contains_point(p):
                                 p_widget = mapping.map_point_image_norm_to_widget(p)
-                                draw_ellipse(ctx, p_widget.x, p_widget.y, size_widget[1], size_widget[0], self.used_stroke_style, self.used_fill_style)
+                                draw_ellipse(ctx, p_widget, size_widget, self.used_stroke_style, self.used_fill_style)
                                 drawn = True
                 mx += 1
 
         if is_selected:
-            self.draw_marker(ctx, start_widget)
-            self.draw_marker(ctx, u_pos_widget)
-            self.draw_marker(ctx, v_pos_widget)
-            self.draw_marker(ctx, (u_pos_widget.y - size_widget.y/2, u_pos_widget.x - size_widget.x/2))
-            self.draw_marker(ctx, (u_pos_widget.y - size_widget.y/2, u_pos_widget.x + size_widget.x/2))
-            self.draw_marker(ctx, (u_pos_widget.y + size_widget.y/2, u_pos_widget.x + size_widget.x/2))
-            self.draw_marker(ctx, (u_pos_widget.y + size_widget.y/2, u_pos_widget.x - size_widget.x/2))
-            self.draw_marker(ctx, (v_pos_widget.y - size_widget.y/2, v_pos_widget.x - size_widget.x/2))
-            self.draw_marker(ctx, (v_pos_widget.y - size_widget.y/2, v_pos_widget.x + size_widget.x/2))
-            self.draw_marker(ctx, (v_pos_widget.y + size_widget.y/2, v_pos_widget.x + size_widget.x/2))
-            self.draw_marker(ctx, (v_pos_widget.y + size_widget.y/2, v_pos_widget.x - size_widget.x/2))
+            draw_marker(ctx, start_widget)
+            draw_marker(ctx, u_pos_widget)
+            draw_marker(ctx, v_pos_widget)
+            draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(u_pos_widget, size_widget))
+            draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(v_pos_widget, size_widget))
         self.draw_label(ctx, get_font_metrics_fn, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
-        p1 = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        p1 = mapping.calibrated_origin_widget
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
 
 

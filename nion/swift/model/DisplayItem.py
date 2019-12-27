@@ -1511,6 +1511,29 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         return self.__scales
 
     @property
+    def datum_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
+        """The calibrations for only datum dimensions."""
+        data_and_metadata = self.__data_and_metadata
+        if data_and_metadata:
+            dimensional_calibrations = data_and_metadata.dimensional_calibrations
+            next_dimension = 0
+            if data_and_metadata.is_sequence:
+                next_dimension += 1
+            if data_and_metadata.is_collection:
+                collection_dimension_count = data_and_metadata.collection_dimension_count
+                datum_dimension_count = data_and_metadata.datum_dimension_count
+                # next dimensions are treated as collection indexes.
+                if collection_dimension_count == 1 and datum_dimension_count == 1:
+                    return dimensional_calibrations[next_dimension:next_dimension + collection_dimension_count + datum_dimension_count]
+                elif collection_dimension_count == 2 and datum_dimension_count == 1:
+                    return dimensional_calibrations[next_dimension:next_dimension + collection_dimension_count]
+                else:  # default, "pick"
+                    return dimensional_calibrations[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
+            else:
+                return dimensional_calibrations[next_dimension:]
+        return [Calibration.Calibration() for c in self.__dimensional_calibrations] if self.__dimensional_calibrations else [Calibration.Calibration()]
+
+    @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         """The calibrations for all data dimensions in the displayed calibration style."""
         calibration_style = self.__get_calibration_style_for_id(self.calibration_style_id)
@@ -1728,9 +1751,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             else:
                 if pos[0] >= 0 and pos[0] < data_shape[0] and pos[1] >= 0 and pos[1] < data_shape[1]:
                     is_polar = dimensional_calibrations[0].units.startswith("1/") and dimensional_calibrations[0].units == dimensional_calibrations[1].units
-                    is_polar = is_polar and abs(dimensional_calibrations[0].scale * data_shape[0] - dimensional_calibrations[1].scale * data_shape[1]) < 1e-12
-                    is_polar = is_polar and abs(dimensional_calibrations[0].offset / (dimensional_calibrations[0].scale * data_shape[0]) + 0.5) < 1e-12
-                    is_polar = is_polar and abs(dimensional_calibrations[1].offset / (dimensional_calibrations[1].scale * data_shape[1]) + 0.5) < 1e-12
                     if is_polar:
                         x = dimensional_calibrations[1].convert_to_calibrated_value(pos[1])
                         y = dimensional_calibrations[0].convert_to_calibrated_value(pos[0])
@@ -1761,6 +1781,7 @@ class DisplayCalibrationInfo:
         self.displayed_dimensional_calibrations = copy.deepcopy(display_item.displayed_dimensional_calibrations)
         self.displayed_intensity_calibration = copy.deepcopy(display_item.displayed_intensity_calibration)
         self.calibration_style = display_item.calibration_style
+        self.datum_calibrations = display_item.datum_calibrations
 
     def __ne__(self, display_calibration_info):
         if not display_calibration_info:
@@ -1772,6 +1793,8 @@ class DisplayCalibrationInfo:
         if  self.displayed_dimensional_calibrations != display_calibration_info.displayed_dimensional_calibrations:
             return True
         if  self.displayed_intensity_calibration != display_calibration_info.displayed_intensity_calibration:
+            return True
+        if  self.datum_calibrations != display_calibration_info.datum_calibrations:
             return True
         if  type(self.calibration_style) != type(display_calibration_info.calibration_style):
             return True

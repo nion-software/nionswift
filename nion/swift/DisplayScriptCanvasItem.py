@@ -80,7 +80,7 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
         self.__display_script = display_properties.get("display_script")
         self.update()
 
-    def update_graphics(self, graphics, graphic_selection, display_calibration_info):
+    def update_graphics_coordinate_system(self, graphics, graphic_selection, display_calibration_info):
         pass
 
     def handle_auto_display(self) -> bool:

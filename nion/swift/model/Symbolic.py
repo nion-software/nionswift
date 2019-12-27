@@ -32,6 +32,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Persistence
 from nion.utils import Converter
 from nion.utils import Event
+from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Observable
 
@@ -764,7 +765,9 @@ class BoundFilterData(BoundDisplayDataChannelBase):
         # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
         if display_item:
             shape = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
-            mask = DataItem.create_mask_data(display_item.graphics, shape)
+            calibrated_origin = Geometry.FloatPoint(y=display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                    x=display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+            mask = DataItem.create_mask_data(display_item.graphics, shape, calibrated_origin)
             return DataAndMetadata.DataAndMetadata.from_data(mask)
         return None
 
@@ -791,7 +794,9 @@ class BoundFilteredData(BoundDisplayDataChannelBase):
             xdata = self._display_data_channel.data_item.xdata
             if xdata.is_data_2d and xdata.is_data_complex_type:
                 shape = xdata.data_shape
-                mask = DataItem.create_mask_data(display_item.graphics, shape)
+                calibrated_origin = Geometry.FloatPoint(y=display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                        x=display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+                mask = DataItem.create_mask_data(display_item.graphics, shape, calibrated_origin)
                 return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
             return xdata
         return None

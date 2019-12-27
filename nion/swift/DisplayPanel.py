@@ -456,7 +456,7 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
     def update_display_properties(self, display_calibration_info, display_properties, display_layers) -> None:
         pass
 
-    def update_graphics(self, graphics, graphic_selection, display_calibration_info) -> None:
+    def update_graphics_coordinate_system(self, graphics, graphic_selection, display_calibration_info) -> None:
         pass
 
     def handle_auto_display(self) -> bool:
@@ -524,7 +524,7 @@ class DisplayTracker:
 
         def display_graphics_changed(graphic_selection):
             # this message comes from the display when the graphic selection changes
-            self.__display_canvas_item.update_graphics(display_item.graphics, graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item))
+            self.__display_canvas_item.update_graphics_coordinate_system(display_item.graphics, graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item))
 
         def display_values_changed():
             # this notification is for the rgba values only
@@ -539,7 +539,7 @@ class DisplayTracker:
             if new_display_data_channel_shapes != display_data_channel_shapes_ref[0]:
                 # use display data shape from the new shapes
                 display_data_shape = new_display_data_channel_shapes[0] if len(new_display_data_channel_shapes) > 0 else None
-                self.__display_canvas_item.update_graphics(display_item.graphics, display_item.graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item, display_data_shape))
+                self.__display_canvas_item.update_graphics_coordinate_system(display_item.graphics, display_item.graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item, display_data_shape))
                 display_data_channel_shapes_ref[0] = new_display_data_channel_shapes
 
         def display_changed():
@@ -1517,6 +1517,10 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         self.__display_item = display_item
 
+        # ensure the graphics get updated by triggering the graphics changed event.
+        if self.__display_item:
+            self.__display_item.graphics_changed_event.fire(self.__display_item.graphic_selection)
+
         # update the related icons canvas item with the new display.
         self.__related_icons_canvas_item.set_display_item(display_item)
 
@@ -1721,7 +1725,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 graphic.nudge(mapping, delta)
             self.__document_controller.push_undo_command(command)
 
-    def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
+    def adjust_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
         with self.__display_item.display_item_changes():
             for graphic in graphic_drag_items:
                 index = self.__display_item.graphics.index(graphic)
@@ -1909,7 +1913,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return None
 
     def create_spot(self, pos):
-        bounds = tuple(pos), (0, 0)
+        data_shape = self.__display_item.data_item.data_shape
+        mapping = ImageCanvasItem.ImageCanvasItemMapping(data_shape, None, self.__display_item.datum_calibrations)
+        bounds = Geometry.FloatRect.from_center_and_size(pos - mapping.calibrated_origin_image_norm, Geometry.FloatSize())
         self.__display_item.graphic_selection.clear()
         region = Graphics.SpotGraphic()
         region.bounds = bounds
@@ -1935,9 +1941,11 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return region
 
     def create_lattice(self, u_pos):
+        data_shape = self.__display_item.data_item.data_shape
+        mapping = ImageCanvasItem.ImageCanvasItemMapping(data_shape, None, self.__display_item.datum_calibrations)
         self.__display_item.graphic_selection.clear()
         region = Graphics.LatticeGraphic()
-        region.u_pos = u_pos
+        region.u_pos = u_pos - mapping.calibrated_origin_image_norm
         self.__display_item.add_graphic(region)
         self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
@@ -2063,7 +2071,7 @@ def preview(get_font_metrics_fn, display_item: DisplayItem.DisplayItem, width: i
             display_calibration_info = DisplayItem.DisplayCalibrationInfo(display_item)
             display_canvas_item.update_display_values(display_values_list)
             display_canvas_item.update_display_properties(display_calibration_info, display_item.display_properties, display_item.display_layers)
-            display_canvas_item.update_graphics(display_item.graphics, DisplayItem.GraphicSelection(), display_calibration_info)
+            display_canvas_item.update_graphics_coordinate_system(display_item.graphics, DisplayItem.GraphicSelection(), display_calibration_info)
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)
                 display_canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(height=frame_height, width=frame_width))

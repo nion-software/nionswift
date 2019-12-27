@@ -1630,7 +1630,7 @@ class DocumentController(Window.Window):
         display_item = self.selected_display_item
         if display_item:
             graphic = Graphics.SpotGraphic()
-            graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
+            graphic.bounds = Geometry.FloatRect.from_center_and_size((0.25, 0.25), (0.25, 0.25))
             command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
