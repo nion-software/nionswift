@@ -2137,7 +2137,7 @@ def make_rectangle_type_inspector(document_controller, display_item: DisplayItem
     return graphic_widget
 
 
-def make_spot_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic, graphic_name: str, rotation: bool = False) -> InspectorSectionWidget:
+def make_spot_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic, graphic_name: str) -> InspectorSectionWidget:
     ui = document_controller.ui
     graphic_widget = InspectorSectionWidget(ui)
     graphic_widget.content_widget.widget_id = "spot_inspector"
@@ -2208,30 +2208,29 @@ def make_spot_inspector(document_controller, display_item: DisplayItem.DisplayIt
 
     graphic_widget.add_closeables(center_model, size_model)
 
-    if rotation:
-        rotation_row = ui.create_row_widget()
-        rotation_row.add_spacing(20)
+    rotation_row = ui.create_row_widget()
+    rotation_row.add_spacing(20)
 
-        rotation_line_edit = ui.create_line_edit_widget(properties={"width": 98})
-        rotation_line_edit.widget_id = "rotation"
+    rotation_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    rotation_line_edit.widget_id = "rotation"
 
-        rotation_row2 = ui.create_row_widget()
-        rotation_row2.add(ui.create_label_widget(_("Rotation (deg)")))
-        rotation_row2.add_spacing(8)
-        rotation_row2.add(rotation_line_edit)
+    rotation_row2 = ui.create_row_widget()
+    rotation_row2.add(ui.create_label_widget(_("Rotation (deg)")))
+    rotation_row2.add_spacing(8)
+    rotation_row2.add(rotation_line_edit)
 
-        rotation_row.add(rotation_row2)
-        rotation_row.add_stretch()
+    rotation_row.add(rotation_row2)
+    rotation_row.add_stretch()
 
-        graphic_widget.add(rotation_row)
-        graphic_widget.add_spacing(4)
+    graphic_widget.add(rotation_row)
+    graphic_widget.add_spacing(4)
 
-        rotation_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
-        rotation_line_edit.bind_text(Binding.PropertyBinding(rotation_model, "value", converter=RadianToDegreeStringConverter()))
+    rotation_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
+    rotation_line_edit.bind_text(Binding.PropertyBinding(rotation_model, "value", converter=RadianToDegreeStringConverter()))
 
-        graphic_widget.add_unbinder([display_item, graphic], [rotation_line_edit.unbind_text])
+    graphic_widget.add_unbinder([display_item, graphic], [rotation_line_edit.unbind_text])
 
-        graphic_widget.add_closeable(rotation_model)
+    graphic_widget.add_closeable(rotation_model)
 
     return graphic_widget
 

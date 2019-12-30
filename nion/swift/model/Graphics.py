@@ -8,6 +8,7 @@ import numpy  # for arange
 import typing
 
 # local libraries
+from nion.data import Core
 from nion.swift.model import Changes
 from nion.swift.model import Persistence
 from nion.utils import Event
@@ -82,237 +83,233 @@ def extend_line(origin, point, pixels):
     return origin + delta_extended
 
 
-def adjust_rectangle_like(mapping, rotation, is_center_constant_by_default, original, current, part, modifiers, constraints) -> typing.Tuple[Geometry.FloatRect, float]:
+def adjust_rectangle_like(part_name: str, data_shape: typing.Sequence[int], bounds: Geometry.FloatRect, rotation: float,
+                          is_center_constant_by_default: bool, original_image: Geometry.FloatPoint,
+                          current_image: Geometry.FloatPoint, original_rotation: float, modifiers,
+                          constraints) -> typing.Tuple[Geometry.FloatRect, float]:
     # NOTE: all sizes/points are assumed to be in image coordinates
-    o = mapping.map_point_widget_to_image(original)
-    p = mapping.map_point_widget_to_image(current)
-    delta = p - o if not part[0].startswith("inverted") else o - p
-    part_name = part[0] if not part[0].startswith("inverted") else part[0][9:]
-    old_rotation = part[2]
-    old_origin = mapping.map_point_image_norm_to_image(part[1][0])
-    old_size = mapping.map_point_image_norm_to_image(part[1][1])
-    old_rect = Geometry.FloatRect(origin=old_origin, size=old_size)
-    data_shape = Geometry.FloatSize(height=mapping.data_shape[0], width=mapping.data_shape[1])
+    data_shape = Geometry.FloatSize.make(data_shape)
+    delta = current_image - original_image
+    bounds_image = Geometry.map_rect(bounds, Geometry.FloatRect.unit_rect(), Geometry.FloatRect(origin=Geometry.FloatPoint(), size=data_shape))
+    size_image = bounds_image.size
     # find the minimum distance of center from origin and bottom corner of data
-    min_from_origin = min(old_rect.center.y, old_rect.center.x)
-    min_from_full = min(data_shape.height - old_rect.center.y, data_shape.width - old_rect.center.x)
+    min_from_origin = min(bounds_image.center.y, bounds_image.center.x)
+    min_from_full = min(data_shape.height - bounds_image.center.y, data_shape.width - bounds_image.center.x)
     # now calculate the min/max v/h by adding/subtracting those values from bottom-right
     min_value = min(min_from_origin, min_from_full)
-    min_point0 = Geometry.FloatPoint(y=min_value, x=min_value)
-    # min_point = old_rect.center - min_point0
-    # max_point = old_rect.center + min_point0
-    min_v = old_rect.center.y - min_value
-    min_h = old_rect.center.x - min_value
-    max_v = old_rect.center.y + min_value
-    max_h = old_rect.center.x + min_value
-    max_abs_delta_v = min(old_rect.center.y, data_shape.height - old_rect.center.y)
-    max_abs_delta_h = min(old_rect.center.x, data_shape.width - old_rect.center.x)
-    new_bounds = Geometry.FloatRect(origin=old_origin, size=old_size)
+    min_v = bounds_image.center.y - min_value
+    min_h = bounds_image.center.x - min_value
+    max_v = bounds_image.center.y + min_value
+    max_h = bounds_image.center.x + min_value
+    max_abs_delta_v = min(bounds_image.center.y, data_shape.height - bounds_image.center.y)
+    max_abs_delta_h = min(bounds_image.center.x, data_shape.width - bounds_image.center.x)
+    new_bounds_image = bounds_image
     new_rotation = rotation
     if part_name == "top-left" and not "shape" in constraints:  # top left
         delta = rotate(delta, Geometry.FloatPoint(), -rotation)
-        new_top_left = old_rect.top_left + delta
+        new_top_left = bounds_image.top_left + delta
         if (bool(modifiers.alt) != bool(is_center_constant_by_default)) or "position" in constraints:
             if modifiers.shift or "square" in constraints:
                 # shape constrained to square; hold center constant
-                half_size = Geometry.FloatSize.make(old_rect.center - new_top_left)
+                half_size = Geometry.FloatSize.make(bounds_image.center - new_top_left)
                 if half_size.height > half_size.width:  # size will be width
-                    new_top_left = old_rect.center - Geometry.FloatPoint(y=half_size.width, x=half_size.width)
+                    new_top_left = bounds_image.center - Geometry.FloatPoint(y=half_size.width, x=half_size.width)
                 else:  # size will be height
-                    new_top_left = old_rect.center - Geometry.FloatPoint(y=half_size.height, x=half_size.height)
+                    new_top_left = bounds_image.center - Geometry.FloatPoint(y=half_size.height, x=half_size.height)
                 if "bounds" in constraints and rotation == 0.0:
                     # now constrain the top-left value
                     new_top_left = Geometry.FloatPoint(y=min(max(new_top_left.y, min_v), max_v), x=min(max(new_top_left.x, min_h), max_h))
             else:
                 # shape not constrained; hold center constant
                 if "bounds" in constraints and rotation == 0.0:
-                    new_top_left = Geometry.FloatPoint(y=min(max(new_top_left.y, old_rect.center.y - max_abs_delta_v), old_rect.center.y + max_abs_delta_v), x=min(max(new_top_left.x, old_rect.center.x - max_abs_delta_h), old_rect.center.x + max_abs_delta_h))
+                    new_top_left = Geometry.FloatPoint(y=min(max(new_top_left.y, bounds_image.center.y - max_abs_delta_v), bounds_image.center.y + max_abs_delta_v), x=min(max(new_top_left.x, bounds_image.center.x - max_abs_delta_h), bounds_image.center.x + max_abs_delta_h))
             # c + (c - t), c + (c - l)
-            new_bottom_right = 2 * old_rect.center - new_top_left
-            new_bounds = Geometry.FloatRect(origin=new_top_left, size=new_bottom_right - new_top_left)
+            new_bottom_right = 2 * bounds_image.center - new_top_left
+            new_bounds_image = Geometry.FloatRect(origin=new_top_left, size=new_bottom_right - new_top_left)
         else:
             if modifiers.shift or "square" in constraints:
                 if "bounds" in constraints and rotation == 0.0:
                     # find the minimum distance of bottom-right from origin and opposite corner of data
-                    min_from_00 = min(old_rect.bottom, old_rect.right)
-                    min_from_11 = min(data_shape.height - old_rect.bottom, data_shape.width - old_rect.right)
+                    min_from_00 = min(bounds_image.bottom, bounds_image.right)
+                    min_from_11 = min(data_shape.height - bounds_image.bottom, data_shape.width - bounds_image.right)
                     # now calculate the min/max v/h by adding/subtracting those values from bottom-right
-                    min_v = old_rect.bottom - min_from_00
-                    max_v = old_rect.bottom + min_from_11
-                    min_h = old_rect.right - min_from_00
-                    max_h = old_rect.right + min_from_11
+                    min_v = bounds_image.bottom - min_from_00
+                    max_v = bounds_image.bottom + min_from_11
+                    min_h = bounds_image.right - min_from_00
+                    max_h = bounds_image.right + min_from_11
                     # now constrain the top-left value
                     new_top_left = Geometry.FloatPoint(y=min(max(new_top_left.y, min_v), max_v), x=min(max(new_top_left.x, min_h), max_h))
                 # shape constrained to square; hold bottom right constant
-                if old_rect.bottom - new_top_left.y < old_rect.right - new_top_left.x:  # size will be width
-                    new_top_left = Geometry.FloatPoint(y=old_rect.bottom - (old_rect.right - new_top_left.x), x=new_top_left.x)
+                if bounds_image.bottom - new_top_left.y < bounds_image.right - new_top_left.x:  # size will be width
+                    new_top_left = Geometry.FloatPoint(y=bounds_image.bottom - (bounds_image.right - new_top_left.x), x=new_top_left.x)
                 else:  # size will be height
-                    new_top_left = Geometry.FloatPoint(y=new_top_left.y, x=old_rect.right - (old_rect.bottom - new_top_left.y))
+                    new_top_left = Geometry.FloatPoint(y=new_top_left.y, x=bounds_image.right - (bounds_image.bottom - new_top_left.y))
             else:
                 # shape not constrained; hold bottom right constant
                 if "bounds" in constraints and rotation == 0.0:
                     new_top_left = Geometry.FloatPoint(y=min(max(new_top_left.y, 0.0), data_shape.height), x=min(max(new_top_left.x, 0.0), data_shape.width))
-            new_bounds = Geometry.FloatRect(origin=new_top_left, size=old_rect.bottom_right - new_top_left)
-            rotation_offset = rotate(new_bounds.bottom_right, new_bounds.center, rotation) - rotate(old_rect.bottom_right, old_rect.center, rotation)
-            new_bounds -= rotation_offset
+            new_bounds_image = Geometry.FloatRect(origin=new_top_left, size=bounds_image.bottom_right - new_top_left)
+            rotation_offset = rotate(new_bounds_image.bottom_right, new_bounds_image.center, rotation) - rotate(bounds_image.bottom_right, bounds_image.center, rotation)
+            new_bounds_image -= rotation_offset
     elif part_name == "top-right" and not "shape" in constraints:  # top right
         delta = rotate(delta, Geometry.FloatPoint(), -rotation)
-        new_top_right = old_rect.top_right + delta
+        new_top_right = bounds_image.top_right + delta
         if (bool(modifiers.alt) != bool(is_center_constant_by_default)) or "position" in constraints:
             if modifiers.shift or "square" in constraints:
                 # shape constrained to square; hold center constant
-                half_size = Geometry.FloatSize(height=old_rect.center.y - new_top_right.y, width=new_top_right.x - old_rect.center.x)
+                half_size = Geometry.FloatSize(height=bounds_image.center.y - new_top_right.y, width=new_top_right.x - bounds_image.center.x)
                 if half_size.height > half_size.width:  # size will be width
-                    new_top_right = old_rect.center - Geometry.FloatPoint(y=-half_size.width, x=half_size.width)
+                    new_top_right = bounds_image.center - Geometry.FloatPoint(y=-half_size.width, x=half_size.width)
                 else:  # size will be height
-                    new_top_right = old_rect.center - Geometry.FloatPoint(y=-half_size.height, x=half_size.height)
+                    new_top_right = bounds_image.center - Geometry.FloatPoint(y=-half_size.height, x=half_size.height)
                 if "bounds" in constraints:
                     # now constrain the top-right value
                     new_top_right = Geometry.FloatPoint(y=min(max(new_top_right.y, min_v), max_v), x=min(max(new_top_right.x, min_h), max_h))
             else:
                 # shape not constrained; hold center constant
                 if "bounds" in constraints:
-                    new_top_right = Geometry.FloatPoint(y=min(max(new_top_right.y, old_rect.center.y - max_abs_delta_v), old_rect.center.y + max_abs_delta_v), x=min(max(new_top_right.x, old_rect.center.x - max_abs_delta_h), old_rect.center.x + max_abs_delta_h))
+                    new_top_right = Geometry.FloatPoint(y=min(max(new_top_right.y, bounds_image.center.y - max_abs_delta_v), bounds_image.center.y + max_abs_delta_v), x=min(max(new_top_right.x, bounds_image.center.x - max_abs_delta_h), bounds_image.center.x + max_abs_delta_h))
             # c + (c - t), c - (r - c)
-            new_bottom_left = 2 * old_rect.center - new_top_right
-            new_bounds = Geometry.FloatRect(origin=new_top_right, size=new_bottom_left - new_top_right)
+            new_bottom_left = 2 * bounds_image.center - new_top_right
+            new_bounds_image = Geometry.FloatRect(origin=new_top_right, size=new_bottom_left - new_top_right)
         else:
             if modifiers.shift or "square" in constraints:
                 if "bounds" in constraints:
                     # find the minimum distance of bottom-left from bottom-left and opposite corner of data
-                    min_from_10 = min(data_shape.height - old_rect.bottom, old_rect.left)
-                    min_from_01 = min(old_rect.bottom, data_shape.width - old_rect.left)
+                    min_from_10 = min(data_shape.height - bounds_image.bottom, bounds_image.left)
+                    min_from_01 = min(bounds_image.bottom, data_shape.width - bounds_image.left)
                     # now calculate the min/max v/h by adding/subtracting those values from bottom-left
-                    min_v = old_rect.bottom - min_from_01
-                    max_v = old_rect.bottom + min_from_10
-                    min_h = old_rect.left - min_from_10
-                    max_h = old_rect.left + min_from_01
+                    min_v = bounds_image.bottom - min_from_01
+                    max_v = bounds_image.bottom + min_from_10
+                    min_h = bounds_image.left - min_from_10
+                    max_h = bounds_image.left + min_from_01
                     # now constrain the top-left value
                     new_top_right = Geometry.FloatPoint(y=min(max(new_top_right.y, min_v), max_v), x=min(max(new_top_right.x, min_h), max_h))
                 # shape constrained to square; hold bottom left constant
-                if old_rect.bottom - new_top_right.y < new_top_right.x - old_rect.left:  # size will be width
-                    new_top_right = Geometry.FloatPoint(y=old_rect.bottom - (new_top_right.x - old_rect.left), x=new_top_right.x)
+                if bounds_image.bottom - new_top_right.y < new_top_right.x - bounds_image.left:  # size will be width
+                    new_top_right = Geometry.FloatPoint(y=bounds_image.bottom - (new_top_right.x - bounds_image.left), x=new_top_right.x)
                 else:  # size will be height
-                    new_top_right = Geometry.FloatPoint(y=new_top_right.y, x=old_rect.left + (old_rect.bottom - new_top_right.y))
+                    new_top_right = Geometry.FloatPoint(y=new_top_right.y, x=bounds_image.left + (bounds_image.bottom - new_top_right.y))
             else:
                 # shape not constrained; hold bottom left constant
                 if "bounds" in constraints:
                     new_top_right = Geometry.FloatPoint(y=min(max(new_top_right.y, 0.0), data_shape.height), x=min(max(new_top_right.x, 0.0), data_shape.width))
-            new_bounds = Geometry.FloatRect(origin=Geometry.FloatPoint(y=new_top_right.y, x=old_rect.left), size=Geometry.FloatSize(height=old_rect.bottom - new_top_right.y, width=new_top_right.x - old_rect.left))
-            rotation_offset = rotate(new_bounds.bottom_left, new_bounds.center, rotation) - rotate(old_rect.bottom_left, old_rect.center, rotation)
-            new_bounds -= rotation_offset
+            new_bounds_image = Geometry.FloatRect(origin=Geometry.FloatPoint(y=new_top_right.y, x=bounds_image.left), size=Geometry.FloatSize(height=bounds_image.bottom - new_top_right.y, width=new_top_right.x - bounds_image.left))
+            rotation_offset = rotate(new_bounds_image.bottom_left, new_bounds_image.center, rotation) - rotate(bounds_image.bottom_left, bounds_image.center, rotation)
+            new_bounds_image -= rotation_offset
     elif part_name == "bottom-right" and not "shape" in constraints:  # bottom right
         delta = rotate(delta, Geometry.FloatPoint(), -rotation)
-        new_bottom_right = old_rect.bottom_right + delta
+        new_bottom_right = bounds_image.bottom_right + delta
         if (bool(modifiers.alt) != bool(is_center_constant_by_default)) or "position" in constraints:
             if modifiers.shift or "square" in constraints:
                 # shape constrained to square; hold center constant
-                half_size = Geometry.FloatSize.make(new_bottom_right - old_rect.center)
+                half_size = Geometry.FloatSize.make(new_bottom_right - bounds_image.center)
                 if half_size.height > half_size.width:  # size will be width
-                    new_bottom_right = old_rect.center + Geometry.FloatPoint(y=half_size.width, x=half_size.width)
+                    new_bottom_right = bounds_image.center + Geometry.FloatPoint(y=half_size.width, x=half_size.width)
                 else:  # size will be height
-                    new_bottom_right = old_rect.center + Geometry.FloatPoint(y=half_size.height, x=half_size.height)
+                    new_bottom_right = bounds_image.center + Geometry.FloatPoint(y=half_size.height, x=half_size.height)
                 if "bounds" in constraints:
                     # now constrain the bottom-right value
                     new_bottom_right = Geometry.FloatPoint(y=min(max(new_bottom_right.y, min_v), max_v), x=min(max(new_bottom_right.x, min_h), max_h))
             else:
                 # shape not constrained; hold center constant
                 if "bounds" in constraints:
-                    new_bottom_right = Geometry.FloatPoint(y=min(max(new_bottom_right.y, old_rect.center.y - max_abs_delta_v), old_rect.center.y + max_abs_delta_v), x=min(max(new_bottom_right.x, old_rect.center.x - max_abs_delta_h), old_rect.center.x + max_abs_delta_h))
+                    new_bottom_right = Geometry.FloatPoint(y=min(max(new_bottom_right.y, bounds_image.center.y - max_abs_delta_v), bounds_image.center.y + max_abs_delta_v), x=min(max(new_bottom_right.x, bounds_image.center.x - max_abs_delta_h), bounds_image.center.x + max_abs_delta_h))
             # c - (b - c), c - (r - c)
-            new_top_left = 2 * old_rect.center - new_bottom_right
-            new_bounds = Geometry.FloatRect(origin=new_top_left, size=new_bottom_right - new_top_left)
+            new_top_left = 2 * bounds_image.center - new_bottom_right
+            new_bounds_image = Geometry.FloatRect(origin=new_top_left, size=new_bottom_right - new_top_left)
         else:
             if modifiers.shift or "square" in constraints:
                 if "bounds" in constraints:
                     # find the minimum distance of bottom-right from bottom-right and opposite corner of data
-                    min_from_00 = min(old_rect.top, old_rect.left)
-                    min_from_11 = min(data_shape.height - old_rect.top, data_shape.width - old_rect.left)
+                    min_from_00 = min(bounds_image.top, bounds_image.left)
+                    min_from_11 = min(data_shape.height - bounds_image.top, data_shape.width - bounds_image.left)
                     # now calculate the min/max v/h by adding/subtracting those values from top-right
-                    min_v = old_rect.top - min_from_00
-                    max_v = old_rect.top + min_from_11
-                    min_h = old_rect.left - min_from_00
-                    max_h = old_rect.left + min_from_11
+                    min_v = bounds_image.top - min_from_00
+                    max_v = bounds_image.top + min_from_11
+                    min_h = bounds_image.left - min_from_00
+                    max_h = bounds_image.left + min_from_11
                     # now constrain the bottom-left value
                     new_bottom_right = Geometry.FloatPoint(y=min(max(new_bottom_right.y, min_v), max_v), x=min(max(new_bottom_right.x, min_h), max_h))
                 # shape constrained to square; hold top left constant
-                if new_bottom_right.y - old_rect.top < new_bottom_right.x - old_rect.left:  # size will be width
-                    new_bottom_right = Geometry.FloatPoint(y=old_rect.top + (new_bottom_right.x - old_rect.left), x=new_bottom_right.x)
+                if new_bottom_right.y - bounds_image.top < new_bottom_right.x - bounds_image.left:  # size will be width
+                    new_bottom_right = Geometry.FloatPoint(y=bounds_image.top + (new_bottom_right.x - bounds_image.left), x=new_bottom_right.x)
                 else:  # size will be height
-                    new_bottom_right = Geometry.FloatPoint(y=new_bottom_right.y, x=old_rect.left + (new_bottom_right.y - old_rect.top))
+                    new_bottom_right = Geometry.FloatPoint(y=new_bottom_right.y, x=bounds_image.left + (new_bottom_right.y - bounds_image.top))
             else:
                 # shape not constrained; hold top right constant
                 if "bounds" in constraints:
                     new_bottom_right = Geometry.FloatPoint(y=min(max(new_bottom_right.y, 0.0), data_shape.height), x=min(max(new_bottom_right.x, 0.0), data_shape.width))
-            new_bounds = Geometry.FloatRect(origin=old_rect.top_left, size=new_bottom_right - old_rect.top_left)
-            rotation_offset = rotate(new_bounds.top_left, new_bounds.center, rotation) - rotate(old_rect.top_left, old_rect.center, rotation)
-            new_bounds -= rotation_offset
+            new_bounds_image = Geometry.FloatRect(origin=bounds_image.top_left, size=new_bottom_right - bounds_image.top_left)
+            rotation_offset = rotate(new_bounds_image.top_left, new_bounds_image.center, rotation) - rotate(bounds_image.top_left, bounds_image.center, rotation)
+            new_bounds_image -= rotation_offset
     elif part_name == "bottom-left" and not "shape" in constraints:  # bottom left
         delta = rotate(delta, Geometry.FloatPoint(), -rotation)
-        new_bottom_left = old_rect.bottom_left + delta
+        new_bottom_left = bounds_image.bottom_left + delta
         if (bool(modifiers.alt) != bool(is_center_constant_by_default)) or "position" in constraints:
             if modifiers.shift or "square" in constraints:
                 # shape constrained to square; hold center constant
-                half_size = Geometry.FloatSize(height=new_bottom_left.y - old_rect.center.y, width=old_rect.center.x - new_bottom_left.x)
+                half_size = Geometry.FloatSize(height=new_bottom_left.y - bounds_image.center.y, width=bounds_image.center.x - new_bottom_left.x)
                 if half_size.height > half_size.width:  # size will be width
-                    new_bottom_left = old_rect.center + Geometry.FloatPoint(y=half_size.width, x=-half_size.width)
+                    new_bottom_left = bounds_image.center + Geometry.FloatPoint(y=half_size.width, x=-half_size.width)
                 else:  # size will be height
-                    new_bottom_left = old_rect.center + Geometry.FloatPoint(y=half_size.height, x=-half_size.height)
+                    new_bottom_left = bounds_image.center + Geometry.FloatPoint(y=half_size.height, x=-half_size.height)
                 if "bounds" in constraints:
                     # now constrain the bottom-left value
                     new_bottom_left = Geometry.FloatPoint(y=min(max(new_bottom_left.y, min_v), max_v), x=min(max(new_bottom_left.x, min_h), max_h))
             else:
                 # shape not constrained; hold center constant
                 if "bounds" in constraints:
-                    new_bottom_left = Geometry.FloatPoint(y=min(max(new_bottom_left.y, old_rect.center.y - max_abs_delta_v), old_rect.center.y + max_abs_delta_v), x=min(max(new_bottom_left.x, old_rect.center.x - max_abs_delta_h), old_rect.center.x + max_abs_delta_h))
+                    new_bottom_left = Geometry.FloatPoint(y=min(max(new_bottom_left.y, bounds_image.center.y - max_abs_delta_v), bounds_image.center.y + max_abs_delta_v), x=min(max(new_bottom_left.x, bounds_image.center.x - max_abs_delta_h), bounds_image.center.x + max_abs_delta_h))
             # c - (b - c), c + (c - l)
-            new_top_right = 2 * old_rect.center - new_bottom_left
-            new_bounds = Geometry.FloatRect(origin=Geometry.FloatPoint(y=new_top_right.y, x=new_bottom_left.x), size=Geometry.FloatSize(height=new_bottom_left.y - new_top_right.y, width=new_top_right.x - new_bottom_left.x))
+            new_top_right = 2 * bounds_image.center - new_bottom_left
+            new_bounds_image = Geometry.FloatRect(origin=Geometry.FloatPoint(y=new_top_right.y, x=new_bottom_left.x), size=Geometry.FloatSize(height=new_bottom_left.y - new_top_right.y, width=new_top_right.x - new_bottom_left.x))
         else:
             if modifiers.shift or "square" in constraints:
                 if "bounds" in constraints:
                     # find the minimum distance of top-right from top-right and opposite corner of data
-                    min_from_01 = min(old_rect.top, data_shape.width - old_rect.right)
-                    min_from_10 = min(data_shape.height - old_rect.top, old_rect.right)
+                    min_from_01 = min(bounds_image.top, data_shape.width - bounds_image.right)
+                    min_from_10 = min(data_shape.height - bounds_image.top, bounds_image.right)
                     # now calculate the min/max v/h by adding/subtracting those values from top-right
-                    min_v = old_rect.top - min_from_01
-                    max_v = old_rect.top + min_from_10
-                    min_h = old_rect.right - min_from_10
-                    max_h = old_rect.right + min_from_01
+                    min_v = bounds_image.top - min_from_01
+                    max_v = bounds_image.top + min_from_10
+                    min_h = bounds_image.right - min_from_10
+                    max_h = bounds_image.right + min_from_01
                     # now constrain the top-left value
                     new_bottom_left = Geometry.FloatPoint(y=min(max(new_bottom_left.y, min_v), max_v), x=min(max(new_bottom_left.x, min_h), max_h))
                 # shape constrained to square; hold top right constant
-                if new_bottom_left.y - old_rect.top < old_rect.right - new_bottom_left.x:  # size will be width
-                    new_bottom_left = Geometry.FloatPoint(y=old_rect.top + (old_rect.right - new_bottom_left.x), x=new_bottom_left.x)
+                if new_bottom_left.y - bounds_image.top < bounds_image.right - new_bottom_left.x:  # size will be width
+                    new_bottom_left = Geometry.FloatPoint(y=bounds_image.top + (bounds_image.right - new_bottom_left.x), x=new_bottom_left.x)
                 else:  # size will be height
-                    new_bottom_left = Geometry.FloatPoint(y=new_bottom_left.y, x=old_rect.right - (new_bottom_left.y - old_rect.top))
+                    new_bottom_left = Geometry.FloatPoint(y=new_bottom_left.y, x=bounds_image.right - (new_bottom_left.y - bounds_image.top))
             else:
                 # shape not constrained; hold top right constant
                 if "bounds" in constraints:
                     new_bottom_left = Geometry.FloatPoint(y=min(max(new_bottom_left.y, 0.0), data_shape.height), x=min(max(new_bottom_left.x, 0.0), data_shape.width))
-            new_bounds = Geometry.FloatRect(origin=Geometry.FloatPoint(y=old_rect.top, x=new_bottom_left.x), size=Geometry.FloatSize(height=new_bottom_left.y - old_rect.top, width=old_rect.right - new_bottom_left.x))
-            rotation_offset = rotate(new_bounds.top_right, new_bounds.center, rotation) - rotate(old_rect.top_right, old_rect.center, rotation)
-            new_bounds -= rotation_offset
-    elif part_name == "rotate" and not "rotation" in constraints:
-        original_delta = o - old_rect.center
-        current_delta = p - old_rect.center
+            new_bounds_image = Geometry.FloatRect(origin=Geometry.FloatPoint(y=bounds_image.top, x=new_bottom_left.x), size=Geometry.FloatSize(height=new_bottom_left.y - bounds_image.top, width=bounds_image.right - new_bottom_left.x))
+            rotation_offset = rotate(new_bounds_image.top_right, new_bounds_image.center, rotation) - rotate(bounds_image.top_right, bounds_image.center, rotation)
+            new_bounds_image -= rotation_offset
+    elif part_name and part_name.endswith("rotate") and not "rotation" in constraints:
+        original_delta = original_image - bounds_image.center
+        current_delta = current_image - bounds_image.center
         original_angle = math.atan2(-original_delta.y, original_delta.x)
         current_angle = math.atan2(-current_delta.y, current_delta.x)
-        new_rotation = old_rotation + (current_angle - original_angle)
+        new_rotation = original_rotation + (current_angle - original_angle)
         if modifiers.shift:
             new_rotation = 2 * math.pi * int(8 * (new_rotation / (2 * math.pi)) + 0.5) / 8
     elif (part_name == "all" or "shape" in constraints) and not "position" in constraints:
         if modifiers.shift:
             if abs(delta.y) > abs(delta.x):
-                origin = Geometry.FloatPoint(y=old_rect.top + delta.y, x=old_rect.left)
+                origin = Geometry.FloatPoint(y=bounds_image.top + delta.y, x=bounds_image.left)
             else:
-                origin = Geometry.FloatPoint(y=old_rect.top, x=old_rect.left + delta.x)
+                origin = Geometry.FloatPoint(y=bounds_image.top, x=bounds_image.left + delta.x)
         else:
-            origin = old_rect.top_left + delta
+            origin = bounds_image.top_left + delta
         if "bounds" in constraints:
-            origin = min(max(origin.y, 0.0), data_shape.height - old_rect.height), min(max(origin.x, 0.0), data_shape.width - old_rect.width)
-        new_bounds = Geometry.FloatRect(origin=origin, size=old_size)
-    return (mapping.map_point_image_to_image_norm(new_bounds.origin), mapping.map_size_image_to_image_norm(new_bounds.size)), new_rotation
+            origin = min(max(origin.y, 0.0), data_shape.height - bounds_image.height), min(max(origin.x, 0.0), data_shape.width - bounds_image.width)
+        new_bounds_image = Geometry.FloatRect(origin=origin, size=size_image)
+    new_bounds = Geometry.map_rect(new_bounds_image, Geometry.FloatRect(origin=Geometry.FloatPoint(), size=data_shape), Geometry.FloatRect.unit_rect())
+    return new_bounds, new_rotation
 
 
 def draw_ellipse(ctx, center: Geometry.FloatPoint, size: Geometry.FloatSize, stroke_style, fill_style):
@@ -362,6 +359,147 @@ def draw_rect_marker(ctx, r: Geometry.FloatRect, fill_style=None):
     draw_marker(ctx, r.top_right, fill_style)
     draw_marker(ctx, r.bottom_right, fill_style)
     draw_marker(ctx, r.bottom_left, fill_style)
+
+
+def draw_ellipse_graphic(ctx, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float, is_selected: bool, stroke_style: str, fill_style: str) -> None:
+    rect = Geometry.FloatRect.from_center_and_size(center, size)
+    origin = rect.origin
+    top_left = rect.top_left
+    top_right = rect.top_right
+    bottom_right = rect.bottom_right
+    bottom_left = rect.bottom_left
+    center = rect.center
+    if rotation:
+        top_left = rotate(top_left, center, rotation)
+        top_right = rotate(top_right, center, rotation)
+        bottom_left = rotate(bottom_left, center, rotation)
+        bottom_right = rotate(bottom_right, center, rotation)
+    with ctx.saver():
+        if rotation:
+            ctx.translate(center.x, center.y)
+            ctx.rotate(-rotation)
+            ctx.translate(-center.x, -center.y)
+        ctx.line_width = 1
+        draw_ellipse(ctx, origin + size / 2, size, stroke_style, fill_style)
+        ctx.begin_path()
+        ctx.move_to(center.x, rect.top + 10)
+        ctx.line_to(center.x, rect.top + 2)
+        draw_arrow(ctx, Geometry.FloatPoint(y=rect.top + 10, x=center.x), Geometry.FloatPoint(y=rect.top + 2, x=center.x), arrow_size=4)
+        ctx.close_path()
+        ctx.line_width = 1
+        ctx.stroke_style = stroke_style
+        ctx.stroke()
+        ctx.fill_style = fill_style
+        ctx.fill()
+    if is_selected:
+        draw_marker(ctx, top_left)
+        draw_marker(ctx, top_right)
+        draw_marker(ctx, bottom_right)
+        draw_marker(ctx, bottom_left)
+        # draw center marker
+        with ctx.saver():
+            if rotation:
+                ctx.translate(center.x, center.y)
+                ctx.rotate(-rotation)
+                ctx.translate(-center.x, -center.y)
+            mark_size = 8
+            if size[0] > mark_size:
+                mid_x = origin[1] + 0.5 * size[1]
+                mid_y = origin[0] + 0.5 * size[0]
+                ctx.begin_path()
+                ctx.move_to(mid_x - 0.5 * mark_size, mid_y)
+                ctx.line_to(mid_x + 0.5 * mark_size, mid_y)
+                ctx.stroke_style = stroke_style
+                ctx.stroke()
+            if size[1] > mark_size:
+                mid_x = origin[1] + 0.5 * size[1]
+                mid_y = origin[0] + 0.5 * size[0]
+                ctx.begin_path()
+                ctx.move_to(mid_x, mid_y - 0.5 * mark_size)
+                ctx.line_to(mid_x, mid_y + 0.5 * mark_size)
+                ctx.stroke_style = stroke_style
+                ctx.stroke()
+
+
+# closest point on line
+def get_closest_point_on_line(start, end, p):
+    c = (p[0] - start[0], p[1] - start[1])
+    v = (end[0] - start[0], end[1] - start[1])
+    length = math.sqrt(pow(v[0], 2) + pow(v[1], 2))
+    if length > 0:
+        v = (v[0] / length, v[1] / length)
+        t = v[0] * c[0] + v[1] * c[1]
+        if t < 0:
+            return start
+        if t > length:
+            return end
+        return (start[0] + v[0] * t, start[1] + v[1] * t)
+    else:
+        return start
+
+
+# test whether points are close
+def test_point(p1, p2, radius):
+    return math.sqrt(pow(p1[0] - p2[0], 2) + pow(p1[1] - p2[1], 2)) < radius
+
+
+# test whether point is close to line
+def test_line(start, end, p, radius):
+    cp = get_closest_point_on_line(start, end, p)
+    return math.sqrt(pow(p[0] - cp[0], 2) + pow(p[1] - cp[1], 2)) < radius
+
+
+def test_inside_bounds(bounds, p, radius):
+    return p[0] > bounds[0][0] and p[0] <= bounds[0][0] + bounds[1][0] and p[1] > bounds[0][1] and p[1] <= bounds[0][1] + bounds[1][1]
+
+
+def test_rectangle(p: Geometry.FloatPoint, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float) -> typing.Tuple[typing.Optional[str], typing.Optional[bool]]:
+    rect_widget = Geometry.FloatRect.from_center_and_size(center, size)
+    origin = rect_widget.origin
+    size = rect_widget.size
+    top_left = rect_widget.top_left
+    top_right = rect_widget.top_right
+    bottom_right = rect_widget.bottom_right
+    bottom_left = rect_widget.bottom_left
+    if rotation:
+        top_left = rotate(top_left, center, rotation)
+        top_right = rotate(top_right, center, rotation)
+        bottom_left = rotate(bottom_left, center, rotation)
+        bottom_right = rotate(bottom_right, center, rotation)
+    test_point_unrotated = rotate(p, center, -rotation)
+    if test_point(top_left, p, 4):
+        return "top-left", True
+    if test_point(top_right, p, 4):
+        return "top-right", True
+    if test_point(bottom_right, p, 4):
+        return "bottom-right", True
+    if test_point(bottom_left, p, 4):
+        return "bottom-left", True
+    if test_point(extend_line(center, top_left, 14), p, 6):
+        return "rotate", True
+    if test_point(extend_line(center, top_right, 14), p, 6):
+        return "rotate", True
+    if test_point(extend_line(center, bottom_right, 14), p, 6):
+        return "rotate", True
+    if test_point(extend_line(center, bottom_left, 14), p, 6):
+        return "rotate", True
+
+    # top line
+    if test_line(top_left, top_right, p, 4):
+        return "all", True
+    # bottom line
+    if test_line(bottom_left, bottom_right, p, 4):
+        return "all", True
+    # left line
+    if test_line(top_left, bottom_left, p, 4):
+        return "all", True
+    # right line
+    if test_line(top_right, bottom_right, p, 4):
+        return "all", True
+
+    if test_inside_bounds((origin, size), test_point_unrotated, 4):
+        return "all", False
+    return None, None
 
 
 class NullModifiers(object):
@@ -535,34 +673,6 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
     def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
         return numpy.zeros(data_shape)
 
-    # test whether points are close
-    def test_point(self, p1, p2, radius):
-        return math.sqrt(pow(p1[0] - p2[0], 2) + pow(p1[1] - p2[1], 2)) < radius
-
-    # closest point on line
-    def get_closest_point_on_line(self, start, end, p):
-        c = (p[0] - start[0], p[1] - start[1])
-        v = (end[0] - start[0], end[1] - start[1])
-        length = math.sqrt(pow(v[0], 2) + pow(v[1], 2))
-        if length > 0:
-            v = (v[0] / length, v[1] / length)
-            t = v[0] * c[0] + v[1] * c[1]
-            if t < 0:
-                return start
-            if t > length:
-                return end
-            return (start[0] + v[0] * t, start[1] + v[1] * t)
-        else:
-            return start
-
-    # test whether point is close to line
-    def test_line(self, start, end, p, radius):
-        cp = self.get_closest_point_on_line(start, end, p)
-        return math.sqrt(pow(p[0] - cp[0], 2) + pow(p[1] - cp[1], 2)) < radius
-
-    def test_inside_bounds(self, bounds, p, radius):
-        return p[0] > bounds[0][0] and p[0] <= bounds[0][0] + bounds[1][0] and p[1] > bounds[0][1] and p[1] <= bounds[0][1] + bounds[1][1]
-
     def test_label(self, get_font_metrics_fn, mapping, test_point):
         if self.label:
             padding = self.label_padding
@@ -571,7 +681,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
             text_pos = self.label_position(mapping, font_metrics, padding)
             if text_pos is not None:
                 bounds = Geometry.FloatRect.from_center_and_size(text_pos, Geometry.FloatSize(width=font_metrics.width + padding * 2, height=font_metrics.height + padding * 2))
-                return self.test_inside_bounds(bounds, test_point, 2)
+                return test_inside_bounds(bounds, test_point, 2)
         return False
 
     def draw_label(self, ctx, get_font_metrics_fn, mapping):
@@ -719,66 +829,24 @@ class RectangleTypeGraphic(Graphic):
         return mask
 
     # test point hit
-    def test(self, mapping, get_font_metrics_fn, test_point, move_only):
+    def test(self, mapping, get_font_metrics_fn, p, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
-        test_point = Geometry.FloatPoint.make(test_point)
-        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
-        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
-        rect = Geometry.FloatRect(origin=origin, size=size)
-        top_left = rect.top_left
-        top_right = rect.top_right
-        bottom_right = rect.bottom_right
-        bottom_left = rect.bottom_left
-        center = rect.center
-        if self.rotation:
-            top_left = rotate(top_left, center, self.rotation)
-            top_right = rotate(top_right, center, self.rotation)
-            bottom_left = rotate(bottom_left, center, self.rotation)
-            bottom_right = rotate(bottom_right, center, self.rotation)
-        test_point_unrotated = rotate(Geometry.FloatPoint(y=test_point.y, x=test_point.x), center, -self.rotation)
-        # top left
-        if self.test_point(top_left, test_point, 4):
-            return "top-left", True
-        # top right
-        if self.test_point(top_right, test_point, 4):
-            return "top-right", True
-        # bottom right
-        if self.test_point(bottom_right, test_point, 4):
-            return "bottom-right", True
-        # bottom left
-        if self.test_point(bottom_left, test_point, 4):
-            return "bottom-left", True
-        # rotate top left
-        if self.test_point(extend_line(center, top_left, 14), test_point, 6):
-            return "rotate", True
-        # rotate top right
-        if self.test_point(extend_line(center, top_right, 14), test_point, 6):
-            return "rotate", True
-        # rotate bottom right
-        if self.test_point(extend_line(center, bottom_right, 14), test_point, 6):
-            return "rotate", True
-        # rotate bottom left
-        if self.test_point(extend_line(center, bottom_left, 14), test_point, 6):
-            return "rotate", True
-        # top line
-        if self.test_line(top_left, top_right, test_point, 4):
-            return "all", True
-        # bottom line
-        if self.test_line(bottom_left, bottom_right, test_point, 4):
-            return "all", True
-        # left line
-        if self.test_line(top_left, bottom_left, test_point, 4):
-            return "all", True
-        # right line
-        if self.test_line(top_right, bottom_right, test_point, 4):
-            return "all", True
-        # center
-        if self.test_inside_bounds((origin, size), test_point_unrotated, 4):
-            return "all", False
+        p = Geometry.FloatPoint.make(p)
+
+        rotation = self.rotation
+        bounds = Geometry.FloatRect.make(self.bounds)
+        center = mapping.map_point_image_norm_to_widget(bounds.center)
+        size = mapping.map_size_image_norm_to_widget(bounds.size)
+
+        part, specific = test_rectangle(p, center, size, rotation)
+        if part is not None:
+            return part, specific
+
         # label
-        if self.test_label(get_font_metrics_fn, mapping, test_point):
+        if self.test_label(get_font_metrics_fn, mapping, p):
             return "all", False
+
         # didn't find anything
         return None, None
 
@@ -809,7 +877,10 @@ class RectangleGraphic(RectangleTypeGraphic):
 
     # rectangle
     def adjust_part(self, mapping, original, current, part, modifiers):
-        bounds, rotation = adjust_rectangle_like(mapping, self.rotation, False, original, current, part, modifiers, self._constraints)
+        original_image = mapping.map_point_widget_to_image(original)
+        current_image = mapping.map_point_widget_to_image(current)
+        bounds = Geometry.FloatRect.make(part[1])
+        bounds, rotation = adjust_rectangle_like(part[0], mapping.data_shape, bounds, self.rotation, False, original_image, current_image, part[2], modifiers, self._constraints)
         if bounds != self.bounds:
             self.bounds = bounds
         if rotation != self.rotation:
@@ -895,23 +966,15 @@ class EllipseGraphic(RectangleTypeGraphic):
         super().__init__("ellipse-graphic", _("Ellipse"))
 
     def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
-        mask = numpy.zeros(data_shape)
-        bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
-                      (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
-        a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
-        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
-        if self.rotation:
-            angle_sin = math.sin(self.rotation)
-            angle_cos = math.cos(self.rotation)
-            mask_eq = ((x * angle_cos - y * angle_sin) ** 2) / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + ((y * angle_cos + x * angle_sin) ** 2) / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
-        else:
-            mask_eq = x*x / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + y*y / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
-        mask[mask_eq] = 1
-        return mask
+        bounds = Geometry.FloatRect.make(self.bounds)
+        return Core.function_make_elliptical_mask(data_shape, bounds.center, bounds.size, self.rotation).data
 
     # rectangle
     def adjust_part(self, mapping, original, current, part, modifiers):
-        bounds, rotation = adjust_rectangle_like(mapping, self.rotation, True, original, current, part, modifiers, self._constraints)
+        original_image = mapping.map_point_widget_to_image(original)
+        current_image = mapping.map_point_widget_to_image(current)
+        bounds = Geometry.FloatRect.make(part[1])
+        bounds, rotation = adjust_rectangle_like(part[0], mapping.data_shape, bounds, self.rotation, True, original_image, current_image, part[2], modifiers, self._constraints)
         if bounds != self.bounds:
             self.bounds = bounds
         if rotation != self.rotation:
@@ -919,64 +982,13 @@ class EllipseGraphic(RectangleTypeGraphic):
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         # origin is top left
-        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
-        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
-        rect = Geometry.FloatRect(origin=origin, size=size)
-        top_left = rect.top_left
-        top_right = rect.top_right
-        bottom_right = rect.bottom_right
-        bottom_left = rect.bottom_left
-        center = rect.center
-        if self.rotation:
-            top_left = rotate(top_left, center, self.rotation)
-            top_right = rotate(top_right, center, self.rotation)
-            bottom_left = rotate(bottom_left, center, self.rotation)
-            bottom_right = rotate(bottom_right, center, self.rotation)
-        with ctx.saver():
-            if self.rotation:
-                ctx.translate(center.x, center.y)
-                ctx.rotate(-self.rotation)
-                ctx.translate(-center.x, -center.y)
-            ctx.line_width = 1
-            draw_ellipse(ctx, origin + size / 2, size, self.used_stroke_style, self.used_fill_style)
-            ctx.begin_path()
-            ctx.move_to(center.x, rect.top + 10)
-            ctx.line_to(center.x, rect.top + 2)
-            draw_arrow(ctx, Geometry.FloatPoint(y=rect.top + 10, x=center.x), Geometry.FloatPoint(y=rect.top + 2, x=center.x), arrow_size=4)
-            ctx.close_path()
-            ctx.line_width = 1
-            ctx.stroke_style = self.used_stroke_style
-            ctx.stroke()
-            ctx.fill_style = self.used_fill_style
-            ctx.fill()
-        if is_selected:
-            draw_marker(ctx, top_left)
-            draw_marker(ctx, top_right)
-            draw_marker(ctx, bottom_right)
-            draw_marker(ctx, bottom_left)
-            # draw center marker
-            with ctx.saver():
-                if self.rotation:
-                    ctx.translate(center.x, center.y)
-                    ctx.rotate(-self.rotation)
-                    ctx.translate(-center.x, -center.y)
-                mark_size = 8
-                if size[0] > mark_size:
-                    mid_x = origin[1] + 0.5 * size[1]
-                    mid_y = origin[0] + 0.5 * size[0]
-                    ctx.begin_path()
-                    ctx.move_to(mid_x - 0.5 * mark_size, mid_y)
-                    ctx.line_to(mid_x + 0.5 * mark_size, mid_y)
-                    ctx.stroke_style = self.used_stroke_style
-                    ctx.stroke()
-                if size[1] > mark_size:
-                    mid_x = origin[1] + 0.5 * size[1]
-                    mid_y = origin[0] + 0.5 * size[0]
-                    ctx.begin_path()
-                    ctx.move_to(mid_x, mid_y - 0.5 * mark_size)
-                    ctx.line_to(mid_x, mid_y + 0.5 * mark_size)
-                    ctx.stroke_style = self.used_stroke_style
-                    ctx.stroke()
+        rotation = self.rotation
+        stroke_style = self.used_stroke_style
+        fill_style = self.used_fill_style
+        bounds = Geometry.FloatRect.make(self.bounds)
+        center = mapping.map_point_image_norm_to_widget(bounds.center)
+        size = mapping.map_size_image_norm_to_widget(bounds.size)
+        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, stroke_style, fill_style)
         self.draw_label(ctx, get_font_metrics_fn, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
@@ -1084,22 +1096,23 @@ class LineTypeGraphic(Graphic):
         self.notify_property_changed("angle")
 
     # test is required for Graphic interface
-    def test(self, mapping, get_font_metrics_fn, test_point, move_only):
+    def test(self, mapping, get_font_metrics_fn, p, move_only):
+        p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         # start point
-        if self.test_point(p1, test_point, 4):
+        if test_point(p1, p, 4):
             return "start", True
         # end point
-        if self.test_point(p2, test_point, 4):
+        if test_point(p2, p, 4):
             return "end", True
         # along the line
-        if self.test_line(p1, p2, test_point, 4):
+        if test_line(p1, p2, p, 4):
             return "all", True
         # label
-        if self.test_label(get_font_metrics_fn, mapping, test_point):
+        if self.test_label(get_font_metrics_fn, mapping, p):
             return "all", False
         # didn't find anything
         return None, None
@@ -1313,17 +1326,18 @@ class PointTypeGraphic(Graphic):
         self.position = graphic_dict.get("position", self.position)
 
     # test is required for Graphic interface
-    def test(self, mapping, get_font_metrics_fn, test_point, move_only):
+    def test(self, mapping, get_font_metrics_fn, p, move_only):
+        p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         cross_hair_size = 12
-        p = mapping.map_point_image_norm_to_widget(self.position)
-        bounds = Geometry.FloatRect.from_center_and_size(p, Geometry.FloatSize(width=cross_hair_size * 2,
+        pos = mapping.map_point_image_norm_to_widget(self.position)
+        bounds = Geometry.FloatRect.from_center_and_size(pos, Geometry.FloatSize(width=cross_hair_size * 2,
                                                                                height=cross_hair_size * 2))
-        if self.test_inside_bounds(bounds, test_point, 2):
+        if test_inside_bounds(bounds, p, 2):
             return "all", True
         # check the label
-        if self.test_label(get_font_metrics_fn, mapping, test_point):
+        if self.test_label(get_font_metrics_fn, mapping, p):
             return "all", False
         # didn't find anything
         return None, None
@@ -1466,22 +1480,23 @@ class IntervalGraphic(Graphic):
         self.notify_property_changed("end")
 
     # test is required for Graphic interface
-    def test(self, mapping, get_font_metrics_fn, test_point, move_only):
+    def test(self, mapping, get_font_metrics_fn, p, move_only):
+        p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         p1 = mapping.map_point_channel_norm_to_widget(self.start)
         p2 = mapping.map_point_channel_norm_to_widget(self.end)
         # start point
-        if abs(test_point.x - p1) < 4:
+        if abs(p.x - p1) < 4:
             return "start", True
         # end point
-        if abs(test_point.x - p2) < 4:
+        if abs(p.x - p2) < 4:
             return "end", True
         # along the line
-        if test_point.x > p1 - 4 and test_point.x < p2 + 4:
+        if p.x > p1 - 4 and p.x < p2 + 4:
             return "all", False
         # label
-        if self.test_label(get_font_metrics_fn, mapping, test_point):
+        if self.test_label(get_font_metrics_fn, mapping, p):
             return "all", False
         # didn't find anything
         return None, None
@@ -1535,14 +1550,15 @@ class ChannelGraphic(Graphic):
         self._property_changed(name, value)
 
     # test is required for Graphic interface
-    def test(self, mapping, get_font_metrics_fn, test_point, move_only):
+    def test(self, mapping, get_font_metrics_fn, p, move_only):
+        p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
-        p = mapping.map_point_channel_norm_to_widget(self.position)
-        if abs(test_point.x - p) < 4:
+        pos = mapping.map_point_channel_norm_to_widget(self.position)
+        if abs(p.x - pos) < 4:
             return "all", True
         # label
-        if self.test_label(get_font_metrics_fn, mapping, test_point):
+        if self.test_label(get_font_metrics_fn, mapping, p):
             return "all", False
         # didn't find anything
         return None, None
@@ -1575,15 +1591,18 @@ class SpotGraphic(Graphic):
         super().__init__("spot-graphic")
         self.title = _("Spot")
         self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed)
+        self.define_property("rotation", 0.0, changed=self._property_changed)
 
     def mime_data_dict(self) -> dict:
         d = super().mime_data_dict()
         d["bounds"] = self.bounds
+        d["rotation"] = self.rotation
         return d
 
     def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
         super().read_from_mime_data(graphic_dict)
         self.bounds = graphic_dict.get("bounds", self.bounds)
+        self.rotation = graphic_dict.get("rotation", self.rotation)
 
     @property
     def used_role(self) -> typing.Optional[str]:
@@ -1638,75 +1657,61 @@ class SpotGraphic(Graphic):
         self.size = bounds[1]
 
     def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+        data_shape = Geometry.FloatSize.make(data_shape)
         calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[0] * 0.5 + 0.5)
-
-        mask = numpy.zeros(data_shape)
-        center = calibrated_origin
-
+        data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=data_shape)
+        origin = Geometry.map_point(calibrated_origin, data_rect, Geometry.FloatRect.unit_rect())
         bounds = Geometry.FloatRect.make(self.bounds)
-        bounds = Geometry.FloatRect(origin=Geometry.FloatPoint(y=center.y + data_shape[0] * bounds.top,
-                                                               x=center.x + data_shape[1] * bounds.left),
-                                    size=Geometry.FloatSize(h=data_shape[0] * bounds.height,
-                                                             w=data_shape[1] * bounds.width))
-
-        if bounds.height <= 0 or bounds.width <= 0:
-            return mask
-
-        a, b = bounds.center.y, bounds.center.x
-        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
-        mask_eq1 = x * x / ((bounds.width / 2) * (bounds.width / 2)) + y * y / ((bounds.height / 2) * (bounds.height / 2)) <= 1
-
-        bounds = Geometry.FloatRect.make(self.bounds)
-        bounds = Geometry.FloatRect(origin=Geometry.FloatPoint(y=center.y - data_shape[0] * bounds.bottom,
-                                                               x=center.x - data_shape[1] * bounds.right),
-                                    size=Geometry.FloatSize(h=data_shape[0] * bounds.height,
-                                                             w=data_shape[1] * bounds.width))
-
-        a, b = bounds.center.y, bounds.center.x
-        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
-        mask_eq2 = x * x / ((bounds.width / 2) * (bounds.width / 2)) + y * y / ((bounds.height / 2) * (bounds.height / 2)) <= 1
-
-        mask[mask_eq1] = 1
-        mask[mask_eq2] = 1
-        return mask
+        mask1 = Core.function_make_elliptical_mask(data_shape, origin + bounds.center, bounds.size, self.rotation)
+        mask2 = Core.function_make_elliptical_mask(data_shape, origin - bounds.center, bounds.size, self.rotation)
+        return numpy.logical_or(mask1.data, mask2.data)
 
     # test point hit
-    def test(self, mapping, get_font_metrics_fn, test_point, move_only):
+    def test(self, mapping, get_font_metrics_fn, p, move_only):
+        p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
-        center_widget = mapping.calibrated_origin_widget
-        relative_rect_widget = Geometry.FloatRect.from_center_and_size(
-            mapping.map_size_image_norm_to_widget(self.center), mapping.map_size_image_norm_to_widget(self.size))
-        rect_widget = center_widget + relative_rect_widget
-        rect_inverted_widget = center_widget - relative_rect_widget
-        if self.test_point(rect_widget.top_left, test_point, 4):
-            return "top-left", True
-        if self.test_point(rect_widget.top_right, test_point, 4):
-            return "top-right", True
-        if self.test_point(rect_widget.bottom_right, test_point, 4):
-            return "bottom-right", True
-        if self.test_point(rect_widget.bottom_left, test_point, 4):
-            return "bottom-left", True
-        if self.test_point(rect_inverted_widget.bottom_right, test_point, 4):
-            return "inverted-top-left", True
-        if self.test_point(rect_inverted_widget.bottom_left, test_point, 4):
-            return "inverted-top-right", True
-        if self.test_point(rect_inverted_widget.top_right, test_point, 4):
-            return "inverted-bottom-left", True
-        if self.test_point(rect_inverted_widget.top_left, test_point, 4):
-            return "inverted-bottom-right", True
-        if self.test_inside_bounds(rect_widget, test_point, 4):
-            return "all", True
-        if self.test_inside_bounds(rect_inverted_widget, test_point, 4):
-            return "inverted-all", True
+        rotation = self.rotation
+        bounds = Geometry.FloatRect.make(self.bounds)
+        origin = mapping.calibrated_origin_widget
+        center = origin + mapping.map_size_image_norm_to_widget(bounds.center)
+        size = mapping.map_size_image_norm_to_widget(bounds.size)
+
+        part, specific = test_rectangle(p, center, size, rotation)
+        if part is not None:
+            return part, specific
+
+        rotation = self.rotation
+        bounds = Geometry.FloatRect.make(self.bounds)
+        origin = mapping.calibrated_origin_widget
+        center = origin - mapping.map_size_image_norm_to_widget(bounds.center)
+        size = mapping.map_size_image_norm_to_widget(bounds.size)
+
+        part, specific = test_rectangle(p, center, size, rotation)
+        if part is not None:
+            if part == "top-left":
+                part = "inverted-bottom-right"
+            elif part == "top-right":
+                part = "inverted-bottom-left"
+            elif part == "bottom-right":
+                part = "inverted-top-left"
+            elif part == "bottom-left":
+                part = "inverted-top-right"
+            elif part == "rotate":
+                part = "inverted-rotate"
+            elif part == "all":
+                part = "inverted-all"
+            return part, specific
+
         # label
-        if self.test_label(get_font_metrics_fn, mapping, test_point):
+        if self.test_label(get_font_metrics_fn, mapping, p):
             return "all", True
+
         # didn't find anything
         return None, None
 
     def begin_drag(self):
-        return (self.bounds, 0.0)
+        return (self.bounds, self.rotation)
 
     def end_drag(self, part_data):
         pass
@@ -1714,61 +1719,52 @@ class SpotGraphic(Graphic):
     # rectangle
     def adjust_part(self, mapping, original, current, part, modifiers):
         constraints = self._constraints
-        if part[0] not in ("all", "inverted-all"):
-            constraints = constraints.union({"position", "square"})
-        self.bounds, _ = adjust_rectangle_like(mapping, 0.0, False, original, current, part, modifiers, constraints)
+        part_name = part[0]
+        original_bounds = Geometry.FloatRect.make(part[1])
+        original_rotation = part[2]
+        origin = mapping.calibrated_origin_image_norm
+        inverted = part_name.startswith("inverted")
+        if part_name not in ("all", "inverted-all"):
+            constraints = constraints.union({"position"})
+        origin_widget = Geometry.IntPoint.make(mapping.calibrated_origin_widget)
+        if inverted:
+            part_name = part_name[9:]
+            original_bounds = origin + original_bounds
+            current = origin_widget - (current - origin_widget)
+            original = origin_widget - (original - origin_widget)
+        else:
+            original_bounds = origin + original_bounds
+        original_image = mapping.map_point_widget_to_image(original)
+        current_image = mapping.map_point_widget_to_image(current)
+        new_bounds, new_rotation = adjust_rectangle_like(part_name, mapping.data_shape, original_bounds, self.rotation, False, original_image, current_image, original_rotation, modifiers, constraints)
+        new_bounds = Geometry.FloatRect.make(new_bounds) - origin
+        if new_bounds != self.bounds:
+            self.bounds = new_bounds
+        if new_rotation != self.rotation:
+            self.rotation = new_rotation
 
     def nudge(self, mapping, delta):
-        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
-        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
-        original = (origin[0] + size[0] * 0.5, origin[1] + size[1] * 0.5)
-        current = (original[0] + delta[0], original[1] + delta[1])
+        delta = Geometry.FloatSize.make(delta)
+        bounds = Geometry.FloatRect.make(self.bounds)
+        original = mapping.calibrated_origin_widget + mapping.map_size_image_norm_to_widget(bounds.center)
+        current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         # origin is top left
-        center_widget = mapping.calibrated_origin_widget
-        relative_rect_widget = Geometry.FloatRect.from_center_and_size(
-            mapping.map_size_image_norm_to_widget(self.center), mapping.map_size_image_norm_to_widget(self.size))
-        rect_widget = center_widget + relative_rect_widget
-        rect_inverted_widget = center_widget - relative_rect_widget
+        stroke_style = self.used_stroke_style
+        fill_style = self.used_fill_style
+        rotation = self.rotation
+        bounds = Geometry.FloatRect.make(self.bounds)
+        origin = mapping.calibrated_origin_widget
+        center = origin + mapping.map_size_image_norm_to_widget(bounds.center)
+        size = mapping.map_size_image_norm_to_widget(bounds.size)
+        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, stroke_style, fill_style)
         with ctx.saver():
-            ctx.line_width = 1
-            ctx.stroke_style = self.used_stroke_style
-            ctx.fill_style = self.used_fill_style
-            draw_ellipse(ctx, rect_widget.center, rect_widget.size, self.used_stroke_style, self.used_fill_style)
-            draw_ellipse(ctx, rect_inverted_widget.center, rect_inverted_widget.size, self.used_stroke_style, self.used_fill_style)
-        if is_selected:
-            draw_rect_marker(ctx, rect_widget)
-            draw_rect_marker(ctx, rect_inverted_widget)
-            # draw center marker
-            mark_size = 8
-            mid0 = rect_widget.center
-            mid1 = rect_inverted_widget.center
-            if rect_widget.height > mark_size:
-                with ctx.saver():
-                    ctx.begin_path()
-                    ctx.move_to(mid0.x - 0.5 * mark_size, mid0.y)
-                    ctx.line_to(mid0.x + 0.5 * mark_size, mid0.y)
-                    ctx.stroke_style = self.used_stroke_style
-                    ctx.stroke()
-                    ctx.begin_path()
-                    ctx.move_to(mid1.x - 0.5 * mark_size, mid1.y)
-                    ctx.line_to(mid1.x + 0.5 * mark_size, mid1.y)
-                    ctx.stroke_style = self.used_stroke_style
-                    ctx.stroke()
-            if rect_widget.width > mark_size:
-                with ctx.saver():
-                    ctx.begin_path()
-                    ctx.move_to(mid0.x, mid0.y - 0.5 * mark_size)
-                    ctx.line_to(mid0.x, mid0.y + 0.5 * mark_size)
-                    ctx.stroke_style = self.used_stroke_style
-                    ctx.stroke()
-                    ctx.begin_path()
-                    ctx.move_to(mid1.x, mid1.y - 0.5 * mark_size)
-                    ctx.line_to(mid1.x, mid1.y + 0.5 * mark_size)
-                    ctx.stroke_style = self.used_stroke_style
-                    ctx.stroke()
+            ctx.translate(origin.x, origin.y)
+            ctx.rotate(math.pi)
+            ctx.translate(-origin.x, -origin.y)
+            draw_ellipse_graphic(ctx, center, size, rotation, is_selected, stroke_style, fill_style)
         self.draw_label(ctx, get_font_metrics_fn, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
@@ -1846,7 +1842,8 @@ class WedgeGraphic(Graphic):
             self.end_angle = value - 2 * math.pi
 
     # test is required for Graphic interface
-    def test(self, mapping, get_font_metrics_fn, test_point: typing.Tuple[float], move_only: bool) -> typing.Tuple[str, bool]:
+    def test(self, mapping, get_font_metrics_fn, p, move_only: bool) -> typing.Tuple[str, bool]:
+        p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         length = 10000  # safe line length
@@ -1859,14 +1856,14 @@ class WedgeGraphic(Graphic):
                                         center[1] + length * math.sin(start_angle_inverted + math.pi / 2))
         end_line_endpoint_inverted = (center[0] + length * math.cos(end_angle_inverted + math.pi / 2),
                                       center[1] + length * math.sin(end_angle_inverted + math.pi / 2))
-        angle_from_origin = math.pi - math.atan2(center[0] - test_point[0], center[1] - test_point[1])
-        if self.test_line(center, start_line_endpoint, test_point, 4):
+        angle_from_origin = math.pi - math.atan2(center[0] - p[0], center[1] - p[1])
+        if test_line(center, start_line_endpoint, p, 4):
             return "start-angle", True
-        if self.test_line(center, end_line_endpoint, test_point, 4):
+        if test_line(center, end_line_endpoint, p, 4):
             return "end-angle", True
-        if self.test_line(center, start_line_endpoint_inverted, test_point, 4):
+        if test_line(center, start_line_endpoint_inverted, p, 4):
             return "inverted-start-angle", True
-        if self.test_line(center, end_line_endpoint_inverted, test_point, 4):
+        if test_line(center, end_line_endpoint_inverted, p, 4):
             return "inverted-end-angle", True
         if angle_between(angle_from_origin, self.__end_angle_internal, self.__start_angle_internal):
             return "all", True
@@ -1995,7 +1992,8 @@ class RingGraphic(Graphic):
         return "fourier_mask"
 
     # test is required for Graphic interface
-    def test(self, mapping, get_font_metrics_fn, test_point: typing.Tuple[float, float], move_only: bool) -> typing.Tuple[str, bool]:
+    def test(self, mapping, get_font_metrics_fn, p, move_only: bool) -> typing.Tuple[str, bool]:
+        p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         calibrated_origin = mapping.calibrated_origin_image_norm
@@ -2007,24 +2005,24 @@ class RingGraphic(Graphic):
         left_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0] - self.radius_2, calibrated_origin[1]))
         right_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0] + self.radius_2, calibrated_origin[1]))
         bottom_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0], calibrated_origin[1] + self.radius_2))
-        image_norm_test_point = mapping.map_point_widget_to_image_norm(test_point)
+        image_norm_test_point = mapping.map_point_widget_to_image_norm(p)
         test_radius = math.sqrt((image_norm_test_point[0] - calibrated_origin[0]) ** 2 + (image_norm_test_point[1] - calibrated_origin[1]) ** 2)
-        if self.test_point(top_marker_outer, test_point, 4):
+        if test_point(top_marker_outer, p, 4):
             return "radius_1", True
-        if self.test_point(bottom_marker_outer, test_point, 4):
+        if test_point(bottom_marker_outer, p, 4):
             return "radius_1", True
-        if self.test_point(left_marker_outer, test_point, 4):
+        if test_point(left_marker_outer, p, 4):
             return "radius_1", True
-        if self.test_point(right_marker_outer, test_point, 4):
+        if test_point(right_marker_outer, p, 4):
             return "radius_1", True
         if self.mode == "band-pass":
-            if self.test_point(top_marker_inner, test_point, 4):
+            if test_point(top_marker_inner, p, 4):
                 return "radius_2", True
-            if self.test_point(bottom_marker_inner, test_point, 4):
+            if test_point(bottom_marker_inner, p, 4):
                 return "radius_2", True
-            if self.test_point(left_marker_inner, test_point, 4):
+            if test_point(left_marker_inner, p, 4):
                 return "radius_2", True
-            if self.test_point(right_marker_inner, test_point, 4):
+            if test_point(right_marker_inner, p, 4):
                 return "radius_2", True
         if self.mode == "band-pass":
             outer = self.radius_1 if self.radius_1 > self.radius_2 else self.radius_2
@@ -2191,13 +2189,14 @@ class LatticeGraphic(Graphic):
         return "fourier_mask"
 
     # test is required for Graphic interface
-    def test(self, mapping, get_font_metrics_fn, test_point: typing.Tuple[float], move_only: bool) -> typing.Tuple[str, bool]:
+    def test(self, mapping, get_font_metrics_fn, p, move_only: bool) -> typing.Tuple[str, bool]:
+        p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         start = mapping.calibrated_origin_widget
         u_end = start + mapping.map_size_image_norm_to_widget(Geometry.FloatSize.make(self.u_pos))
         v_end = start + mapping.map_size_image_norm_to_widget(Geometry.FloatSize.make(self.v_pos))
-        # print(f"test {u_end} {v_end} {test_point}")
+        # print(f"test {u_end} {v_end} {p}")
 
         radius = self.radius
         size = mapping.map_size_image_norm_to_widget(Geometry.FloatSize(width=radius * 2, height=radius * 2))
@@ -2205,69 +2204,69 @@ class LatticeGraphic(Graphic):
         v_bounds = Geometry.FloatRect.from_center_and_size(v_end, size)
 
         # test u, v centers
-        if self.test_point(u_bounds.center, test_point, 4):
+        if test_point(u_bounds.center, p, 4):
             return "u-all", True
-        if self.test_point(v_bounds.center, test_point, 4):
+        if test_point(v_bounds.center, p, 4):
             return "v-all", True
 
         # test u-corners
-        if self.test_point(u_bounds.top_left, test_point, 4):
+        if test_point(u_bounds.top_left, p, 4):
             return "u-top-left", True
-        if self.test_point(u_bounds.top_right, test_point, 4):
+        if test_point(u_bounds.top_right, p, 4):
             return "u-top-right", True
-        if self.test_point(u_bounds.bottom_left, test_point, 4):
+        if test_point(u_bounds.bottom_left, p, 4):
             return "u-bottom-left", True
-        if self.test_point(u_bounds.bottom_right, test_point, 4):
+        if test_point(u_bounds.bottom_right, p, 4):
             return "u-bottom-right", True
 
         # test v-corners
-        if self.test_point(v_bounds.top_left, test_point, 4):
+        if test_point(v_bounds.top_left, p, 4):
             return "v-top-left", True
-        if self.test_point(v_bounds.top_right, test_point, 4):
+        if test_point(v_bounds.top_right, p, 4):
             return "v-top-right", True
-        if self.test_point(v_bounds.bottom_left, test_point, 4):
+        if test_point(v_bounds.bottom_left, p, 4):
             return "v-bottom-left", True
-        if self.test_point(v_bounds.bottom_right, test_point, 4):
+        if test_point(v_bounds.bottom_right, p, 4):
             return "v-bottom-right", True
 
         # test u-boundary
-        if self.test_line(u_bounds.top_left, u_bounds.top_right, test_point, 4):
+        if test_line(u_bounds.top_left, u_bounds.top_right, p, 4):
             return "u-all", True
-        if self.test_line(u_bounds.bottom_left, u_bounds.bottom_right, test_point, 4):
+        if test_line(u_bounds.bottom_left, u_bounds.bottom_right, p, 4):
             return "u-all", True
-        if self.test_line(u_bounds.top_left, u_bounds.bottom_left, test_point, 4):
+        if test_line(u_bounds.top_left, u_bounds.bottom_left, p, 4):
             return "u-all", True
-        if self.test_line(u_bounds.top_right, u_bounds.bottom_right, test_point, 4):
+        if test_line(u_bounds.top_right, u_bounds.bottom_right, p, 4):
             return "u-all", True
 
         # test v-boundary
-        if self.test_line(v_bounds.top_left, v_bounds.top_right, test_point, 4):
+        if test_line(v_bounds.top_left, v_bounds.top_right, p, 4):
             return "v-all", True
-        if self.test_line(v_bounds.bottom_left, v_bounds.bottom_right, test_point, 4):
+        if test_line(v_bounds.bottom_left, v_bounds.bottom_right, p, 4):
             return "v-all", True
-        if self.test_line(v_bounds.top_left, v_bounds.bottom_left, test_point, 4):
+        if test_line(v_bounds.top_left, v_bounds.bottom_left, p, 4):
             return "v-all", True
-        if self.test_line(v_bounds.top_right, v_bounds.bottom_right, test_point, 4):
+        if test_line(v_bounds.top_right, v_bounds.bottom_right, p, 4):
             return "v-all", True
 
         # test u, v interiors
-        if self.test_inside_bounds(u_bounds, test_point, 4):
+        if test_inside_bounds(u_bounds, p, 4):
             return "u-all", True
-        if self.test_inside_bounds(v_bounds, test_point, 4):
+        if test_inside_bounds(v_bounds, p, 4):
             return "v-all", True
 
         # start point
-        if self.test_point(start, test_point, 4):
+        if test_point(start, p, 4):
             return "all", True
 
         # along the lines
-        if self.test_line(start, u_end, test_point, 4):
+        if test_line(start, u_end, p, 4):
             return "all", True
-        if self.test_line(start, v_end, test_point, 4):
+        if test_line(start, v_end, p, 4):
             return "all", True
 
         # label
-        if self.test_label(get_font_metrics_fn, mapping, test_point):
+        if self.test_label(get_font_metrics_fn, mapping, p):
             return "all", False
 
         # didn't find anything
@@ -2283,6 +2282,8 @@ class LatticeGraphic(Graphic):
         p_image = mapping.map_point_widget_to_image(current)
         p_norm = Geometry.FloatPoint.make(mapping.map_point_widget_to_image_norm(current))
         o_norm = Geometry.FloatPoint.make(mapping.map_point_widget_to_image_norm(original))
+        original_image = mapping.map_point_widget_to_image(original)
+        current_image = mapping.map_point_widget_to_image(current)
         delta = p_norm - o_norm
         start_image = mapping.calibrated_origin_widget
         constraints = self._constraints
@@ -2346,14 +2347,16 @@ class LatticeGraphic(Graphic):
             part_constraints = constraints.union({"position", "square"})
             u_bounds = Geometry.FloatRect.from_center_and_size(part[1], size)
             sub_part = part[0][2:], u_bounds, 0
-            part_bounds, _ = adjust_rectangle_like(mapping, 0.0, False, original, current, sub_part, modifiers, part_constraints)
+            sub_bounds = Geometry.FloatRect.make(sub_part[1])
+            part_bounds, _ = adjust_rectangle_like(sub_part[0], mapping.data_shape, sub_bounds, 0.0, False, original_image, current_image, sub_part[2], modifiers, part_constraints)
             part_bounds = Geometry.FloatRect.make(part_bounds)
             self.radius = abs(part_bounds.height / 2)
         elif part[0].startswith("v-") and not "shape" in constraints:
             part_constraints = constraints.union({"position", "square"})
             v_bounds = Geometry.FloatRect.from_center_and_size(part[2], size)
             sub_part = part[0][2:], v_bounds, 0
-            part_bounds, _ = adjust_rectangle_like(mapping, 0.0, False, original, current, sub_part, modifiers, part_constraints)
+            sub_bounds = Geometry.FloatRect.make(sub_part[1])
+            part_bounds, _ = adjust_rectangle_like(sub_part[0], mapping.data_shape, sub_bounds, 0.0, False, original_image, current_image, sub_part[2], modifiers, part_constraints)
             part_bounds = Geometry.FloatRect.make(part_bounds)
             self.radius = abs(part_bounds.height / 2)
 

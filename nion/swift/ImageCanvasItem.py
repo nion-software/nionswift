@@ -1008,9 +1008,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         if self.delegate.tool_mode == "pointer":
             def get_pointer_tool_shape():
                 for graphic in self.__graphics:
-                    if isinstance(graphic, Graphics.RectangleTypeGraphic):
+                    if isinstance(graphic, (Graphics.RectangleTypeGraphic, Graphics.SpotGraphic)):
                         part, specific = graphic.test(self.__get_mouse_mapping(), self.__get_font_metrics_fn, Geometry.IntPoint(x=x, y=y), False)
-                        if part == "rotate":
+                        if part and part.endswith("rotate"):
                             return "cross"
                 return "arrow"
             self.cursor_shape = get_pointer_tool_shape()
