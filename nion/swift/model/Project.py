@@ -97,31 +97,30 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
     def _get_related_item(self, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[Persistence.PersistentObject]:
         if item_specifier.context_uuid is None or item_specifier.context_uuid == self.uuid:
-            for data_item in self.data_items:
-                if data_item.uuid == item_specifier.item_uuid:
-                    return data_item
+            item_uuid = item_specifier.item_uuid
+            data_item = self.get_item_by_uuid("data_items", item_uuid)
+            if data_item:
+                return data_item
+            display_item = self.get_item_by_uuid("display_items", item_uuid)
+            if display_item:
+                return display_item
+            connection = self.get_item_by_uuid("connections", item_uuid)
+            if connection:
+                return connection
+            data_structure = self.get_item_by_uuid("data_structures", item_uuid)
+            if data_structure:
+                return data_structure
+            computation = self.get_item_by_uuid("computations", item_uuid)
+            if computation:
+                return computation
             for display_item in self.display_items:
-                if display_item.uuid == item_specifier.item_uuid:
-                    return display_item
-                for display_data_channel in display_item.display_data_channels:
-                    if display_data_channel.uuid == item_specifier.item_uuid:
-                        return display_data_channel
-                for graphic in display_item.graphics:
-                    if graphic.uuid == item_specifier.item_uuid:
-                        return graphic
-            for connection in self.connections:
-                if connection.uuid == item_specifier.item_uuid:
-                    return connection
-            for data_structure in self.data_structures:
-                if data_structure.uuid == item_specifier.item_uuid:
-                    return data_structure
-            for computation in self.computations:
-                if computation.uuid == item_specifier.item_uuid:
-                    return computation
-        item = super()._get_related_item(item_specifier)
-        # if item and get_project_for_item(item) != self:
-        #     print(f"!! project {self} {type(item)} {id(item)} {item.uuid}")
-        return item
+                display_data_channel = display_item.get_item_by_uuid("display_data_channels", item_uuid)
+                if display_data_channel:
+                    return display_data_channel
+                graphic = display_item.get_item_by_uuid("graphics", item_uuid)
+                if graphic:
+                    return graphic
+        return super()._get_related_item(item_specifier)
 
     @property
     def needs_upgrade(self) -> bool:
@@ -228,28 +227,28 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 data_item.begin_reading()
                 data_item.read_from_dict(item_d)
                 data_item.finish_reading()
-                if data_item.uuid not in {data_item.uuid for data_item in self.data_items}:
+                if not self.get_item_by_uuid("data_items", data_item.uuid):
                     self.load_item("data_items", len(self.data_items), data_item)
             for item_d in properties.get("display_items", list()):
                 display_item = DisplayItem.DisplayItem()
                 display_item.begin_reading()
                 display_item.read_from_dict(item_d)
                 display_item.finish_reading()
-                if not display_item.uuid in {display_item.uuid for display_item in self.display_items}:
+                if not self.get_item_by_uuid("display_items", display_item.uuid):
                     self.load_item("display_items", len(self.display_items), display_item)
             for item_d in properties.get("data_structures", list()):
                 data_structure = DataStructure.DataStructure()
                 data_structure.begin_reading()
                 data_structure.read_from_dict(item_d)
                 data_structure.finish_reading()
-                if not data_structure.uuid in {data_structure.uuid for data_structure in self.data_structures}:
+                if not self.get_item_by_uuid("data_structures", data_structure.uuid):
                     self.load_item("data_structures", len(self.data_structures), data_structure)
             for item_d in properties.get("computations", list()):
                 computation = Symbolic.Computation()
                 computation.begin_reading()
                 computation.read_from_dict(item_d)
                 computation.finish_reading()
-                if not computation.uuid in {computation.uuid for computation in self.computations}:
+                if not self.get_item_by_uuid("computations", computation.uuid):
                     self.load_item("computations", len(self.computations), computation)
                     # TODO: handle update script and bind after reload in document model
                     computation.update_script(self.container.container._processing_descriptions)
@@ -258,7 +257,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 connection.begin_reading()
                 connection.read_from_dict(item_d)
                 connection.finish_reading()
-                if not connection.uuid in {connection.uuid for connection in self.connections}:
+                if not self.get_item_by_uuid("connections", connection.uuid):
                     self.load_item("connections", len(self.connections), connection)
             self.__project_state = "loaded"
         elif self.__project_version is not None:
@@ -267,7 +266,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             self.__project_state = "missing"
 
     def append_data_item(self, data_item: DataItem.DataItem) -> None:
-        assert data_item.uuid not in {data_item.uuid for data_item in self.data_items}
+        assert not self.get_item_by_uuid("data_items", data_item.uuid)
         self.append_item("data_items", data_item)
         data_item.write_data_if_not_delayed()  # initially write to disk
 
@@ -283,7 +282,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             data_item.begin_reading()
             data_item.read_from_dict(item_d)
             data_item.finish_reading()
-            assert data_item.uuid not in {data_item.uuid for data_item in self.data_items}
+            assert not self.get_item_by_uuid("data_items", data_item.uuid)
             self.append_item("data_items", data_item)
             assert data_item.container == self
             assert get_project_for_item(data_item) == self
@@ -291,28 +290,28 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         return None
 
     def append_display_item(self, display_item: DisplayItem.DisplayItem) -> None:
-        assert display_item.uuid not in {display_item.uuid for display_item in self.display_items}
+        assert not self.get_item_by_uuid("display_items", display_item.uuid)
         self.append_item("display_items", display_item)
 
     def remove_display_item(self, display_item: DisplayItem.DisplayItem) -> None:
         self.remove_item("display_items", display_item)
 
     def append_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
-        assert data_structure.uuid not in {data_structure.uuid for data_structure in self.data_structures}
+        assert not self.get_item_by_uuid("data_structures", data_structure.uuid)
         self.append_item("data_structures", data_structure)
 
     def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
         self.remove_item("data_structures", data_structure)
 
     def append_computation(self, computation: Symbolic.Computation) -> None:
-        assert computation.uuid not in {computation.uuid for computation in self.computations}
+        assert not self.get_item_by_uuid("computations", computation.uuid)
         self.append_item("computations", computation)
 
     def remove_computation(self, computation: Symbolic.Computation) -> None:
         self.remove_item("computations", computation)
 
     def append_connection(self, connection: Connection.Connection) -> None:
-        assert connection.uuid not in {connection.uuid for connection in self.connections}
+        assert not self.get_item_by_uuid("connections", connection.uuid)
         self.append_item("connections", connection)
 
     def remove_connection(self, connection: Connection.Connection) -> None:

@@ -144,6 +144,7 @@ class PersistentRelationship:
         self.remove = remove
         self.key = key
         self.values = list()
+        self.index = dict()
 
     def close(self) -> None:
         self.insert = None
@@ -877,6 +878,7 @@ class PersistentObject:
         item.persistent_storage = self.persistent_storage
         relationship = self.__relationships[name]
         relationship.values.insert(before_index, item)
+        relationship.index[item.uuid] = item
         item.about_to_be_inserted(self)
         item.persistent_object_parent = PersistentObjectParent(self, relationship_name=name)
         item.persistent_object_context = self.persistent_object_context
@@ -887,6 +889,7 @@ class PersistentObject:
         """ Unload item from relationship storage and persistent storage, but don't update modified or notify persistent storage. """
         relationship = self.__relationships[name]
         item = relationship.values.pop(index)
+        relationship.index.pop(item.uuid)
         item.about_to_be_removed(self)
         if relationship.remove:
             relationship.remove(name, index, item)
@@ -900,6 +903,7 @@ class PersistentObject:
         """ Insert item in persistent storage and then into relationship storage and notify. """
         relationship = self.__relationships[name]
         relationship.values.insert(before_index, item)
+        relationship.index[item.uuid] = item
         self.__update_modified(datetime.datetime.utcnow())
         item.persistent_object_parent = PersistentObjectParent(self, relationship_name=name)
         # the persistent_object_parent and relationship need to be established before
@@ -921,6 +925,7 @@ class PersistentObject:
         relationship = self.__relationships[name]
         item_index = relationship.values.index(item)
         relationship.values.remove(item)
+        relationship.index.pop(item.uuid)
         self.__update_modified(datetime.datetime.utcnow())
         if relationship.remove:
             relationship.remove(name, item_index, item)
@@ -944,6 +949,11 @@ class PersistentObject:
         """Return the index of item within the relationship specified by name."""
         relationship = self.__relationships[name]
         return relationship.values.index(item)
+
+    def get_item_by_uuid(self, name: str, uuid: uuid.UUID) -> typing.Optional["PersistentObject"]:
+        """Return the item from the index by uuid."""
+        relationship = self.__relationships[name]
+        return relationship.index.get(uuid)
 
     def item_inserted(self, name: str, before_index: int, item: "PersistentObject") -> None:
         """ Call this to notify this context that the item before before_index has just been inserted into the parent in
