@@ -985,7 +985,7 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.rotate(-math.pi*0.5)
                     drawing_context.translate(-x, -y)
                     drawing_context.font = "{0:d}px".format(self.font_size)
-                    drawing_context.fill_text(u"{0} ({1})".format(_("Intensity"), axes.y_calibration.units), x, y)
+                    drawing_context.fill_text(axes.y_calibration.units, x, y)
                     drawing_context.translate(x, y)
                     drawing_context.rotate(+math.pi*0.5)
                     drawing_context.translate(-x, -y)
