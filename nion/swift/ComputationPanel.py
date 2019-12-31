@@ -16,6 +16,7 @@ import weakref
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import MimeTypes
 from nion.swift import Undo
+from nion.swift.model import DataStructure
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
 from nion.ui import Dialog
@@ -732,23 +733,23 @@ class ComputationPanelSection:
 
 
 def drop_mime_data(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
-    document_model = document_controller.document_model
-    display_item, graphic = MimeTypes.mime_data_get_data_source(mime_data, computation.project)
+    project = computation.project  # all variables/specifiers will go into the same project as the computation
+    display_item, graphic = MimeTypes.mime_data_get_data_source(mime_data, project)
     data_item = display_item.data_item if display_item else None
     if data_item:
-        variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
+        variable_specifier = DataStructure.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item), project=project)
         secondary_specifier = None
         if graphic:
-            secondary_specifier = document_model.get_object_specifier(graphic)
+            secondary_specifier = DataStructure.get_object_specifier(graphic, project=project)
         properties = {"variable_type": "data_source", "secondary_specifier": secondary_specifier, "specifier": variable_specifier}
         command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
         command.perform()
         document_controller.push_undo_command(command)
         return "copy"
-    display_item = MimeTypes.mime_data_get_display_item(mime_data, computation.project)
+    display_item = MimeTypes.mime_data_get_display_item(mime_data, project)
     data_item = display_item.data_item if display_item else None
     if data_item:
-        variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
+        variable_specifier = DataStructure.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item), project=project)
         properties = {"variable_type": "data_source", "secondary_specifier": dict(), "specifier": variable_specifier}
         command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
         command.perform()

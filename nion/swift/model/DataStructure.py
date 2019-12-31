@@ -162,7 +162,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         return list(referenced_object_proxy.item for referenced_object_proxy in self.__referenced_object_proxies.values())
 
 
-def get_object_specifier(object, object_type: str=None, project = None) -> typing.Optional[typing.Dict]:
+def get_object_specifier(object, object_type: str = None, project=None) -> typing.Optional[typing.Dict]:
     # project is passed for testing only
     if isinstance(object, DataItem.DataItem):
         project = project or object.project

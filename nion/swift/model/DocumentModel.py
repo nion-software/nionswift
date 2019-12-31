@@ -33,6 +33,7 @@ from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
 from nion.utils import Event
+from nion.utils import Geometry
 from nion.utils import Observable
 from nion.utils import Recorder
 from nion.utils import ReferenceCounting
@@ -2251,6 +2252,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             script = Symbolic.xdata_expression(expression)
             script = script.format(**dict(zip(src_names, src_texts)))
 
+        # determine the target project
+        project = None
+        for display_item, region in inputs:
+            input_project = Project.get_project_for_item(display_item)
+            if project and input_project != project:
+                project = None
+                break
+            else:
+                project = input_project
+        project = project or self.profile.work_project
+
         # construct the computation
         computation = self.create_computation(script)
         computation.label = processing_description["title"]
@@ -2262,10 +2274,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             if src_dict.get("croppable", False):
                 secondary_item = input[1]
             display_data_channel = in_display_item.display_data_channel
-            computation.create_input_item(src_name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item), label=src_label)
+            computation.create_input_item(src_name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item), label=src_label, project=project)
         # process the regions
         for region_name, region, region_label in regions:
-            computation.create_input_item(region_name, Symbolic.make_item(region), label=region_label)
+            computation.create_input_item(region_name, Symbolic.make_item(region), label=region_label, project=project)
         # next process the parameters
         for param_dict in processing_description.get("parameters", list()):
             parameter_value = parameters.get(param_dict["name"], param_dict["value"])
@@ -2278,15 +2290,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         prefix = "{} of ".format(processing_description["title"])
         new_data_item.title = prefix + data_item0.title
         new_data_item.category = data_item0.category
-
-        project = None
-        for display_item, region in inputs:
-            input_project = Project.get_project_for_item(display_item)
-            if project and input_project != project:
-                project = None
-                break
-            else:
-                project = input_project
 
         self.append_data_item(new_data_item, project=project)
 

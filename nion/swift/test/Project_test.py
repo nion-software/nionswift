@@ -9,6 +9,7 @@ import numpy
 
 # local libraries
 from nion.swift import Application
+from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
@@ -459,5 +460,29 @@ class TestProjectClass(unittest.TestCase):
                 self.assertEqual(4, len(document_model.data_items))
                 self.assertIsNone(document_model.data_items[1].source)
                 self.assertEqual(document_model.data_items[3].source.project, document_model.data_items[3].project)
+
+    def test_computation_works_with_inputs_in_different_projects(self):
+        # create two data items in different projects. select the two items in the data panel
+        # and create a computation from the two inputs. compute and make sure no errors occur.
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.add_project_memory()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                data1 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
+                data2 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
+                data_item1 = DataItem.DataItem(data1)
+                data_item2 = DataItem.DataItem(data2)
+                document_model.append_data_item(data_item1, project=document_model.profile.projects[0])
+                document_model.append_data_item(data_item2, project=document_model.profile.projects[1])
+                display_item1 = document_model.get_display_item_for_data_item(data_item1)
+                display_item2 = document_model.get_display_item_for_data_item(data_item2)
+                document_controller.select_display_items_in_data_panel([display_item1, display_item2])
+                self.assertEqual(2, len(document_model.data_items))
+                document_controller.processing_cross_correlate_new()
+                self.assertEqual(3, len(document_model.data_items))
+                document_model.recompute_all()
+                self.assertIsNone(document_model.computations[0].error_text)
 
     # do not import same project (by uuid) twice
