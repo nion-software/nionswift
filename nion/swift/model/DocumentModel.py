@@ -47,16 +47,18 @@ Processing.init()
 
 
 def save_item_order(items: typing.List[Persistence.PersistentObject]) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
-    return list((Project.get_project_for_item(item), item.uuid) for item in items)
+    return [item.item_specifier for item in items]
 
 
 def restore_item_order(name: str, projects: typing.List[Project.Project], uuid_order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> typing.List[Persistence.PersistentObject]:
-    item_map = dict()
-    for project in projects:
-        project_dict = item_map.setdefault(project, dict())
-        for item in getattr(project, name):
-            project_dict[item.uuid] = item
-    return [item_map[project][item_uuid] for (project, item_uuid) in uuid_order]
+    items = list()
+    for item_specifier in uuid_order:
+        with contextlib.closing(projects[0].create_item_proxy(item_specifier=item_specifier)) as item_proxy:
+            items.append(item_proxy.item)
+    return items
+
+def insert_item_order(uuid_order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]], index: int, item: Persistence.PersistentObject) -> None:
+    uuid_order.insert(index, item.item_specifier)
 
 
 class ComputationQueueItem:
@@ -864,7 +866,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def insert_data_item(self, index: int, data_item: DataItem.DataItem, auto_display: bool = True, *, project: Project.Project = None) -> None:
         uuid_order = save_item_order(self.__data_items)
         self.append_data_item(data_item, auto_display=auto_display, project=project)
-        uuid_order.insert(index, (Project.get_project_for_item(data_item), data_item.uuid))
+        insert_item_order(uuid_order, index, data_item)
         self.__data_items = restore_item_order("data_items", self.profile.projects, uuid_order)
 
     def __rebind_computations(self):
@@ -924,7 +926,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def insert_display_item(self, before_index: int, display_item: DisplayItem.DisplayItem, *, update_session: bool = True, project: Project.Project = None) -> None:
         uuid_order = save_item_order(self.__display_items)
         self.append_display_item(display_item, update_session=update_session, project=project)
-        uuid_order.insert(before_index, (Project.get_project_for_item(display_item), display_item.uuid))
+        insert_item_order(uuid_order, before_index, display_item)
         self.__display_items = restore_item_order("display_items", self.profile.projects, uuid_order)
 
     def remove_display_item(self, display_item) -> None:
@@ -1887,7 +1889,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def insert_connection(self, before_index: int, connection: Connection.Connection, *, project: Project.Project = None) -> None:
         uuid_order = save_item_order(self.__connections)
         self.append_connection(connection, project=project)
-        uuid_order.insert(before_index, (Project.get_project_for_item(connection), connection.uuid))
+        insert_item_order(uuid_order, before_index, connection)
         self.__connections = restore_item_order("connections", self.profile.projects, uuid_order)
 
     def remove_connection(self, connection: Connection.Connection) -> None:
@@ -1920,7 +1922,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def insert_data_structure(self, before_index: int, data_structure: DataStructure.DataStructure, *, project: Project.Project = None) -> None:
         uuid_order = save_item_order(self.__data_structures)
         self.append_data_structure(data_structure, project=project)
-        uuid_order.insert(before_index, (Project.get_project_for_item(data_structure), data_structure.uuid))
+        insert_item_order(uuid_order, before_index, data_structure)
         self.__data_structures = restore_item_order("data_structures", self.profile.projects, uuid_order)
 
     def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
@@ -2004,7 +2006,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def insert_computation(self, before_index: int, computation: Symbolic.Computation, *, project: Project.Project = None) -> None:
         uuid_order = save_item_order(self.__computations)
         self.append_computation(computation, project=project)
-        uuid_order.insert(before_index, (Project.get_project_for_item(computation), computation.uuid))
+        insert_item_order(uuid_order, before_index, computation)
         self.__computations = restore_item_order("computations", self.profile.projects, uuid_order)
 
     def remove_computation(self, computation: Symbolic.Computation, *, safe: bool=False) -> None:

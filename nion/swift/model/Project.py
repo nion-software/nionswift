@@ -96,27 +96,28 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             return Changes.UndeleteLog()
 
     def _get_related_item(self, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[Persistence.PersistentObject]:
-        for data_item in self.data_items:
-            if data_item.uuid == item_specifier.item_uuid:
-                return data_item
-        for display_item in self.display_items:
-            if display_item.uuid == item_specifier.item_uuid:
-                return display_item
-            for display_data_channel in display_item.display_data_channels:
-                if display_data_channel.uuid == item_specifier.item_uuid:
-                    return display_data_channel
-            for graphic in display_item.graphics:
-                if graphic.uuid == item_specifier.item_uuid:
-                    return graphic
-        for connection in self.connections:
-            if connection.uuid == item_specifier.item_uuid:
-                return connection
-        for data_structure in self.data_structures:
-            if data_structure.uuid == item_specifier.item_uuid:
-                return data_structure
-        for computation in self.computations:
-            if computation.uuid == item_specifier.item_uuid:
-                return computation
+        if item_specifier.context_uuid is None or item_specifier.context_uuid == self.uuid:
+            for data_item in self.data_items:
+                if data_item.uuid == item_specifier.item_uuid:
+                    return data_item
+            for display_item in self.display_items:
+                if display_item.uuid == item_specifier.item_uuid:
+                    return display_item
+                for display_data_channel in display_item.display_data_channels:
+                    if display_data_channel.uuid == item_specifier.item_uuid:
+                        return display_data_channel
+                for graphic in display_item.graphics:
+                    if graphic.uuid == item_specifier.item_uuid:
+                        return graphic
+            for connection in self.connections:
+                if connection.uuid == item_specifier.item_uuid:
+                    return connection
+            for data_structure in self.data_structures:
+                if data_structure.uuid == item_specifier.item_uuid:
+                    return data_structure
+            for computation in self.computations:
+                if computation.uuid == item_specifier.item_uuid:
+                    return computation
         item = super()._get_related_item(item_specifier)
         # if item and get_project_for_item(item) != self:
         #     print(f"!! project {self} {type(item)} {id(item)} {item.uuid}")
