@@ -144,6 +144,9 @@ class TreeModel:
     def __init__(self, document_controller, projects_model, closed_items: typing.Set[str]):
         self.document_controller = document_controller
 
+        # cache
+        self.__project_panel_items = None
+
         # define the top level list
         self.__root_node = TreeNode()
 
@@ -151,7 +154,7 @@ class TreeModel:
         self.property_changed_event = Event.Event()
 
         # listeners for the source model
-        self.__listener = projects_model.property_changed_event.listen(self.__property_changed)
+        self.__listener = projects_model.property_changed_event.listen(self.__projects_model_changed)
 
         # store the projects_model for later use
         self.__projects_model = projects_model
@@ -174,9 +177,11 @@ class TreeModel:
         self.__profile_property_changed_event_listener = None
         self.__listener.close()
         self.__projects_model = None
+        self.__project_panel_items = None
         self.document_controller = None
 
-    def __property_changed(self, property_name: str) -> None:
+    def __projects_model_changed(self, property_name: str) -> None:
+        self.__project_panel_items = None
         self.__update_model()
         self.property_changed_event.fire("value")
 
@@ -196,53 +201,58 @@ class TreeModel:
     def value(self) -> typing.List:
         # build the value reflecting a compact version of the node hierarchy.
         # nodes with only one child are combined with that child.
+        # building the project panel is expensive; so cache it.
 
-        project_panel_items = list()
+        if not self.__project_panel_items:
 
-        encountered_items = set()
+            project_panel_items = list()
 
-        def construct_project_panel_items(key_path: typing.List[str], node: TreeNode, closed: bool, l: typing.List, c: typing.Set, e: typing.Set) -> None:
-            if len(node.data) == 0 and len(node.children) == 1:
-                key, child = list(node.children.items())[0]
-                if len(key_path) > 0:
-                    construct_project_panel_items(key_path[:-1] + [key_path[-1] + (key if key_path[-1].endswith("/") else "/" + key)], child, closed, l, c, e)
+            encountered_items = set()
+
+            def construct_project_panel_items(key_path: typing.List[str], node: TreeNode, closed: bool, l: typing.List, c: typing.Set, e: typing.Set) -> None:
+                if len(node.data) == 0 and len(node.children) == 1:
+                    key, child = list(node.children.items())[0]
+                    if len(key_path) > 0:
+                        construct_project_panel_items(key_path[:-1] + [key_path[-1] + (key if key_path[-1].endswith("/") else "/" + key)], child, closed, l, c, e)
+                    else:
+                        construct_project_panel_items([key], child, closed, l, c, e)
                 else:
-                    construct_project_panel_items([key], child, closed, l, c, e)
-            else:
-                folder_key = "/".join(key_path)
-                folder_closed = folder_key in self.__closed_items or closed
-                if len(key_path) > 0:
-                    e.add(folder_key)
-                    if not closed:
-                        l.append(ProjectPanelFolderItem(len(key_path), key_path[-1], folder_closed, folder_key))
-                for key, child in node.children.items():
-                    construct_project_panel_items(key_path + [key], child, folder_closed, l, c, e)
-                for project in node.data:  # node.data is a list of projects
-                    project_key = "/".join(key_path + [project.project_reference_parts[-1]])
-                    e.add(project_key)
-                    if not folder_closed:
-                        display_items_model = ListModel.FilteredListModel(items_key="display_items")
-                        display_items_model.container = self.document_controller.document_model
-                        display_items_model.filter = project.project_filter
-                        display_items_model.sort_key = DataItem.sort_by_date_key
-                        display_items_model.sort_reverse = True
-                        display_items_model.filter_id = None
-                        items_controller = DisplayItemController(project.project_title, display_items_model, self.document_controller)
+                    folder_key = "/".join(key_path)
+                    folder_closed = folder_key in self.__closed_items or closed
+                    if len(key_path) > 0:
+                        e.add(folder_key)
+                        if not closed:
+                            l.append(ProjectPanelFolderItem(len(key_path), key_path[-1], folder_closed, folder_key))
+                    for key, child in node.children.items():
+                        construct_project_panel_items(key_path + [key], child, folder_closed, l, c, e)
+                    for project in node.data:  # node.data is a list of projects
+                        project_key = "/".join(key_path + [project.project_reference_parts[-1]])
+                        e.add(project_key)
+                        if not folder_closed:
+                            display_items_model = ListModel.FilteredListModel(items_key="display_items")
+                            display_items_model.container = self.document_controller.document_model
+                            display_items_model.filter = project.project_filter
+                            display_items_model.sort_key = DataItem.sort_by_date_key
+                            display_items_model.sort_reverse = True
+                            display_items_model.filter_id = None
+                            items_controller = DisplayItemController(project.project_title, display_items_model, self.document_controller)
 
-                        def handle_item_controller_title_changed(t: str) -> None:
-                            self.property_changed_event.fire("value")
+                            def handle_item_controller_title_changed(t: str) -> None:
+                                self.property_changed_event.fire("value")
 
-                        items_controller.on_title_changed = handle_item_controller_title_changed
+                            items_controller.on_title_changed = handle_item_controller_title_changed
 
-                        is_work = project == self.document_controller.document_model.profile.work_project
+                            is_work = project == self.document_controller.document_model.profile.work_project
 
-                        l.append(ProjectPanelProjectItem(len(key_path) + 1, project, items_controller, is_work))
+                            l.append(ProjectPanelProjectItem(len(key_path) + 1, project, items_controller, is_work))
 
-        construct_project_panel_items(list(), self.__root_node, False, project_panel_items, self.__closed_items, encountered_items)
+            construct_project_panel_items(list(), self.__root_node, False, project_panel_items, self.__closed_items, encountered_items)
 
-        self.__closed_items = self.__closed_items.intersection(encountered_items)
+            self.__closed_items = self.__closed_items.intersection(encountered_items)
 
-        return project_panel_items
+            self.__project_panel_items = project_panel_items
+
+        return self.__project_panel_items
 
     def toggle_folder(self, folder_key: str) -> None:
         if not folder_key in self.__closed_items:

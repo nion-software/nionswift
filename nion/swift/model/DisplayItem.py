@@ -649,7 +649,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
             self.sequence_index = sequence_index
 
         collection_index = self.__validate_collection_index(self.collection_index)
-        if collection_index != self.collection_index:
+        if collection_index != tuple(self.collection_index):
             self.collection_index = collection_index
 
         slice_center = self.__validate_slice_center_for_width(self.slice_center, 1)
@@ -1089,20 +1089,21 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def set_display_property(self, property_name: str, value) -> None:
         display_properties = self.display_properties
-        if value is not None:
-            display_properties[property_name] = value
-        else:
-            display_properties.pop(property_name, None)
-        self.display_properties = display_properties
-        self.display_property_changed_event.fire(property_name)
-        if property_name in ("displayed_dimensional_scales", "displayed_dimensional_calibrations", "displayed_intensity_calibration"):
-            self.graphics_changed_event.fire(self.graphic_selection)
-        if property_name in ("calibration_style_id", ):
-            self.display_property_changed_event.fire("displayed_dimensional_scales")
-            self.display_property_changed_event.fire("displayed_dimensional_calibrations")
-            self.display_property_changed_event.fire("displayed_intensity_calibration")
-            self.graphics_changed_event.fire(self.graphic_selection)
-        self.display_changed_event.fire()
+        if value != display_properties.get(property_name):
+            if value is not None:
+                display_properties[property_name] = value
+            else:
+                display_properties.pop(property_name, None)
+            self.display_properties = display_properties
+            self.display_property_changed_event.fire(property_name)
+            if property_name in ("displayed_dimensional_scales", "displayed_dimensional_calibrations", "displayed_intensity_calibration"):
+                self.graphics_changed_event.fire(self.graphic_selection)
+            if property_name in ("calibration_style_id", ):
+                self.display_property_changed_event.fire("displayed_dimensional_scales")
+                self.display_property_changed_event.fire("displayed_dimensional_calibrations")
+                self.display_property_changed_event.fire("displayed_intensity_calibration")
+                self.graphics_changed_event.fire(self.graphic_selection)
+            self.display_changed_event.fire()
 
     def get_display_layer_property(self, index: int, property_name: str, default_value=None):
         display_layers = self.display_layers
