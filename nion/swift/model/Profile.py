@@ -373,7 +373,9 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         if project_reference:
             # note: project context is passed for use during testing
             project = Project.make_project(self.profile_context, project_reference)
-            if project:
+            project_uuids = {project.uuid for project in self.projects}
+            # do not allow multiple projects to load with same uuid
+            if project and not project.uuid in project_uuids:
                 project.prepare_read_project()
                 self.__append_project(project)
                 project.read_project()

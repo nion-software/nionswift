@@ -157,6 +157,23 @@ class TestProjectClass(unittest.TestCase):
                 self.assertEqual(1, len(document_model.profile.projects[0].display_items))
                 self.assertEqual(1, len(document_model.profile.projects[1].display_items))
 
+    def test_projects_with_duplicate_uuid_are_not_loaded(self):
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item, project=profile.projects[0])
+                # add a project reference; it won't be loaded until we reload below
+                profile.add_project_memory(profile.projects[0].uuid)
+                self.assertEqual(1, len(profile.projects))
+            # reload; will try to load two projects with same uuid
+            profile = profile_context.create_profile()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            with contextlib.closing(document_model):
+                self.assertEqual(1, len(profile.projects))
+                self.assertEqual(1, len(profile.projects[0].data_items))
+
     def test_display_items_between_items_with_duplicated_uuids_are_connected_per_project(self):
         with create_memory_profile_context() as profile_context:
             profile = profile_context.create_profile()
