@@ -742,6 +742,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         return self.profile.work_project.create_item_proxy(item_uuid=item_uuid, item_specifier=item_specifier, item=item)
 
     def resolve_item_specifier(self, item_specifier: Persistence.PersistentObjectSpecifier) -> Persistence.PersistentObject:
+        assert item_specifier.context_uuid  # require full item specifier since it shouldn't match the arbitrary project used to resolve.
         return self.profile.work_project.resolve_item_specifier(item_specifier)
 
     @property
@@ -783,10 +784,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     @property
     def projects_selection(self) -> Selection.IndexedSelection:
         return self.__profile.projects_selection
-
-    def does_item_already_exist(self, item: Persistence.PersistentObject) -> bool:
-        item_specifier = self.profile.work_project.create_specifier(item, allow_partial=False)
-        return self.resolve_item_specifier(item_specifier) is not None
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")

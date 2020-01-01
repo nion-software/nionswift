@@ -1316,9 +1316,8 @@ class DocumentController(Window.Window):
             index = self.__display_item_index
             display_items = list()
             for data_item in self.__data_items:
-                if not document_model.does_item_already_exist(data_item):
-                    self.__display_item_indexes.append(len(document_model.display_items))
-                    document_model.append_data_item(data_item)
+                document_model.append_data_item(data_item)
+                self.__display_item_indexes.append(len(document_model.display_items))
                 display_items.append(document_model.get_display_item_for_data_item(data_item))
             for display_item in display_items:
                 if not display_item in data_group.display_items:
@@ -2506,10 +2505,10 @@ class DocumentController(Window.Window):
             document_model = self.__document_controller.document_model
             index = self.__data_item_index
             for data_item in self.__data_items:
-                if not document_model.does_item_already_exist(data_item):
-                    document_model.insert_data_item(index, data_item, auto_display=True, project=self.__project)
-                    self.__data_item_indexes.append(index)
-                    index += 1
+                # insert will throw an exception if data item already exists in the project
+                document_model.insert_data_item(index, data_item, auto_display=True, project=self.__project)
+                self.__data_item_indexes.append(index)
+                index += 1
             if self.__display_panel and self.__data_items:
                 display_item = self.__document_controller.document_model.get_display_item_for_data_item(self.__data_items[-1])
                 if display_item:
