@@ -48,7 +48,7 @@ class TestDataGroupClass(unittest.TestCase):
             data_group.append_display_item(display_item)
             data_group_copy = copy.deepcopy(data_group)
             display_item_specifier = Persistence.PersistentObjectSpecifier.read(data_group_copy.display_item_specifiers[0])
-            display_item_proxy = document_model.profile.work_project.create_item_proxy(item_specifier=display_item_specifier)
+            display_item_proxy = document_model.create_item_proxy(item_specifier=display_item_specifier)
             with contextlib.closing(display_item_proxy):
                 self.assertEqual(display_item, display_item_proxy.item)
 

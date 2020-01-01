@@ -602,7 +602,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         def resolve_display_item_specifier(display_item_specifier_d: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:
             display_item_specifier = Persistence.PersistentObjectSpecifier.read(display_item_specifier_d)
-            display_item_proxy = self.profile.work_project.create_item_proxy(item_specifier=display_item_specifier)
+            display_item_proxy = self.create_item_proxy(item_specifier=display_item_specifier)
             with contextlib.closing(display_item_proxy):
                 return display_item_proxy.item
 
@@ -737,7 +737,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__project_item_removed_listeners.pop(index).close()
 
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
+        # returns item proxy in profile. used in data group hierarchy.
         return self.profile.create_item_proxy(item=typing.cast(Persistence.PersistentObject, self))
+
+    def create_item_proxy(self, *, item_uuid: uuid.UUID = None, item_specifier: Persistence.PersistentObjectSpecifier = None, item: Persistence.PersistentObject = None) -> Persistence.PersistentObjectProxy:
+        # returns item proxy in projects. used in data group hierarchy.
+        return self.profile.work_project.create_item_proxy(item_uuid=item_uuid, item_specifier=item_specifier, item=item)
 
     @property
     def modified_state(self) -> int:
@@ -781,7 +786,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def does_item_already_exist(self, item: Persistence.PersistentObject) -> bool:
         item_specifier = self.profile.work_project.create_specifier(item, allow_partial=False)
-        item_proxy = self.profile.work_project.create_item_proxy(item_specifier=item_specifier)
+        item_proxy = self.create_item_proxy(item_specifier=item_specifier)
         with contextlib.closing(item_proxy):
             return item_proxy.item is not None
 
@@ -987,7 +992,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         data_item_variables = self.__profile.data_item_variables
         for variable, data_item_specifier_d in data_item_variables.items():
             data_item_specifier = Persistence.PersistentObjectSpecifier.read(data_item_specifier_d)
-            with contextlib.closing(self.profile.work_project.create_item_proxy(item_specifier=data_item_specifier)) as data_item_proxy:
+            with contextlib.closing(self.create_item_proxy(item_specifier=data_item_specifier)) as data_item_proxy:
                 data_item = typing.cast(DataItem.DataItem, data_item_proxy.item) if data_item_proxy.item else None
             if data_item:
                 m[variable] = data_item

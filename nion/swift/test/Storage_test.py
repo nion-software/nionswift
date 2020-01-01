@@ -430,7 +430,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             with contextlib.closing(document_controller):
-                with contextlib.closing(document_model.profile.work_project.create_item_proxy(item_specifier=data_item0_specifier)) as new_data_item0_proxy:
+                with contextlib.closing(document_model.create_item_proxy(item_specifier=data_item0_specifier)) as new_data_item0_proxy:
                     new_data_item0 = typing.cast(DataItem.DataItem, new_data_item0_proxy.item)
                 new_data_item0_display_item = document_model.get_display_item_for_data_item(new_data_item0)
                 self.assertIsNotNone(new_data_item0)
@@ -439,7 +439,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
                 self.assertIsNotNone(new_data_item0_display_item.data_item.data)
                 self.assertEqual(data_item0_calibration_len, len(new_data_item0_display_item.data_item.dimensional_calibrations))
-                with contextlib.closing(document_model.profile.work_project.create_item_proxy(item_specifier=data_item1_specifier)) as new_data_item1_proxy:
+                with contextlib.closing(document_model.create_item_proxy(item_specifier=data_item1_specifier)) as new_data_item1_proxy:
                     new_data_item1 = typing.cast(DataItem.DataItem, new_data_item1_proxy.item)
                 new_data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(new_data_item1))
                 self.assertEqual(data_item1_data_items_len, new_data_item1_data_items_len)
@@ -465,9 +465,9 @@ class TestStorageClass(unittest.TestCase):
                 dst_data_item_specifier = dst_data_item.project.create_specifier(dst_data_item, allow_partial=False)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
-                with contextlib.closing(document_model.profile.work_project.create_item_proxy(item_specifier=src_data_item_specifier)) as src_data_item_proxy:
+                with contextlib.closing(document_model.create_item_proxy(item_specifier=src_data_item_specifier)) as src_data_item_proxy:
                     src_data_item = typing.cast(DataItem.DataItem, src_data_item_proxy.item)
-                with contextlib.closing(document_model.profile.work_project.create_item_proxy(item_specifier=dst_data_item_specifier)) as dst_data_item_proxy:
+                with contextlib.closing(document_model.create_item_proxy(item_specifier=dst_data_item_specifier)) as dst_data_item_proxy:
                     dst_data_item = typing.cast(DataItem.DataItem, dst_data_item_proxy.item)
                 # make sure the items are loading how we expect them to load (dependent first, then source)
                 self.assertEqual(document_model.data_items[0], dst_data_item)
@@ -500,7 +500,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 new_data_item1_specifier = Persistence.PersistentObjectSpecifier(item_uuid=uuid.UUID("71ab9215-c6ae-4c36-aaf5-92ce78db02b6"))
-                with contextlib.closing(document_model.profile.work_project.create_item_proxy(item_specifier=new_data_item1_specifier)) as new_data_item1_proxy:
+                with contextlib.closing(document_model.create_item_proxy(item_specifier=new_data_item1_specifier)) as new_data_item1_proxy:
                     new_data_item1 = typing.cast(DataItem.DataItem, new_data_item1_proxy.item)
                 new_data_item1_data_items_len = len(document_model.get_dependent_data_items(new_data_item1))
                 self.assertEqual(2, new_data_item1_data_items_len)
@@ -1017,7 +1017,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             with contextlib.closing(document_controller):
-                with contextlib.closing(document_model.profile.work_project.create_item_proxy(item_specifier=read_data_item_specifier)) as read_data_item_proxy:
+                with contextlib.closing(document_model.create_item_proxy(item_specifier=read_data_item_specifier)) as read_data_item_proxy:
                     read_data_item = typing.cast(DataItem.DataItem, read_data_item_proxy.item)
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
                 # verify graphics reload
@@ -1378,7 +1378,7 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 for data_item_uuid in original_expressions.keys():
                     data_item_specifier = Persistence.PersistentObjectSpecifier(item_uuid=uuid.UUID(data_item_uuid))
-                    with contextlib.closing(document_model.profile.work_project.create_item_proxy(item_specifier=data_item_specifier)) as data_item_proxy:
+                    with contextlib.closing(document_model.create_item_proxy(item_specifier=data_item_specifier)) as data_item_proxy:
                         data_item = typing.cast(DataItem.DataItem, data_item_proxy.item)
                     self.assertEqual(document_model.get_data_item_computation(data_item).original_expression, original_expressions[data_item_uuid])
                     self.assertFalse(document_model.get_data_item_computation(data_item).needs_update)
@@ -3179,9 +3179,9 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(2, len(document_model.data_items))
                 self.assertEqual(2, len(document_model.display_items))
                 data_item_specifier = Persistence.PersistentObjectSpecifier(item_uuid=uuid.UUID(src_uuid_str))
-                with contextlib.closing(document_model.profile.work_project.create_item_proxy(item_specifier=data_item_specifier)) as data_item_proxy:
+                with contextlib.closing(document_model.create_item_proxy(item_specifier=data_item_specifier)) as data_item_proxy:
                     self.assertIsNotNone(typing.cast(DataItem.DataItem, data_item_proxy.item))
-                with contextlib.closing(document_model.profile.work_project.create_item_proxy(item_specifier=new_data_item_specifier)) as data_item_proxy:
+                with contextlib.closing(document_model.create_item_proxy(item_specifier=new_data_item_specifier)) as data_item_proxy:
                     self.assertIsNotNone(typing.cast(DataItem.DataItem, data_item_proxy.item))
 
     def test_auto_migrate_skips_migrated_and_deleted_data_items(self):
