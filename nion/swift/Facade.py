@@ -171,8 +171,8 @@ class ObjectSpecifier:
         elif object_type == "data_item":
             data_item_uuid = uuid_module.UUID(object_uuid_str)
             data_item_specifier = Persistence.PersistentObjectSpecifier(item_uuid=data_item_uuid)
-            with contextlib.closing(document_model.create_item_proxy(item_specifier=data_item_specifier)) as data_item_proxy:
-                return DataItem(typing.cast(DataItemModule.DataItem, data_item_proxy.item)) if data_item_proxy.item else None
+            data_item = document_model.resolve_item_specifier(data_item_specifier)
+            return DataItem(typing.cast(DataItemModule.DataItem, data_item)) if data_item else None
         elif object_type == "data_group":
             return DataGroup(document_model.get_data_group_by_uuid(uuid_module.UUID(object_uuid_str)))
         elif object_type in ("region", "graphic"):
@@ -2476,8 +2476,7 @@ class Library(metaclass=SharedInstance):
 
         Scriptable: No
         """
-        with contextlib.closing(self.__document_model.profile.create_item_proxy(item_specifier=item_specifier)) as item_proxy:
-            return _new_api_object(item_proxy.item)
+        return _new_api_object(self.__document_model.resolve_item_specifier(item_specifier))
 
     def has_library_value(self, key: str) -> bool:
         """Return whether the library value for the given key exists.

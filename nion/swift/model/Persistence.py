@@ -1002,6 +1002,10 @@ class PersistentObject:
         self.persistent_storage.rewrite_item(self)
 
     def create_item_proxy(self, *, item_uuid: uuid.UUID = None, item_specifier: PersistentObjectSpecifier = None, item: "PersistentObject" = None) -> PersistentObjectProxy:
-        """Create an item proxy by uuid or direclty using the item."""
+        """Create an item proxy by uuid or directly using the item."""
         item_specifier = item_specifier or (PersistentObjectSpecifier(item_uuid=item_uuid) if item_uuid else None)
         return PersistentObjectProxy(self, item_specifier, item)
+
+    def resolve_item_specifier(self, item_specifier: PersistentObjectSpecifier) -> typing.Optional["PersistentObject"]:
+        """Return the resolve item specifier."""
+        return self._get_related_item(item_specifier)

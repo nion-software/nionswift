@@ -53,8 +53,7 @@ def save_item_order(items: typing.List[Persistence.PersistentObject]) -> typing.
 def restore_item_order(name: str, projects: typing.List[Project.Project], uuid_order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> typing.List[Persistence.PersistentObject]:
     items = list()
     for item_specifier in uuid_order:
-        with contextlib.closing(projects[0].create_item_proxy(item_specifier=item_specifier)) as item_proxy:
-            items.append(item_proxy.item)
+        items.append(projects[0].resolve_item_specifier(item_specifier))
     return items
 
 def insert_item_order(uuid_order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]], index: int, item: Persistence.PersistentObject) -> None:
@@ -602,9 +601,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         def resolve_display_item_specifier(display_item_specifier_d: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:
             display_item_specifier = Persistence.PersistentObjectSpecifier.read(display_item_specifier_d)
-            display_item_proxy = self.create_item_proxy(item_specifier=display_item_specifier)
-            with contextlib.closing(display_item_proxy):
-                return display_item_proxy.item
+            return self.resolve_item_specifier(display_item_specifier)
 
         for data_group in self.data_groups:
             data_group.connect_display_items(resolve_display_item_specifier)
@@ -744,6 +741,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # returns item proxy in projects. used in data group hierarchy.
         return self.profile.work_project.create_item_proxy(item_uuid=item_uuid, item_specifier=item_specifier, item=item)
 
+    def resolve_item_specifier(self, item_specifier: Persistence.PersistentObjectSpecifier) -> Persistence.PersistentObject:
+        return self.profile.work_project.resolve_item_specifier(item_specifier)
+
     @property
     def modified_state(self) -> int:
         return self.__profile.modified_state
@@ -786,9 +786,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def does_item_already_exist(self, item: Persistence.PersistentObject) -> bool:
         item_specifier = self.profile.work_project.create_specifier(item, allow_partial=False)
-        item_proxy = self.create_item_proxy(item_specifier=item_specifier)
-        with contextlib.closing(item_proxy):
-            return item_proxy.item is not None
+        return self.resolve_item_specifier(item_specifier) is not None
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -992,8 +990,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         data_item_variables = self.__profile.data_item_variables
         for variable, data_item_specifier_d in data_item_variables.items():
             data_item_specifier = Persistence.PersistentObjectSpecifier.read(data_item_specifier_d)
-            with contextlib.closing(self.create_item_proxy(item_specifier=data_item_specifier)) as data_item_proxy:
-                data_item = typing.cast(DataItem.DataItem, data_item_proxy.item) if data_item_proxy.item else None
+            data_item = typing.cast(DataItem.DataItem, self.resolve_item_specifier(data_item_specifier))
             if data_item:
                 m[variable] = data_item
             else:
