@@ -1768,7 +1768,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 data_item_reference.data_item = data_item
 
                 def append_data_item():
-                    self.append_data_item(data_item)
+                    self.append_data_item(data_item, project=self.profile.work_project)
                     self._update_data_item_reference(key, data_item)
 
                 self.__call_soon(append_data_item)

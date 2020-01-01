@@ -50,6 +50,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
         self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
         self.define_property("project_references", list())
+        self.define_property("target_project_reference_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("closed_items", list())
         self.define_property("active_project_uuids", active_project_uuids)
@@ -67,9 +68,11 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             self.__projects = [project]
             project.project_uuid_str = project_uuid_str
             self.__work_project = self.__projects[0]
+            self.__target_project = self.__projects[0]
         else:
             self.__projects = list()
             self.__work_project = None
+            self.__target_project = None
 
         self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
 
@@ -126,8 +129,18 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         return self.storage_system
 
     @property
+    def target_project(self) -> typing.Optional[Project.Project]:
+        return self.__target_project
+
+    @property
     def work_project(self) -> typing.Optional[Project.Project]:
         return self.__work_project
+
+    def set_target_project(self, project: Project.Project) -> None:
+        if project != self.__target_project:
+            self.target_project_reference_uuid = project.project_uuid_str if project else None
+            self.__target_project = project
+            self.property_changed_event.fire("target_project")
 
     def set_work_project(self, project: Project.Project) -> None:
         if project != self.__work_project:
@@ -176,7 +189,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             if target_project:
                 return target_project
 
-        return self.work_project
+        return self.target_project or self.work_project
 
     def open(self, document_model):
         for project in self.__projects:
@@ -297,6 +310,13 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         for project_reference in self.project_references:
             self.read_project(project_reference)
 
+        # attempt to establish existing target project
+        if self.target_project_reference_uuid:
+            for project in self.__projects:
+                if str(self.target_project_reference_uuid) == project.project_reference.get("uuid", None):
+                    self.__target_project = project
+                    break
+
         # attempt to establish existing work project
         if self.work_project_reference_uuid:
             for project in self.__projects:
@@ -384,6 +404,9 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def remove_project(self, project: Project) -> None:
         if project in self.__projects and project != self.work_project:
+            if project == self.__target_project:
+                self.__target_project = None
+                self.property_changed_event.fire("target_project")
             project.unmount()
             project_index = self.__projects.index(project)
             project_references = self.project_references
@@ -542,6 +565,7 @@ class MemoryProfileContext:
             profile.storage_system = storage_system
             profile.profile_context = self
             self.project_uuid = uuid.UUID(profile.add_project_memory(self.project_uuid)["uuid"])
+            profile.target_project_reference_uuid = self.project_uuid
             profile.work_project_reference_uuid = self.project_uuid
             self.__profile = profile
             return profile

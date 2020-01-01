@@ -233,7 +233,10 @@ class DocumentController(Window.Window):
         self._migrate_project_action = self._file_menu.add_menu_item(_("Upgrade Project"), self.__handle_upgrade_project)
         self._remove_project_action = self._file_menu.add_menu_item(_("Remove Project"), self.__handle_remove_project)
         self._file_menu.add_separator()
-        self._remove_project_action = self._file_menu.add_menu_item(_("Set Work Project"), self.__set_work_project)
+        self._set_target_project_action = self._file_menu.add_menu_item(_("Set Target Project"), self.__set_target_project)
+        self._unset_target_project_action = self._file_menu.add_menu_item(_("Clear Target Project"), self.__clear_target_project)
+        self._file_menu.add_separator()
+        self._set_work_project_action = self._file_menu.add_menu_item(_("Set Work Project"), self.__set_work_project)
         self._file_menu.add_separator()
         self._import_folder_action = self._file_menu.add_menu_item(_("Import Folder..."), self.__import_folder)
         self._import_action = self._file_menu.add_menu_item(_("Import Data..."), self.import_file)
@@ -1004,6 +1007,17 @@ class DocumentController(Window.Window):
     def __handle_remove_project(self) -> None:
         for project in self.document_model.profile.selected_projects_model.value:
             self.document_model.profile.remove_project(project)
+
+    def __set_target_project(self) -> None:
+        projects = self.document_model.profile.selected_projects_model.value
+        if not projects:
+            raise Exception("Select a project in the project panel.")
+        if len(projects) > 1:
+            raise Exception("Select a single project in the project panel.")
+        self.document_model.profile.set_target_project(projects[0])
+
+    def __clear_target_project(self) -> None:
+        self.document_model.profile.set_target_project(None)
 
     def __set_work_project(self) -> None:
         projects = self.document_model.profile.selected_projects_model.value

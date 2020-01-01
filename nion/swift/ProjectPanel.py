@@ -78,11 +78,12 @@ class DisplayItemController:
 
 class ProjectPanelProjectItem:
 
-    def __init__(self, indent: int, project: Project.Project, display_item_controller: DisplayItemController, is_work: bool):
+    def __init__(self, indent: int, project: Project.Project, display_item_controller: DisplayItemController, is_target: bool, is_work: bool):
         self.is_folder = False
         self.indent = indent
         self.project = project
         self.display_item_controller = display_item_controller
+        self.is_target = is_target
         self.is_work = is_work
 
     @property
@@ -165,7 +166,8 @@ class TreeModel:
         self.__update_model()
 
         def profile_property_changed(key: str) -> None:
-            if key == "work_project":
+            if key == "work_project" or key == "target_project":
+                self.__project_panel_items = None
                 self.property_changed_event.fire("value")
 
         self.__profile_property_changed_event_listener = self.document_controller.document_model.profile.property_changed_event.listen(profile_property_changed)
@@ -240,9 +242,10 @@ class TreeModel:
 
                             items_controller.on_title_changed = handle_item_controller_title_changed
 
+                            is_target = project == self.document_controller.document_model.profile.target_project
                             is_work = project == self.document_controller.document_model.profile.work_project
 
-                            l.append(ProjectPanelProjectItem(len(key_path) + 1, project, items_controller, is_work))
+                            l.append(ProjectPanelProjectItem(len(key_path) + 1, project, items_controller, is_target, is_work))
 
             construct_project_panel_items(list(), self.__root_node, False, project_panel_items, self.__closed_items, encountered_items)
 
@@ -291,7 +294,7 @@ class ProjectListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         item_string = str(display_item)
         with drawing_context.saver():
             drawing_context.fill_style = "#000" if display_item.is_enabled else "#888"
-            drawing_context.font = "12px"
+            drawing_context.font = "12px bold" if not display_item.is_folder and display_item.is_target else "12px"
             drawing_context.text_align = 'left'
             drawing_context.text_baseline = 'bottom'
             # drawing_context.fill_text("\N{BALLOT BOX}", rect[0][1] + 4, rect[0][0] + 20 - 4)
@@ -548,7 +551,7 @@ class ProjectPanel(Panel.Panel):
                     document_model.projects_selection.clear()
                     for index in tree_selection.indexes:
                         tree_item = projects_list_widget.items[index]
-                        if hasattr(tree_item, "project"):
+                        if hasattr(tree_item, "project") and tree_item.project:
                             indexes.add(document_model.projects_model.value.index(tree_item.project))
                     document_model.projects_selection.set_multiple(indexes)
                 finally:
