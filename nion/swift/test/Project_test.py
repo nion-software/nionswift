@@ -249,6 +249,10 @@ class TestProjectClass(unittest.TestCase):
             profile_context.x_data_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_map[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]] = copy.deepcopy(profile_context.x_project_properties[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]]["uuid"] = str(project_keys[1])
+            # adjust the computations to be project-relative specifiers
+            profile_context.x_project_properties[project_keys[0]]["computations"][0]["variables"][0]["specifier"].pop("context_uuid")
+            profile_context.x_project_properties[project_keys[1]]["computations"][0]["variables"][0]["specifier"].pop("context_uuid")
+            # now reload and make sure everything gets resolved properly
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 project0 = document_model.profile.projects[0]

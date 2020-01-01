@@ -152,7 +152,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("secondary_specifier", secondary_specifier, changed=self.__property_changed)
         self.define_property("property_name", property_name, changed=self.__property_changed)
         self.define_property("control_type", control_type, changed=self.__property_changed)
-        item_specifiers = [DataStructure.get_object_specifier(item.item, item.type) if item else None for item in items] if items is not None else None
+        item_specifiers = [DataStructure.get_object_specifier(item.item, item.type, allow_partial=False) if item else None for item in items] if items is not None else None
         self.define_property("object_specifiers", copy.deepcopy(item_specifiers) if item_specifiers is not None else None, changed=self.__property_changed)
         self.changed_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
@@ -1153,23 +1153,23 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.add_variable(variable)
         return variable
 
-    def create_input_item(self, name: str, input_item: ComputationItem, *, property_name: str=None, label: str=None, project=None) -> ComputationVariable:
-        # Note: project is only for testing
+    def create_input_item(self, name: str, input_item: ComputationItem, *, property_name: str=None, label: str=None, _item_specifier: typing.Dict = None) -> ComputationVariable:
+        # Note: _item_specifier is only for testing
         if input_item.items is not None:
             variable = ComputationVariable(name, items=input_item.items, label=label)
             self.add_variable(variable)
             return variable
         else:
-            specifier = DataStructure.get_object_specifier(input_item.item, input_item.type, project=project)
-            secondary_specifier = DataStructure.get_object_specifier(input_item.secondary_item) if input_item.secondary_item else None
+            specifier = _item_specifier or DataStructure.get_object_specifier(input_item.item, input_item.type, allow_partial=False)
+            secondary_specifier = DataStructure.get_object_specifier(input_item.secondary_item, allow_partial=False) if input_item.secondary_item else None
             variable = ComputationVariable(name, specifier=specifier, secondary_specifier=secondary_specifier, property_name=property_name, label=label)
             self.add_variable(variable)
             return variable
 
-    def create_output_item(self, name: str, output_item: ComputationItem=None, *, label: str=None, project=None) -> ComputationOutput:
-        # Note: project is only for testing
+    def create_output_item(self, name: str, output_item: ComputationItem = None, *, label: str = None, _item_specifier: typing.Dict = None) -> ComputationOutput:
+        # Note: _item_specifier is only for testing
         if output_item and output_item.items is not None:
-            specifiers = [DataStructure.get_object_specifier(item.item) for item in output_item.items]
+            specifiers = [DataStructure.get_object_specifier(item.item, allow_partial=False) for item in output_item.items]
             result = ComputationOutput(name, specifiers=specifiers, label=label)
             self.append_item("results", result)
             if self.persistent_object_context:
@@ -1179,7 +1179,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         elif output_item:
             assert not output_item.type
             assert not output_item.secondary_item
-            specifier = DataStructure.get_object_specifier(output_item.item, project=project)
+            specifier = _item_specifier or DataStructure.get_object_specifier(output_item.item, allow_partial=False)
             result = ComputationOutput(name, specifier=specifier, label=label)
             self.append_item("results", result)
             if self.persistent_object_context:
@@ -1193,7 +1193,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def insert_item_into_objects(self, name: str, index: int, input_item: ComputationItem) -> None:
         variable = self._get_variable(name)
-        specifier = DataStructure.get_object_specifier(input_item.item, input_item.type)
+        specifier = DataStructure.get_object_specifier(input_item.item, input_item.type, allow_partial=False)
         variable.bound_items_model.insert_item(index, self.__resolve_object_specifier(specifier))
 
     def list_item_removed(self, object) -> typing.Optional[typing.Tuple[int, int, dict]]:
@@ -1562,19 +1562,19 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 assert input_item.type is None
                 assert input_item.secondary_item is None
                 assert input_item.items is None
-                variable.specifier = DataStructure.get_object_specifier(input_item.item)
+                variable.specifier = DataStructure.get_object_specifier(input_item.item, allow_partial=False)
 
     def set_output_item(self, name:str, output_item: ComputationItem) -> None:
         for result in self.results:
             if result.name == name:
                 if output_item and output_item.items is not None:
-                    result.specifiers = [DataStructure.get_object_specifier(o.item) for o in output_item.items]
+                    result.specifiers = [DataStructure.get_object_specifier(o.item, allow_partial=False) for o in output_item.items]
                 else:
                     if output_item:
                         assert output_item.item
                         assert output_item.type is None
                         assert output_item.secondary_item is None
-                    result.specifier = DataStructure.get_object_specifier(output_item.item) if output_item else None
+                    result.specifier = DataStructure.get_object_specifier(output_item.item, allow_partial=False) if output_item else None
 
     def get_input(self, name: str):
         for variable in self.variables:

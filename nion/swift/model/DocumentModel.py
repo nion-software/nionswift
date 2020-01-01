@@ -2281,10 +2281,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             if src_dict.get("croppable", False):
                 secondary_item = input[1]
             display_data_channel = in_display_item.display_data_channel
-            computation.create_input_item(src_name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item), label=src_label, project=project)
+            computation.create_input_item(src_name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item), label=src_label)
         # process the regions
         for region_name, region, region_label in regions:
-            computation.create_input_item(region_name, Symbolic.make_item(region), label=region_label, project=project)
+            computation.create_input_item(region_name, Symbolic.make_item(region), label=region_label)
         # next process the parameters
         for param_dict in processing_description.get("parameters", list()):
             parameter_value = parameters.get(param_dict["name"], param_dict["value"])
