@@ -2673,7 +2673,7 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
     data_item = computation.get_input(variable.name).data_item
 
     def drop_mime_data(mime_data, x, y):
-        display_item = MimeTypes.mime_data_get_display_item(mime_data, computation.project)
+        display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
         data_item = display_item.data_item if display_item else None
         if data_item:
             variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
@@ -3208,7 +3208,7 @@ class DeclarativeImageChooserConstructor:
 
             def drop_mime_data(mime_data, x, y):
                 document_model = self.__app.document_model
-                display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model.profile.work_project)
+                display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
                 thumbnail_source.display_item = display_item
                 if display_item:
                     return "copy"

@@ -757,7 +757,7 @@ class Workspace:
     def handle_drop(self, display_panel, mime_data: UserInterface.MimeData, region, x: int, y: int) -> str:
         document_model = self.document_model
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
-            display_item, d = MimeTypes.mime_data_get_panel(mime_data, self.document_model.profile.work_project)
+            display_item, d = MimeTypes.mime_data_get_panel(mime_data, self.document_model)
             if display_item and display_panel.handle_drop_display_item(region, display_item):
                 pass  # already handled
             elif region == "right" or region == "left" or region == "top" or region == "bottom":
@@ -767,7 +767,7 @@ class Workspace:
                 command = self.__replace_displayed_display_item(display_panel, None, d)
                 self.document_controller.push_undo_command(command)
             return "move"
-        display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model.profile.work_project)
+        display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
         if display_item:
             if display_panel.handle_drop_display_item(region, display_item):
                 pass  # already handled

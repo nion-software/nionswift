@@ -1,7 +1,6 @@
 """
 The MIME types used in the application.
 """
-import contextlib
 import json
 import typing
 
@@ -9,10 +8,9 @@ from nion.ui import UserInterface
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Persistence
-from nion.swift.model import Project
 
 if typing.TYPE_CHECKING:
-    pass
+    from nion.swift.model import DocumentModel
 
 
 DISPLAY_ITEM_MIME_TYPE = "text/vnd.nionswift.display_item"
@@ -24,16 +22,16 @@ LAYER_MIME_TYPE = "text/vnd.nionswift.display_layer"
 SVG_MIME_TYPE = "image/svg+xml"
 
 
-def mime_data_get_data_source(mime_data: UserInterface.MimeData, project: Project.Project) -> typing.Tuple[typing.Optional[DisplayItem.DisplayItem], typing.Optional[Graphics.Graphic]]:
+def mime_data_get_data_source(mime_data: UserInterface.MimeData, document_model: "DocumentModel.DocumentModel") -> typing.Tuple[typing.Optional[DisplayItem.DisplayItem], typing.Optional[Graphics.Graphic]]:
     display_item = None
     graphic = None
     if mime_data.has_format(DATA_SOURCE_MIME_TYPE):
         data_source_mime_data = json.loads(mime_data.data_as_string(DATA_SOURCE_MIME_TYPE))
         display_item_specifier = Persistence.PersistentObjectSpecifier.read(data_source_mime_data["display_item_specifier"])
-        display_item = project.resolve_item_specifier(display_item_specifier)
+        display_item = document_model.resolve_item_specifier(display_item_specifier)
         if "graphic_specifier" in data_source_mime_data:
             graphic_specifier = Persistence.PersistentObjectSpecifier.read(data_source_mime_data["graphic_specifier"])
-            graphic = project.resolve_item_specifier(graphic_specifier)
+            graphic = document_model.resolve_item_specifier(graphic_specifier)
     return display_item, graphic
 
 
@@ -45,12 +43,12 @@ def mime_data_put_data_source(mime_data: UserInterface.MimeData, display_item: D
     mime_data.set_data_as_string(DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
 
 
-def mime_data_get_display_item(mime_data: UserInterface.MimeData, project: Project.Project) -> typing.Optional[DisplayItem.DisplayItem]:
+def mime_data_get_display_item(mime_data: UserInterface.MimeData, document_model: "DocumentModel.DocumentModel") -> typing.Optional[DisplayItem.DisplayItem]:
     display_item = None
     if mime_data.has_format(DISPLAY_ITEM_MIME_TYPE):
         data_source_mime_data = json.loads(mime_data.data_as_string(DISPLAY_ITEM_MIME_TYPE))
         display_item_specifier = Persistence.PersistentObjectSpecifier.read(data_source_mime_data["display_item_specifier"])
-        display_item = project.resolve_item_specifier(display_item_specifier)
+        display_item = document_model.resolve_item_specifier(display_item_specifier)
     return display_item
 
 
@@ -80,11 +78,11 @@ def mime_data_put_graphics(mime_data: UserInterface.MimeData, graphics: typing.S
     mime_data.set_data_as_string(GRAPHICS_MIME_TYPE, json.dumps(graphics_dict))
 
 
-def mime_data_get_layer(mime_data: UserInterface.MimeData, project: Project.Project) -> typing.Tuple[typing.Dict, typing.Optional[DisplayItem.DisplayItem]]:
+def mime_data_get_layer(mime_data: UserInterface.MimeData, document_model: "DocumentModel.DocumentModel") -> typing.Tuple[typing.Dict, typing.Optional[DisplayItem.DisplayItem]]:
     mime_dict = json.loads(mime_data.data_as_string(LAYER_MIME_TYPE))
     legend_data = mime_dict["legend_data"]
     display_item_specifier = Persistence.PersistentObjectSpecifier.read(mime_dict["display_item_specifier"])
-    display_item = project.resolve_item_specifier(display_item_specifier)
+    display_item = document_model.resolve_item_specifier(display_item_specifier)
     return legend_data, display_item
 
 
@@ -102,14 +100,14 @@ def mime_data_put_layer(mime_data: UserInterface.MimeData, index: int, display_i
     mime_data.set_data_as_string(LAYER_MIME_TYPE, json.dumps(mime_dict))
 
 
-def mime_data_get_panel(mime_data: UserInterface.MimeData, project: Project.Project) -> typing.Tuple[typing.Optional[DisplayItem.DisplayItem], typing.Dict]:
+def mime_data_get_panel(mime_data: UserInterface.MimeData, document_model: "DocumentModel.DocumentModel") -> typing.Tuple[typing.Optional[DisplayItem.DisplayItem], typing.Dict]:
     display_item = None
     d = dict()
     if mime_data.has_format(DISPLAY_PANEL_MIME_TYPE):
         d = json.loads(mime_data.data_as_string(DISPLAY_PANEL_MIME_TYPE))
         if "display_item_specifier" in d:
             display_item_specifier = Persistence.PersistentObjectSpecifier.read(d["display_item_specifier"])
-            display_item = project.resolve_item_specifier(display_item_specifier)
+            display_item = document_model.resolve_item_specifier(display_item_specifier)
     return display_item, d
 
 

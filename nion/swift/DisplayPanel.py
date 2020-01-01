@@ -1040,9 +1040,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 # give the display canvas item a chance to provide drop regions based on the display item being dropped
                 display_item = None
                 if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
-                    display_item, d = MimeTypes.mime_data_get_panel(mime_data, self.document_controller.document_model.profile.work_project)
+                    display_item, d = MimeTypes.mime_data_get_panel(mime_data, self.document_controller.document_model)
                 if not display_item:
-                    display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model.profile.work_project)
+                    display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
                 if display_item:
                     self.__content_canvas_item.drop_regions_map = display_canvas_item.get_drop_regions_map(display_item)
             else:
@@ -1777,8 +1777,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def get_display_item(self) -> DisplayItem.DisplayItem:
         return self.display_item
 
-    def get_project(self) -> Project.Project:
-        return self.document_controller.document_model.profile.work_project
+    def get_document_model(self) -> DocumentModel.DocumentModel:
+        return self.document_controller.document_model
 
     def end_mouse_tracking(self, undo_command):
         self.__mouse_tracking_transaction.close()

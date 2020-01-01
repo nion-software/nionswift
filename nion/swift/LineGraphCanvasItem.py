@@ -10,7 +10,6 @@
 # standard libraries
 import collections
 import gettext
-import json
 import math
 import typing
 
@@ -27,7 +26,7 @@ from nion.swift import Inspector
 from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import DisplayItem
-from nion.swift.model import Project
+from nion.swift.model import DocumentModel
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
@@ -1004,7 +1003,7 @@ class LineGraphLegendCanvasItemDelegate:
 
     def get_display_item(self) -> DisplayItem.DisplayItem: ...
 
-    def get_project(self) -> Project.Project: ...
+    def get_document_model(self) -> DocumentModel.DocumentModel: ...
 
     def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int) -> numpy.ndarray: ...
 
@@ -1219,7 +1218,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         # if a new drag comes in with layer mime data, check if we're the source or if this is a foreign layer
         if mime_data.has_format(MimeTypes.LAYER_MIME_TYPE):
             self.__mouse_dragging = True
-            legend_data, display_item = MimeTypes.mime_data_get_layer(mime_data, self.__delegate.get_project())
+            legend_data, display_item = MimeTypes.mime_data_get_layer(mime_data, self.__delegate.get_document_model())
             if display_item == self.__delegate.get_display_item():
                 # if we're the source, setup the index and update the drag preview
                 self.__dragging_index = legend_data["index"]
@@ -1241,7 +1240,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__mouse_dragging = False
 
         if mime_data.has_format(MimeTypes.LAYER_MIME_TYPE):
-            legend_data, source_display_item = MimeTypes.mime_data_get_layer(mime_data, self.__delegate.get_project())
+            legend_data, source_display_item = MimeTypes.mime_data_get_layer(mime_data, self.__delegate.get_document_model())
             from_index = legend_data["index"]
             if source_display_item == self.__delegate.get_display_item():
                 # if we're the source item, just shift the layers

@@ -442,7 +442,7 @@ class TestDataPanelClass(unittest.TestCase):
             data_panel = document_controller.find_dock_widget("data-panel").panel
             data_panel.focused = True
             self.assertIsNone(document_controller.selected_display_item)
-            document_controller.receive_project_files([pathlib.Path(":/app/scroll_gem.png")], project=document_model.profile.work_project, index=0, threaded=False)
+            document_controller.receive_project_files([pathlib.Path(":/app/scroll_gem.png")], project=document_model._project, index=0, threaded=False)
             document_controller.periodic()
             self.assertEqual(document_controller.selected_display_item, document_model.display_items[1])
 

@@ -774,6 +774,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         return self.__connections
 
     @property
+    def _project(self) -> Project.Project:
+        return self.profile.work_project
+
+    @property
     def profile(self) -> Profile.Profile:
         return self.__profile
 

@@ -1218,7 +1218,7 @@ class DocumentController(Window.Window):
                 for graphic in graphics:
                     display_item.graphic_selection.add(display_item.graphics.index(graphic))
                 return True
-            display_item_to_paste = MimeTypes.mime_data_get_display_item(mime_data, self.document_model.profile.work_project)
+            display_item_to_paste = MimeTypes.mime_data_get_display_item(mime_data, self.document_model)
             data_item_to_paste = display_item_to_paste.data_item if display_item else None
             if data_item_to_paste:
                 command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, display_item, data_item_to_paste)

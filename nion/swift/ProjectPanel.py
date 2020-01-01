@@ -3,10 +3,8 @@ import functools
 import gettext
 import pathlib
 import typing
-import uuid
 
 # local libraries
-from nion.swift import DataPanel
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift.model import DataGroup
@@ -365,7 +363,7 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             # if the display item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            display_item = MimeTypes.mime_data_get_display_item(mime_data, list_display_item.document_model.profile.work_project)
+            display_item = MimeTypes.mime_data_get_display_item(mime_data, list_display_item.document_model)
             return display_item is not None
         return False
 
@@ -376,7 +374,7 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             # if the display item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            display_item = MimeTypes.mime_data_get_display_item(mime_data, list_display_item.document_model.profile.work_project)
+            display_item = MimeTypes.mime_data_get_display_item(mime_data, list_display_item.document_model)
             if display_item:
                 document_controller = list_display_item.document_controller
                 data_group = list_display_item.data_group

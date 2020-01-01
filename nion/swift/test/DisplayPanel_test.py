@@ -2078,7 +2078,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
-            data_item_reference = DocumentModel.DocumentModel.DataItemReference(document_model, "abc", document_model.profile.work_project)
+            data_item_reference = DocumentModel.DocumentModel.DataItemReference(document_model, "abc", document_model._project)
             with contextlib.closing(data_item_reference):
                 data_item_reference.data_item = data_item
                 display_panel = document_controller.selected_display_panel

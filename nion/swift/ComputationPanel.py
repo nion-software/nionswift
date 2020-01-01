@@ -734,7 +734,7 @@ class ComputationPanelSection:
 
 def drop_mime_data(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
     project = computation.project  # all variables/specifiers will go into the same project as the computation
-    display_item, graphic = MimeTypes.mime_data_get_data_source(mime_data, project)
+    display_item, graphic = MimeTypes.mime_data_get_data_source(mime_data, document_controller.document_model)
     data_item = display_item.data_item if display_item else None
     if data_item:
         variable_specifier = DataStructure.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item), project=project)
@@ -746,7 +746,7 @@ def drop_mime_data(document_controller, computation: Symbolic.Computation, varia
         command.perform()
         document_controller.push_undo_command(command)
         return "copy"
-    display_item = MimeTypes.mime_data_get_display_item(mime_data, project)
+    display_item = MimeTypes.mime_data_get_display_item(mime_data, document_controller.document_model)
     data_item = display_item.data_item if display_item else None
     if data_item:
         variable_specifier = DataStructure.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item), project=project)

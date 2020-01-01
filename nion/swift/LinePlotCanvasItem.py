@@ -16,8 +16,8 @@ from nion.swift import LineGraphCanvasItem
 from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import DisplayItem
+from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Project
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.utils import Geometry
@@ -91,7 +91,7 @@ class LinePlotCanvasItemDelegate:
 
     def create_move_display_layer_command(self, display_item: DisplayItem.DisplayItem, src_index: int, target_index: int) -> Undo.UndoableCommand: ...
 
-    def get_project(self) -> Project.Project: ...
+    def get_document_model(self) -> DocumentModel.DocumentModel: ...
 
 
 class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
@@ -996,7 +996,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         if not mime_data.has_format(MimeTypes.LAYER_MIME_TYPE):
             return "ignore"
 
-        legend_data, source_display_item = MimeTypes.mime_data_get_layer(mime_data, self.delegate.get_project())
+        legend_data, source_display_item = MimeTypes.mime_data_get_layer(mime_data, self.delegate.get_document_model())
 
         from_index = legend_data["index"]
 

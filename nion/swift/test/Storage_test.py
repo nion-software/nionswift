@@ -496,7 +496,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
                 new_data_item1_specifier = Persistence.PersistentObjectSpecifier(item_uuid=uuid.UUID("71ab9215-c6ae-4c36-aaf5-92ce78db02b6"),
-                                                                                 context_uuid=document_model.profile.work_project.uuid)
+                                                                                 context_uuid=document_model._project.uuid)
                 new_data_item1 = typing.cast(DataItem.DataItem, document_model.resolve_item_specifier(new_data_item1_specifier))
                 new_data_item1_data_items_len = len(document_model.get_dependent_data_items(new_data_item1))
                 self.assertEqual(2, new_data_item1_data_items_len)
@@ -3172,7 +3172,7 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 self.assertEqual(2, len(document_model.data_items))
                 self.assertEqual(2, len(document_model.display_items))
-                data_item_specifier = Persistence.PersistentObjectSpecifier(item_uuid=uuid.UUID(src_uuid_str), context_uuid=document_model.profile.work_project.uuid)
+                data_item_specifier = Persistence.PersistentObjectSpecifier(item_uuid=uuid.UUID(src_uuid_str), context_uuid=document_model._project.uuid)
                 self.assertIsNotNone(typing.cast(DataItem.DataItem, document_model.resolve_item_specifier(data_item_specifier)))
                 self.assertIsNotNone(typing.cast(DataItem.DataItem, document_model.resolve_item_specifier(new_data_item_specifier)))
 
