@@ -257,6 +257,7 @@ class TreeModel:
             self.__closed_items.add(folder_key)
         else:
             self.__closed_items.remove(folder_key)
+        self.__project_panel_items = None
         self.property_changed_event.fire("value")
         if self.on_closed_items_changed:
             self.on_closed_items_changed(self.__closed_items)
