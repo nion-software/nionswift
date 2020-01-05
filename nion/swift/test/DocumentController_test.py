@@ -19,11 +19,16 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.ui import TestUI
 
 
 Facade.initialize()
+
+
+def create_memory_profile_context():
+    return Profile.MemoryProfileContext()
 
 
 def construct_test_document(app, workspace_id=None):
@@ -1065,6 +1070,51 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(3, len(document_model.data_items))
             self.assertEqual(2, len(display_item1.data_items))
             self.assertEqual(2, len(display_item1.display_layers))
+
+    def test_profile_selected_projects_updated_when_one_deleted(self):
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.add_project_memory()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                project_panel = document_controller.find_dock_widget("project-panel").panel
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item, project=profile.projects[0])
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item, project=profile.projects[1])
+                project_panel._tree_selection.set_multiple({0, 1})
+                self.assertEqual(2, len(document_controller.selected_projects))
+                self.assertIn(profile.projects[0], document_controller.selected_projects)
+                self.assertIn(profile.projects[1], document_controller.selected_projects)
+                profile.remove_project(profile.projects[1])  # note: cannot remove project 0, since it is work project
+                self.assertEqual(1, len(document_controller.selected_projects))
+                self.assertIn(profile.projects[0], document_controller.selected_projects)
+
+    def test_profile_selected_projects_updated_when_middle_one_deleted(self):
+        # this test ensures that the project selection is updated properly when an item
+        # is removed but the index of the item is still valid in the new list.
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.add_project_memory()
+            profile.add_project_memory()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                project_panel = document_controller.find_dock_widget("project-panel").panel
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item, project=profile.projects[0])
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item, project=profile.projects[1])
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item, project=profile.projects[2])
+                project_panel._tree_selection.set_multiple({1, 2})
+                self.assertEqual(2, len(document_controller.selected_projects))
+                self.assertIn(profile.projects[1], document_controller.selected_projects)
+                self.assertIn(profile.projects[2], document_controller.selected_projects)
+                profile.remove_project(profile.projects[1])  # note: cannot remove project 0, since it is work project
+                self.assertEqual(1, len(document_controller.selected_projects))
+                self.assertIn(profile.projects[1], document_controller.selected_projects)
 
 
 if __name__ == '__main__':

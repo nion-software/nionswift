@@ -140,7 +140,7 @@ class TreeNode:
 
 class TreeModel:
 
-    def __init__(self, document_controller, projects_model, closed_items: typing.Set[str]):
+    def __init__(self, document_controller, closed_items: typing.Set[str]):
         self.document_controller = document_controller
 
         # cache
@@ -152,18 +152,9 @@ class TreeModel:
         # define events to make this a model
         self.property_changed_event = Event.Event()
 
-        # listeners for the source model
-        self.__listener = projects_model.property_changed_event.listen(self.__projects_model_changed)
-
-        # store the projects_model for later use
-        self.__projects_model = projects_model
-
         # define the closed items
         self.__closed_items = closed_items
         self.on_closed_items_changed = None
-
-        # update the first time
-        self.__update_model()
 
         def profile_property_changed(key: str) -> None:
             if key == "work_project" or key == "target_project":
@@ -175,27 +166,22 @@ class TreeModel:
     def close(self) -> None:
         self.__profile_property_changed_event_listener.close()
         self.__profile_property_changed_event_listener = None
-        self.__listener.close()
-        self.__projects_model = None
         self.__project_panel_items = None
         self.document_controller = None
 
-    def __projects_model_changed(self, property_name: str) -> None:
-        self.__project_panel_items = None
-        self.__update_model()
-        self.property_changed_event.fire("value")
-
-    def __update_model(self):
+    def update_projects(self, projects: typing.Sequence[Project.Project]):
         # build hierarchy of nodes reflecting the project reference parts (strings).
         # this is called when the projects model changes.
+        self.__project_panel_items = None
         root_node = TreeNode()
-        for project in self.__projects_model.value:
+        for project in projects:
             parts = project.project_reference_parts
             node = root_node
             for part in parts[:-1]:
                 node = node.children.setdefault(part, TreeNode())
             node.data.append(project)
         self.__root_node = root_node
+        self.property_changed_event.fire("value")
 
     @property
     def value(self) -> typing.List:
@@ -404,19 +390,37 @@ class ProjectPanel(Panel.Panel):
         ui = document_controller.ui
 
         document_model = document_controller.document_model
+        projects_model = document_model.projects_model
 
-        self.__tree_model = TreeModel(document_controller, document_model.projects_model, set(document_model.profile.closed_items))
+        self._tree_model = TreeModel(document_controller, set(document_model.profile.closed_items))
+
+        def projects_model_changed(property_name: str) -> None:
+            if property_name == "value":
+                # update the tree model.
+                self._tree_model.update_projects(projects_model.value)
+                # validate the selection
+                indexes = set()
+                for index in self._tree_selection.indexes:
+                    if index < len(self._tree_model.value):
+                        indexes.add(index)
+                self._tree_selection.set_multiple(indexes)
+                # update project list
+                tree_selection_changed()
+
+        # listen for changes to the project model and report them to the tree model.
+        self.__projects_model_listener = projects_model.property_changed_event.listen(projects_model_changed)
+        self._tree_model.update_projects(projects_model.value)  # initial sync
 
         def closed_items_changed(closed_items: typing.Set[str]):
             document_model.profile.closed_items = list(closed_items)
 
-        self.__tree_model.on_closed_items_changed = closed_items_changed
+        self._tree_model.on_closed_items_changed = closed_items_changed
 
-        tree_selection = Selection.IndexedSelection(Selection.Style.single_or_none)
+        self._tree_selection = Selection.IndexedSelection(Selection.Style.multiple)
 
-        projects_list_widget = Widgets.ListWidget(ui, ProjectListCanvasItemDelegate(ui.get_font_metrics, self.__tree_model), selection=tree_selection, v_scroll_enabled=False, v_auto_resize=True)
+        projects_list_widget = Widgets.ListWidget(ui, ProjectListCanvasItemDelegate(ui.get_font_metrics, self._tree_model), selection=self._tree_selection, v_scroll_enabled=False, v_auto_resize=True)
         projects_list_widget.wants_drag_events = True
-        projects_list_widget.bind_items(Binding.PropertyBinding(self.__tree_model, "value"))
+        projects_list_widget.bind_items(Binding.PropertyBinding(self._tree_model, "value"))
 
         projects_section = Widgets.SectionWidget(ui, _("Projects"), projects_list_widget)
         projects_section.expanded = True
@@ -523,46 +527,19 @@ class ProjectPanel(Panel.Panel):
 
         # configure the selection objects to track each other
 
-        block_tree = False
-        block_projects = False
-
-        def projects_selection_changed() -> None:
-            nonlocal block_tree
-            nonlocal block_projects
-            if not block_projects:
-                block_tree = True
-                try:
-                    indexes = set()
-                    selected_projects = {document_model.projects_model.value[index] for index in document_model.projects_selection.indexes}
-                    for index, tree_item in enumerate(projects_list_widget.items):
-                        if hasattr(tree_item, "project") and tree_item.project in selected_projects:
-                            indexes.add(index)
-                    document_model.projects_selection.set_multiple(indexes)
-                finally:
-                    block_tree = False
-
         def tree_selection_changed() -> None:
-            nonlocal block_tree
-            nonlocal block_projects
-            if not block_tree:
-                block_projects = True
-                try:
-                    indexes = set()
-                    document_model.projects_selection.clear()
-                    for index in tree_selection.indexes:
-                        tree_item = projects_list_widget.items[index]
-                        if hasattr(tree_item, "project") and tree_item.project:
-                            indexes.add(document_model.projects_model.value.index(tree_item.project))
-                    document_model.projects_selection.set_multiple(indexes)
-                finally:
-                    block_projects = False
+            selected_projects = list()
+            for index in self._tree_selection.indexes:
+                tree_item = self._tree_model.value[index]
+                if hasattr(tree_item, "project") and tree_item.project:
+                    selected_projects.append(tree_item.project)
+            document_controller.selected_projects_model.value = selected_projects
 
-        self.__projects_selection_changed_event_listener = document_model.projects_selection.changed_event.listen(projects_selection_changed)
-        self.__tree_selection_changed_event_listener = tree_selection.changed_event.listen(tree_selection_changed)
+        self.__tree_selection_changed_event_listener = self._tree_selection.changed_event.listen(tree_selection_changed)
 
         self.__active_projects_changed_event_listener = document_controller.active_projects_changed_event.listen(projects_list_widget.update)
 
-        projects_selection_changed()
+        tree_selection_changed()
 
         # for testing
         self._collection_selection = collection_selection
@@ -571,15 +548,15 @@ class ProjectPanel(Panel.Panel):
         for controller in self.__data_group_controllers:
             controller.close()
         self.__data_group_controllers.clear()
-        self.__projects_selection_changed_event_listener.close()
-        self.__projects_selection_changed_event_listener = None
         self.__tree_selection_changed_event_listener.close()
         self.__tree_selection_changed_event_listener = None
         self.__active_projects_changed_event_listener.close()
         self.__active_projects_changed_event_listener = None
         self.__filter_changed_event_listener.close()
         self.__filter_changed_event_listener = None
-        self.__tree_model.on_closed_items_changed = None
+        self._tree_model.on_closed_items_changed = None
+        self.__projects_model_listener.close()
+        self.__projects_model_listener = None
         self.__document_model_item_inserted_listener.close()
         self.__document_model_item_inserted_listener = None
         self.__document_model_item_removed_listener.close()

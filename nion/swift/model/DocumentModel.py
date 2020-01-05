@@ -785,10 +785,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def projects_model(self):
         return self.__profile.projects_model
 
-    @property
-    def projects_selection(self) -> Selection.IndexedSelection:
-        return self.__profile.projects_selection
-
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 

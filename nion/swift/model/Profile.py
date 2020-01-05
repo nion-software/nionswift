@@ -88,38 +88,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         # the projects model is a property model where the value is the current list of projects.
         self.projects_model = Model.PropertyModel(copy.copy(self.__projects))
 
-        # two selection models are provided: one where the value is the ordered list of selected projects; the other
-        # is a single selected project.
-        self.selected_projects_model = Model.PropertyModel(set())
-        self.selected_project_model = Model.PropertyModel(None)
-
-        # the projects selection is the common object to represent the user's selected projects, if any.
-        self.projects_selection = Selection.IndexedSelection(Selection.Style.multiple)
-
-        # define a function to track changes to the selection object and update the selection models.
-        def update_selected_projects_models():
-            indexes = self.projects_selection.ordered_indexes
-            self.selected_project_model.value = self.__projects[list(indexes)[0]] if len(indexes) == 1 else None
-            selected_projects = list()
-            for index in indexes:
-                if 0 <= index < len(self.__projects):
-                    selected_projects.append(self.__projects[index])
-            self.selected_projects_model.value = selected_projects
-
-        # connect the listener
-        self.__projects_selection_changed_event_listener = self.projects_selection.changed_event.listen(update_selected_projects_models)
-
-        # define a function to update project selections
-        def projects_changed(property_name: str) -> None:
-            indexes = set()
-            for project in self.selected_projects_model.value:
-                if project in self.projects_model.value:
-                    indexes.add(self.projects_model.value.index(project))
-            self.projects_selection.set_multiple(indexes)
-
-        # update selection when projects change
-        self.__projects_changed_event_listener = self.projects_model.property_changed_event.listen(projects_changed)
-
     @property
     def projects(self) -> typing.List[Project.Project]:
         return self.__projects
@@ -206,14 +174,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             project.persistent_object_context = None
             project.close()
         super().close_relationships()
-
-    def close(self):
-        # detach project listeners
-        self.__projects_selection_changed_event_listener.close()
-        self.__projects_selection_changed_event_listener = None
-        self.__projects_changed_event_listener.close()
-        self.__projects_changed_event_listener = None
-        super().close()
 
     def insert_model_item(self, container, name, before_index, item):
         """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
@@ -511,6 +471,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.__projects.append(project)
         self.projects_model.value = copy.copy(self.__projects)
         self.project_inserted_event.fire(project, project_index)
+
 
 
 class MemoryProfileContext:

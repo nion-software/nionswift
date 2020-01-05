@@ -50,6 +50,7 @@ from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
+from nion.utils import Model
 from nion.utils import Registry
 from nion.utils import Selection
 
@@ -94,6 +95,8 @@ class DocumentController(Window.Window):
         self.__weak_periodic_listeners_mutex = threading.RLock()
 
         self.selection = Selection.IndexedSelection()
+
+        self.selected_projects_model = Model.PropertyModel(set())
 
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
@@ -743,6 +746,10 @@ class DocumentController(Window.Window):
             self.__filtered_display_items_model.filter = display_filter
 
     @property
+    def selected_projects(self) -> typing.List[Project.Project]:
+        return self.selected_projects_model.value
+
+    @property
     def selected_display_items(self) -> typing.List[DisplayItem.DisplayItem]:
         selected_display_items = list()
         display_items = self.__filtered_display_items_model.display_items
@@ -1001,15 +1008,15 @@ class DocumentController(Window.Window):
             self.document_model.profile.open_project(pathlib.Path(paths[0]))
 
     def __handle_upgrade_project(self) -> None:
-        for project in self.document_model.profile.selected_projects_model.value:
+        for project in self.selected_projects:
             self.document_model.profile.upgrade_project(project)
 
     def __handle_remove_project(self) -> None:
-        for project in self.document_model.profile.selected_projects_model.value:
+        for project in self.selected_projects:
             self.document_model.profile.remove_project(project)
 
     def __set_target_project(self) -> None:
-        projects = self.document_model.profile.selected_projects_model.value
+        projects = self.selected_projects
         if not projects:
             raise Exception("Select a project in the project panel.")
         if len(projects) > 1:
@@ -1020,7 +1027,7 @@ class DocumentController(Window.Window):
         self.document_model.profile.set_target_project(None)
 
     def __set_work_project(self) -> None:
-        projects = self.document_model.profile.selected_projects_model.value
+        projects = self.selected_projects
         if not projects:
             raise Exception("Select a project in the project panel.")
         if len(projects) > 1:
