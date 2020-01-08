@@ -142,6 +142,10 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         return pathlib.Path(self.__storage_system.get_identifier()).parent
 
     @property
+    def project_reference_str(self) -> str:
+        return str(pathlib.Path(self.__storage_system.get_identifier()))
+
+    @property
     def project_state(self) -> str:
         return self.__project_state
 

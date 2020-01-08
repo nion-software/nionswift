@@ -365,6 +365,12 @@ class ProjectListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
                 return "copy"
         return "ignore"
 
+    def item_tool_tip(self, index: int) -> typing.Optional[str]:
+        display_item = self.__tree_model.value[index]
+        if isinstance(display_item, ProjectPanelProjectItem):
+            return display_item.project.project_reference_str
+        return None
+
     def __calculate_indent(self, display_item_indent, extra_indent):
         return 4 + display_item_indent * self.__folder_indent + extra_indent
 
