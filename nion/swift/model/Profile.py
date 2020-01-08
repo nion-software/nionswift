@@ -53,7 +53,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_property("target_project_reference_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("closed_items", list())
-        self.define_property("active_project_uuids", active_project_uuids)
+        self.define_property("active_project_uuids", active_project_uuids, changed=self.__property_changed)
 
         self.project_inserted_event = Event.Event()
         self.project_removed_event = Event.Event()
@@ -87,6 +87,9 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         # the projects model is a property model where the value is the current list of projects.
         self.projects_model = Model.PropertyModel(copy.copy(self.__projects))
+
+    def __property_changed(self, name, value):
+        self.notify_property_changed(name)
 
     @property
     def projects(self) -> typing.List[Project.Project]:
@@ -376,6 +379,19 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             project.project_uuid_str = None
             self.projects_model.value = copy.copy(self.__projects)
             self.project_removed_event.fire(project, project_index)
+
+    def set_project_active(self, project: Project.Project, active: bool) -> bool:
+        changed = False
+        active_projects = self.active_projects
+        if project in active_projects and not active:
+            active_projects.remove(project)
+            changed = True
+        elif active:
+            active_projects.add(project)
+            changed = True
+        if changed:
+            self.active_project_uuids = list(project.project_uuid_str for project in active_projects)
+        return changed
 
     def toggle_project_active(self, project: Project.Project) -> None:
         active_projects = self.active_projects

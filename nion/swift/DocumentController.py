@@ -1034,6 +1034,13 @@ class DocumentController(Window.Window):
             raise Exception("Select a single project in the project panel.")
         self.document_model.profile.set_work_project(projects[0])
 
+    def set_project_active(self, project: Project.Project, active: bool) -> bool:
+        changed = self.document_model.profile.set_project_active(project, active)
+        if changed:
+            self.__display_items_model.mark_changed()
+            self.active_projects_changed_event.fire()
+        return changed
+
     def toggle_project_active(self, project: Project.Project) -> None:
         self.document_model.profile.toggle_project_active(project)
         self.__display_items_model.mark_changed()
