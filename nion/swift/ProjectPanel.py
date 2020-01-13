@@ -2,6 +2,8 @@
 import functools
 import gettext
 import pathlib
+import subprocess
+import sys
 import typing
 
 # local libraries
@@ -18,6 +20,24 @@ from nion.utils import ListModel
 from nion.utils import Selection
 
 _ = gettext.gettext
+
+
+def reveal_project(project_path: pathlib.Path) -> None:
+    if sys.platform == "darwin":
+        subprocess.Popen(["open", "-R", str(project_path)])
+    elif sys.platform == 'win32':
+        subprocess.check_call(['explorer', str(project_path.parent)])
+    elif sys.platform == 'linux':
+        subprocess.check_call(['xdg-open', '--', str(project_path.parent)])
+
+def open_location(location: pathlib.Path) -> None:
+    if sys.platform == "darwin":
+        subprocess.Popen(["open", str(location)])
+    elif sys.platform == 'win32':
+        subprocess.check_call(['explorer', str(location.parent)])
+    elif sys.platform == 'linux':
+        subprocess.check_call(['xdg-open', '--', str(location.parent)])
+
 
 
 class DisplayItemController:
@@ -300,9 +320,11 @@ class TreeModel:
 
 class ProjectListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
-    def __init__(self, get_font_metrics_fn, tree_model: TreeModel):
+    def __init__(self, document_controller, tree_model: TreeModel):
         super().__init__()
+        self.__document_controller = document_controller
         self.__tree_model = tree_model
+        get_font_metrics_fn = document_controller.ui.get_font_metrics
         self.__folder_indent = get_font_metrics_fn("12px", "\N{BLACK DOWN-POINTING TRIANGLE} ").width
         self.__project_indent = get_font_metrics_fn("12px", "\N{OPEN FILE FOLDER} ").width
 
@@ -370,6 +392,16 @@ class ProjectListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         if isinstance(display_item, ProjectPanelProjectItem):
             return display_item.project.project_reference_str
         return None
+
+    def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
+        display_item = self.__tree_model.value[index]
+        menu = self.__document_controller.create_context_menu()
+        if isinstance(display_item, ProjectPanelProjectItem):
+            menu.add_menu_item(_(f"Open Project Location"), functools.partial(reveal_project, pathlib.Path(display_item.project.project_reference_str)))
+        elif isinstance(display_item, ProjectPanelFolderItem):
+            menu.add_menu_item(_(f"Open Folder Location"), functools.partial(open_location, pathlib.Path(display_item.folder_key)))
+        menu.popup(gx, gy)
+        return True
 
     def __calculate_indent(self, display_item_indent, extra_indent):
         return 4 + display_item_indent * self.__folder_indent + extra_indent
@@ -467,7 +499,7 @@ class ProjectPanel(Panel.Panel):
 
         self._tree_selection = Selection.IndexedSelection(Selection.Style.multiple)
 
-        projects_list_widget = Widgets.ListWidget(ui, ProjectListCanvasItemDelegate(ui.get_font_metrics, self._tree_model), selection=self._tree_selection, v_scroll_enabled=False, v_auto_resize=True)
+        projects_list_widget = Widgets.ListWidget(ui, ProjectListCanvasItemDelegate(document_controller, self._tree_model), selection=self._tree_selection, v_scroll_enabled=False, v_auto_resize=True)
         projects_list_widget.wants_drag_events = True
         projects_list_widget.bind_items(Binding.PropertyBinding(self._tree_model, "value"))
 
