@@ -26,7 +26,7 @@ def reveal_project(project_path: pathlib.Path) -> None:
     if sys.platform == "darwin":
         subprocess.Popen(["open", "-R", str(project_path)])
     elif sys.platform == 'win32':
-        subprocess.check_call(['explorer', str(project_path.parent)])
+        subprocess.run(['explorer', str(project_path.parent)])
     elif sys.platform == 'linux':
         subprocess.check_call(['xdg-open', '--', str(project_path.parent)])
 
@@ -34,9 +34,9 @@ def open_location(location: pathlib.Path) -> None:
     if sys.platform == "darwin":
         subprocess.Popen(["open", str(location)])
     elif sys.platform == 'win32':
-        subprocess.check_call(['explorer', str(location.parent)])
+        subprocess.run(['explorer', str(location)])
     elif sys.platform == 'linux':
-        subprocess.check_call(['xdg-open', '--', str(location.parent)])
+        subprocess.check_call(['xdg-open', '--', str(location)])
 
 
 
