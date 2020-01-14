@@ -96,8 +96,6 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         self.__lookup_display_item = None
         self.__display_items = list()
         self.__counted_display_items = collections.Counter()
-        self.display_item_inserted_event = Event.Event()
-        self.display_item_removed_event = Event.Event()
 
     def __str__(self):
         return self.title
@@ -147,7 +145,6 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
     def insert_display_item(self, before_index, display_item):
         assert display_item not in self.__display_items
         self.__display_items.insert(before_index, display_item)
-        self.display_item_inserted_event.fire(self, display_item, before_index, False)
         self.notify_insert_item("display_items", display_item, before_index)
         self.update_counted_display_items(collections.Counter([display_item]))
         display_item_specifiers = self.display_item_specifiers
@@ -159,7 +156,6 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         index = self.__display_items.index(display_item)
         self.__display_items.remove(display_item)
         self.subtract_counted_display_items(collections.Counter([display_item]))
-        self.display_item_removed_event.fire(self, display_item, index, False)
         self.notify_remove_item("display_items", display_item, index)
         display_item_specifiers = self.display_item_specifiers
         display_item_specifiers.pop(index)

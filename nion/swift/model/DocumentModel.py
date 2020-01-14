@@ -531,10 +531,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
 
-        self.display_item_will_be_removed_event = Event.Event()
-        self.display_item_inserted_event = Event.Event()
-        self.display_item_removed_event = Event.Event()
-
         self.dependency_added_event = Event.Event()
         self.dependency_removed_event = Event.Event()
         self.related_items_changed = Event.Event()
@@ -969,16 +965,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         before_index = len(self.__display_items)
         self.__display_items.append(display_item)
         # send notifications
-        self.display_item_inserted_event.fire(self, display_item, before_index, False)
         self.notify_insert_item("display_items", display_item, before_index)
 
     def __handle_display_item_removed(self, project: Project.Project, display_item: DisplayItem.DisplayItem) -> None:
-        self.display_item_will_be_removed_event.fire(display_item)
         # remove it from the persistent_storage
         assert display_item is not None
         assert display_item in self.__display_items
         index = self.__display_items.index(display_item)
-        self.display_item_removed_event.fire(self, display_item, index, False)
         self.notify_remove_item("display_items", display_item, index)
         self.__display_items.remove(display_item)
 
