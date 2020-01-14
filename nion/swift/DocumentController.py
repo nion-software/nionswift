@@ -111,11 +111,18 @@ class DocumentController(Window.Window):
 
         self.__update_display_items_model(self.__display_items_model, None, None)
 
-        def call_soon(fn):
-            self.queue_task(fn)
-            return True
+        def call_soon():
+            # call the function (this is guaranteed to be called on the main thread)
+            self.document_model.perform_call_soon()
 
-        self.__call_soon_event_listener = self.document_model.call_soon_event.listen(call_soon)
+        def queue_call_soon():
+            # queue the function on the main thread
+            self.queue_task(call_soon)
+
+        # listen for requests from the document model to call a function on the main thread.
+        self.__call_soon_event_listener = self.document_model.call_soon_event.listen(queue_call_soon)
+
+        self.document_model.perform_all_call_soon()  # perform any pending items in the queue
 
         self.filter_controller = FilterPanel.FilterController(self)
 

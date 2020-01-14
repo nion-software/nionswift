@@ -621,6 +621,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__pending_data_item_merge = None
         self.__current_computation = None
 
+        self.__call_soon_queue = list()
+        self.__call_soon_queue_lock = threading.RLock()
+
         self.call_soon_event = Event.Event()
 
         self.__hardware_source_added_event_listener = HardwareSource.HardwareSourceManager().hardware_source_added_event.listen(self.__hardware_source_added)
@@ -695,7 +698,29 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__profile = None
 
     def __call_soon(self, fn):
-        self.call_soon_event.fire_any(fn)
+        # add the function to the queue of items to call on the main thread.
+        # use a queue here in case it is called before the listener is configured,
+        # as is the case as the document loads.
+        with self.__call_soon_queue_lock:
+            self.__call_soon_queue.append(fn)
+        self.call_soon_event.fire_any()
+
+    def perform_call_soon(self):
+        # call one function in the call soon queue
+        fn = None
+        with self.__call_soon_queue_lock:
+            if self.__call_soon_queue:
+                fn = self.__call_soon_queue.pop(0)
+        if fn:
+            fn()
+
+    def perform_all_call_soon(self):
+        # call all functions in the call soon queue
+        with self.__call_soon_queue_lock:
+            call_soon_queue = self.__call_soon_queue
+            self.__call_soon_queue = list()
+        for fn in call_soon_queue:
+            fn()
 
     def about_to_delete(self):
         # override from ReferenceCounted. several DocumentControllers may retain references
@@ -837,7 +862,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             for computation_queue_item in computation_pending_queue:
                 if not computation_queue_item.computation is library_computation:
                     self.__computation_pending_queue.append(computation_queue_item)
-            if self.__computation_active_item and data_item is self.__computation_active_item.data_item:
+            if self.__computation_active_item and library_computation is self.__computation_active_item.computation:
                 self.__computation_active_item.valid = False
         # remove data item from any selections
         self.data_item_will_be_removed_event.fire(data_item)
@@ -1518,7 +1543,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         self.__pending_data_item_merge = pending_data_item_merge
                     self.__call_soon(self.perform_data_item_merge)
                 else:
-                    self.__computation_active_item = None
+                    with self.__computation_queue_lock:
+                        self.__computation_active_item = None
             else:
                 break
 

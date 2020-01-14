@@ -1474,7 +1474,7 @@ class TestSymbolicClass(unittest.TestCase):
         # is a 'fire_any' style event, meaning that only the first handler takes
         # it. we return False to let the document controller eventually handle it.
         continue_event = threading.Event()
-        def do_call_soon(fn):
+        def do_call_soon():
             continue_event.set()
             return False
         listener = document_model.call_soon_event.listen(do_call_soon)
@@ -1569,7 +1569,7 @@ class TestSymbolicClass(unittest.TestCase):
         # is a 'fire_any' style event, meaning that only the first handler takes
         # it. we return False to let the document controller eventually handle it.
         continue_event = threading.Event()
-        def do_call_soon(fn):
+        def do_call_soon():
             continue_event.set()
             return False
         listener = document_model.call_soon_event.listen(do_call_soon)
