@@ -746,7 +746,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             document_model.setup_channel(document_model.make_data_item_reference_key(hardware_source.hardware_source_id, "a"), data_item)
-            hardware_source.data_channels[0].update(DataAndMetadata.new_data_and_metadata(data), "complete", None, None)
+            hardware_source.data_channels[0].update(DataAndMetadata.new_data_and_metadata(data), "complete", None, None, None, None)
             hardware_source.exposure = 0.02
             hardware_source.start_playing()
             time.sleep(0.01)
