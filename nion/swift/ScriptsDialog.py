@@ -241,6 +241,8 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.ui = ui
         self.document_controller = document_controller
 
+        self.script_filter_pattern = "\.py$"
+
         self._create_menus()
 
         self.__cancelled = False
@@ -294,7 +296,7 @@ class RunScriptDialog(Dialog.ActionDialog):
             existing_directory, directory = self.ui.get_existing_directory_dialog(_("Add Scripts Folder"), add_dir)
             if existing_directory:
                 new_folder = FolderListItem(existing_directory)
-                new_folder.update_content_from_file_system(filter_pattern="\.py$")
+                new_folder.update_content_from_file_system(filter_pattern=self.script_filter_pattern)
                 full_path = new_folder.full_path
                 if not full_path in sys.path:
                     sys.path.append(full_path)
@@ -400,6 +402,10 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.ui.set_persistent_object("interactive_scripts_1", self.scripts_list_widget.items)
 
     def rebuild_scripts_list(self):
+        items = self.scripts_list_widget.items
+        for item in items:
+            if isinstance(item, FolderListItem):
+                item.update_content_from_file_system(filter_pattern=self.script_filter_pattern)
         self.update_scripts_list(self.scripts_list_widget.items)
 
     def __make_cancel_row(self):
