@@ -13,6 +13,7 @@ import re
 import locale
 from importlib import reload
 import sys
+import json
 
 # typing
 from typing import AbstractSet
@@ -118,8 +119,11 @@ def pose_confirmation_message_box(ui, message_column, caption, accepted_fn, reje
 
 
 class ScriptListItem:
+    __version__ = "1"
+
     def __init__(self, full_path: str, indent: int = 0, show_dirname: bool = True):
         self.__full_path = os.path.abspath(full_path)
+        self._exists = None
         self.indent = indent
         self.show_dirname = show_dirname
 
@@ -135,6 +139,43 @@ class ScriptListItem:
     def dirname(self) -> str:
         return os.path.dirname(self.full_path)
 
+    @property
+    def exists(self) -> bool:
+        return self._exists
+
+    def check_existance(self) -> bool:
+        self._exists = os.path.exists(self.full_path)
+        return self._exists
+
+    def to_dict(self) -> dict:
+        return {"__version__": ScriptListItem.__version__,
+                "__type__": "ScriptListItem",
+                "full_path": self.full_path,
+                "indent": self.indent,
+                "show_dirname": self.show_dirname,
+                "_exists": self._exists}
+
+    @classmethod
+    def from_dict(cls, cls_dict: dict) -> "ScriptListItem":
+        version = cls_dict.pop("__version__")
+        if version != cls.__version__:
+            raise ValueError(f"Cannot read the dictionary provided. Dictionary version '{version}' != implemented version '{cls.__version__}'.")
+        instance = cls(cls_dict.pop("full_path"))
+        for key, value in cls_dict.items():
+            attr_name = key
+            if key.startswith('__'):
+                attr_name = cls.__name__ + key
+            if hasattr(instance, attr_name):
+                setattr(instance, attr_name, value)
+        return instance
+
+    def to_json_string(self) -> str:
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json_string(cls, json_string: str) -> "ScriptListItem":
+        return cls.from_dict(json.loads(json_string))
+
     # Used by "sort"
     def __lt__(self, other) -> bool:
         if isinstance(other, FolderListItem):
@@ -145,13 +186,15 @@ class ScriptListItem:
 
 
 class FolderListItem(ScriptListItem):
-    def __init__(self, full_path: str, content: typing.Optional[list] = None):
+    __version__ = "1"
+
+    def __init__(self, full_path: str, content: typing.Optional[typing.List[ScriptListItem]] = None, indent: int = 0, show_dirname: bool = True):
         super().__init__(full_path)
         self.__content = content if content is not None else list()
         self.folder_closed = True
 
     @property
-    def content(self) -> list:
+    def content(self) -> typing.List[ScriptListItem]:
         return self.__content
 
     def update_content_from_file_system(self, filter_pattern: typing.Optional[str] = None):
@@ -163,6 +206,16 @@ class FolderListItem(ScriptListItem):
                     filtered_items.append(ScriptListItem(os.path.join(self.full_path, item), indent=20, show_dirname=False))
             self.__content = filtered_items
 
+    def to_dict(self) -> dict:
+        return {"__version__": FolderListItem.__version__,
+                "__type__": "FolderListItem",
+                "full_path": self.full_path,
+                "indent": self.indent,
+                "show_dirname": self.show_dirname,
+                "_exists": self._exists,
+                "__content": [item.to_dict() for item in self.content],
+                "folder_closed": self.folder_closed}
+
     # Used by "sort"
     def __lt__(self, other) -> bool:
         if isinstance(other, FolderListItem):
@@ -172,7 +225,12 @@ class FolderListItem(ScriptListItem):
         return NotImplemented
 
 
-def _build_sorted_scripts_list(scripts_list):
+def _create_list_item_from_dict(item_dict) -> ScriptListItem:
+    type_ = item_dict.pop("__type__")
+    return globals()[type_].from_dict(item_dict)
+
+
+def _build_sorted_scripts_list(scripts_list: typing.List[ScriptListItem]) -> typing.List[ScriptListItem]:
         filtered_items = []
         for item in scripts_list:
             if item.indent == 0:
@@ -212,7 +270,7 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             if display_item.folder_closed:
                 folder_string = f"\N{BLACK RIGHT-POINTING TRIANGLE} \N{FILE FOLDER} "
             else:
-                folder_string = f"\N{BLACK DOWN-POINTING TRIANGLE} \N{OPEN FILE FOLDER} "
+                folder_string = f"\N{BLACK DOWN-POINTING SMALL TRIANGLE} \N{OPEN FILE FOLDER} "
 
         if isinstance(display_item, ScriptListItem):
             with drawing_context.saver():
@@ -223,10 +281,15 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
                 drawing_context.text_baseline = "bottom"
                 name_string = folder_string + display_item.basename
                 drawing_context.fill_text(name_string, rect[0][1] + 4 + display_item.indent, rect[0][0] + 20 - 4)
-                if display_item.show_dirname:
-                    drawing_context.fill_style = "#888"
-                    drawing_context.font = "8px"
-                    name_width = self.__ui.get_font_metrics("12px", name_string).width
+                drawing_context.fill_style = "#888"
+                drawing_context.font = "10px"
+                name_width = self.__ui.get_font_metrics("12px", name_string).width
+                if display_item.exists is not None and not display_item.exists:
+                    type_str = "Folder" if type(display_item) is FolderListItem else "File"
+                    drawing_context.fill_text(f"({type_str} not found)",
+                                              rect[0][1] + 4 + display_item.indent + 4 + name_width,
+                                              rect[0][0] + 20 - 4)
+                elif display_item.show_dirname:
                     drawing_context.fill_text(f"({display_item.dirname})",
                                               rect[0][1] + 4 + display_item.indent + 4 + name_width,
                                               rect[0][0] + 20 - 4)
@@ -260,16 +323,19 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         self.__message_column.add(self.__make_cancel_row())
 
-
-
-        items = self.ui.get_persistent_object("interactive_scripts_1", list())
-        if not items:
+        # Load the list of known scripts. Upgrade from old storage system ("interactive_scripts_0")
+        items = []
+        items_str = self.ui.get_persistent_string("interactive_scripts_1", "")
+        if items_str:
+            for item_dict in json.loads(items_str):
+                items.append(_create_list_item_from_dict(item_dict))
+        else:
             items_old = self.ui.get_persistent_object("interactive_scripts_0", list())
             for item in items_old:
                 items.append(ScriptListItem(item))
         if items:
             items = _build_sorted_scripts_list(items)
-            self.ui.set_persistent_object("interactive_scripts_1", items)
+            self.ui.set_persistent_string("interactive_scripts_1", json.dumps([item.to_dict() for item in items]))
 
         self.__new_path_entries = []
 
@@ -290,6 +356,7 @@ class RunScriptDialog(Dialog.ActionDialog):
             items = self.scripts_list_widget.items
             items.extend([ScriptListItem(file_path) for file_path in file_paths])
             self.update_scripts_list(items)
+            self.rebuild_scripts_list()
 
         def add_folder_clicked() -> None:
             add_dir = self.ui.get_persistent_string("import_directory", "")
@@ -304,6 +371,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                 items = self.scripts_list_widget.items
                 items.append(new_folder)
                 self.update_scripts_list(items)
+                self.rebuild_scripts_list()
 
         def remove_clicked() -> None:
             indexes = list(self.scripts_list_widget.selected_items)
@@ -312,6 +380,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                 if not i in indexes:
                     new_items.append(item)
             self.update_scripts_list(new_items)
+            self.rebuild_scripts_list()
 
         def run_clicked() -> None:
             indexes = self.scripts_list_widget.selected_items
@@ -329,6 +398,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.scripts_list_widget = Widgets.ListWidget(ui, ScriptListCanvasItemDelegate(ui, self.rebuild_scripts_list), items=items, selection_style=Selection.Style.single_or_none, border_color="#888", properties={"min-height": 200, "min-width": 560, "size-policy-vertical": "expanding"})
         self.scripts_list_widget.on_selection_changed = selected_changed
         self.scripts_list_widget.on_item_selected = item_selected
+        self.rebuild_scripts_list()
 
         add_button_widget = ui.create_push_button_widget(_("Add..."))
         add_button_widget.on_clicked = add_clicked
@@ -399,12 +469,13 @@ class RunScriptDialog(Dialog.ActionDialog):
 
     def update_scripts_list(self, new_scripts_list):
         self.scripts_list_widget.items = _build_sorted_scripts_list(new_scripts_list)
-        self.ui.set_persistent_object("interactive_scripts_1", self.scripts_list_widget.items)
+        self.ui.set_persistent_string("interactive_scripts_1", json.dumps([item.to_dict() for item in self.scripts_list_widget.items]))
 
     def rebuild_scripts_list(self):
         items = self.scripts_list_widget.items
         for item in items:
-            if isinstance(item, FolderListItem):
+            exists = item.check_existance()
+            if exists and isinstance(item, FolderListItem):
                 item.update_content_from_file_system(filter_pattern=self.script_filter_pattern)
         self.update_scripts_list(self.scripts_list_widget.items)
 
