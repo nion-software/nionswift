@@ -163,8 +163,8 @@ class ScriptListItem:
         instance = cls(cls_dict.pop("full_path"))
         for key, value in cls_dict.items():
             attr_name = key
-            if key.startswith('__'):
-                attr_name = cls.__name__ + key
+            if key.startswith("__"):
+                attr_name = "_" + cls.__name__ + key
             if hasattr(instance, attr_name):
                 setattr(instance, attr_name, value)
         return instance
@@ -215,6 +215,13 @@ class FolderListItem(ScriptListItem):
                 "_exists": self._exists,
                 "__content": [item.to_dict() for item in self.content],
                 "folder_closed": self.folder_closed}
+
+    @classmethod
+    def from_dict(cls, cls_dict: dict) -> "FolderListItem":
+        content = cls_dict.pop("__content", list())
+        instance = super(FolderListItem, cls).from_dict(cls_dict)
+        instance._FolderListItem__content = [ScriptListItem.from_dict(item) for item in content]
+        return instance
 
     # Used by "sort"
     def __lt__(self, other) -> bool:
@@ -356,7 +363,6 @@ class RunScriptDialog(Dialog.ActionDialog):
             items = self.scripts_list_widget.items
             items.extend([ScriptListItem(file_path) for file_path in file_paths])
             self.update_scripts_list(items)
-            self.rebuild_scripts_list()
 
         def add_folder_clicked() -> None:
             add_dir = self.ui.get_persistent_string("import_directory", "")
@@ -371,6 +377,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                 items = self.scripts_list_widget.items
                 items.append(new_folder)
                 self.update_scripts_list(items)
+            else:
                 self.rebuild_scripts_list()
 
         def remove_clicked() -> None:
@@ -380,14 +387,14 @@ class RunScriptDialog(Dialog.ActionDialog):
                 if not i in indexes:
                     new_items.append(item)
             self.update_scripts_list(new_items)
-            self.rebuild_scripts_list()
 
         def run_clicked() -> None:
             indexes = self.scripts_list_widget.selected_items
             if len(indexes) == 1:
                 script_item = self.scripts_list_widget.items[list(indexes)[0]]
+                script_item.check_existance()
                 # Use "type" instead of "isinstance" to exclude subclasses from matching
-                if type(script_item) is ScriptListItem:
+                if type(script_item) is ScriptListItem and script_item.exists:
                     script_path = script_item.full_path
                     self.run_script(script_path)
 
@@ -468,15 +475,16 @@ class RunScriptDialog(Dialog.ActionDialog):
         return self.__cancelled
 
     def update_scripts_list(self, new_scripts_list):
-        self.scripts_list_widget.items = _build_sorted_scripts_list(new_scripts_list)
+        for item in new_scripts_list:
+            if isinstance(item, FolderListItem):
+                item.update_content_from_file_system(filter_pattern=self.script_filter_pattern)
+        items = _build_sorted_scripts_list(new_scripts_list)
+        for item in items:
+            item.check_existance()
+        self.scripts_list_widget.items = items
         self.ui.set_persistent_string("interactive_scripts_1", json.dumps([item.to_dict() for item in self.scripts_list_widget.items]))
 
     def rebuild_scripts_list(self):
-        items = self.scripts_list_widget.items
-        for item in items:
-            exists = item.check_existance()
-            if exists and isinstance(item, FolderListItem):
-                item.update_content_from_file_system(filter_pattern=self.script_filter_pattern)
         self.update_scripts_list(self.scripts_list_widget.items)
 
     def __make_cancel_row(self):
