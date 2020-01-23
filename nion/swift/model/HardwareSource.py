@@ -425,7 +425,7 @@ class DataChannel:
         * data_channel_start_event
         * data_channel_stop_event
 
-    All events will be fired the acquisition thread.
+    All events will be fired on the acquisition thread.
 
     The client can access the following properties of the channel:
         * channel_id
