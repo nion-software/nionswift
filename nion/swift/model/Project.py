@@ -365,9 +365,11 @@ def data_structure_factory(lookup_id):
 
 def make_project(profile_context, project_reference: typing.Dict) -> typing.Optional[Project]:
     project_storage_system = FileStorageSystem.make_storage_system(profile_context, project_reference)
-    project_storage_system.load_properties()
     if project_storage_system:
+        project_storage_system.load_properties()
         return Project(project_storage_system, project_reference)
+    else:
+        logging.getLogger("loader").warning(f"Project could not be loaded {project_reference}.")
     return None
 
 
