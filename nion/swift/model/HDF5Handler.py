@@ -7,6 +7,7 @@ import json
 import os
 import pathlib
 import threading
+import typing
 
 import h5py
 import numpy
@@ -119,6 +120,24 @@ class HDF5Handler:
                     self.__ensure_open()
                     self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype)
             self.__copy_data(data)
+            if json_properties is not None:
+                self.__dataset.attrs["properties"] = json_properties
+            self.__fp.flush()
+
+    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype, file_datetime) -> None:
+        # reserve data of the given shape and dtype, filled with zeros
+        with self.__lock:
+            self.__ensure_open()
+            json_properties = None
+            if "data" in self.__fp:
+                self.__dataset = self.__fp["data"]
+                json_properties = self.__dataset.attrs.get("properties", "")
+                self.__dataset = None
+                self.__fp.close()
+                self.__fp = None
+                os.remove(self.__file_path)
+                self.__ensure_open()
+            self.__dataset = self.__fp.require_dataset("data", shape=data_shape, dtype=data_dtype, fillvalue=0)
             if json_properties is not None:
                 self.__dataset.attrs["properties"] = json_properties
             self.__fp.flush()

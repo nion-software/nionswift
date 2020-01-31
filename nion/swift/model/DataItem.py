@@ -1026,6 +1026,23 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         finally:
             self.decrement_data_ref_count()
 
+    def reserve_data(self, *, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype, data_descriptor: DataAndMetadata.DataDescriptor, data_modified=None) -> None:
+        """Reserves the underlying data without necessarily allocating memory. Useful for memory mapped files.
+        """
+        self.increment_data_ref_count()
+        try:
+            if self.persistent_object_context:
+                self.reserve_external_data("data", data_shape, data_dtype)
+                data = self.__load_data()
+                data_shape_and_dtype = data_shape, data_dtype
+                timezone = Utility.get_local_timezone()
+                timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
+                new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, None, None, None, None, data, data_descriptor, timezone, timezone_offset)
+                self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
+                self.__data_and_metadata.unloadable = True
+        finally:
+            self.decrement_data_ref_count()
+
     def set_data_and_metadata_partial(self, data_metadata: DataAndMetadata.DataMetadata,
                                       data_and_metadata: DataAndMetadata.DataAndMetadata, src: typing.Sequence[slice],
                                       dst: typing.Sequence[slice], update_metadata: bool = False,

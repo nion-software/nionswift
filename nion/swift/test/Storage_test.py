@@ -18,6 +18,7 @@ import numpy
 
 # local libraries
 from nion.data import Calibration
+from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import ComputationPanel
 from nion.swift import DisplayPanel
@@ -840,6 +841,29 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
+                document_model.data_items[0].set_data(zeros)
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                self.assertTrue(numpy.array_equal(document_model.data_items[0].data, zeros))
+
+    def test_data_changes_reserve_large_format_file(self):
+        with create_temp_profile_context() as profile_context:
+            zeros = numpy.zeros((8, 8), numpy.uint32)
+            ones = numpy.ones((8, 8), numpy.uint32)
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem()
+                data_item.large_format = True
+                document_model.append_data_item(data_item)
+                data_item.reserve_data(data_shape=ones.shape, data_dtype=ones.dtype, data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
+                self.assertTrue(numpy.array_equal(zeros, data_item.data))
+                data_item.set_data_and_metadata_partial(data_item.xdata.data_metadata,
+                                                  DataAndMetadata.new_data_and_metadata(ones), (slice(0,8), slice(0, 8)),
+                                                  (slice(0,8), slice(0, 8)))
+                self.assertTrue(numpy.array_equal(ones, data_item.data))
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                self.assertTrue(numpy.array_equal(document_model.data_items[0].data, ones))
                 document_model.data_items[0].set_data(zeros)
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):

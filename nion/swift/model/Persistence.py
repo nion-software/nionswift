@@ -7,6 +7,7 @@ import abc
 import copy
 import datetime
 import logging
+import numpy
 import re
 import typing
 import uuid
@@ -183,6 +184,9 @@ class PersistentStorageInterface(abc.ABC):
 
     @abc.abstractmethod
     def write_external_data(self, item, name: str, value) -> None: ...
+
+    @abc.abstractmethod
+    def reserve_external_data(self, item, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None: ...
 
     @abc.abstractmethod
     def enter_write_delay(self, object) -> None: ...
@@ -984,6 +988,10 @@ class PersistentObject:
     def write_external_data(self, name: str, value) -> None:
         """ Call this to notify write external data value with name to an item in persistent storage. """
         self.persistent_storage.write_external_data(self, name, value)
+
+    def reserve_external_data(self, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
+        """ Call this to notify reserve external data value with name to an item in persistent storage. """
+        self.persistent_storage.reserve_external_data(self, name, data_shape, data_dtype)
 
     def enter_write_delay(self) -> None:
         """ Call this to notify this context that the object should be write delayed. """

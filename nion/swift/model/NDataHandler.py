@@ -15,6 +15,7 @@ import pathlib
 import struct
 import threading
 import time
+import typing
 
 # local libraries
 from nion.swift.model import Utility
@@ -440,6 +441,9 @@ class NDataHandler:
             tz_minutes = Utility.local_utcoffset_minutes(file_datetime)
             timestamp = calendar.timegm(file_datetime.timetuple()) - tz_minutes * 60
             os.utime(absolute_file_path, (time.time(), timestamp))
+
+    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype, file_datetime) -> None:
+        pass
 
     def write_properties(self, properties, file_datetime):
         """

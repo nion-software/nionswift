@@ -4,6 +4,7 @@ import copy
 import datetime
 import json
 import logging
+import numpy
 import os.path
 import pathlib
 import shutil
@@ -57,8 +58,11 @@ class DataItemStorageAdapter:
         if data is not None:
             self.__storage_handler.write_data(data, file_datetime)
 
+    def reserve_data(self, item, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
+        file_datetime = item.created_local
+        self.__storage_handler.reserve_data(data_shape, data_dtype, file_datetime)
+
     def load_data(self, item) -> None:
-        assert item.has_data
         return self.__storage_handler.read_data()
 
 
@@ -309,6 +313,9 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
     def write_external_data(self, item, name: str, value) -> None:
         pass
 
+    def reserve_external_data(self, item, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
+        pass
+
     def enter_write_delay(self, object) -> None:
         count = self.__write_delay_counts.setdefault(object, 0)
         self.__write_delay_counts[object] = count + 1
@@ -552,6 +559,13 @@ class ProjectStorageSystem(PersistentStorageSystem):
             super().write_external_data(item, name, value)
 
     # override
+    def reserve_external_data(self, item, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
+        if isinstance(item, DataItem.DataItem) and name == "data":
+            self.__reserve_data_item_data(item, data_shape, data_dtype)
+        else:
+            super().reserve_external_data(item, name, data_shape, data_dtype)
+
+    # override
     def rewrite_item(self, item) -> None:
         if isinstance(item, DataItem.DataItem):
             self.__rewrite_data_item_properties(item)
@@ -587,6 +601,10 @@ class ProjectStorageSystem(PersistentStorageSystem):
         storage = self.__storage_adapter_map.get(data_item.uuid)
         if not self.is_write_delayed(data_item):
             storage.update_data(data_item, data)
+
+    def __reserve_data_item_data(self, data_item: DataItem.DataItem, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
+        storage = self.__storage_adapter_map.get(data_item.uuid)
+        storage.reserve_data(data_item, data_shape, data_dtype)
 
     def __rewrite_data_item_properties(self, data_item: DataItem.DataItem) -> None:
         if not self.is_write_delayed(data_item):
