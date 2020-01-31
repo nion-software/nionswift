@@ -1688,7 +1688,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                                 self.__item_inserted_listener = None
                         self.__item_inserted_listener = self.__document_model.item_inserted_event.listen(item_inserted)
 
-    def __queue_data_item_update(self, data_item, data_and_metadata):
+    def __queue_data_item_update(self, data_item: DataItem.DataItem, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
         # put the data update to data_item into the pending_data_item_updates list.
         # the pending_data_item_updates will be serviced when the main thread calls
         # perform_data_item_updates.
@@ -1710,6 +1710,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     data_item.set_pending_xdata(data_and_metadata)
                     pending_data_item_updates.append(data_item)
                 self.__pending_data_item_updates = pending_data_item_updates
+
+    def update_data_item_partial(self, data_item: DataItem.DataItem, data_metadata: DataAndMetadata.DataMetadata,
+                                 data_and_metadata: DataAndMetadata.DataAndMetadata, src_slice: typing.Sequence[slice],
+                                 dst_slice: typing.Sequence[slice]) -> None:
+        if data_item:
+            with self.__pending_data_item_updates_lock:
+                assert data_metadata
+                data_item.queue_partial_update(data_and_metadata, src_slice=src_slice, dst_slice=dst_slice, metadata=data_metadata)
+                self.__pending_data_item_updates.append(data_item)
 
     def perform_data_item_updates(self):
         assert threading.current_thread() == threading.main_thread()

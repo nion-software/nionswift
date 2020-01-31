@@ -237,6 +237,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__change_data_changed = False
         self.__pending_xdata_lock = threading.RLock()
         self.__pending_xdata = None
+        self.__pending_queue = list()
         self.__content_changed = False
         self.__suspendable_storage_cache = None
         self.r_var = None
@@ -734,14 +735,28 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         with self.__pending_xdata_lock:
             self.__pending_xdata = xd
 
+    def queue_partial_update(self, partial_xdata: DataAndMetadata.DataAndMetadata, *,
+                             src_slice: typing.Optional[typing.Sequence[slice]] = None,
+                             dst_slice: typing.Optional[typing.Sequence[slice]] = None,
+                             metadata: DataAndMetadata.DataMetadata = None) -> None:
+        with self.__pending_xdata_lock:
+            self.__pending_queue.append((partial_xdata, src_slice, dst_slice, metadata))
+
     def update_to_pending_xdata(self):
         with self.__pending_xdata_lock:
             pending_xdata = self.__pending_xdata
+            pending_queue = self.__pending_queue
             self.__pending_xdata = None
-        if pending_xdata:
+            self.__pending_queue = list()
+        if pending_xdata or pending_queue:
             assert threading.current_thread() == threading.main_thread()
             with self.data_item_changes():
-                self.set_xdata(pending_xdata)
+                # it is an error to have both pending xdata and a pending queue
+                assert not pending_xdata or not pending_queue
+                if pending_xdata:
+                    self.set_xdata(pending_xdata)
+                for partial_xdata, partial_src_slice, partial_dst_slice, partial_metadata in pending_queue:
+                    self.set_data_and_metadata_partial(partial_metadata, partial_xdata, partial_src_slice, partial_dst_slice, update_metadata=True)
 
     @property
     def xdata(self) -> DataAndMetadata.DataAndMetadata:
@@ -1010,6 +1025,49 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                     self.__data_and_metadata.unloadable = True
         finally:
             self.decrement_data_ref_count()
+
+    def set_data_and_metadata_partial(self, data_metadata: DataAndMetadata.DataMetadata,
+                                      data_and_metadata: DataAndMetadata.DataAndMetadata, src: typing.Sequence[slice],
+                                      dst: typing.Sequence[slice], update_metadata: bool = False,
+                                      data_modified: datetime.datetime = None) -> None:
+        with self.data_source_changes():
+            self.increment_data_ref_count()
+            try:
+                if not self.__data_and_metadata:
+                    data = numpy.zeros(data_metadata.data_shape, data_metadata.data_dtype)
+                    data_shape_and_dtype = data_metadata.data_shape_and_dtype
+                    intensity_calibration = data_metadata.intensity_calibration
+                    dimensional_calibrations = data_metadata.dimensional_calibrations
+                    metadata = data_metadata.metadata
+                    timestamp = data_metadata.timestamp
+                    data_descriptor = data_metadata.data_descriptor
+                    timezone = data_metadata.timezone or Utility.get_local_timezone()
+                    timezone_offset = data_metadata.timezone_offset or Utility.TimezoneMinutesToStringConverter().convert(
+                        Utility.local_utcoffset_minutes())
+                    new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype,
+                                                                            intensity_calibration,
+                                                                            dimensional_calibrations, metadata,
+                                                                            timestamp, data, data_descriptor, timezone,
+                                                                            timezone_offset)
+                    self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
+                if self.__data_and_metadata is not None:
+                    if update_metadata:
+                        self.__data_and_metadata._set_data_descriptor(data_metadata.data_descriptor)
+                        self.__data_and_metadata._set_intensity_calibration(data_metadata.intensity_calibration)
+                        self.__data_and_metadata._set_dimensional_calibrations(data_metadata.dimensional_calibrations)
+                        self.__data_and_metadata._set_metadata(data_metadata.metadata)
+                        self.__data_and_metadata._set_timestamp(data_metadata.timestamp)
+                        self.__data_and_metadata.timezone = data_metadata.timezone
+                        self.__data_and_metadata.timezone_offset = data_metadata.timezone_offset
+                    assert self.__data_and_metadata.data_shape == data_metadata.data_shape
+                    assert self.__data_and_metadata.data_dtype == data_metadata.data_dtype
+                    assert self.__data_and_metadata.data_dtype == data_and_metadata.data_dtype
+                    self.__data_and_metadata.data[dst] = data_and_metadata.data[src]
+                    if self.persistent_object_context and not self.is_write_delayed:
+                        self.write_external_data("data", self.__data_and_metadata.data)
+                        self.__data_and_metadata.unloadable = True
+            finally:
+                self.decrement_data_ref_count()
 
     @property
     def data_shape(self):
