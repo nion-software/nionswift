@@ -295,7 +295,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
             data_item.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration(1.2, 2.2, "s")])
             document_model.append_data_item(data_item)
-            computation = document_model.create_computation(Symbolic.xdata_expression("xd.concatenate((a.xdata[0:2, 0:2], a.xdata[2:4, 2:4]))"))
+            computation = document_model.create_computation(Symbolic.xdata_expression("xd.concatenate((a.xdata[0:2, 0:2], a.xdata[0:2, 2:4]))"))
             computation.create_input_item("a", Symbolic.make_item(data_item))
             document_model.append_computation(computation)
             data_and_metadata = DocumentModel.evaluate_data(computation)
