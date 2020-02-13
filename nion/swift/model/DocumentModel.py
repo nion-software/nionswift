@@ -2513,6 +2513,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d]}]}
             vs["sequence-align"] = {"title": _("Alignment"), "expression": "xd.sequence_align({src}.xdata, 100)",
                 "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
+            vs["sequence-fourier-align"] = {"title": _("Alignment"), "expression": "xd.sequence_fourier_align({src}.xdata, 100)",
+                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
             vs["sequence-integrate"] = {"title": _("Integrate"), "expression": "xd.sequence_integrate({src}.xdata)",
                 "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
             trim_start_param = {"name": "start", "label": _("Start"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
@@ -2677,6 +2679,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def get_sequence_align_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("sequence-align", [(display_item, crop_region)])
+
+    def get_sequence_fourier_align_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("sequence-fourier-align", [(display_item, crop_region)])
 
     def get_sequence_integrate_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("sequence-integrate", [(display_item, crop_region)])
