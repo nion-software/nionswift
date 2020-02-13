@@ -78,6 +78,7 @@ class ExportDialog(Dialog.OkCancelDialog):
             [_("Include Date"), "date", True],
             [_("Include Dimensions"), "dimensions", True],
             [_("Include Sequence Number"), "sequence", True],
+            [_("Include Prefix:"), "prefix", False]
         ]
 
         self.options = dict()
@@ -105,6 +106,9 @@ class ExportDialog(Dialog.OkCancelDialog):
             check_box_widget.on_checked_changed = functools.partial(checked_changed, option_id)
             individual_options_column.add_spacing(4)
             individual_options_column.add(check_box_widget)
+            if option_id == "prefix":
+                self.prefix_edit_widget = self.ui.create_text_edit_widget(properties={"max-height": 35})
+                individual_options_column.add(self.prefix_edit_widget)
 
         options_row = self.ui.create_row_widget()
         options_row.add_spacing(26)
@@ -151,6 +155,8 @@ class ExportDialog(Dialog.OkCancelDialog):
                 data_item = display_item.data_item
                 try:
                     components = list()
+                    if self.options.get("prefix", False):
+                        components.append(str(self.prefix_edit_widget.text))
                     if self.options.get("title", False):
                         title = unicodedata.normalize('NFKC', data_item.title)
                         title = re.sub('[^\w\s-]', '', title, flags=re.U).strip()
