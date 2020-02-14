@@ -511,7 +511,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         if profile_context:
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
         else:
-            document_model = DocumentModel.DocumentModel(profile=Profile.Profile())
+            document_model = DocumentModel.DocumentModel(profile=Profile.Profile(auto_project=True))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         hardware_source = SimpleHardwareSource()
         hardware_source.exposure = 0.01
@@ -519,7 +519,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         return document_controller, document_model, hardware_source
 
     def __setup_summed_hardware_source(self, storage_system=None):
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system, auto_project=True))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         hardware_source = SummedHardwareSource()
         hardware_source.exposure = 0.01
@@ -527,7 +527,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         return document_controller, document_model, hardware_source
 
     def __setup_line_plot_hardware_source(self, shape, processed=False, storage_system=None):
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system))
+        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system, auto_project=True))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         hardware_source = LinePlotHardwareSource(shape, processed)
         hardware_source.exposure = 0.01
@@ -746,7 +746,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             document_model.setup_channel(document_model.make_data_item_reference_key(hardware_source.hardware_source_id, "a"), data_item)
-            hardware_source.data_channels[0].update(DataAndMetadata.new_data_and_metadata(data), "complete", None, None)
+            hardware_source.data_channels[0].update(DataAndMetadata.new_data_and_metadata(data), "complete", None, None, None, None)
             hardware_source.exposure = 0.02
             hardware_source.start_playing()
             time.sleep(0.01)

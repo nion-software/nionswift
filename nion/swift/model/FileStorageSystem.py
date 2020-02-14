@@ -1,3 +1,4 @@
+import abc
 import collections
 import copy
 import datetime
@@ -11,30 +12,28 @@ import typing
 import uuid
 
 from nion.swift.model import DataItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import HDF5Handler
 from nion.swift.model import Migration
 from nion.swift.model import NDataHandler
+from nion.swift.model import Persistence
 from nion.swift.model import Utility
+from nion.utils import Event
+
+
+# define the versions that get stored in the JSON files
+PROFILE_VERSION = 2
+PROJECT_VERSION = 3
+PROJECT_VERSION_0_14 = 2
+
+ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "large_format", "storage_handler", "identifier"])
 
 
 class DataItemStorageAdapter:
-    """Persistent storage for writing data item properties, relationships, and data to its storage handler.
+    """Persistent storage for writing data item properties, relationships, and data to its storage handler."""
 
-    The storage_handler must respond to these methods:
-        close()
-        read_data()
-        write_properties(properties, file_datetime)
-        write_data(data, file_datetime)
-        remove()
-    """
-
-    def __init__(self, storage_system, storage_handler, properties):
-        self.__storage_system = storage_system
+    def __init__(self, storage_handler, properties: typing.Dict):
         self.__storage_handler = storage_handler
-        self.__properties = Migration.transform_to_latest(Utility.clean_dict(copy.deepcopy(properties) if properties else dict()))
-        self.__properties_lock = threading.RLock()
-        self.__write_delayed = False
+        self.__properties = properties
 
     def close(self):
         if self.__storage_handler:
@@ -43,199 +42,736 @@ class DataItemStorageAdapter:
 
     @property
     def properties(self):
-        with self.__properties_lock:
-            return self.__properties
+        return self.__properties
 
     @property
-    def _storage_handler(self):
+    def storage_handler(self):
         return self.__storage_handler
 
-    def set_write_delayed(self, item, write_delayed: bool) -> None:
-        self.__write_delayed = write_delayed
-
-    def is_write_delayed(self, item) -> bool:
-        return self.__write_delayed
-
     def rewrite_item(self, item) -> None:
-        if not self.__write_delayed:
-            file_datetime = item.created_local
-            self.__storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(self.__properties)), file_datetime)
+        file_datetime = item.created_local
+        self.__storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(self.__properties)), file_datetime)
 
     def update_data(self, item, data):
-        if not self.__write_delayed:
-            file_datetime = item.created_local
-            if data is not None:
-                self.__storage_handler.write_data(data, file_datetime)
+        file_datetime = item.created_local
+        if data is not None:
+            self.__storage_handler.write_data(data, file_datetime)
 
     def load_data(self, item) -> None:
         assert item.has_data
         return self.__storage_handler.read_data()
 
 
-class FileStorageSystem:
+def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem",
+                      target_project_storage_system: "ProjectStorageSystem" = None) -> None:
+    """Migrate the library data in source to target, upgrading them in the process.
 
-    _file_handlers = [NDataHandler.NDataHandler, HDF5Handler.HDF5Handler]
+    If target is None, then migration is done in place.
+    """
+    library_properties = None
+    data_item_uuids = set()
+    reader_info_list = list()
+    library_updates = dict()
+    deletions = list()
 
-    def __init__(self, file_path, directories, *, auto_migrations=None):
-        self.__directories = directories
-        self.__file_handlers = FileStorageSystem._file_handlers
-        self.__data_item_storage = dict()
-        self.__filepath = file_path
-        self.__properties = self.__read_properties()
+    target_project_storage_system = target_project_storage_system or source_project_storage_system
+
+    # iterate through migration stages from newest to oldest, reading data items, updating them to the latest
+    # version, and copying them to the new library. migration stages are the high level directories representing
+    # different library versions up to 13. after version 13, files are stored in project files which have their own
+    # versioning.
+    for migration_stage in source_project_storage_system._get_migration_stages():
+
+        # find all data items for the given migration stage and return a list of storage handlers.
+        # examples of storage handlers are NDataHandler and HDF5Handler. these give low level access to the file.
+        storage_handlers = source_project_storage_system._find_data_items(migration_stage)
+
+        # next, construct a list of ReaderInfo objects. ReaderInfo stores the properties portion of the data item,
+        # whether it has been changed during migration, whether it is a large format file, its storage handler,
+        # and an identifier key. this loop skips files that cannot be read but prints an error message.
+        preliminary_reader_info_list = list()
+        for storage_handler in storage_handlers:
+            try:
+                large_format = source_project_storage_system._is_storage_handler_large_format(storage_handler)
+                properties = Migration.transform_to_latest(storage_handler.read_properties())
+                reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
+                preliminary_reader_info_list.append(reader_info)
+            except Exception as e:
+                logging.debug("Error reading %s", storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+
+        # now read the library properties which contains the data item deletions. data item deletions exist to
+        # facilitate switching between library versions. if the user deletes an item in a newer library, that item
+        # is marked as deleted so that if migration is performed again, that deleted item will not be re-migrated.
+        new_library_properties = source_project_storage_system._read_library_properties(migration_stage)
+        for deletion in copy.deepcopy(new_library_properties.get("data_item_deletions", list())):
+            if not deletion in deletions:
+                deletions.append(deletion)
+
+        # set library properties to one from the first/newest migration stage encountered with library properties.
+        if library_properties is None:
+            library_properties = copy.deepcopy(new_library_properties)
+
+        # next, for each item in the list of ReaderInfo objects, migrate it to the latest version. doing this may
+        # produce additional library updates in preliminary_library_updates. these are changes to the library that
+        # must be made in order to move information that at one point was stored in the data item files into the
+        # library. an example is a computation, which was originally stored in the data item file itself.
+        preliminary_library_updates = dict()
+        Migration.migrate_to_latest(preliminary_reader_info_list, preliminary_library_updates)
+
+        # finally, for each item in the preliminary_reader_info_list, confirm that it is the latest version and then
+        # check whether it has a unique UUID that hasn't been deleted, and, if so, try to copy the data item to its
+        # new location. if successful, mark the data item as having been added to the new library and add any
+        # preliminary library updates to the library updates list to be applied later.
+        count = len(preliminary_reader_info_list)
+        for index, reader_info in enumerate(preliminary_reader_info_list):
+            properties = reader_info.properties
+            try:
+                version = properties.get("version", 0)
+                if version == DataItem.DataItem.writer_version:
+                    data_item_uuid = uuid.UUID(properties["uuid"])
+                    if not data_item_uuid in data_item_uuids:
+                        if not str(data_item_uuid) in deletions:
+                            new_reader_info = target_project_storage_system._migrate_data_item(reader_info, index, count)
+                            if new_reader_info:
+                                reader_info_list.append(new_reader_info)
+                                data_item_uuids.add(data_item_uuid)
+                                library_update = preliminary_library_updates.get(data_item_uuid)
+                                if library_update:
+                                    library_updates[data_item_uuid] = library_update
+            except Exception as e:
+                logging.debug(f"Error reading {reader_info.storage_handler.reference}")
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+
+    assert len(reader_info_list) == len(data_item_uuids)
+
+    # for each data item represented by a ReaderInfo object, apply its library updates. this will include
+    # connections, computations, and display items. for instance, before version 13, the data item and display item
+    # were both stored in the data item file; this migrates the display portion to the library properties.
+    for reader_info in reader_info_list:
+        properties = reader_info.properties
+        properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
+        version = properties.get("version", 0)
+        if version == DataItem.DataItem.writer_version:
+            data_item_uuid = uuid.UUID(properties.get("uuid", uuid.uuid4()))
+            library_update = library_updates.get(data_item_uuid, dict())
+            library_properties.setdefault("connections", list()).extend(library_update.get("connections", list()))
+            library_properties.setdefault("computations", list()).extend(library_update.get("computations", list()))
+            library_properties.setdefault("display_items", list()).extend(library_update.get("display_items", list()))
+
+    connections_list = library_properties.get("connections", list())
+    assert len(connections_list) == len({connection.get("uuid") for connection in connections_list})
+
+    computations_list = library_properties.get("computations", list())
+    assert len(computations_list) == len({computation.get("uuid") for computation in computations_list})
+
+    # migrate the library properties
+    Migration.migrate_library_to_latest(library_properties)
+
+    # TODO: add consistency checks: no duplicated items [by uuid] such as connections or computations or data items
+
+    assert library_properties["version"] == PROJECT_VERSION
+
+    # propagate the UUID
+    source_library_properties = source_project_storage_system.get_storage_properties()
+    if "uuid" in source_library_properties:
+        library_properties["uuid"] = source_library_properties["uuid"]
+
+    target_project_storage_system._migrate_library_properties(library_properties, reader_info_list)
+
+
+class PersistentStorageSystem(Persistence.PersistentStorageInterface):
+    """Abstract base class for persistent storage which implements the persistent storage interface.
+
+    Subclasses must implement _read_properties and _write_properties to read/write to persistent storage.
+
+    The `load_properties` method must be called after instantiating the subclass.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.__properties = dict()
         self.__properties_lock = threading.RLock()
         self.__write_delay_counts = dict()
-        self.__auto_migrations = auto_migrations or list()
-        for auto_migration in self.__auto_migrations:
-            auto_migration.storage_system = self
+        self.__write_delay_count = 0
 
-    def reset(self):
-        self.__data_item_storage = dict()
+    @abc.abstractmethod
+    def _write_properties(self) -> None:
+        """Write internal properties, retrieved using _get_properties, to persistent storage."""
+        ...
 
-    def get_auto_migrations(self):
-        return self.__auto_migrations
+    @abc.abstractmethod
+    def _read_properties(self) -> typing.Dict:
+        """Read internal properties from persistent storage."""
+        ...
 
-    def __read_properties(self):
-        properties = dict()
-        if self.__filepath and os.path.exists(self.__filepath):
-            try:
-                with open(self.__filepath, "r") as fp:
-                    properties = json.load(fp)
-            except Exception:
-                os.replace(self.__filepath, self.__filepath + ".bak")
-        # migrations go here
-        return properties
-
-    def __write_properties(self, object):
-        if self.__write_delay_counts.get(object, 0) == 0:
-            persistent_object_parent = object.persistent_object_parent if object else None
-            if object and isinstance(object, DataItem.DataItem):
-                self.__get_storage_for_item(object).rewrite_item(object)
-            elif not persistent_object_parent:
-                if self.__filepath:
-                    # atomically overwrite
-                    filepath = pathlib.Path(self.__filepath)
-                    temp_filepath = filepath.with_name(filepath.name + ".temp")
-                    with temp_filepath.open("w") as fp:
-                        json.dump(Utility.clean_dict(self.__properties), fp)
-                    os.replace(temp_filepath, filepath)
-            else:
-                self.__write_properties(persistent_object_parent.parent)
-
-    @property
-    def library_storage_properties(self):
+    def load_properties(self) -> None:
+        """Read properties and store them in internal storage. Should be called immediately after instantiation."""
         with self.__properties_lock:
-            return copy.deepcopy(self.__properties)
+            self.__properties = self._read_properties()
 
-    def _set_library_properties(self, properties):
-        """Set the properties; used for testing."""
-        with self.__properties_lock:
-            self.__properties = properties
+    def get_storage_properties(self) -> typing.Dict:
+        """Return the internal properties. Callers should not modify and it is ok to not return a copy."""
+        return self.__properties
 
-    def get_properties(self, object):
-        return self.__get_storage_dict(object)
+    def __write_properties_if_not_delayed(self, item) -> None:
+        if self.__write_delay_counts.get(item, 0) == 0:
+            self._write_item_properties(item)
 
-    def rewrite_properties(self, properties):
-        """Set the properties and write to disk."""
-        with self.__properties_lock:
-            self.__properties = properties
-        self.__write_properties(None)  # write to library
-
-    def __get_storage_dict(self, object):
-        persistent_object_parent = object.persistent_object_parent
-        if isinstance(object, DataItem.DataItem):
-            return self.__get_storage_for_item(object).properties
+    def _write_item_properties(self, item) -> None:
+        persistent_object_parent = item.persistent_object_parent if item else None
         if not persistent_object_parent:
-            return self.__properties
+            if self.__write_delay_count == 0:
+                self._write_properties()
         else:
-            parent_storage_dict = self.__get_storage_dict(persistent_object_parent.parent)
-            return object.get_accessor_in_parent()(parent_storage_dict)
+            self.__write_properties_if_not_delayed(persistent_object_parent.parent)
 
-    def __update_modified_and_get_storage_dict(self, object):
-        storage_dict = self.__get_storage_dict(object)
+    def get_properties(self, item: Persistence.PersistentObject) -> typing.Dict:
+        return item.persistent_dict
+
+    def __update_modified_and_get_storage_dict(self, item: Persistence.PersistentObject) -> typing.Dict:
+        # update modified time on object and all parent objects in internal storage
+        storage_dict = item.persistent_dict
         with self.__properties_lock:
-            storage_dict["modified"] = object.modified.isoformat()
-        persistent_object_parent = object.persistent_object_parent
+            storage_dict["modified"] = item.modified.isoformat()
+        persistent_object_parent = item.persistent_object_parent
         parent = persistent_object_parent.parent if persistent_object_parent else None
         if parent:
             self.__update_modified_and_get_storage_dict(parent)
         return storage_dict
 
-    def insert_item(self, parent, name, before_index, item):
-        if isinstance(item, DataItem.DataItem):
-            item.persistent_object_context = parent.persistent_object_context
-            storage_handler = self.make_storage_handler(item)
-            self.register_data_item(item, item.uuid, storage_handler, item.write_to_dict())
-        else:
-            storage_dict = self.__update_modified_and_get_storage_dict(parent)
-            with self.__properties_lock:
-                item_list = storage_dict.setdefault(name, list())
-                item_dict = item.write_to_dict()
-                item_list.insert(before_index, item_dict)
-                item.persistent_object_context = parent.persistent_object_context
-            self.__write_properties(parent)
+    def insert_item(self, parent, name: str, before_index: int, item) -> None:
+        # insert item in internal storage
+        item.persistent_dict = item.write_to_dict()
+        item.persistent_storage = self
+        self._insert_item(parent, name, before_index, item)
 
-    def remove_item(self, parent, name, index, item):
-        if isinstance(item, DataItem.DataItem):
-            self.delete_item(item, safe=True)
-            item.persistent_object_context = None
-            self.unregister_data_item(item)
-        else:
-            storage_dict = self.__update_modified_and_get_storage_dict(parent)
-            with self.__properties_lock:
-                item_list = storage_dict[name]
-                del item_list[index]
-            self.__write_properties(parent)
-            item.persistent_object_context = None
+    def remove_item(self, parent, name: str, index: int, item) -> None:
+        self._remove_item(parent, name, index, item)
+        item.persistent_dict = None
+        item.persistent_storage = None
 
-    def set_item(self, parent, name, item):
+    def _insert_item(self, parent, name: str, before_index: int, item) -> None:
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
-            if item:
-                item_dict = item.write_to_dict()
-                storage_dict[name] = item_dict
-                item.persistent_object_context = parent.persistent_object_context
-            else:
-                if name in storage_dict:
-                    del storage_dict[name]
-        self.__write_properties(parent)
+            item_list = storage_dict.setdefault(name, list())
+            item_list.insert(before_index, item.persistent_dict)
+        self.__write_properties_if_not_delayed(parent)
 
-    def set_property(self, object, name, value):
+    def _remove_item(self, parent, name: str, index: int, item) -> None:
+        # remove item from internal storage
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
+        with self.__properties_lock:
+            item_list = storage_dict[name]
+            del item_list[index]
+        self.__write_properties_if_not_delayed(parent)
+
+    def set_item(self, parent, name: str, item) -> None:
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
+        if item:
+            # set the item and update its persistent context
+            with self.__properties_lock:
+                item.persistent_dict = item.write_to_dict()
+                item.persistent_storage = self
+                storage_dict[name] = item.persistent_dict
+        else:
+            # clear the item
+            with self.__properties_lock:
+                storage_dict.pop(name, None)
+                item.persistent_dict = None
+                item.persistent_storage = None
+        self.__write_properties_if_not_delayed(parent)
+
+    def set_property(self, object, name: str, value) -> None:
+        # set property in internal storage
         storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.__properties_lock:
             storage_dict[name] = value
-        self.__write_properties(object)
+        self.__write_properties_if_not_delayed(object)
 
-    def clear_property(self, object, name):
+    def clear_property(self, object, name: str) -> None:
+        # clear property in internal storage
         storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.__properties_lock:
             storage_dict.pop(name, None)
-        self.__write_properties(object)
+        self.__write_properties_if_not_delayed(object)
 
-    def find_data_items(self):
-        return self.__find_storage_handlers(self.__directories)
+    def get_storage_property(self, item, name: str) -> typing.Optional[str]:
+        return None
 
-    def __find_storage_handlers(self, directories, *, skip_trash=True):
-        storage_handlers = list()
-        absolute_file_paths = set()
-        for directory in directories:
-            for root, dirs, files in os.walk(directory):
-                if not skip_trash or pathlib.Path(root).name != "trash":
-                    for data_file in files:
-                        if not data_file.startswith("."):
-                            absolute_file_paths.add(os.path.join(root, data_file))
-        for file_handler in self.__file_handlers:
-            for data_file in filter(file_handler.is_matching, absolute_file_paths):
-                try:
-                    storage_handler = file_handler(data_file)
-                    assert storage_handler.is_valid
-                    storage_handlers.append(storage_handler)
-                except Exception as e:
-                    logging.error("Exception reading file: %s", data_file)
-                    logging.error(str(e))
-                    raise
-        return storage_handlers
+    def read_external_data(self, item, name: str) -> typing.Any:
+        return None
 
-    def __get_base_path(self, data_item):
+    def write_external_data(self, item, name: str, value) -> None:
+        pass
+
+    def enter_write_delay(self, object) -> None:
+        count = self.__write_delay_counts.setdefault(object, 0)
+        self.__write_delay_counts[object] = count + 1
+
+    def exit_write_delay(self, object) -> None:
+        count = self.__write_delay_counts.get(object, 1)
+        count -= 1
+        if count == 0:
+            self.__write_delay_counts.pop(object)
+        else:
+            self.__write_delay_counts[object] = count
+
+    def is_write_delayed(self, item) -> bool:
+        return self.__write_delay_counts.get(item, 0) > 0
+
+    def rewrite_item(self, item) -> None:
+        self.__write_properties_if_not_delayed(item)
+
+    def read_properties(self) -> typing.Dict:
+        return self.get_storage_properties()
+
+    def enter_transaction(self) -> None:
+        self.__write_delay_count += 1
+
+    def exit_transaction(self) -> None:
+        self.__write_delay_count -= 1
+        if self.__write_delay_count == 0:
+            self.__write_properties_if_not_delayed(None)
+
+
+class FilePersistentStorageSystem(PersistentStorageSystem):
+    """File based persistent storage system."""
+
+    def __init__(self, path: pathlib.Path):
+        self.__path = path
+        super().__init__()
+
+    @property
+    def path(self) -> pathlib.Path:
+        return self.__path
+
+    def _read_properties(self) -> typing.Dict:
+        properties = dict()
+        if self.__path and self.__path.exists():
+            try:
+                with self.__path.open("r") as fp:
+                    properties = json.load(fp)
+            except Exception:
+                os.replace(self.__path, self.__path.with_suffix(".bak"))
+        return properties
+
+    def _write_properties(self) -> None:
+        if self.__path:
+            # atomically overwrite
+            temp_filepath = self.__path.with_suffix(".temp")
+            with temp_filepath.open("w") as fp:
+                properties = Utility.clean_dict(self.get_storage_properties())
+                json.dump(properties, fp)
+            os.replace(temp_filepath, self.__path)
+
+
+class MemoryPersistentStorageSystem(PersistentStorageSystem):
+    """File based persistent storage system. Useful for testing."""
+
+    def __init__(self, *, library_properties: typing.Dict = None):
+        self.__library_properties = library_properties if library_properties is not None else dict()
+        super().__init__()
+
+    def _read_properties(self) -> typing.Dict:
+        return copy.deepcopy(self.__library_properties)
+
+    def _write_properties(self) -> None:
+        self.__library_properties.clear()
+        self.__library_properties.update(self.get_storage_properties())
+
+    def set_library_properties(self, library_properties: typing.Dict) -> None:
+        self.__library_properties.clear()
+        self.__library_properties.update(library_properties)
+        self.load_properties()
+
+
+class ProjectStorageSystem(PersistentStorageSystem):
+    """Persistent storage system to provide special handling of data items."""
+
+    def __init__(self):
+        super().__init__()
+        self.__storage_adapter_map = dict()
+
+    @abc.abstractmethod
+    def _get_identifier(self) -> str: ...
+
+    @abc.abstractmethod
+    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler=None): ...
+
+    @abc.abstractmethod
+    def _find_storage_handlers(self) -> typing.List: ...
+
+    @abc.abstractmethod
+    def _is_storage_handler_large_format(self, storage_handler) -> bool: ...
+
+    @abc.abstractmethod
+    def _remove_storage_handler(self, storage_handler, *, safe: bool=False) -> None: ...
+
+    @abc.abstractmethod
+    def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]: ...
+
+    @abc.abstractmethod
+    def _prune(self) -> None: ...
+
+    @abc.abstractmethod
+    def _migrate_data_item(self, reader_info: ReaderInfo, index: int, count: int) -> typing.Optional[ReaderInfo]: ...
+
+    @abc.abstractmethod
+    def _migrate_library_properties(self, library_properties: typing.Dict, reader_info_list: typing.List[ReaderInfo]) -> None: ...
+
+    @abc.abstractmethod
+    def _get_migration_stages(self) -> typing.List[typing.Tuple[pathlib.Path, pathlib.Path]]: ...
+
+    @abc.abstractmethod
+    def _read_library_properties(self, migration_stage) -> typing.Dict: ...
+
+    @abc.abstractmethod
+    def _find_data_items(self, migration_stage) -> typing.List: ...
+
+    def get_identifier(self) -> str:
+        return self._get_identifier()
+
+    @property
+    def _data_properties_map(self) -> typing.Dict:
+        return self.__storage_adapter_map
+
+    def reset(self) -> None:
+        self.__storage_adapter_map = dict()
+
+    def get_persistent_dict(self, name: str, item_uuid: uuid.UUID) -> typing.Dict:
+        if name == "data_items":
+            return self._data_properties_map[item_uuid].properties
+        for item_d in self.get_storage_properties()[name]:
+            if uuid.UUID(item_d["uuid"]) == item_uuid:
+                return item_d
+        assert False
+
+    def read_project_properties(self) -> typing.Dict:
+        """Read data items from the data reference handler and return as a dict.
+
+        The dict may contain keys for data_items, display_items, data_structures, connections, and computations.
+        """
+        storage_handlers = self._find_storage_handlers()
+
+        reader_info_list = list()
+        for storage_handler in storage_handlers:
+            try:
+                large_format = self._is_storage_handler_large_format(storage_handler)
+                properties = Migration.transform_to_latest(storage_handler.read_properties())
+                reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
+                reader_info_list.append(reader_info)
+            except Exception as e:
+                logging.debug("Error reading %s", storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+
+        # to allow later writing back to storage, associate the data items with their storage adapters
+        for reader_info in reader_info_list:
+            storage_handler = reader_info.storage_handler
+            properties = reader_info.properties
+            data_item_uuid = uuid.UUID(properties["uuid"])
+            storage_adapter = DataItemStorageAdapter(storage_handler, properties)
+            self.__storage_adapter_map[data_item_uuid] = storage_adapter
+
+        properties_copy = self._read_properties()
+
+        # ensure unique connections
+        connections_list = properties_copy.get("connections", list())
+        assert len(connections_list) == len({connection.get("uuid") for connection in connections_list})
+
+        # ensure unique computations
+        computations_list = properties_copy.get("computations", list())
+        assert len(computations_list) == len({computation.get("uuid") for computation in computations_list})
+
+        for reader_info in reader_info_list:
+            data_item_properties = Utility.clean_dict(reader_info.properties if reader_info.properties else dict())
+            if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
+                data_item_properties["__large_format"] = reader_info.large_format
+                properties_copy.setdefault("data_items", list()).append(data_item_properties)
+
+        def data_item_created(data_item_properties: typing.Mapping) -> str:
+            return data_item_properties.get("created", "1900-01-01T00:00:00.000000")
+
+        data_items_copy = sorted(properties_copy.get("data_items", list()), key=data_item_created)
+        if len(data_items_copy) > 0:
+            properties_copy["data_items"] = data_items_copy
+
+        return properties_copy
+
+    # override
+    def _write_item_properties(self, item):
+        if item and isinstance(item, DataItem.DataItem):
+            self.__rewrite_data_item_properties(item)
+        else:
+            super()._write_item_properties(item)
+
+    # override
+    def _insert_item(self, parent, name: str, before_index: int, item) -> None:
+        if isinstance(item, DataItem.DataItem):
+            item_uuid = item.uuid
+            storage_handler = self._make_storage_handler(item)
+            assert item_uuid not in self.__storage_adapter_map
+            storage_adapter = DataItemStorageAdapter(storage_handler, item.persistent_dict)
+            self.__storage_adapter_map[item_uuid] = storage_adapter
+        else:
+            super()._insert_item(parent, name, before_index, item)
+
+    # override
+    def _remove_item(self, parent, name: str, index: int, item) -> None:
+        if isinstance(item, DataItem.DataItem):
+            assert item.uuid in self.__storage_adapter_map
+            storage = self.__storage_adapter_map.get(item.uuid)
+            self._remove_storage_handler(storage.storage_handler, safe=True)
+            self.__storage_adapter_map.pop(item.uuid).close()
+        else:
+            super()._remove_item(parent, name, index, item)
+
+    # override
+    def get_storage_property(self, item, name: str) -> typing.Optional[str]:
+        if isinstance(item, DataItem.DataItem):
+            return self.__get_data_item_property(item, name)
+        return super().get_storage_property(item, name)
+
+    # override
+    def read_external_data(self, item, name: str) -> typing.Any:
+        if isinstance(item, DataItem.DataItem) and name == "data":
+            return self.__read_data_item_data(item)
+        return super().read_external_data(item, name)
+
+    # override
+    def write_external_data(self, item, name: str, value) -> None:
+        if isinstance(item, DataItem.DataItem) and name == "data":
+            self.__write_data_item_data(item, value)
+        else:
+            super().write_external_data(item, name, value)
+
+    # override
+    def rewrite_item(self, item) -> None:
+        if isinstance(item, DataItem.DataItem):
+            self.__rewrite_data_item_properties(item)
+        else:
+            super().rewrite_item(item)
+
+    def restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
+        return self.__restore_item(data_item_uuid)
+
+    def prune(self) -> None:
+        self._prune()
+
+    def find_data_items(self) -> typing.List:
+        return self._find_storage_handlers()
+
+    def migrate_to_latest(self) -> None:
+        migrate_to_latest(self)
+
+    def __get_data_item_properties(self, data_item: DataItem.DataItem) -> typing.Dict:
+        return self.__storage_adapter_map.get(data_item.uuid).properties
+
+    def __get_data_item_property(self, data_item: DataItem.DataItem, name: str) -> typing.Optional[str]:
+        if name == "file_path":
+            storage = self.__storage_adapter_map.get(data_item.uuid)
+            return storage.storage_handler.reference if storage else None
+        return None
+
+    def __read_data_item_data(self, data_item: DataItem.DataItem):
+        storage = self.__storage_adapter_map.get(data_item.uuid)
+        return storage.load_data(data_item)
+
+    def __write_data_item_data(self, data_item: DataItem.DataItem, data) -> None:
+        storage = self.__storage_adapter_map.get(data_item.uuid)
+        if not self.is_write_delayed(data_item):
+            storage.update_data(data_item, data)
+
+    def __rewrite_data_item_properties(self, data_item: DataItem.DataItem) -> None:
+        if not self.is_write_delayed(data_item):
+            self.__storage_adapter_map.get(data_item.uuid).rewrite_item(data_item)
+
+    def __restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
+        return self._restore_item(data_item_uuid)
+
+
+class FileProjectStorageSystem(ProjectStorageSystem):
+
+    _file_handlers = [NDataHandler.NDataHandler, HDF5Handler.HDF5Handler]
+
+    def __init__(self, project_path: pathlib.Path, project_data_path: pathlib.Path = None):
+        super().__init__()
+        self.__project_path = project_path
+        self.__project_data_path = project_data_path
+
+    def load_properties(self) -> None:
+        super().load_properties()
+        project_data_folder_paths = list()
+        for project_data_folder in self.get_storage_properties().get("project_data_folders", list()):
+            project_data_folder_path = pathlib.Path(project_data_folder)
+            if not project_data_folder_path.is_absolute():
+                project_data_folder_path = self.__project_path.parent / project_data_folder_path
+            project_data_folder_paths.append(project_data_folder_path)
+        self.__project_data_path = project_data_folder_paths[0] if len(project_data_folder_paths) > 0 else self.__project_data_path
+
+    @property
+    def project_path(self) -> pathlib.Path:
+        return self.__project_path
+
+    def _read_properties(self) -> typing.Dict:
+        properties = dict()
+        if self.__project_path and self.__project_path.exists():
+            try:
+                with self.__project_path.open("r") as fp:
+                    properties = json.load(fp)
+            except Exception:
+                os.replace(self.__project_path, self.__project_path.with_suffix(".bak"))
+        return properties
+
+    def _write_properties(self) -> None:
+        self.__write_properties_inner(self.get_storage_properties())
+
+    def __write_properties_inner(self, properties: typing.Dict) -> None:
+        if self.__project_path:
+            # atomically overwrite
+            temp_filepath = self.__project_path.with_suffix(".temp")
+            with temp_filepath.open("w") as fp:
+                properties = Utility.clean_dict(properties)
+                project_data_paths = list()
+                for project_data_path in [self.__project_data_path] if self.__project_data_path else []:
+                    if project_data_path.parent == self.__project_path.parent:
+                        project_data_path = project_data_path.relative_to(project_data_path.parent)
+                    project_data_paths.append(project_data_path)
+                project_uuid = uuid.uuid4()
+                properties.setdefault("uuid", str(project_uuid))
+                properties["project_data_folders"] = [str(project_data_path) for project_data_path in project_data_paths]
+                json.dump(properties, fp)
+            os.replace(temp_filepath, self.__project_path)
+
+    def _get_identifier(self) -> str:
+        return str(self.__project_path)
+
+    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler=None):
+        # if there are two handlers, first is small, second is large
+        # if there is only one handler, it is used in all cases
+        large_format = hasattr(data_item, "large_format") and data_item.large_format
+        file_handler = file_handler if file_handler else (self._file_handlers[-1] if large_format else self._file_handlers[0])
+        return file_handler.make(self.__project_data_path / self.__get_base_path(data_item))
+
+    def _find_storage_handlers(self) -> typing.List:
+        return self.__find_storage_handlers(self.__project_data_path)
+
+    def _is_storage_handler_large_format(self, storage_handler) -> bool:
+        return isinstance(storage_handler, HDF5Handler.HDF5Handler)
+
+    def _remove_storage_handler(self, storage_handler, *, safe: bool=False) -> None:
+        file_path = pathlib.Path(storage_handler.reference)
+        file_name = file_path.parts[-1]
+        trash_dir = self.__project_data_path / "trash"
+        new_file_path = trash_dir / file_name
+        storage_handler.close()  # moving files in the storage handler requires it to be closed.
+        # TODO: move this functionality to the storage handler.
+        if safe and not os.path.exists(new_file_path):
+            trash_dir.mkdir(exist_ok=True)
+            shutil.move(file_path, new_file_path)
+        storage_handler.remove()
+
+    def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
+        data_item_uuid_str = str(data_item_uuid)
+        trash_dir = self.__project_data_path / "trash"
+        storage_handlers = self.__find_storage_handlers(trash_dir, skip_trash=False)
+        for storage_handler in storage_handlers:
+            properties = Migration.transform_to_latest(storage_handler.read_properties())
+            if properties.get("uuid", None) == data_item_uuid_str:
+                data_item = DataItem.DataItem(item_uuid=data_item_uuid)
+                data_item.begin_reading()
+                data_item.read_from_dict(properties)
+                data_item.finish_reading()
+                old_file_path = storage_handler.reference
+                new_file_path = storage_handler.make_path(self.__project_data_path / self.__get_base_path(data_item))
+                if not os.path.exists(new_file_path):
+                    os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
+                    shutil.move(old_file_path, new_file_path)
+                self._make_storage_handler(data_item, file_handler=None)
+                properties["__large_format"] = isinstance(storage_handler, HDF5Handler.HDF5Handler)
+                return properties
+        return None
+
+    def _prune(self) -> None:
+        if self.__project_data_path:
+            trash_dir = self.__project_data_path / "trash"
+            for file_path in trash_dir.rglob("*"):
+                # the date is not a reliable way of determining the age since a user may trash an old file. for now,
+                # we just delete anything in the trash at startup. future version may have an index file for
+                # tracking items in the trash. when items are again retained in the trash, update the disabled
+                # test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload
+                file_path.unlink()
+
+    @property
+    def _trash_dir(self) -> pathlib.Path:
+        return self.__project_data_path / "trash"
+
+    def _migrate_data_item(self, reader_info: ReaderInfo, index: int, count: int) -> typing.Optional[ReaderInfo]:
+        storage_handler = reader_info.storage_handler
+        properties = reader_info.properties
+        properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
+        data_item_uuid = uuid.UUID(properties["uuid"])
+        old_data_item = DataItem.DataItem(item_uuid=data_item_uuid)
+        old_data_item.begin_reading()
+        old_data_item.read_from_dict(properties)
+        old_data_item.finish_reading()
+        old_data_item_path = storage_handler.reference
+        # ask the storage system for the file handler for the data item path
+        file_handler = self.__get_file_handler_for_file(str(old_data_item_path))
+        # ask the storage system to make a storage handler (an instance of a file handler) for the data item
+        # this ensures that the storage handler (file format) is the same as before.
+        target_storage_handler = self._make_storage_handler(old_data_item, file_handler)
+        if target_storage_handler and storage_handler.reference != target_storage_handler.reference:
+            os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
+            shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
+            target_storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
+            logging.getLogger("migration").info(f"Copying data item ({index + 1}/{count}) {data_item_uuid} to new library.")
+            return ReaderInfo(properties, [False], self._is_storage_handler_large_format(target_storage_handler), target_storage_handler, target_storage_handler.reference)
+        logging.getLogger("migration").warning(f"Unable to copy data item {data_item_uuid} to new library.")
+        return None
+
+    def _migrate_library_properties(self, library_properties: typing.Dict, reader_info_list: typing.List[ReaderInfo]) -> None:
+        self.__write_properties_inner(library_properties)
+        for reader_info in reader_info_list:
+            data_item_properties = Utility.clean_dict(reader_info.properties if reader_info.properties else dict())
+            if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
+                file_datetime = DataItem.DatetimeToStringConverter().convert_back(data_item_properties.get("created", "1900-01-01T00:00:00.000000"))
+                reader_info.storage_handler.write_properties(reader_info.properties, file_datetime)
+
+    @staticmethod
+    def _get_migration_paths(library_path: pathlib.Path) -> typing.List[typing.Tuple[pathlib.Path, pathlib.Path]]:
+        return [
+            (library_path / "Nion Swift Library 13.nslib", library_path / "Nion Swift Data 13"),
+            (library_path / "Nion Swift Library 12.nslib", library_path / "Nion Swift Data 12"),
+            (library_path / "Nion Swift Workspace.nslib", library_path / "Nion Swift Data 11"),
+            (library_path / "Nion Swift Workspace.nslib", library_path / "Nion Swift Data 10"),
+            (library_path / "Nion Swift Workspace.nslib", library_path / "Nion Swift Data"),
+        ]
+
+    def _get_migration_stages(self) -> typing.List[typing.Tuple[pathlib.Path, pathlib.Path]]:
+        return self._get_migration_paths(self.__project_path.parent)
+
+    def _read_library_properties(self, migration_stage) -> typing.Dict:
+        properties = dict()
+        project_path = migration_stage[0]
+        if project_path and os.path.exists(project_path):
+            try:
+                with project_path.open("r") as fp:
+                    properties = json.load(fp)
+            except Exception:
+                os.replace(project_path, project_path.with_suffix(".bak"))
+        return properties
+
+    def _find_data_items(self, migration_stage) -> typing.List:
+        return self.__find_storage_handlers(migration_stage[1])
+
+    def __get_base_path(self, data_item: DataItem.DataItem) -> pathlib.Path:
         data_item_uuid = data_item.uuid
         created_local = data_item.created_local
         session_id = data_item.session_id
@@ -254,405 +790,190 @@ class FileStorageSystem:
         path_components.append(session_id)
         encoded_base_path = "data_" + encode(data_item_uuid, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
         path_components.append(encoded_base_path)
-        return os.path.join(*path_components)
+        return pathlib.Path(*path_components)
 
-    def get_file_handler_for_file(self, path):
-        for file_handler in self.__file_handlers:
+    def __get_file_handler_for_file(self, path: str):
+        for file_handler in self._file_handlers:
             if file_handler.is_matching(path):
                 return file_handler
         return None
 
-    def make_storage_handler(self, data_item, file_handler=None):
-        # if there are two handlers, first is small, second is large
-        # if there is only one handler, it is used in all cases
-        large_format = hasattr(data_item, "large_format") and data_item.large_format
-        file_handler = file_handler if file_handler else (self.__file_handlers[-1] if large_format else self.__file_handlers[0])
-        return file_handler.make(os.path.join(self.__directories[0], self.__get_base_path(data_item)))
+    def __find_storage_handlers(self, directory: pathlib.Path, *, skip_trash=True) -> typing.List:
+        storage_handlers = list()
+        if directory and directory.exists():
+            absolute_file_paths = set()
+            for file_path in directory.rglob("*"):
+                if not skip_trash or file_path.parent.name != "trash":
+                    if not file_path.name.startswith("."):
+                        absolute_file_paths.add(str(file_path))
+            for file_handler in self._file_handlers:
+                for data_file in filter(file_handler.is_matching, absolute_file_paths):
+                    try:
+                        storage_handler = file_handler(data_file)
+                        assert storage_handler.is_valid
+                        storage_handlers.append(storage_handler)
+                    except Exception as e:
+                        logging.error("Exception reading file: %s", data_file)
+                        logging.error(str(e))
+                        raise
+        return storage_handlers
 
-    def remove_storage_handler(self, storage_handler, *, safe: bool=False) -> None:
-        file_path = storage_handler.reference
-        file_name = os.path.split(file_path)[1]
-        trash_dir = os.path.join(self.__directories[0], "trash")
-        new_file_path = os.path.join(trash_dir, file_name)
-        storage_handler.close()  # moving files in the storage handler requires it to be closed.
-        # TODO: move this functionality to the storage handler.
-        if safe and not os.path.exists(new_file_path):
-            os.makedirs(trash_dir, exist_ok=True)
-            shutil.move(file_path, new_file_path)
-        storage_handler.remove()
 
-    def restore_item(self, data_item_uuid: uuid.UUID) -> typing.Tuple[typing.Optional[dict], bool]:
-        data_item_uuid_str = str(data_item_uuid)
-        trash_dir = os.path.join(self.__directories[0], "trash")
-        storage_handlers = self.__find_storage_handlers([trash_dir], skip_trash=False)
-        for storage_handler in storage_handlers:
-            properties = Migration.transform_to_latest(storage_handler.read_properties())
-            if properties.get("uuid", None) == data_item_uuid_str:
-                data_item = DataItem.DataItem(item_uuid=data_item_uuid)
-                data_item.begin_reading()
-                data_item.read_from_dict(properties)
-                data_item.finish_reading()
-                old_file_path = storage_handler.reference
-                new_file_path = storage_handler.make_path(os.path.join(self.__directories[0], self.__get_base_path(data_item)))
-                if not os.path.exists(new_file_path):
-                    os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
-                    shutil.move(old_file_path, new_file_path)
-                self.make_storage_handler(data_item, file_handler=None)
-                properties["__large_format"] = isinstance(storage_handler, HDF5Handler.HDF5Handler)
-                return properties
-        return None, False
+class MemoryStorageHandler:
 
-    def purge_removed_storage_handlers(self):
-        self.trash = dict()
+    def __init__(self, uuid, data_properties_map, data_map, data_read_event):
+        self.__uuid = uuid
+        self.__data_properties_map = data_properties_map
+        self.__data_map = data_map
+        self.__data_read_event = data_read_event
 
-    def prune(self):
-        trash_dir = os.path.join(self.__directories[0], "trash")
-        for root, dirs, files in os.walk(trash_dir):
-            if pathlib.Path(root).name == "trash":
-                for file in files:
-                    # the date is not a reliable way of determining the age since a user may trash an old file. for now,
-                    # we just delete anything in the trash at startup. future version may have an index file for
-                    # tracking items in the trash. when items are again retained in the trash, update the disabled
-                    # test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload
-                    file_path = pathlib.Path(root) / pathlib.Path(file)
-                    file_path.unlink()
+    def close(self):
+        self.__uuid = None
+        self.__data_properties_map = None
+        self.__data_map = None
 
-    def register_data_item(self, item: typing.Optional[DataItem.DataItem], item_uuid: uuid.UUID, storage_handler, properties: dict) -> None:
-        assert item_uuid not in self.__data_item_storage
-        storage_adapter = DataItemStorageAdapter(self, storage_handler, properties)
-        self.__data_item_storage[item_uuid] = storage_adapter
-        if item and self.is_write_delayed(item):
-            storage_adapter.set_write_delayed(item, True)
+    @property
+    def reference(self):
+        return str(self.__uuid)
 
-    def unregister_data_item(self, item: DataItem.DataItem) -> None:
-        assert item.uuid in self.__data_item_storage
-        self.__data_item_storage.pop(item.uuid).close()
+    def read_properties(self):
+        return copy.deepcopy(self.__data_properties_map.get(self.__uuid, dict()))
 
-    def __get_storage_for_item(self, item: DataItem.DataItem) -> DataItemStorageAdapter:
-        if not item.uuid in self.__data_item_storage:
-            storage_handler = self.make_storage_handler(item)
-            self.register_data_item(item, item.uuid, storage_handler, item.write_to_dict())
-        return self.__data_item_storage.get(item.uuid)
+    def read_data(self):
+        self.__data_read_event.fire(self.__uuid)
+        return self.__data_map.get(self.__uuid)
 
-    def get_storage_property(self, data_item: DataItem.DataItem, name: str) -> typing.Optional[str]:
-        if name == "file_path":
-            storage = self.__get_storage_for_item(data_item)
-            return storage._storage_handler.reference if storage else None
-        return None
+    def write_properties(self, properties, file_datetime):
+        self.__data_properties_map[self.__uuid] = Utility.clean_dict(properties)
 
-    def read_external_data(self, item, name):
-        if isinstance(item, DataItem.DataItem) and name == "data":
-            storage = self.__get_storage_for_item(item)
-            return storage.load_data(item)
-        return None
+    def write_data(self, data, file_datetime):
+        self.__data_map[self.__uuid] = data.copy()
 
-    def write_external_data(self, item, name, value) -> None:
-        if isinstance(item, DataItem.DataItem) and name == "data":
-            storage = self.__get_storage_for_item(item)
-            storage.update_data(item, value)
 
-    def delete_item(self, data_item, safe: bool=False) -> None:
-        storage = self.__get_storage_for_item(data_item)
-        self.remove_storage_handler(storage._storage_handler, safe=safe)
+class MemoryProjectStorageSystem(ProjectStorageSystem):
 
-    def enter_write_delay(self, object) -> None:
-        count = self.__write_delay_counts.setdefault(object, 0)
-        if count == 0:
-            if isinstance(object, DataItem.DataItem):
-                self.set_write_delayed(object, True)
-        self.__write_delay_counts[object] = count + 1
+    def __init__(self, *, library_properties: typing.Dict = None, data_properties_map: typing.Dict = None, data_map: typing.Dict = None, trash_map: typing.Dict = None, data_read_event: Event.Event = None):
+        super().__init__()
+        self.__library_properties = library_properties if library_properties is not None else dict()
+        self.__data_properties_map = data_properties_map if data_properties_map is not None else dict()
+        self.__data_map = data_map if data_map is not None else dict()
+        self.__trash_map = trash_map if trash_map is not None else dict()
+        self._test_data_read_event = data_read_event or Event.Event()
 
-    def exit_write_delay(self, object) -> None:
-        count = self.__write_delay_counts.get(object, 1)
-        count -= 1
-        if count == 0:
-            if isinstance(object, DataItem.DataItem):
-                self.set_write_delayed(object, False)
-            self.__write_delay_counts.pop(object)
-        else:
-            self.__write_delay_counts[object] = count
+    def _read_properties(self) -> typing.Dict:
+        return copy.deepcopy(self.__library_properties)
 
-    def set_write_delayed(self, data_item, write_delayed: bool) -> None:
-        storage = self.__data_item_storage.get(data_item.uuid)
-        if storage:
-            storage.set_write_delayed(data_item, write_delayed)
+    def _write_properties(self) -> None:
+        self.__library_properties.clear()
+        self.__library_properties.update(copy.deepcopy(self.get_storage_properties()))
 
-    def is_write_delayed(self, data_item) -> bool:
-        if isinstance(data_item, DataItem.DataItem):
-            return self.__write_delay_counts.get(data_item, 0) > 0
+    def _get_identifier(self) -> str:
+        return "memory"
+
+    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler=None):
+        data_item_uuid_str = str(data_item.uuid)
+        return MemoryStorageHandler(data_item_uuid_str, self.__data_properties_map, self.__data_map, self._test_data_read_event)
+
+    def _find_storage_handlers(self) -> typing.List:
+        storage_handlers = list()
+        for key in sorted(self.__data_properties_map):
+            self.__data_properties_map[key].setdefault("uuid", str(uuid.uuid4()))
+            storage_handlers.append(MemoryStorageHandler(key, self.__data_properties_map, self.__data_map, self._test_data_read_event))
+        return storage_handlers
+
+    def _is_storage_handler_large_format(self, storage_handler) -> bool:
         return False
 
-    def rewrite_item(self, item) -> None:
-        if isinstance(item, DataItem.DataItem):
-            storage = self.__get_storage_for_item(item)
-            storage.rewrite_item(item)
-        else:
-            self.__write_properties(item)
+    def _remove_storage_handler(self, storage_handler, *, safe: bool=False) -> None:
+        storage_handler_reference = storage_handler.reference
+        data = self.__data_map.pop(storage_handler_reference, None)
+        properties = self.__data_properties_map.pop(storage_handler_reference)
+        if safe:
+            assert storage_handler_reference not in self.__trash_map
+            self.__trash_map[storage_handler_reference] = {"data": data, "properties": properties}
+        storage_handler.close()  # moving files in the storage handler requires it to be closed.
 
-    def read_data_items_version_stats(self):
-        return read_data_items_version_stats(self)
+    def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
+        data_item_uuid_str = str(data_item_uuid)
+        trash_entry = self.__trash_map.pop(data_item_uuid_str)
+        assert data_item_uuid_str not in self.__data_properties_map
+        assert data_item_uuid_str not in self.__data_map
+        self.__data_properties_map[data_item_uuid_str] = Migration.transform_to_latest(trash_entry["properties"])
+        self.__data_map[data_item_uuid_str] = trash_entry["data"]
+        properties = self.__data_properties_map.get(data_item_uuid_str, dict())
+        properties["__large_format"] = False
+        properties = Migration.transform_to_latest(properties)
+        return properties
 
-    def read_library(self, ignore_older_files) -> typing.Dict:
-        return read_library(self, ignore_older_files)
+    def _prune(self) -> None:
+        pass  # disabled for testing self.__trash_map = dict()
 
-
-def read_data_items_version_stats(persistent_storage_system):
-    storage_handlers = list()  # storage_handler
-    storage_handlers.extend(persistent_storage_system.find_data_items())
-    count = [0, 0, 0]  # data item matches version, data item has higher version, data item has lower version
-    writer_version = DataItem.DataItem.writer_version
-    for storage_handler in storage_handlers:
-        try:
-            properties = Migration.transform_to_latest(storage_handler.read_properties())
-            version = properties.get("version", 0)
-            if version < writer_version:
-                count[2] += 1
-            elif version > writer_version:
-                count[1] += 1
-            else:
-                count[0] += 1
-        except Exception as e:
-            pass  # logging.warning("Could not open file {}".format(storage_handler.reference))
-    return count
-
-
-def read_library(persistent_storage_system, ignore_older_files) -> typing.Dict:
-    """Read data items from the data reference handler and return as a list.
-
-    Data items will have persistent_object_context set upon return, but caller will need to call finish_reading
-    on each of the data items.
-    """
-    data_item_uuids = set()
-    utilized_deletions = set()  # the uuid's skipped due to being deleted
-    deletions = list()
-
-    reader_info_list, library_updates = auto_migrate_storage_system(persistent_storage_system=persistent_storage_system,
-                                                                    new_persistent_storage_system=persistent_storage_system,
-                                                                    data_item_uuids=data_item_uuids,
-                                                                    deletions=deletions,
-                                                                    utilized_deletions=utilized_deletions,
-                                                                    ignore_older_files=ignore_older_files)
-
-    # next, for each auto migration, create a temporary storage system and read items from that storage system
-    # using auto_migrate_storage_system. the data items returned will have been copied to the current storage
-    # system (persistent object context).
-    for auto_migration in reversed(persistent_storage_system.get_auto_migrations()):
-        old_persistent_storage_system = FileStorageSystem(auto_migration.library_path, auto_migration.paths) if auto_migration.paths else auto_migration.storage_system
-        new_reader_info_list, new_library_updates = auto_migrate_storage_system(persistent_storage_system=old_persistent_storage_system,
-                                                                                new_persistent_storage_system=persistent_storage_system,
-                                                                                data_item_uuids=data_item_uuids,
-                                                                                deletions=deletions,
-                                                                                utilized_deletions=utilized_deletions,
-                                                                                ignore_older_files=ignore_older_files)
-        reader_info_list.extend(new_reader_info_list)
-        library_updates.update(new_library_updates)
-
-    assert len(reader_info_list) == len(data_item_uuids)
-
-    library_storage_properties = persistent_storage_system.library_storage_properties
-
-    for reader_info in reader_info_list:
-        properties = reader_info.properties
-        properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
-        version = properties.get("version", 0)
-        if version == DataItem.DataItem.writer_version:
-            data_item_uuid = uuid.UUID(properties.get("uuid", uuid.uuid4()))
-            library_update = library_updates.get(data_item_uuid, dict())
-            library_storage_properties.setdefault("connections", list()).extend(library_update.get("connections", list()))
-            library_storage_properties.setdefault("computations", list()).extend(library_update.get("computations", list()))
-            library_storage_properties.setdefault("display_items", list()).extend(library_update.get("display_items", list()))
-
-    # mark deletions that need to be tracked because they've been deleted but are also present in older libraries
-    # and would be migrated during reading unless they explicitly are prevented from doing so (via data_item_deletions).
-    # utilized deletions are the ones that were attempted; if nothing was attempted, then no reason to track it anymore
-    # since there is nothing to migrate in the future.
-    library_storage_properties["data_item_deletions"] = [str(uuid_) for uuid_ in utilized_deletions]
-
-    connections_list = library_storage_properties.get("connections", list())
-    assert len(connections_list) == len({connection.get("uuid") for connection in connections_list})
-
-    computations_list = library_storage_properties.get("computations", list())
-    assert len(computations_list) == len({computation.get("uuid") for computation in computations_list})
-
-    # migrations
-
-    if library_storage_properties.get("version", 0) < 2:
-        for data_group_properties in library_storage_properties.get("data_groups", list()):
-            data_group_properties.pop("data_groups")
-            display_item_references = data_group_properties.setdefault("display_item_references", list())
-            data_item_uuid_strs = data_group_properties.pop("data_item_uuids", list())
-            for data_item_uuid_str in data_item_uuid_strs:
-                for display_item_properties in library_storage_properties.get("display_items", list()):
-                    data_item_references = [d.get("data_item_reference", None) for d in display_item_properties.get("display_data_channels", list())]
-                    if data_item_uuid_str in data_item_references:
-                        display_item_references.append(display_item_properties["uuid"])
-        data_item_uuid_to_display_item_uuid_map = dict()
-        data_item_uuid_to_display_item_dict_map = dict()
-        display_to_display_item_map = dict()
-        display_to_display_data_channel_map = dict()
-        for display_item_properties in library_storage_properties.get("display_items", list()):
-            display_to_display_item_map[display_item_properties["display"]["uuid"]] = display_item_properties["uuid"]
-            display_to_display_data_channel_map[display_item_properties["display"]["uuid"]] = display_item_properties["display_data_channels"][0]["uuid"]
-            data_item_references = [d.get("data_item_reference", None) for d in display_item_properties.get("display_data_channels", list())]
-            for data_item_uuid_str in data_item_references:
-                data_item_uuid_to_display_item_uuid_map.setdefault(data_item_uuid_str, display_item_properties["uuid"])
-                data_item_uuid_to_display_item_dict_map.setdefault(data_item_uuid_str, display_item_properties)
-            display_item_properties.pop("display", None)
-        for workspace_properties in library_storage_properties.get("workspaces", list()):
-            def replace1(d):
-                if "children" in d:
-                    for dd in d["children"]:
-                        replace1(dd)
-                if "data_item_uuid" in d:
-                    data_item_uuid_str = d.pop("data_item_uuid")
-                    display_item_uuid_str = data_item_uuid_to_display_item_uuid_map.get(data_item_uuid_str)
-                    if display_item_uuid_str:
-                        d["display_item_uuid"] = display_item_uuid_str
-            replace1(workspace_properties["layout"])
-        for connection_dict in library_storage_properties.get("connections", list()):
-            source_uuid_str = connection_dict["source_uuid"]
-            if connection_dict["type"] == "interval-list-connection":
-                connection_dict["source_uuid"] = display_to_display_item_map.get(source_uuid_str, None)
-            if connection_dict["type"] == "property-connection" and connection_dict["source_property"] == "slice_interval":
-                connection_dict["source_uuid"] = display_to_display_data_channel_map.get(source_uuid_str, None)
-
-        def fix_specifier(specifier_dict):
-            if specifier_dict.get("type") in ("data_item", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
-                if specifier_dict.get("uuid") in data_item_uuid_to_display_item_dict_map:
-                    specifier_dict["uuid"] = data_item_uuid_to_display_item_dict_map[specifier_dict["uuid"]]["display_data_channels"][0]["uuid"]
-                else:
-                    specifier_dict.pop("uuid", None)
-            if specifier_dict.get("type") == "data_item":
-                specifier_dict["type"] = "data_source"
-            if specifier_dict.get("type") == "data_item_object":
-                specifier_dict["type"] = "data_item"
-            if specifier_dict.get("type") == "region":
-                specifier_dict["type"] = "graphic"
-
-        for computation_dict in library_storage_properties.get("computations", list()):
-            for variable_dict in computation_dict.get("variables", list()):
-                if "specifier" in variable_dict:
-                    specifier_dict = variable_dict["specifier"]
-                    if specifier_dict is not None:
-                        fix_specifier(specifier_dict)
-                if "secondary_specifier" in variable_dict:
-                    specifier_dict = variable_dict["secondary_specifier"]
-                    if specifier_dict is not None:
-                        fix_specifier(specifier_dict)
-            for result_dict in computation_dict.get("results", list()):
-                fix_specifier(result_dict["specifier"])
-
-        library_storage_properties["version"] = DocumentModel.DocumentModel.library_version
-
-    # TODO: add consistency checks: no duplicated items [by uuid] such as connections or computations or data items
-
-    assert library_storage_properties["version"] == DocumentModel.DocumentModel.library_version
-
-    persistent_storage_system.rewrite_properties(library_storage_properties)
-
-    properties = copy.deepcopy(library_storage_properties)
-
-    for reader_info in reader_info_list:
-        data_item_properties = Utility.clean_dict(reader_info.properties if reader_info.properties else dict())
-        if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
-            data_item_properties["__large_format"] = reader_info.large_format
-            data_item_properties["__identifier"] = reader_info.identifier
-            properties.setdefault("data_items", list()).append(data_item_properties)
-
-    def data_item_created(data_item_properties: typing.Mapping) -> str:
-        return data_item_properties.get("created", "1900-01-01T00:00:00.000000")
-
-    properties["data_items"] = sorted(properties.get("data_items", list()), key=data_item_created)
-
-    return properties
-
-
-def auto_migrate_data_item(reader_info, persistent_storage_system, new_persistent_storage_system, index: int, count: int) -> None:
-    storage_handler = reader_info.storage_handler
-    properties = reader_info.properties
-    properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
-    data_item_uuid = uuid.UUID(properties["uuid"])
-    if persistent_storage_system == new_persistent_storage_system:
-        if reader_info.changed_ref[0]:
-            storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
-        persistent_storage_system.register_data_item(None, data_item_uuid, storage_handler, properties)
-    else:
-        # create a temporary data item that can be used to get the new file reference
-        old_data_item = DataItem.DataItem(item_uuid=data_item_uuid)
-        old_data_item.begin_reading()
-        old_data_item.read_from_dict(properties)
-        old_data_item.finish_reading()
-        old_data_item_path = storage_handler.reference
-        # ask the storage system for the file handler for the data item path
-        file_handler = new_persistent_storage_system.get_file_handler_for_file(old_data_item_path)
-        # ask the storage system to make a storage handler (an instance of a file handler) for the data item
-        # this ensures that the storage handler (file format) is the same as before.
-        target_storage_handler = new_persistent_storage_system.make_storage_handler(old_data_item, file_handler)
-        if target_storage_handler:
-            os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
-            shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
-            target_storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
-            new_persistent_storage_system.register_data_item(None, data_item_uuid, target_storage_handler, properties)
-            logging.getLogger("migration").info("Copying data item ({}/{}) {} to new library.".format(index + 1, count, data_item_uuid))
-        else:
-            logging.getLogger("migration").warning("Unable to copy data item %s to new library.".format(data_item_uuid))
-
-
-def auto_migrate_storage_system(*, persistent_storage_system=None, new_persistent_storage_system=None, data_item_uuids=None, deletions: typing.List[uuid.UUID] = None, utilized_deletions: typing.Set[uuid.UUID] = None, ignore_older_files: bool = True):
-    """Migrate items from the storage system to the object context.
-
-    Files in data_item_uuids have already been loaded and are ignored (not migrated).
-
-    Files in deletes have been deleted in object context and are ignored (not migrated) and then added
-    to the utilized deletions list.
-
-    Data items will have persistent_object_context set upon return, but caller will need to call finish_reading
-    on each of the data items.
-    """
-    storage_handlers = persistent_storage_system.find_data_items()
-    ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "large_format", "storage_handler", "identifier"])
-    reader_info_list = list()
-    for storage_handler in storage_handlers:
-        try:
-            large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
-            properties = Migration.transform_to_latest(storage_handler.read_properties())
-            reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
-            reader_info_list.append(reader_info)
-        except Exception as e:
-            logging.debug("Error reading %s", storage_handler.reference)
-            import traceback
-            traceback.print_exc()
-            traceback.print_stack()
-    library_storage_properties = persistent_storage_system.library_storage_properties
-    for deletion in copy.deepcopy(library_storage_properties.get("data_item_deletions", list())):
-        if not deletion in deletions:
-            deletions.append(deletion)
-    preliminary_library_updates = dict()
-    library_updates = dict()
-    if not ignore_older_files:
-        Migration.migrate_to_latest(reader_info_list, preliminary_library_updates)
-    good_reader_info_list = list()
-    count = len(reader_info_list)
-    for index, reader_info in enumerate(reader_info_list):
+    def _migrate_data_item(self, reader_info: ReaderInfo, index: int, count: int) -> typing.Optional[ReaderInfo]:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
-        try:
-            version = properties.get("version", 0)
-            if version == DataItem.DataItem.writer_version:
-                data_item_uuid = uuid.UUID(properties["uuid"])
-                if not data_item_uuid in data_item_uuids:
-                    if str(data_item_uuid) in deletions:
-                        utilized_deletions.add(data_item_uuid)
-                    else:
-                        auto_migrate_data_item(reader_info, persistent_storage_system, new_persistent_storage_system, index, count)
-                        good_reader_info_list.append(reader_info)
-                        data_item_uuids.add(data_item_uuid)
-                        library_update = preliminary_library_updates.get(data_item_uuid)
-                        if library_update:
-                            library_updates[data_item_uuid] = library_update
-        except Exception as e:
-            logging.debug("Error reading %s", storage_handler.reference)
-            import traceback
-            traceback.print_exc()
-            traceback.print_stack()
-    return good_reader_info_list, library_updates
+        properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
+        if reader_info.changed_ref[0]:
+            self.__data_properties_map[storage_handler.reference] = Migration.transform_from_latest(copy.deepcopy(properties))
+        return reader_info
+
+    def _migrate_library_properties(self, library_properties: typing.Dict, reader_info_list: typing.List[ReaderInfo]) -> None:
+        self.__library_properties.clear()
+        self.__library_properties.update(library_properties)
+
+        data_properties_map = dict()
+
+        for reader_info in reader_info_list:
+            data_item_properties = Utility.clean_dict(reader_info.properties if reader_info.properties else dict())
+            if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
+                data_item_properties["__large_format"] = reader_info.large_format
+                data_properties_map[reader_info.identifier] = data_item_properties
+
+        def data_item_created(data_item_properties: typing.Mapping) -> str:
+            return data_item_properties[1].get("created", "1900-01-01T00:00:00.000000")
+
+        data_properties_map = {k: v for k, v in sorted(data_properties_map.items(), key=data_item_created)}
+
+        self.__data_properties_map.clear()
+        self.__data_properties_map.update(data_properties_map)
+
+    def _get_migration_stages(self) -> typing.List[typing.Tuple[pathlib.Path, pathlib.Path]]:
+        return [(pathlib.Path(), pathlib.Path())]
+
+    def _read_library_properties(self, migration_stage) -> typing.Dict:
+        return copy.deepcopy(self.__library_properties)
+
+    def _find_data_items(self, migration_stage) -> typing.List:
+        return self._find_storage_handlers()
+
+
+def make_storage_system(profile_context, d: typing.Dict) -> typing.Optional[ProjectStorageSystem]:
+    if d.get("type") == "project_index":
+        project_path = pathlib.Path(d.get("project_path"))
+        return FileProjectStorageSystem(project_path)
+    elif d.get("type") == "project_folder":
+        project_folder_path = pathlib.Path(d.get("project_folder_path"))
+        for project_file, project_dir in FileProjectStorageSystem._get_migration_paths(project_folder_path):
+            if project_file.exists():
+                return FileProjectStorageSystem(project_file, project_dir)
+        return None
+    elif d.get("type") == "memory":
+        storage_system_uuid = uuid.UUID(d.get("uuid"))
+        # the profile context must be valid here.
+        new_project_properties = profile_context.x_project_properties.setdefault(storage_system_uuid, {"version": PROJECT_VERSION, "uuid": str(storage_system_uuid)})
+        new_data_properties_map = profile_context.x_data_properties_map.setdefault(storage_system_uuid, dict())
+        new_data_map = profile_context.x_data_map.setdefault(storage_system_uuid, dict())
+        new_trash_map = profile_context.x_trash_map.setdefault(storage_system_uuid, dict())
+        library_properties = d.get("project_properties", new_project_properties)
+        data_properties_map = d.get("data_properties_map", new_data_properties_map)
+        data_map = d.get("data_map", new_data_map)
+        trash_map = d.get("trash_map", new_trash_map)
+        if profile_context.project_properties is None:
+            profile_context.project_properties = library_properties
+        if profile_context.data_properties_map is None:
+            profile_context.data_properties_map = data_properties_map
+        if profile_context.data_map is None:
+            profile_context.data_map = data_map
+        if profile_context.trash_map is None:
+            profile_context.trash_map = trash_map
+        return MemoryProjectStorageSystem(library_properties=library_properties, data_properties_map=data_properties_map, data_map=data_map, trash_map=trash_map)
+    return None

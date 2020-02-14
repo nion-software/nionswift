@@ -4,6 +4,7 @@ import contextlib
 import copy
 import gettext
 import io
+import json
 import re
 import rlcompleter
 import sys
@@ -337,7 +338,8 @@ class ConsoleDialog(Dialog.ActionDialog):
 
         variable_to_data_item_map = document_controller.document_model.variable_to_data_item_map()
         for variable_name, data_item in variable_to_data_item_map.items():
-            lines.append("{} = api.library.get_data_item_by_uuid(uuid.UUID(\"{}\"))".format(variable_name, data_item.uuid))
+            data_item_specifier = data_item.item_specifier
+            lines.append(f"{variable_name} = api.library.get_item_by_specifier(api.create_specifier(item_uuid=uuid.UUID('{str(data_item_specifier.item_uuid)}'), context_uuid=uuid.UUID('{str(data_item_specifier.context_uuid)}')))")
 
         self.__console_widget.interpret_lines(lines)
 

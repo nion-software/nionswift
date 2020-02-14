@@ -2,6 +2,7 @@
 import abc
 import copy
 import datetime
+import functools
 import gettext
 import pathlib
 import threading
@@ -9,7 +10,6 @@ import time
 import typing
 import uuid
 import warnings
-import weakref
 
 # third party libraries
 import numpy
@@ -20,13 +20,18 @@ from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import Cache
+from nion.swift.model import Changes
 from nion.swift.model import Graphics
 from nion.swift.model import Metadata
+from nion.swift.model import Persistence
 from nion.swift.model import Utility
-from nion.utils import Converter
 from nion.utils import Event
+from nion.utils import Geometry
 from nion.utils import Observable
-from nion.utils import Persistence
+
+if typing.TYPE_CHECKING:
+    from nion.swift.model import DisplayItem
+    from nion.swift.model import Project
 
 _ = gettext.gettext
 
@@ -172,7 +177,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         super().__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
         self.large_format = large_format
-        self.__container_weak_ref = None
+        self._document_model = None  # used only for Facade
         self.define_type("data-item")
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
@@ -197,7 +202,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("title", UNTITLED_STR, changed=self.__property_changed)
         self.define_property("caption", changed=self.__property_changed)
         self.define_property("description", changed=self.__property_changed)
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__property_changed)
         self.define_property("session", dict(), changed=self.__property_changed)
         self.define_property("category", "persistent", changed=self.__property_changed)
@@ -214,9 +219,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__write_delay_data_changed = False
         self.__source_file_path = None
         self.__is_live = False
-        self.persistent_object_context = None
         self.__session_manager = None
-        self.__source = None
+        self.__source_proxy = self.create_item_proxy()
         self.description_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
         self.metadata_changed_event = Event.Event()  # see Metadata Note above
@@ -236,10 +240,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__content_changed = False
         self.__suspendable_storage_cache = None
         self.r_var = None
-        self.about_to_be_removed_event = Event.Event()
         self.about_to_cascade_delete_event = Event.Event()
-        self._about_to_be_removed = False
-        self._closed = False
         if data is not None:
             data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, timezone=self.timezone, timezone_offset=self.timezone_offset)
             self.__set_data_metadata_direct(data_and_metadata)
@@ -270,35 +271,27 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         memo[id(self)] = data_item_copy
         return data_item_copy
 
-    def close(self):
+    def close(self) -> None:
+        self.__source_proxy.close()
+        self.__source_proxy = None
         self.__data_and_metadata = None
-        self.persistent_object_context = None
-        assert self._about_to_be_removed
-        assert not self._closed
-        self._closed = True
-        self.__container_weak_ref = None
+        super().close()
 
     @property
-    def container(self):
-        return self.__container_weak_ref()
+    def project(self) -> "Project.Project":
+        return typing.cast("Project.Project", self.container)
 
-    def about_to_close(self):
-        pass
+    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+        return self.project.create_item_proxy(item=self)
+
+    @property
+    def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
+        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
 
     def prepare_cascade_delete(self) -> typing.List:
         cascade_items = list()
         self.about_to_cascade_delete_event.fire(cascade_items)
         return cascade_items
-
-    def about_to_be_inserted(self, container):
-        assert self.__container_weak_ref is None
-        self.__container_weak_ref = weakref.ref(container)
-
-    def about_to_be_removed(self):
-        # called before close and before item is removed from its container
-        self.about_to_be_removed_event.fire()
-        assert not self._about_to_be_removed
-        self._about_to_be_removed = True
 
     def insert_model_item(self, container, name, before_index, item):
         """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
@@ -306,22 +299,22 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         Passing responsibility to this item's container allows the library to easily track dependencies.
         However, if this item isn't yet in the library hierarchy, then do the operation directly.
         """
-        if self.__container_weak_ref:
+        if self.container:
             self.container.insert_model_item(container, name, before_index, item)
         else:
             container.insert_item(name, before_index, item)
 
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
         """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
 
         Passing responsibility to this item's container allows the library to easily track dependencies.
         However, if this item isn't yet in the library hierarchy, then do the operation directly.
         """
-        if self.__container_weak_ref:
+        if self.container:
             return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
-            return None
+            return Changes.UndeleteLog()
 
     def clone(self) -> "DataItem":
         data_item = self.__class__()
@@ -361,11 +354,11 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__write_delay_modified_count = self.modified_count
         self.__write_delay_data_changed = False
         if self.persistent_object_context:
-            self.persistent_object_context.enter_write_delay(self)
+            self.enter_write_delay()
 
     def __exit_write_delay_state(self):
         if self.persistent_object_context:
-            self.persistent_object_context.exit_write_delay(self)
+            self.exit_write_delay()
             self._finish_pending_write()
 
     def write_to_dict(self):
@@ -373,21 +366,24 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         properties["version"] = DataItem.writer_version
         return properties
 
+    def write_data_if_not_delayed(self) -> None:
+        if not self.is_write_delayed:
+            # write the uuid and version explicitly
+            self.property_changed("uuid", str(self.uuid))
+            self.property_changed("version", DataItem.writer_version)
+            self.__write_data()
+            self.__pending_write = False
+
     def __write_data(self):
         if self.__data_and_metadata:
-            self.persistent_object_context.write_external_data(self, "data", self.__data_and_metadata.data)
+            self.write_external_data("data", self.__data_and_metadata.data)
 
     def _finish_pending_write(self):
         if self.__pending_write:
-            if not self.persistent_object_context.is_write_delayed(self):
-                # write the uuid and version explicitly
-                self.persistent_object_context.property_changed(self, "uuid", str(self.uuid))
-                self.persistent_object_context.property_changed(self, "version", DataItem.writer_version)
-                self.__write_data()
-                self.__pending_write = False
+            self.write_data_if_not_delayed()
         else:
             if self.modified_count > self.__write_delay_modified_count:
-                self.persistent_object_context.rewrite_item(self)
+                self.rewrite()
             if self.__write_delay_data_changed:
                 self.__write_data()
 
@@ -414,12 +410,15 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def source(self):
-        return self.__source
+        return self.__source_proxy.item
 
     @source.setter
     def source(self, source):
-        self.__source = source
-        self.source_uuid = source.uuid if source else None
+        self.__source_proxy.item = source
+        self.source_specifier = source.project.create_specifier(source).write() if source else None
+
+    def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     def persistent_object_context_changed(self):
         # handle case where persistent object context is set on an item that is already under transaction.
@@ -432,24 +431,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         if self.__in_transaction_state:
             self.__enter_write_delay_state()
 
-        def register():
-            if self.__source is not None:
-                pass
-
-        def source_registered(source):
-            self.__source = source
-            register()
-
-        def unregistered(source=None):
-            pass
-
-        if self.persistent_object_context:
-            self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
-        else:
-            unregistered()
-
     def _test_get_file_path(self):
-        return self.persistent_object_context.get_storage_property(self, "file_path")
+        return self.persistent_storage.get_storage_property(self, "file_path")
 
     def read_from_dict(self, properties):
         self.large_format = properties.get("__large_format", self.large_format)
@@ -508,9 +491,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     @property
     def properties(self):
         """ Used for debugging. """
-        if self.persistent_object_context:
-            return self.persistent_object_context.get_properties(self)
-        return dict()
+        return self.get_storage_properties()
 
     @property
     def is_live(self):
@@ -964,7 +945,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def __load_data(self):
         if self.persistent_object_context:
-            return self.persistent_object_context.read_external_data(self, "data")
+            return self.read_external_data("data")
         return None
 
     def __set_data_metadata_direct(self, data_and_metadata, data_modified=None):
@@ -1024,8 +1005,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                 new_data_and_metadata = None
             self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
             if self.__data_and_metadata is not None:
-                if self.persistent_object_context and not self.persistent_object_context.is_write_delayed(self):
-                    self.persistent_object_context.write_external_data(self, "data", self.__data_and_metadata.data)
+                if self.persistent_object_context and not self.is_write_delayed:
+                    self.write_external_data("data", self.__data_and_metadata.data)
                     self.__data_and_metadata.unloadable = True
         finally:
             self.decrement_data_ref_count()
@@ -1157,70 +1138,29 @@ def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> Da
     return data_item
 
 
-class DataSource:
-    def __init__(self, display_data_channel, graphic, changed_event):
-        self.__display_item = display_data_channel.container
-        self.__graphic = graphic
-        self.__changed_event = changed_event  # not public since it is passed in
-        self.__data_item = display_data_channel.data_item
-        display_data_channel = self.__display_item.get_display_data_channel_for_data_item(self.__data_item) if self.__display_item else None
-        self.__data_item_changed_event_listener = None
-        self.__data_item_changed_event_listener = self.__data_item.data_item_changed_event.listen(self.__changed_event.fire) if self.__data_item else None
-        self.__display_values_event_listener = display_data_channel.display_data_will_change_event.listen(self.__changed_event.fire) if display_data_channel else None
-        self.__property_changed_listener = None
-        def property_changed(key):
-            self.__changed_event.fire()
-        if self.__graphic:
-            self.__property_changed_listener = self.__graphic.property_changed_event.listen(property_changed)
-        def filter_property_changed(key):
-            self.__changed_event.fire()
-        self.__graphic_property_changed_listeners = list()
-        def graphic_inserted(key, value, before_index):
-            if key == "graphics":
-                property_changed_listener = None
-                if isinstance(self.__graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                    property_changed_listener = value.property_changed_event.listen(filter_property_changed)
-                    self.__changed_event.fire()
-                self.__graphic_property_changed_listeners.insert(before_index, property_changed_listener)
-        def graphic_removed(key, value, index):
-            if key == "graphics":
-                property_changed_listener = self.__graphic_property_changed_listeners.pop(index)
-                if property_changed_listener:
-                    property_changed_listener.close()
-                    self.__changed_event.fire()
-        self.__graphic_inserted_event_listener = self.__display_item.item_inserted_event.listen(graphic_inserted) if self.__display_item else None
-        self.__graphic_removed_event_listener = self.__display_item.item_removed_event.listen(graphic_removed) if self.__display_item else None
-        for graphic in self.__display_item.graphics if self.__display_item else list():
-            property_changed_listener = None
-            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                property_changed_listener = graphic.property_changed_event.listen(filter_property_changed)
-            self.__graphic_property_changed_listeners.append(property_changed_listener)
+def create_mask_data(graphics: typing.Sequence[Graphics.Graphic], shape, calibrated_origin: Geometry.FloatPoint) -> numpy.ndarray:
+    mask = None
+    for graphic in graphics:
+        if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+            if graphic.used_role in ("mask", "fourier_mask"):
+                if mask is None:
+                    mask = numpy.zeros(shape)
+                mask = numpy.logical_or(mask, graphic.get_mask(shape, calibrated_origin))
+    if mask is None:
+        mask = numpy.ones(shape)
+    return mask
 
-    def close(self):
-        for graphic_property_changed_listener in self.__graphic_property_changed_listeners:
-            if graphic_property_changed_listener:
-                graphic_property_changed_listener.close()
-        self.__graphic_property_changed_listeners = list()
-        if self.__graphic_inserted_event_listener:
-            self.__graphic_inserted_event_listener.close()
-            self.__graphic_inserted_event_listener = None
-        if self.__graphic_removed_event_listener:
-            self.__graphic_removed_event_listener.close()
-            self.__graphic_removed_event_listener = None
-        if self.__property_changed_listener:
-            self.__property_changed_listener.close()
-            self.__property_changed_listener = None
-        if self.__data_item_changed_event_listener:
-            self.__data_item_changed_event_listener.close()
-            self.__data_item_changed_event_listener = None
-        if self.__display_values_event_listener:
-            self.__display_values_event_listener.close()
-            self.__display_values_event_listener = None
-        self.__display_item = None
-        self.__graphic = None
-        self.__changed_event = None
-        self.__data_item = None
-        self.__display = None
+
+class DataSource:
+    def __init__(self, display_item: "DisplayItem.DisplayItem", graphic: Graphics.Graphic, xdata: DataAndMetadata.DataAndMetadata = None):
+        self.__display_item = display_item
+        self.__data_item = display_item.data_item if display_item else None
+        self.__graphic = graphic
+        self.__xdata = xdata
+
+    @property
+    def display_item(self) -> typing.Optional["DisplayItem.DisplayItem"]:
+        return self.__display_item
 
     @property
     def data_item(self) -> typing.Optional[DataItem]:
@@ -1232,18 +1172,25 @@ class DataSource:
 
     @property
     def data(self) -> typing.Optional[numpy.ndarray]:
-        data_item = self.data_item
-        return data_item.data if data_item else None
+        return self.xdata.data if self.xdata else None
 
     @property
     def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        data_item = self.data_item
-        return data_item.xdata if data_item else None
+        if self.__xdata is not None:
+            return self.__xdata
+        if self.data_item:
+            return self.data_item.xdata
+        return None
 
     @property
     def display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
-        return display_data_channel.get_calculated_display_values(True).display_data_and_metadata if display_data_channel else None
+        if display_data_channel:
+            if self.__xdata is not None:
+                return Core.function_convert_to_scalar(self.xdata, display_data_channel.complex_display_type)
+            else:
+                return display_data_channel.get_calculated_display_values(True).display_data_and_metadata
+        return None
 
     @property
     def cropped_display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
@@ -1282,20 +1229,88 @@ class DataSource:
     @property
     def filtered_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         xdata = self.xdata
-        if self.__display_item and xdata.is_data_2d and xdata.is_data_complex_type:
-            shape = xdata.data_shape
-            mask = numpy.zeros(shape)
-            for graphic in self.__display_item.graphics:
-                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                    mask = numpy.logical_or(mask, graphic.get_mask(shape))
-            return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
+        if self.__display_item and xdata.is_data_2d:
+            shape = self.display_xdata.data_shape
+            calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                    x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+            if xdata.is_data_complex_type:
+                return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, shape, calibrated_origin)))
+            else:
+                return DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, shape, calibrated_origin)) * self.display_xdata
         return xdata
 
     @property
     def filter_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        shape = self.display_xdata.data_shape
-        mask = numpy.zeros(shape)
-        for graphic in self.__display_item.graphics:
-            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                mask = numpy.logical_or(mask, graphic.get_mask(shape))
-        return DataAndMetadata.DataAndMetadata.from_data(mask)
+        xdata = self.xdata
+        if self.__display_item and xdata.is_data_2d:
+            shape = self.display_xdata.data_shape
+            calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                    x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+            return DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, shape, calibrated_origin))
+        return None
+
+
+class MonitoredDataSource(DataSource):
+    def __init__(self, display_data_channel, graphic, changed_event):
+        super().__init__(display_data_channel.container, graphic)
+        self.__display_item = display_data_channel.container
+        self.__graphic = graphic
+        self.__changed_event = changed_event  # not public since it is passed in
+        self.__data_item = display_data_channel.data_item
+        display_data_channel = self.__display_item.get_display_data_channel_for_data_item(self.__data_item) if self.__display_item else None
+        self.__data_item_changed_event_listener = None
+        self.__data_item_changed_event_listener = self.__data_item.data_item_changed_event.listen(self.__changed_event.fire) if self.__data_item else None
+        self.__display_values_event_listener = display_data_channel.display_data_will_change_event.listen(self.__changed_event.fire) if display_data_channel else None
+        self.__property_changed_listener = None
+        def property_changed(key):
+            self.__changed_event.fire()
+        if self.__graphic:
+            self.__property_changed_listener = self.__graphic.property_changed_event.listen(property_changed)
+        def filter_property_changed(graphic, key):
+            if key == "role" or graphic.used_role in ("mask", "fourier_mask"):
+                self.__changed_event.fire()
+        self.__graphic_property_changed_listeners = list()
+        def graphic_inserted(key, value, before_index):
+            if key == "graphics":
+                property_changed_listener = None
+                if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                    property_changed_listener = value.property_changed_event.listen(functools.partial(filter_property_changed, graphic))
+                    self.__changed_event.fire()
+                self.__graphic_property_changed_listeners.insert(before_index, property_changed_listener)
+        def graphic_removed(key, value, index):
+            if key == "graphics":
+                property_changed_listener = self.__graphic_property_changed_listeners.pop(index)
+                if property_changed_listener:
+                    property_changed_listener.close()
+                    self.__changed_event.fire()
+        self.__graphic_inserted_event_listener = self.__display_item.item_inserted_event.listen(graphic_inserted) if self.__display_item else None
+        self.__graphic_removed_event_listener = self.__display_item.item_removed_event.listen(graphic_removed) if self.__display_item else None
+        for graphic in self.__display_item.graphics if self.__display_item else list():
+            property_changed_listener = None
+            if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                property_changed_listener = graphic.property_changed_event.listen(functools.partial(filter_property_changed, graphic))
+            self.__graphic_property_changed_listeners.append(property_changed_listener)
+
+    def close(self):
+        for graphic_property_changed_listener in self.__graphic_property_changed_listeners:
+            if graphic_property_changed_listener:
+                graphic_property_changed_listener.close()
+        self.__graphic_property_changed_listeners = list()
+        if self.__graphic_inserted_event_listener:
+            self.__graphic_inserted_event_listener.close()
+            self.__graphic_inserted_event_listener = None
+        if self.__graphic_removed_event_listener:
+            self.__graphic_removed_event_listener.close()
+            self.__graphic_removed_event_listener = None
+        if self.__property_changed_listener:
+            self.__property_changed_listener.close()
+            self.__property_changed_listener = None
+        if self.__data_item_changed_event_listener:
+            self.__data_item_changed_event_listener.close()
+            self.__data_item_changed_event_listener = None
+        if self.__display_values_event_listener:
+            self.__display_values_event_listener.close()
+            self.__display_values_event_listener = None
+        self.__display_item = None
+        self.__graphic = None
+        self.__changed_event = None

@@ -10,7 +10,6 @@
 # standard libraries
 import collections
 import gettext
-import json
 import math
 import typing
 
@@ -27,8 +26,10 @@ from nion.swift import Inspector
 from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import DisplayItem
+from nion.swift.model import DocumentModel
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
+from nion.ui import UserInterface
 from nion.utils import Geometry
 
 _ = gettext.gettext
@@ -983,7 +984,7 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.rotate(-math.pi*0.5)
                     drawing_context.translate(-x, -y)
                     drawing_context.font = "{0:d}px".format(self.font_size)
-                    drawing_context.fill_text(u"{0} ({1})".format(_("Intensity"), axes.y_calibration.units), x, y)
+                    drawing_context.fill_text(axes.y_calibration.units, x, y)
                     drawing_context.translate(x, y)
                     drawing_context.rotate(+math.pi*0.5)
                     drawing_context.translate(-x, -y)
@@ -992,17 +993,17 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
 class LineGraphLegendCanvasItemDelegate:
     # interface must be implemented by the delegate
 
-    def create_move_display_layer_command(self, src_id: uuid.UUID, src_index: int, target_index: int) -> Undo.UndoableCommand: ...
+    def create_move_display_layer_command(self, display_item: DisplayItem.DisplayItem, src_index: int, target_index: int) -> Undo.UndoableCommand: ...
 
-    def create_change_display_item_property_command(self, id_to_change: uuid.UUID, property_name: str, value) -> Inspector.ChangeDisplayItemPropertyCommand: ...
-
-    def get_display_item_by_uuid(self, item_id: uuid.UUID) -> DisplayItem.DisplayItem: ...
+    def create_change_display_item_property_command(self, display_item: DisplayItem.DisplayItem, property_name: str, value) -> Inspector.ChangeDisplayItemPropertyCommand: ...
 
     def push_undo_command(self, command: Undo.UndoableCommand) -> None: ...
 
-    def create_mime_data(self) -> typing.Any: ...
+    def create_mime_data(self) -> UserInterface.MimeData: ...
 
-    def get_display_item_uuid(self) -> uuid.UUID: ...
+    def get_display_item(self) -> DisplayItem.DisplayItem: ...
+
+    def get_document_model(self) -> DocumentModel.DocumentModel: ...
 
     def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int) -> numpy.ndarray: ...
 
@@ -1093,7 +1094,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
         return Geometry.IntSize(width=legend_width, height=legend_height)
 
-    def wants_drag_event(self, mime_data, x, y) -> bool:
+    def wants_drag_event(self, mime_data: UserInterface.MimeData, x: int, y: int) -> bool:
         return mime_data.has_format(MimeTypes.LAYER_MIME_TYPE)
 
     def set_legend_entries(self, legend_entries: typing.Optional[typing.Sequence], display_layers: typing.Optional[typing.Sequence]):
@@ -1157,26 +1158,15 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         # if the mouse is pressed and the distance it greater than the distance to start dragging, start the drag using
         # the selected layer as the mime type.
         if self.__mouse_pressed_for_dragging and Geometry.distance(self._drag_start_position, Geometry.IntPoint(y=y, x=x)) > 1:
-                mime_data = self.__delegate.create_mime_data()
+            mime_data = self.__delegate.create_mime_data()
+            layer = self.__legend_entries[self.__dragging_index]
+            MimeTypes.mime_data_put_layer(mime_data, self.__dragging_index, self.__delegate.get_display_item(), layer.label, layer.fill_color, layer.stroke_color)
+            thumbnail_data = self.__get_icon_for_layer(layer.fill_color)
+            self.drag(mime_data, thumbnail_data)
+            self.update()
+            return True
 
-                layer = self.__legend_entries[self.__dragging_index]
-
-                legend_data = {
-                    "index": self.__dragging_index,
-                    "display_item": str(self.__delegate.get_display_item_uuid()),
-                    "label": layer.label,
-                    "fill_color": layer.fill_color,
-                    "stroke_color": layer.stroke_color,
-                }
-
-                thumbnail_data = self.__get_icon_for_layer(layer.fill_color)
-
-                mime_data.set_data_as_string(MimeTypes.LAYER_MIME_TYPE, json.dumps(legend_data))
-                self.drag(mime_data, thumbnail_data)
-                self.update()
-                return True
-
-    def drag_move(self, mime_data, x, y):
+    def drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> bool:
         # get the entry the mouse was over
         old_entry = self.__entry_to_insert
 
@@ -1224,12 +1214,12 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__generate_effective_entries()
         self.update()
 
-    def drag_enter(self, mime_data):
+    def drag_enter(self, mime_data: UserInterface.MimeData) -> None:
         # if a new drag comes in with layer mime data, check if we're the source or if this is a foreign layer
         if mime_data.has_format(MimeTypes.LAYER_MIME_TYPE):
             self.__mouse_dragging = True
-            legend_data = json.loads(mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE))
-            if uuid.UUID(legend_data["display_item"]) == self.__delegate.get_display_item_uuid():
+            legend_data, display_item = MimeTypes.mime_data_get_layer(mime_data, self.__delegate.get_document_model())
+            if display_item == self.__delegate.get_display_item():
                 # if we're the source, setup the index and update the drag preview
                 self.__dragging_index = legend_data["index"]
                 self.__mouse_pressed_for_dragging = True
@@ -1240,36 +1230,29 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
                 LegendEntry = collections.namedtuple("LegendEntry", ["label", "fill_color", "stroke_color"])
 
                 self.__foreign_legend_entry = LegendEntry(label=legend_data["label"], fill_color=legend_data["fill_color"], stroke_color=legend_data["stroke_color"])
-                self.__foreign_legend_uuid_and_index = (legend_data["display_item"], legend_data["index"])
+                self.__foreign_legend_uuid_and_index = (display_item, legend_data["index"])
                 self.update()
 
-    def drop(self, mime_data, x, y):
+    def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> None:
         # stop dragging
         self._drag_start_position = None
         self.__mouse_pressed_for_dragging = False
         self.__mouse_dragging = False
 
-        if mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE) != "":
-            legend_data = json.loads(mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE))
-            source_display_item_uuid = uuid.UUID(legend_data["display_item"])
-
+        if mime_data.has_format(MimeTypes.LAYER_MIME_TYPE):
+            legend_data, source_display_item = MimeTypes.mime_data_get_layer(mime_data, self.__delegate.get_document_model())
             from_index = legend_data["index"]
-
-            if source_display_item_uuid == self.__delegate.get_display_item_uuid():
+            if source_display_item == self.__delegate.get_display_item():
                 # if we're the source item, just shift the layers
                 if from_index != self.__entry_to_insert:
-                    new_display_layers = DisplayItem.shift_display_layers(self.__display_layers, from_index,
-                                                                          self.__entry_to_insert)
-
+                    new_display_layers = DisplayItem.shift_display_layers(self.__display_layers, from_index, self.__entry_to_insert)
                     self.__entry_to_insert = None
-
-                    command = self.__delegate.create_change_display_item_property_command(source_display_item_uuid, "display_layers",
-                                                                                          new_display_layers)
+                    command = self.__delegate.create_change_display_item_property_command(source_display_item, "display_layers", new_display_layers)
                     command.perform()
                     self.__delegate.push_undo_command(command)
             else:
                 # if we aren't the source item, move the display layer between display items
-                command = self.__delegate.create_move_display_layer_command(source_display_item_uuid, from_index, self.__entry_to_insert)
+                command = self.__delegate.create_move_display_layer_command(source_display_item, from_index, self.__entry_to_insert)
 
                 self.__foreign_legend_entry = None
                 self.__foreign_legend_uuid_and_index = None

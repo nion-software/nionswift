@@ -24,6 +24,8 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
+from nion.ui import Declarative
+from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Converter
@@ -162,7 +164,7 @@ class InspectorPanel(Panel.Panel):
         self.column.add(stretch_column)
 
     # not thread safe
-    def __set_display_item(self, display_item: DisplayItem.DisplayItem) -> None:
+    def __set_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
         if not self.document_controller.document_model.are_display_items_equal(self.__display_item, display_item):
             self.__display_item = display_item
             self.__update_display_inspector()
@@ -175,8 +177,8 @@ class InspectorPanel(Panel.Panel):
     # mark the data item as needing updating.
     # thread safe.
     def __display_item_changed(self, display_item: DisplayItem.DisplayItem) -> None:
+        data_item = display_item.data_item if display_item else None
         def data_item_will_be_removed(data_item_to_be_removed):
-            data_item = display_item.data_item if display_item else None
             if data_item_to_be_removed == data_item:
                 self.document_controller.clear_task("update_display" + str(id(self)))
                 self.document_controller.clear_task("update_display_inspector" + str(id(self)))
@@ -199,6 +201,27 @@ class InspectorPanel(Panel.Panel):
         self.document_controller.add_task("update_display" + str(id(self)), update_display)
 
 
+class Unbinder:
+    def __init__(self):
+        self.__unbinders = list()
+        self.__listener_map = dict()
+
+    def close(self) -> None:
+        for listener in self.__listener_map.values():
+            listener.close()
+        self.__listener_map = None
+
+    def add(self, items, unbinders: typing.Sequence[typing.Callable[[], None]]) -> None:
+        for item in items:
+            if item and item not in self.__listener_map:
+                self.__listener_map[item] = item.about_to_be_removed_event.listen(self.__unbind)
+        self.__unbinders.extend(unbinders)
+
+    def __unbind(self) -> None:
+        for unbinder in self.__unbinders:
+            unbinder()
+
+
 class InspectorSection(Widgets.CompositeWidgetBase):
     """A class to manage creation of a widget representing a twist down inspector section.
 
@@ -214,6 +237,11 @@ class InspectorSection(Widgets.CompositeWidgetBase):
         self.__section_content_column = ui.create_column_widget()
         super().__init__(Widgets.SectionWidget(ui, section_title, self.__section_content_column, "inspector/" + section_id + "/open"))
         self.ui = ui  # for use in subclasses
+        self._unbinder = Unbinder()
+
+    def close(self) -> None:
+        self._unbinder.close()
+        super().close()
 
     def add_widget_to_content(self, widget):
         """Subclasses should call this to add content in the section's top level column."""
@@ -233,7 +261,7 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_item: DisplayItem.DisplayItem, property_name: str, value):
         super().__init__(_("Change Display Item Info"), command_id="change_property_" + property_name, is_mergeable=True)
         self.__document_model = document_model
-        self.__display_item_uuid = display_item.uuid
+        self.__display_item_proxy = display_item.create_proxy()
         self.__property_name = property_name
         self.__new_display_layers = value
         self.__old_display_layers = getattr(display_item, property_name)
@@ -241,22 +269,23 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
 
     def close(self):
         self.__document_model = None
-        self.__display_item_uuid = None
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
         self.__property_name = None
         self.__new_display_layers = None
         self.__old_display_layers = None
         super().close()
 
     def perform(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         setattr(display_item, self.__property_name, self.__new_display_layers)
 
     def _get_modified_state(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         return display_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         display_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
@@ -264,7 +293,7 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self) -> None:
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         self.__new_display_layers = getattr(display_item, self.__property_name)
         setattr(display_item, self.__property_name, self.__old_display_layers)
 
@@ -272,14 +301,14 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
         self.perform()
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
+        return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item
 
 
 class ChangePropertyCommand(Undo.UndoableCommand):
     def __init__(self, document_model, data_item: DataItem.DataItem, property_name: str, value):
         super().__init__(_("Change Data Item Info"), command_id="change_property_" + property_name, is_mergeable=True)
         self.__document_model = document_model
-        self.__data_item_uuid = data_item.uuid
+        self.__data_item_proxy = data_item.create_proxy()
         self.__property_name = property_name
         self.__new_value = value
         self.__old_value = getattr(data_item, property_name)
@@ -287,22 +316,23 @@ class ChangePropertyCommand(Undo.UndoableCommand):
 
     def close(self):
         self.__document_model = None
-        self.__data_item_uuid = None
+        self.__data_item_proxy.close()
+        self.__data_item_proxy = None
         self.__property_name = None
         self.__new_value = None
         self.__old_value = None
         super().close()
 
     def perform(self):
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         setattr(data_item, self.__property_name, self.__new_value)
 
     def _get_modified_state(self):
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         return data_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         data_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
@@ -310,7 +340,7 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self) -> None:
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         self.__new_value = getattr(data_item, self.__property_name)
         setattr(data_item, self.__property_name, self.__old_value)
 
@@ -388,16 +418,28 @@ class ChangeDisplayDataChannelPropertyBinding(Binding.PropertyBinding):
 class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
     def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, property_name: str, converter=None, fallback=None):
         super().__init__(graphic, property_name, converter=converter, fallback=fallback)
+        self.__display_item_proxy = display_item.create_proxy()
+        self.__graphic_proxy = graphic.create_proxy()
+        self.__document_controller = document_controller
         self.__property_name = property_name
         self.__old_source_setter = self.source_setter
+        self.source_setter = self.__set_value
 
-        def set_value(value):
-            if value != getattr(graphic, property_name):
-                command = DisplayPanel.ChangeGraphicsCommand(document_controller.document_model, display_item, [graphic], title=_("Change Display Type"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
+    def close(self) -> None:
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
+        self.__graphic_proxy.close()
+        self.__graphic_proxy = None
+        super().close()
+
+    def __set_value(self, value):
+        display_item = self.__display_item_proxy.item
+        graphic = self.__graphic_proxy.item
+        if display_item and graphic:
+            if value != getattr(graphic, self.__property_name):
+                command = DisplayPanel.ChangeGraphicsCommand(self.__document_controller.document_model, display_item, [graphic], title=_("Change Display Type"), command_id="change_display_" + self.__property_name, is_mergeable=True, **{self.__property_name: value})
                 command.perform()
-                document_controller.push_undo_command(command)
-
-        self.source_setter = set_value
+                self.__document_controller.push_undo_command(command)
 
 
 class DisplayDataChannelPropertyCommandModel(Model.PropertyModel):
@@ -545,6 +587,8 @@ class InfoInspectorSection(InspectorSection):
         self.add_widget_to_content(self.info_section_session_row)
         self.add_widget_to_content(self.info_section_datetime_row)
         self.finish_widget_content()
+        # add unbinders
+        self._unbinder.add([display_item], [self.info_title_label.unbind_text, self.caption_static_text.unbind_text, self.info_session_label.unbind_text, self.info_datetime_label.unbind_text])
 
 
 class DataInfoInspectorSection(InspectorSection):
@@ -568,6 +612,8 @@ class DataInfoInspectorSection(InspectorSection):
         self.add_widget_to_content(self.info_section_datetime_row)
         self.add_widget_to_content(self.info_section_format_row)
         self.finish_widget_content()
+        # add unbinders
+        self._unbinder.add([display_data_channel], [self.info_datetime_label.unbind_text, self.info_format_label.unbind_text])
 
 
 class LinePlotDisplayLayersInspectorSection(InspectorSection):
@@ -813,6 +859,9 @@ class ImageDataInspectorSection(InspectorSection):
 
         self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(handle_next_calculated_display_values)
 
+        # add unbinders
+        self._unbinder.add([display_item, display_data_channel], [self.info_datetime_label.unbind_text, self.info_format_label.unbind_text, self.display_limits_range_low.unbind_text, self.display_limits_range_high.unbind_text, self.display_limits_limit_low.unbind_text, self.display_limits_limit_high.unbind_text])
+
     def close(self):
         self.__display_limits_model.close()
         self.__display_limits_model = None
@@ -894,28 +943,29 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
     def __init__(self, document_model, data_item: DataItem.DataItem, intensity_calibration: Calibration.Calibration):
         super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
         self.__document_model = document_model
-        self.__data_item_uuid = data_item.uuid
+        self.__data_item_proxy = data_item.create_proxy()
         self.__new_intensity_calibration = intensity_calibration
         self.__old_intensity_calibration = data_item.intensity_calibration
         self.initialize()
 
     def close(self):
         self.__document_model = None
-        self.__data_item_uuid = None
+        self.__data_item_proxy.close()
+        self.__data_item_proxy = None
         self.__new_intensity_calibration = None
         self.__old_intensity_calibration = None
         super().close()
 
     def perform(self):
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         data_item.set_intensity_calibration(self.__new_intensity_calibration)
 
     def _get_modified_state(self):
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         return data_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         data_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
@@ -923,7 +973,7 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self) -> None:
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         self.__new_intensity_calibration = data_item.intensity_calibration
         data_item.set_intensity_calibration(self.__old_intensity_calibration)
 
@@ -938,21 +988,27 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
     def __init__(self, document_model, data_item: DataItem.DataItem, dimensional_calibrations: typing.List[Calibration.Calibration]):
         super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
         self.__document_model = document_model
-        self.__data_item_uuid = data_item.uuid
+        self.__data_item_proxy = data_item.create_proxy()
         self.__new_dimensional_calibrations = dimensional_calibrations
         self.__old_dimensional_calibrations = data_item.dimensional_calibrations
         self.initialize()
 
+    def close(self):
+        self.__document_model = None
+        self.__data_item_proxy.close()
+        self.__data_item_proxy = None
+        super().close()
+
     def perform(self):
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         data_item.set_dimensional_calibrations(self.__new_dimensional_calibrations)
 
     def _get_modified_state(self):
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         return data_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         data_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
@@ -960,7 +1016,7 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self) -> None:
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        data_item = self.__data_item_proxy.item
         self.__new_dimensional_calibrations = data_item.dimensional_calibrations
         data_item.set_dimensional_calibrations(self.__old_dimensional_calibrations)
 
@@ -1040,7 +1096,40 @@ class CalibrationToObservable(Observable.Observable):
         self.notify_property_changed("units")
 
 
-def make_calibration_style_chooser(document_controller, display_item: DisplayItem.DisplayItem):
+class InspectorSectionWidget(Widgets.CompositeWidgetBase):
+    def __init__(self, ui):
+        super().__init__(ui.create_column_widget())
+        self.__unbinder = Unbinder()
+        self.__closeables = list()
+
+    def close(self):
+        self.__unbinder.close()
+        for closeable in self.__closeables:
+            closeable.close()
+        self.__closeables = None
+        super().close()
+
+    def add_closeable(self, closeable) -> None:
+        self.__closeables.append(closeable)
+
+    def add_closeables(self, *closeables) -> None:
+        for closeable in closeables:
+            self.add_closeable(closeable)
+
+    def add_unbinder(self, items, unbinders: typing.Sequence[typing.Callable[[], None]]) -> None:
+        self.__unbinder.add(items, unbinders)
+
+    def add(self, widget) -> None:
+        self.content_widget.add(widget)
+
+    def add_spacing(self, spacing: int) -> None:
+        self.content_widget.add_spacing(spacing)
+
+    def find_widget_by_id(self, widget_id: str):
+        return self.content_widget.find_widget_by_id(widget_id)
+
+
+def make_calibration_style_chooser(document_controller, display_item: DisplayItem.DisplayItem) -> InspectorSectionWidget:
     ui = document_controller.ui
 
     calibration_styles = DisplayItem.get_calibration_styles()
@@ -1061,11 +1150,18 @@ def make_calibration_style_chooser(document_controller, display_item: DisplayIte
     display_calibration_style_chooser = ui.create_combo_box_widget(items=display_calibration_style_options, item_getter=operator.itemgetter(0))
     display_calibration_style_chooser.bind_current_index(ChangeDisplayItemPropertyBinding(document_controller, display_item, "calibration_style_id", converter=CalibrationStyleIndexConverter(), fallback=0))
 
-    return display_calibration_style_chooser
+    widget = InspectorSectionWidget(ui)
+
+    widget.add(display_calibration_style_chooser)
+
+    widget.add_unbinder([display_item], [display_calibration_style_chooser.unbind_current_index])
+
+    return widget
 
 
-def make_calibration_row_widget(ui, calibration_observable, label: str=None):
+def make_calibration_row_widget(ui, data_item: DataItem.DataItem, calibration_observable, label: str=None) -> InspectorSectionWidget:
     """Called when an item (calibration_observable) is inserted into the list widget. Returns a widget."""
+    widget = InspectorSectionWidget(ui)
     calibration_row = ui.create_row_widget()
     row_label = ui.create_label_widget(label, properties={"width": 60})
     row_label.widget_id = "label"
@@ -1088,7 +1184,9 @@ def make_calibration_row_widget(ui, calibration_observable, label: str=None):
     calibration_row.add_spacing(12)
     calibration_row.add(units_field)
     calibration_row.add_stretch()
-    return calibration_row
+    widget.add(calibration_row)
+    widget.add_unbinder([data_item], [offset_field.unbind_text, scale_field.unbind_text, units_field.unbind_text])
+    return widget
 
 
 class CalibrationsInspectorSection(InspectorSection):
@@ -1118,7 +1216,7 @@ class CalibrationsInspectorSection(InspectorSection):
             document_controller.push_undo_command(command)
 
         self.__intensity_calibration_observable = CalibrationToObservable(intensity_calibration, change_intensity_calibration)
-        intensity_row = make_calibration_row_widget(ui, self.__intensity_calibration_observable, _("Intensity"))
+        intensity_row = make_calibration_row_widget(ui, data_item, self.__intensity_calibration_observable, _("Intensity"))
 
         def handle_data_item_changed():
             # handle threading specially for tests
@@ -1210,7 +1308,8 @@ class CalibrationsInspectorSection(InspectorSection):
     # not thread safe.
     def __create_list_item_widget(self, ui, calibration_observable):
         """Called when an item (calibration_observable) is inserted into the list widget. Returns a widget."""
-        calibration_row = make_calibration_row_widget(ui, calibration_observable)
+        data_item = self.__display_data_channel.data_item
+        calibration_row = make_calibration_row_widget(ui, data_item, calibration_observable)
         column = ui.create_column_widget()
         column.add_spacing(4)
         column.add(calibration_row)
@@ -1222,27 +1321,28 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_item: DisplayItem.DisplayItem, display_type: str):
         super().__init__(_("Change Display Type"), command_id="change_display_type", is_mergeable=True)
         self.__document_model = document_model
-        self.__display_item_uuid = display_item.uuid
+        self.__display_item_proxy = display_item.create_proxy()
         self.__old_display_type = display_item.display_type
         self.__display_type = display_type
         self.initialize()
 
     def close(self):
         self.__document_model = None
-        self.__display_item_uuid = None
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
         self.__old_display_type = None
         super().close()
 
     def perform(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         display_item.display_type = self.__display_type
 
     def _get_modified_state(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         return display_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         display_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
@@ -1250,13 +1350,13 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         old_display_type = self.__old_display_type
         self.__old_display_type = display_item.display_type
         display_item.display_type = old_display_type
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDisplayTypeCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
+        return isinstance(command, ChangeDisplayTypeCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item
 
 
 def make_display_type_chooser(document_controller, display_item: DisplayItem.DisplayItem):
@@ -1429,6 +1529,9 @@ class LinePlotDisplayInspectorSection(InspectorSection):
 
         self.finish_widget_content()
 
+        # add unbinders
+        self._unbinder.add([display_item], [self.display_limits_limit_low.unbind_text, self.display_limits_limit_high.unbind_text, self.channels_left.unbind_text, self.channels_right.unbind_text, self.style_y_log.unbind_check_state])
+
     def close(self):
         self.__legend_position_changed_listener.close()
         self.__legend_position_changed_listener = None
@@ -1469,6 +1572,9 @@ class SequenceInspectorSection(InspectorSection):
         self._sequence_index_slider_widget = sequence_index_slider_widget
         self._sequence_index_line_edit_widget = sequence_index_line_edit_widget
 
+        # add unbinders
+        self._unbinder.add([display_data_channel], [sequence_index_slider_widget.unbind_value, sequence_index_line_edit_widget.unbind_text])
+
 
 class CollectionIndexInspectorSection(InspectorSection):
 
@@ -1501,6 +1607,9 @@ class CollectionIndexInspectorSection(InspectorSection):
             index_row_widget.add(index_line_edit_widget)
             index_row_widget.add_stretch()
             column_widget.add(index_row_widget)
+
+            # add unbinders
+            self._unbinder.add([display_data_channel], [index_slider_widget.unbind_value, index_line_edit_widget.unbind_text])
 
         self.add_widget_to_content(column_widget)
         self.finish_widget_content()
@@ -1552,6 +1661,9 @@ class SliceInspectorSection(InspectorSection):
         slice_width_row_widget.add_spacing(8)
         slice_width_row_widget.add(slice_width_line_edit_widget)
         slice_width_row_widget.add_stretch()
+
+        # add unbinders
+        self._unbinder.add([display_data_channel], [slice_center_slider_widget.unbind_value, slice_center_line_edit_widget.unbind_text, slice_width_slider_widget.unbind_value, slice_width_line_edit_widget.unbind_text])
 
         self.add_widget_to_content(slice_center_row_widget)
         self.add_widget_to_content(slice_width_row_widget)
@@ -1758,8 +1870,9 @@ class CalibratedLengthBinding(Binding.Binding):
         return self.__size_converter.convert_calibrated_value_to_str(calibrated_value)
 
 
-def make_point_type_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
+def make_point_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
+    graphic_widget = InspectorSectionWidget(ui)
     # create the ui
     graphic_position_row = ui.create_row_widget()
     graphic_position_row.add_spacing(20)
@@ -1797,11 +1910,16 @@ def make_point_type_inspector(document_controller, graphic_widget, display_item:
         graphic_position_x_line_edit.bind_text(Binding.TuplePropertyBinding(position_model, "value", 1))
         graphic_position_y_line_edit.bind_text(Binding.TuplePropertyBinding(position_model, "value", 0))
 
-    return [position_model]
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_position_x_line_edit.unbind_text, graphic_position_y_line_edit.unbind_text])
+
+    graphic_widget.add_closeable(position_model)
+
+    return graphic_widget
 
 
-def make_line_type_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
+def make_line_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
+    graphic_widget = InspectorSectionWidget(ui)
     # create the ui
     graphic_start_row = ui.create_row_widget()
     graphic_start_row.add_spacing(20)
@@ -1889,11 +2007,16 @@ def make_line_type_inspector(document_controller, graphic_widget, display_item: 
         graphic_param_l_line_edit.bind_text(ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "length"))
         graphic_param_a_line_edit.bind_text(ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "angle", RadianToDegreeStringConverter()))
 
-    return [start_model, end_model]
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_start_x_line_edit.unbind_text, graphic_start_y_line_edit.unbind_text, graphic_end_x_line_edit.unbind_text, graphic_end_y_line_edit.unbind_text, graphic_param_l_line_edit.unbind_text, graphic_param_a_line_edit.unbind_text])
+
+    graphic_widget.add_closeables(start_model, end_model)
+
+    return graphic_widget
 
 
-def make_line_profile_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
-    items_to_close = make_line_type_inspector(document_controller, graphic_widget, display_item, graphic)
+def make_line_profile_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
+    graphic_widget = make_line_type_inspector(document_controller, display_item, graphic)
+
     ui = document_controller.ui
     # configure the bindings
     width_binding = CalibratedWidthBinding(display_item, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "width"))
@@ -1909,12 +2032,16 @@ def make_line_profile_inspector(document_controller, graphic_widget, display_ite
     graphic_widget.add_spacing(4)
     graphic_widget.add(graphic_width_row)
     graphic_widget.add_spacing(4)
-    return items_to_close
+
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_width_line_edit.unbind_text])
+
+    return graphic_widget
 
 
-def make_rectangle_type_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic, graphic_name: str, rotation: bool = False):
+def make_rectangle_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic, graphic_name: str, rotation: bool = False) -> InspectorSectionWidget:
     ui = document_controller.ui
-    graphic_widget.widget_id = "rectangle_type_inspector"
+    graphic_widget = InspectorSectionWidget(ui)
+    graphic_widget.content_widget.widget_id = "rectangle_type_inspector"
     # create the ui
     graphic_center_row = ui.create_row_widget()
     graphic_center_row.add_spacing(20)
@@ -1978,7 +2105,9 @@ def make_rectangle_type_inspector(document_controller, graphic_widget, display_i
         graphic_size_width_line_edit.bind_text(Binding.TuplePropertyBinding(size_model, "value", 1))
         graphic_size_height_line_edit.bind_text(Binding.TuplePropertyBinding(size_model, "value", 0))
 
-    closeables = [center_model, size_model]
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_center_x_line_edit.unbind_text, graphic_center_y_line_edit.unbind_text, graphic_size_width_line_edit.unbind_text, graphic_size_height_line_edit.unbind_text])
+
+    graphic_widget.add_closeables(center_model, size_model)
 
     if rotation:
         rotation_row = ui.create_row_widget()
@@ -2001,13 +2130,115 @@ def make_rectangle_type_inspector(document_controller, graphic_widget, display_i
         rotation_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
         rotation_line_edit.bind_text(Binding.PropertyBinding(rotation_model, "value", converter=RadianToDegreeStringConverter()))
 
-        closeables.append(rotation_model)
+        graphic_widget.add_unbinder([display_item, graphic], [rotation_line_edit.unbind_text])
 
-    return closeables
+        graphic_widget.add_closeable(rotation_model)
 
-def make_wedge_type_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
+    return graphic_widget
+
+
+def make_spot_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic, graphic_name: str) -> InspectorSectionWidget:
     ui = document_controller.ui
-    graphic_widget.widget_id = "wedge_inspector"
+    graphic_widget = InspectorSectionWidget(ui)
+    graphic_widget.content_widget.widget_id = "spot_inspector"
+    # create the ui
+    graphic_center_row = ui.create_row_widget()
+    graphic_center_row.add_spacing(20)
+    graphic_center_x_row = ui.create_row_widget()
+    graphic_center_x_row.add(ui.create_label_widget(_("X"), properties={"width": 26}))
+    graphic_center_x_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_center_x_line_edit.widget_id = "x"
+    graphic_center_x_row.add(graphic_center_x_line_edit)
+    graphic_center_y_row = ui.create_row_widget()
+    graphic_center_y_row.add(ui.create_label_widget(_("Y"), properties={"width": 26}))
+    graphic_center_y_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_center_y_line_edit.widget_id = "y"
+    graphic_center_y_row.add(graphic_center_y_line_edit)
+    graphic_center_row.add(graphic_center_x_row)
+    graphic_center_row.add_spacing(8)
+    graphic_center_row.add(graphic_center_y_row)
+    graphic_center_row.add_stretch()
+    graphic_size_row = ui.create_row_widget()
+    graphic_size_row.add_spacing(20)
+    graphic_center_w_row = ui.create_row_widget()
+    graphic_center_w_row.add(ui.create_label_widget(_("W"), properties={"width": 26}))
+    graphic_size_width_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_size_width_line_edit.widget_id = "width"
+    graphic_center_w_row.add(graphic_size_width_line_edit)
+    graphic_center_h_row = ui.create_row_widget()
+    graphic_center_h_row.add(ui.create_label_widget(_("H"), properties={"width": 26}))
+    graphic_size_height_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_size_height_line_edit.widget_id = "height"
+    graphic_center_h_row.add(graphic_size_height_line_edit)
+    graphic_size_row.add(graphic_center_w_row)
+    graphic_size_row.add_spacing(8)
+    graphic_size_row.add(graphic_center_h_row)
+    graphic_size_row.add_stretch()
+    graphic_widget.add_spacing(4)
+    graphic_widget.add(graphic_center_row)
+    graphic_widget.add_spacing(4)
+    graphic_widget.add(graphic_size_row)
+    graphic_widget.add_spacing(4)
+
+    data_item = display_item.data_item if display_item else None
+
+    center_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
+
+    size_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
+
+    # calculate values from rectangle type graphic
+    image_size = data_item.display_data_shape
+    if len(image_size) > 1:
+        # signal_index
+        center_x_binding = CalibratedSizeBinding(1, display_item, Binding.TuplePropertyBinding(center_model, "value", 1))
+        center_y_binding = CalibratedSizeBinding(0, display_item, Binding.TuplePropertyBinding(center_model, "value", 0))
+        size_width_binding = CalibratedSizeBinding(1, display_item, Binding.TuplePropertyBinding(size_model, "value", 1))
+        size_height_binding = CalibratedSizeBinding(0, display_item, Binding.TuplePropertyBinding(size_model, "value", 0))
+        graphic_center_x_line_edit.bind_text(center_x_binding)
+        graphic_center_y_line_edit.bind_text(center_y_binding)
+        graphic_size_width_line_edit.bind_text(size_width_binding)
+        graphic_size_height_line_edit.bind_text(size_height_binding)
+    else:
+        graphic_center_x_line_edit.bind_text(Binding.TuplePropertyBinding(center_model, "value", 1))
+        graphic_center_y_line_edit.bind_text(Binding.TuplePropertyBinding(center_model, "value", 0))
+        graphic_size_width_line_edit.bind_text(Binding.TuplePropertyBinding(size_model, "value", 1))
+        graphic_size_height_line_edit.bind_text(Binding.TuplePropertyBinding(size_model, "value", 0))
+
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_center_x_line_edit.unbind_text, graphic_center_y_line_edit.unbind_text, graphic_size_width_line_edit.unbind_text, graphic_size_height_line_edit.unbind_text])
+
+    graphic_widget.add_closeables(center_model, size_model)
+
+    rotation_row = ui.create_row_widget()
+    rotation_row.add_spacing(20)
+
+    rotation_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    rotation_line_edit.widget_id = "rotation"
+
+    rotation_row2 = ui.create_row_widget()
+    rotation_row2.add(ui.create_label_widget(_("Rotation (deg)")))
+    rotation_row2.add_spacing(8)
+    rotation_row2.add(rotation_line_edit)
+
+    rotation_row.add(rotation_row2)
+    rotation_row.add_stretch()
+
+    graphic_widget.add(rotation_row)
+    graphic_widget.add_spacing(4)
+
+    rotation_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
+    rotation_line_edit.bind_text(Binding.PropertyBinding(rotation_model, "value", converter=RadianToDegreeStringConverter()))
+
+    graphic_widget.add_unbinder([display_item, graphic], [rotation_line_edit.unbind_text])
+
+    graphic_widget.add_closeable(rotation_model)
+
+    return graphic_widget
+
+
+def make_wedge_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic: Graphics.WedgeGraphic) -> InspectorSectionWidget:
+    ui = document_controller.ui
+    graphic_widget = InspectorSectionWidget(ui)
+    graphic_widget.content_widget.widget_id = "wedge_inspector"
     # create the ui
     graphic_center_start_angle_row = ui.create_row_widget()
     graphic_center_start_angle_row.add_spacing(20)
@@ -2031,9 +2262,14 @@ def make_wedge_type_inspector(document_controller, graphic_widget, display_item:
     graphic_center_start_angle_line_edit.bind_text(Binding.TuplePropertyBinding(angle_interval_model, "value", 0, RadianToDegreeStringConverter()))
     graphic_center_angle_measure_line_edit.bind_text(Binding.TuplePropertyBinding(angle_interval_model, "value", 1, RadianToDegreeStringConverter()))
 
-    return [angle_interval_model]
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_center_start_angle_line_edit.unbind_text, graphic_center_angle_measure_line_edit.unbind_text])
 
-def make_annular_ring_mode_chooser(document_controller, display_item: DisplayItem.DisplayItem, ring):
+    graphic_widget.add_closeable(angle_interval_model)
+
+    return graphic_widget
+
+
+def make_annular_ring_mode_chooser(document_controller, graphic_widget: InspectorSectionWidget, display_item: DisplayItem.DisplayItem, graphic: Graphics.RingGraphic):
     ui = document_controller.ui
     annular_ring_mode_options = ((_("Band Pass"), "band-pass"), (_("Low Pass"), "low-pass"), (_("High Pass"), "high-pass"))
     annular_ring_mode_reverse_map = {"band-pass": 0, "low-pass": 1, "high-pass": 2}
@@ -2051,14 +2287,18 @@ def make_annular_ring_mode_chooser(document_controller, display_item: DisplayIte
                 return "band-pass"
 
     display_calibration_style_chooser = ui.create_combo_box_widget(items=annular_ring_mode_options, item_getter=operator.itemgetter(0))
-    display_calibration_style_chooser.bind_current_index(ChangeGraphicPropertyBinding(document_controller, display_item, ring, "mode", converter=AnnularRingModeIndexConverter(), fallback=0))
+    display_calibration_style_chooser.bind_current_index(ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "mode", converter=AnnularRingModeIndexConverter(), fallback=0))
+
+    graphic_widget.add_unbinder([display_item, graphic], [display_calibration_style_chooser.unbind_current_index])
 
     return display_calibration_style_chooser
 
-def make_ring_type_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
-    ui = document_controller.ui
 
-    graphic_widget.widget_id = "ring_inspector"
+def make_ring_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
+    ui = document_controller.ui
+    graphic_widget = InspectorSectionWidget(ui)
+
+    graphic_widget.content_widget.widget_id = "ring_inspector"
 
     # create the ui
     graphic_radius_1_row = ui.create_row_widget()
@@ -2076,7 +2316,8 @@ def make_ring_type_inspector(document_controller, graphic_widget, display_item: 
     ring_mode_row = ui.create_row_widget()
     ring_mode_row.add_spacing(20)
     ring_mode_row.add(ui.create_label_widget(_("Mode"), properties={"width": 60}))
-    ring_mode_row.add(make_annular_ring_mode_chooser(document_controller, display_item, graphic))
+    chooser = make_annular_ring_mode_chooser(document_controller, graphic_widget, display_item, graphic)
+    ring_mode_row.add(chooser)
     ring_mode_row.add_stretch()
 
     graphic_widget.add(graphic_radius_1_row)
@@ -2086,9 +2327,14 @@ def make_ring_type_inspector(document_controller, graphic_widget, display_item: 
     graphic_radius_1_line_edit.bind_text(CalibratedSizeBinding(0, display_item, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "radius_1")))
     graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(0, display_item, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "radius_2")))
 
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_radius_1_line_edit.unbind_text, graphic_radius_2_line_edit.unbind_text])
 
-def make_interval_type_inspector(document_controller, graphic_widget, display_item: DisplayItem.DisplayItem, graphic):
+    return graphic_widget
+
+
+def make_interval_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
+    graphic_widget = InspectorSectionWidget(ui)
     # configure the bindings
     start_binding = CalibratedValueBinding(-1, display_item, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "start"))
     end_binding = CalibratedValueBinding(-1, display_item, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "end"))
@@ -2115,6 +2361,10 @@ def make_interval_type_inspector(document_controller, graphic_widget, display_it
     graphic_widget.add(graphic_end_row)
     graphic_widget.add_spacing(4)
 
+    graphic_widget.add_unbinder([display_item, graphic], [graphic_start_line_edit.unbind_text, graphic_end_line_edit.unbind_text])
+
+    return graphic_widget
+
 
 class GraphicsInspectorSection(InspectorSection):
 
@@ -2128,7 +2378,6 @@ class GraphicsInspectorSection(InspectorSection):
         self.__document_controller = document_controller
         self.__display_item = display_item
         self.__graphics = display_item.graphics
-        self.__items_to_close = list()
         # ui
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
@@ -2144,11 +2393,8 @@ class GraphicsInspectorSection(InspectorSection):
         display_calibrations_row.add_stretch()
         self.add_widget_to_content(display_calibrations_row)
         self.finish_widget_content()
-
-    def close(self):
-        while self.__items_to_close:
-            self.__items_to_close.pop().close()
-        super().close()
+        # add unbinders
+        self._unbinder.add([display_item], [list_widget.unbind_items])
 
     def __create_header_widget(self):
         return self.ui.create_row_widget()
@@ -2173,34 +2419,35 @@ class GraphicsInspectorSection(InspectorSection):
         title_row.add_stretch()
         graphic_widget.add(title_row)
         graphic_widget.add_spacing(4)
+        self._unbinder.add([graphic], [label_line_edit.unbind_text])
         # create the graphic specific widget
         if isinstance(graphic, Graphics.PointGraphic):
             graphic_type_label.text = _("Point")
-            self.__items_to_close.extend(make_point_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic))
+            graphic_widget.add(make_point_type_inspector(self.__document_controller, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.LineProfileGraphic):
             graphic_type_label.text = _("Line Profile")
-            self.__items_to_close.extend(make_line_profile_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic))
+            graphic_widget.add(make_line_profile_inspector(self.__document_controller, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.LineGraphic):
             graphic_type_label.text = _("Line")
-            self.__items_to_close.extend(make_line_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic))
+            graphic_widget.add(make_line_type_inspector(self.__document_controller, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.RectangleGraphic):
             graphic_type_label.text = _("Rectangle")
-            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic, graphic_type_label.text, rotation=True))
+            graphic_widget.add(make_rectangle_type_inspector(self.__document_controller, self.__display_item, graphic, graphic_type_label.text, rotation=True))
         elif isinstance(graphic, Graphics.EllipseGraphic):
             graphic_type_label.text = _("Ellipse")
-            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic, graphic_type_label.text, rotation=True))
+            graphic_widget.add(make_rectangle_type_inspector(self.__document_controller, self.__display_item, graphic, graphic_type_label.text, rotation=True))
         elif isinstance(graphic, Graphics.IntervalGraphic):
             graphic_type_label.text = _("Interval")
-            make_interval_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic)
+            graphic_widget.add(make_interval_type_inspector(self.__document_controller, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.SpotGraphic):
             graphic_type_label.text = _("Spot")
-            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic, graphic_type_label.text))
+            graphic_widget.add(make_spot_inspector(self.__document_controller, self.__display_item, graphic, graphic_type_label.text))
         elif isinstance(graphic, Graphics.WedgeGraphic):
             graphic_type_label.text = _("Wedge")
-            self.__items_to_close.extend(make_wedge_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic))
+            graphic_widget.add(make_wedge_inspector(self.__document_controller, self.__display_item, graphic))
         elif isinstance(graphic, Graphics.RingGraphic):
             graphic_type_label.text = _("Annular Ring")
-            make_ring_type_inspector(self.__document_controller, graphic_widget, self.__display_item, graphic)
+            graphic_widget.add(make_ring_inspector(self.__document_controller, self.__display_item, graphic))
         column = self.ui.create_column_widget()
         column.add_spacing(4)
         column.add(graphic_widget)
@@ -2231,7 +2478,7 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
     def __init__(self, document_model, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Change Computation Variable"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
-        self.__computation_uuid = computation.uuid
+        self.__computation_proxy = computation.create_proxy()
         self.__variable_index = computation.variables.index(variable)
         self.__properties = variable.save_properties()
         self.__value_dict = kwargs
@@ -2239,25 +2486,26 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
 
     def close(self):
         self.__document_model = None
-        self.__computation = None
+        self.__computation_proxy.close()
+        self.__computation_proxy = None
         self.__variable_index = None
         self.__properties = None
         self.__value_dict = None
         super().close()
 
     def perform(self):
-        computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+        computation = self.__computation_proxy.item
         variable = computation.variables[self.__variable_index]
         for key, value in self.__value_dict.items():
             setattr(variable, key, value)
 
     def _get_modified_state(self):
-        computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+        computation = self.__computation_proxy.item
         variable = computation.variables[self.__variable_index]
         return variable.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+        computation = self.__computation_proxy.item
         variable = computation.variables[self.__variable_index]
         variable.modified_state, self.__document_model.modified_state = modified_state
 
@@ -2266,14 +2514,14 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self):
-        computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+        computation = self.__computation_proxy.item
         variable = computation.variables[self.__variable_index]
         properties = self.__properties
         self.__properties = variable.save_properties()
         variable.restore_properties(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeComputationVariableCommand) and self.command_id and self.command_id == command.command_id and self.__computation_uuid == command.__computation_uuid and self.__variable_index == command.__variable_index
+        return isinstance(command, ChangeComputationVariableCommand) and self.command_id and self.command_id == command.command_id and self.__computation_proxy.item == command.__computation_proxy.item and self.__variable_index == command.__variable_index
 
 
 class ChangeComputationVariablePropertyBinding(Binding.PropertyBinding):
@@ -2291,7 +2539,7 @@ class ChangeComputationVariablePropertyBinding(Binding.PropertyBinding):
         self.source_setter = set_value
 
 
-def make_checkbox(document_controller, computation, variable):
+def make_checkbox(document_controller, unbinder: Unbinder, computation, variable):
     ui = document_controller.ui
     column = ui.create_column_widget()
     row = ui.create_row_widget()
@@ -2302,9 +2550,11 @@ def make_checkbox(document_controller, computation, variable):
     row.add_stretch()
     column.add(row)
     column.add_spacing(4)
+    unbinder.add([computation], [check_box_widget.unbind_checked])
     return column, []
 
-def make_slider_int(document_controller, computation, variable, converter):
+
+def make_slider_int(document_controller, unbinder: Unbinder, computation, variable, converter):
     ui = document_controller.ui
     column = ui.create_column_widget()
     row = ui.create_row_widget()
@@ -2326,9 +2576,11 @@ def make_slider_int(document_controller, computation, variable, converter):
     row.add_spacing(8)
     column.add(row)
     column.add_spacing(4)
+    unbinder.add([computation], [label_widget.unbind_text, slider_widget.unbind_value, line_edit_widget.unbind_text])
     return column, []
 
-def make_slider_float(document_controller, computation, variable, converter):
+
+def make_slider_float(document_controller, unbinder: Unbinder, computation, variable, converter):
     ui = document_controller.ui
     column = ui.create_column_widget()
     row = ui.create_row_widget()
@@ -2350,9 +2602,11 @@ def make_slider_float(document_controller, computation, variable, converter):
     row.add_spacing(8)
     column.add(row)
     column.add_spacing(4)
+    unbinder.add([computation], [label_widget.unbind_text, slider_widget.unbind_value, line_edit_widget.unbind_text])
     return column, []
 
-def make_field(document_controller, computation, variable, converter):
+
+def make_field(document_controller, unbinder: Unbinder, computation, variable, converter):
     ui = document_controller.ui
     column = ui.create_column_widget()
     row = ui.create_row_widget()
@@ -2367,10 +2621,45 @@ def make_field(document_controller, computation, variable, converter):
     row.add_stretch()
     column.add(row)
     column.add_spacing(4)
+    unbinder.add([computation], [label_widget.unbind_text, line_edit_widget.unbind_text])
     return column, []
 
-def make_image_chooser(document_controller, computation, variable):
+
+def make_choice(document_controller, unbinder: Unbinder, computation, variable, converter):
+    ui = typing.cast(UserInterface.UserInterface, document_controller.ui)
+    column = ui.create_column_widget()
+    row = ui.create_row_widget()
+    label_widget = ui.create_label_widget(variable.display_label, properties={"width": 80})
+    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
+    choices = [(_("None"), "none"), (_("Mapped"), "mapped")]
+    choice_widget = ui.create_combo_box_widget(items=choices, item_getter=operator.itemgetter(0))
+
+    class ChoiceConverter:
+        def convert(self, value: str) -> int:
+            for index, choice in enumerate(choices):
+                if choice[1] == value:
+                    return index
+            return 0
+        def convert_back(self, value: int) -> str:
+            if value >= 0 and value < len(choices):
+                return choices[value][1]
+            else:
+                return "none"
+
+    choice_widget.bind_current_index(ChangeComputationVariablePropertyBinding(document_controller, computation, variable, "value", converter=ChoiceConverter()))
+    row.add(label_widget)
+    row.add_spacing(8)
+    row.add(choice_widget)
+    row.add_stretch()
+    column.add(row)
+    column.add_spacing(4)
+    unbinder.add([computation], [label_widget.unbind_text, choice_widget.unbind_current_index])
+    return column, []
+
+
+def make_image_chooser(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
     ui = document_controller.ui
+    widget = InspectorSectionWidget(ui)
     document_model = document_controller.document_model
     column = ui.create_column_widget()
     row = ui.create_row_widget()
@@ -2381,21 +2670,17 @@ def make_image_chooser(document_controller, computation, variable):
     label_column.add_stretch()
     row.add(label_column)
     row.add_spacing(8)
-    base_variable_specifier = copy.copy(variable.specifier)
-    bound_data_source = document_model.resolve_object_specifier(base_variable_specifier)
-    data_item = bound_data_source.value.data_item if bound_data_source else None
+    data_item = computation.get_input(variable.name).data_item
 
     def drop_mime_data(mime_data, x, y):
-        if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
-            display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
-            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
-            data_item = display_item.data_item if display_item else None
-            if data_item:
-                variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
-                command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
-                command.perform()
-                document_controller.push_undo_command(command)
-                return "copy"
+        display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
+        data_item = display_item.data_item if display_item else None
+        if data_item:
+            variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
+            command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
+            command.perform()
+            document_controller.push_undo_command(command)
+            return "copy"
         return None
 
     def data_item_delete():
@@ -2418,9 +2703,7 @@ def make_image_chooser(document_controller, computation, variable):
 
     def property_changed(key):
         if key == "specifier":
-            base_variable_specifier = copy.copy(variable.specifier)
-            bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
-            data_item = bound_data_item.value.data_item if bound_data_item else None
+            data_item = computation.get_input(variable.name).data_item
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_item_thumbnail_source.set_display_item(display_item)
 
@@ -2429,7 +2712,12 @@ def make_image_chooser(document_controller, computation, variable):
     row.add_stretch()
     column.add(row)
     column.add_spacing(4)
-    return column, [property_changed_listener]
+
+    widget.add(column)
+    widget.add_unbinder([computation], [label_widget.unbind_text])
+    widget.add_closeable(property_changed_listener)
+
+    return widget
 
 
 class VariableWidget(Widgets.CompositeWidgetBase):
@@ -2445,6 +2733,7 @@ class VariableWidget(Widgets.CompositeWidgetBase):
     def __init__(self, document_controller, computation, variable):
         super().__init__(document_controller.ui.create_column_widget())
         self.closeables = list()
+        self.__unbinder = Unbinder()
         self.__make_widget_from_variable(document_controller, computation, variable)
 
         def rebuild_variable():
@@ -2458,36 +2747,40 @@ class VariableWidget(Widgets.CompositeWidgetBase):
             closeable.close()
         self.__variable_needs_rebuild_event_listener.close()
         self.__variable_needs_rebuild_event_listener = None
+        self.__unbinder.close()
+        self.__unbinder = None
         super().close()
 
     def __make_widget_from_variable(self, document_controller, computation, variable):
         ui = document_controller.ui
         if variable.variable_type == "boolean":
-            widget, closeables = make_checkbox(document_controller, computation, variable)
+            widget, closeables = make_checkbox(document_controller, self.__unbinder, computation, variable)
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "integral" and (True or variable.control_type == "slider") and variable.has_range:
-            widget, closeables = make_slider_int(document_controller, computation, variable, Converter.IntegerToStringConverter())
+            widget, closeables = make_slider_int(document_controller, self.__unbinder, computation, variable, Converter.IntegerToStringConverter())
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "integral":
-            widget, closeables = make_field(document_controller, computation, variable, Converter.IntegerToStringConverter())
+            widget, closeables = make_field(document_controller, self.__unbinder, computation, variable, Converter.IntegerToStringConverter())
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "real" and (True or variable.control_type == "slider") and variable.has_range:
-            widget, closeables = make_slider_float(document_controller, computation, variable, Converter.FloatToStringConverter())
+            widget, closeables = make_slider_float(document_controller, self.__unbinder, computation, variable, Converter.FloatToStringConverter())
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "real":
-            widget, closeables = make_field(document_controller, computation, variable, Converter.FloatToStringConverter())
+            widget, closeables = make_field(document_controller, self.__unbinder, computation, variable, Converter.FloatToStringConverter())
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "data_source":
-            widget, closeables = make_image_chooser(document_controller, computation, variable)
+            self.content_widget.add(make_image_chooser(document_controller, computation, variable))
+        elif variable.variable_type == "string" and variable.control_type == "choice":
+            widget, closeables = make_choice(document_controller, self.__unbinder, computation, variable, None)
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "string":
-            widget, closeables = make_field(document_controller, computation, variable, None)
+            widget, closeables = make_field(document_controller, self.__unbinder, computation, variable, None)
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
 
@@ -2503,6 +2796,7 @@ class ComputationInspectorSection(InspectorSection):
             label_widget.bind_text(Binding.PropertyBinding(computation, "label"))
             label_row.add(label_widget)
             label_row.add_stretch()
+            self._unbinder.add([data_item, computation], [label_widget.unbind_text])
 
             edit_button = self.ui.create_push_button_widget(_("Edit..."))
             edit_row = self.ui.create_row_widget()
@@ -2675,43 +2969,49 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
             def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel):
                 super().__init__(_("Remove Data Item"))
                 self.__document_controller = document_controller
-                self.__display_item_uuid = display_item.uuid
+                self.__display_item_proxy = display_item.create_proxy()
                 self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
                 self.__new_workspace_layout = None
                 self.__display_data_channel_index = display_item.display_data_channels.index(display_data_channel)
                 self.__new_value = None
                 self.__old_value = display_item.display_layers
+                self.__undelete_logs = list()
                 self.initialize()
 
             def close(self):
                 self.__document_controller = None
-                self.__display_item_uuid = None
+                self.__display_item_proxy.close()
+                self.__display_item_proxy = None
                 self.__old_workspace_layout = None
                 self.__new_workspace_layout = None
                 self.__display_data_channel_index = None
                 self.__new_value = None
                 self.__old_value = None
+                for undelete_log in self.__undelete_logs:
+                    undelete_log.close()
+                self.__undelete_logs = None
                 super().close()
 
             def perform(self):
-                display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
-                self.__undelete_logs = list()
+                display_item = self.__display_item_proxy.item
                 display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
                 self.__undelete_logs.append(display_item.remove_display_data_channel(display_data_channel, safe=True))
                 self.__new_value = display_item.display_layers
 
             def _get_modified_state(self):
-                display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+                display_item = self.__display_item_proxy.item
                 return display_item.modified_state, self.__document_controller.document_model.modified_state
 
             def _set_modified_state(self, modified_state):
-                display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+                display_item = self.__display_item_proxy.item
                 display_item.modified_state, self.__document_controller.document_model.modified_state = modified_state
 
             def _undo(self):
                 self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
                 for undelete_log in reversed(self.__undelete_logs):
                     self.__document_controller.document_model.undelete_all(undelete_log)
+                    undelete_log.close()
+                self.__undelete_logs.clear()
                 self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
                 self.__new_value = display_item.display_layers
                 display_item.display_layers = self.__old_value
@@ -2801,6 +3101,7 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
         super().__init__(ui.create_column_widget())
 
         self.ui = ui
+        self.__unbinder = Unbinder()
 
         self.on_rebuild = None
 
@@ -2815,6 +3116,7 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
             title_row.add_stretch()
             content_widget.add(title_row)
             content_widget.add_spacing(4)
+            self.__unbinder.add([display_item], [title_label_widget.unbind_text])
 
         self.__focus_default = None
         inspector_sections = list()
@@ -2880,6 +3182,11 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
 
         content_widget.add_stretch()
 
+    def close(self) -> None:
+        self.__unbinder.close()
+        self.__unbinder = None
+        super().close()
+
     def _get_inspectors(self):
         """ Return a copy of the list of inspectors. """
         return copy.copy(self.content_widget.children[:-1])
@@ -2887,3 +3194,37 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
     def focus_default(self):
         if self.__focus_default:
             self.__focus_default()
+
+
+class DeclarativeImageChooserConstructor:
+
+    def __init__(self, app):
+        self.__app = app
+
+    def construct(self, d_type: str, ui: UserInterface.UserInterface, window, d: typing.Mapping, handler, finishes: typing.Sequence[typing.Callable[[], None]] = None):
+        if d_type == "image_chooser":
+            properties = Declarative.construct_sizing_properties(d)
+            thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, window=window)
+
+            def drop_mime_data(mime_data, x, y):
+                document_model = self.__app.document_model
+                display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
+                thumbnail_source.display_item = display_item
+                if display_item:
+                    return "copy"
+                return None
+
+            def data_item_delete():
+                thumbnail_source.display_item = None
+
+            widget = DataItemThumbnailWidget.ThumbnailWidget(ui, thumbnail_source, Geometry.IntSize(80, 80))
+            widget.on_drag = widget.drag
+            widget.on_drop_mime_data = drop_mime_data
+            widget.on_delete = data_item_delete
+
+            if handler:
+                Declarative.connect_name(widget, d, handler)
+                Declarative.connect_reference_value(thumbnail_source, d, handler, "display_item", finishes)
+                Declarative.connect_attributes(widget, d, handler, finishes)
+
+            return widget

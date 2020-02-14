@@ -1,15 +1,22 @@
 # standard libraries
 import collections
+import copy
 import gettext
+import typing
 import uuid
+import weakref
 
 # third party libraries
 # None
 
 # local libraries
+from nion.swift.model import Persistence
 from nion.utils import Event
 from nion.utils import Observable
-from nion.utils import Persistence
+
+if typing.TYPE_CHECKING:
+    from nion.swift.model import Profile
+
 
 _ = gettext.gettext
 
@@ -84,22 +91,37 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         super().__init__()
         self.define_type("data_group")
         self.define_property("title", _("Untitled"), validate=self.__validate_title, changed=self.__property_changed)
-        self.define_property("display_item_references", list(), validate=self.__validate_display_item_references, converter=UuidsToStringsConverter(), changed=self.__property_changed)
+        self.define_property("display_item_specifiers", list(), validate=self.__validate_display_item_specifiers, changed=self.__property_changed, key="display_item_references")
         self.define_relationship("data_groups", data_group_factory, insert=self.__insert_data_group, remove=self.__remove_data_group)
-        self.__get_display_item_by_uuid = None
+        self.__lookup_display_item = None
         self.__display_items = list()
         self.__counted_display_items = collections.Counter()
-        self.display_item_inserted_event = Event.Event()
-        self.display_item_removed_event = Event.Event()
 
     def __str__(self):
         return self.title
 
+    @property
+    def profile(self) -> "Profile.Profile":
+        container = self.container
+        return container.profile if hasattr(container, "profile") else container
+
+    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+        return self.profile.create_item_proxy(item=self)
+
+    @property
+    def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
+        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.profile.uuid)
+
     def __validate_title(self, value):
         return str(value) if value is not None else str()
 
-    def __validate_display_item_references(self, display_item_references):
-        return list(collections.OrderedDict.fromkeys(display_item_references))
+    def __validate_display_item_specifiers(self, display_item_specifiers: typing.Sequence[typing.Dict]) -> typing.Sequence[typing.Dict]:
+        # remove duplicates
+        new_display_item_specifiers = list()
+        for display_item_specifier in display_item_specifiers:
+            if display_item_specifier not in new_display_item_specifiers:
+                new_display_item_specifiers.append(display_item_specifier)
+        return new_display_item_specifiers
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -107,42 +129,38 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
     def connect_display_items(self, lookup_display_item):
         for data_group in self.data_groups:
             data_group.connect_display_items(lookup_display_item)
-        for display_item_uuid in self.display_item_references:
-            display_item = lookup_display_item(display_item_uuid)
-            if display_item and display_item not in self.__display_items:
-                self.__display_items.append(display_item)
-        self.__get_display_item_by_uuid = lookup_display_item
+        for display_item_specifier in self.display_item_specifiers:
+            display_item = lookup_display_item(display_item_specifier)
+            self.__display_items.append(display_item)
+        self.__lookup_display_item = lookup_display_item
 
     def disconnect_display_items(self):
         for data_group in self.data_groups:
             data_group.disconnect_display_items()
-        self.__get_display_item_by_uuid = None
+        self.__lookup_display_item = None
 
     def append_display_item(self, display_item):
         self.insert_display_item(len(self.__display_items), display_item)
 
     def insert_display_item(self, before_index, display_item):
         assert display_item not in self.__display_items
-        assert display_item.uuid not in self.display_item_references
         self.__display_items.insert(before_index, display_item)
-        self.display_item_inserted_event.fire(self, display_item, before_index, False)
         self.notify_insert_item("display_items", display_item, before_index)
         self.update_counted_display_items(collections.Counter([display_item]))
-        display_item_references = self.display_item_references
-        display_item_references.insert(before_index, display_item.uuid)
-        self.display_item_references = display_item_references
-        self.notify_property_changed("display_item_references")
+        display_item_specifiers = self.display_item_specifiers
+        display_item_specifiers.insert(before_index, display_item.project.create_specifier(display_item, allow_partial=False).write())
+        self.display_item_specifiers = display_item_specifiers
+        self.notify_property_changed("display_item_specifiers")
 
     def remove_display_item(self, display_item):
         index = self.__display_items.index(display_item)
         self.__display_items.remove(display_item)
         self.subtract_counted_display_items(collections.Counter([display_item]))
-        self.display_item_removed_event.fire(self, display_item, index, False)
         self.notify_remove_item("display_items", display_item, index)
-        display_item_references = self.display_item_references
-        display_item_references.remove(display_item.uuid)
-        self.display_item_references = display_item_references
-        self.notify_property_changed("display_item_references")
+        display_item_specifiers = self.display_item_specifiers
+        display_item_specifiers.pop(index)
+        self.display_item_specifiers = display_item_specifiers
+        self.notify_property_changed("display_item_specifiers")
 
     @property
     def display_items(self):
@@ -153,8 +171,8 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
 
     def insert_data_group(self, before_index, data_group):
         self.insert_item("data_groups", before_index, data_group)
-        if self.__get_display_item_by_uuid:
-            data_group.connect_display_items(self.__get_display_item_by_uuid)
+        if self.__lookup_display_item:
+            data_group.connect_display_items(self.__lookup_display_item)
         self.notify_insert_item("data_groups", data_group, before_index)
 
     def remove_data_group(self, data_group):
@@ -163,11 +181,9 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         self.remove_item("data_groups", data_group)
         self.notify_remove_item("data_groups", data_group, index)
 
-    # watch for insertions data_groups so that smart filters get updated.
     def __insert_data_group(self, name, before_index, data_group):
         self.update_counted_display_items(data_group.counted_display_items)
 
-    # watch for removals and data_groups so that smart filters get updated.
     def __remove_data_group(self, name, index, data_group):
         self.subtract_counted_display_items(data_group.counted_display_items)
 

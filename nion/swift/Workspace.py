@@ -19,6 +19,7 @@ from nion.swift import Undo
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
+from nion.ui import UserInterface
 
 
 _ = gettext.gettext
@@ -180,7 +181,7 @@ class Workspace:
                 display_panel.set_display_panel_display_item(display_item)
                 self.__sync_layout()
 
-    def _construct(self, desc, display_panels, lookup_data_item):
+    def _construct(self, desc, display_panels):
         selected_display_panel = None
         type = desc["type"]
         container = None
@@ -207,7 +208,7 @@ class Workspace:
         if container:
             children = desc.get("children", list())
             for child_desc in children:
-                child_canvas_item, child_selected_display_panel = self._construct(child_desc, display_panels, lookup_data_item)
+                child_canvas_item, child_selected_display_panel = self._construct(child_desc, display_panels)
                 container.add_canvas_item(child_canvas_item)
                 selected_display_panel = child_selected_display_panel if child_selected_display_panel else selected_display_panel
             post_children_adjust()
@@ -305,11 +306,10 @@ class Workspace:
         # no point in the root canvas item having focus.
         # self.__canvas_item.focusable = True
         # now construct the workspace
-        document_model = self.document_model
         selected_display_panel = None  # avoids warning
         try:
             display_panels = list()  # to be populated by _construct
-            canvas_item, selected_display_panel = self._construct(workspace.layout, display_panels, document_model.get_data_item_by_uuid)
+            canvas_item, selected_display_panel = self._construct(workspace.layout, display_panels)
             # store the new workspace
             if canvas_item:
                 self.__workspace = workspace
@@ -325,7 +325,7 @@ class Workspace:
             d["selected"] = True
             workspace.layout = d
             display_panels = list()  # to be populated by _construct
-            canvas_item, selected_display_panel = self._construct(workspace.layout, display_panels, document_model.get_data_item_by_uuid)
+            canvas_item, selected_display_panel = self._construct(workspace.layout, display_panels)
             # store the new workspace
             if canvas_item:
                 self.__workspace = workspace
@@ -333,7 +333,7 @@ class Workspace:
                 self.__canvas_item.add_canvas_item(canvas_item)
                 self.image_row.add(canvas_widget)
         self.document_controller.selected_display_panel = selected_display_panel
-        document_model.workspace_uuid = workspace.uuid
+        self.document_model.workspace_uuid = workspace.uuid
 
     def restore(self, workspace_uuid):
         """
@@ -730,7 +730,7 @@ class Workspace:
         message_box_widget.remove_now = remove_box
         return message_box_widget
 
-    def handle_drag_enter(self, display_panel, mime_data):
+    def handle_drag_enter(self, display_panel, mime_data: UserInterface.MimeData) -> str:
         if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
             return "copy"
         if mime_data.has_format("text/uri-list"):
@@ -742,7 +742,7 @@ class Workspace:
     def handle_drag_leave(self, display_panel):
         return False
 
-    def handle_drag_move(self, display_panel, mime_data, x, y):
+    def handle_drag_move(self, display_panel, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
             return "copy"
         if mime_data.has_format("text/uri-list"):
@@ -754,13 +754,10 @@ class Workspace:
     def should_handle_drag_for_mime_data(self, mime_data):
         return mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE) or mime_data.has_format("text/uri-list") or mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE)
 
-    def handle_drop(self, display_panel, mime_data, region, x, y):
+    def handle_drop(self, display_panel, mime_data: UserInterface.MimeData, region, x: int, y: int) -> str:
         document_model = self.document_model
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
-            d = json.loads(mime_data.data_as_string(MimeTypes.DISPLAY_PANEL_MIME_TYPE))
-            display_item_uuid_str = d.get("display_item_uuid", None)
-            display_item_uuid = uuid.UUID(display_item_uuid_str) if display_item_uuid_str else None
-            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
+            display_item, d = MimeTypes.mime_data_get_panel(mime_data, self.document_model)
             if display_item and display_panel.handle_drop_display_item(region, display_item):
                 pass  # already handled
             elif region == "right" or region == "left" or region == "top" or region == "bottom":
@@ -770,19 +767,17 @@ class Workspace:
                 command = self.__replace_displayed_display_item(display_panel, None, d)
                 self.document_controller.push_undo_command(command)
             return "move"
-        if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
-            display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
-            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
-            if display_item:
-                if display_panel.handle_drop_display_item(region, display_item):
-                    pass  # already handled
-                elif region == "right" or region == "left" or region == "top" or region == "bottom":
-                    command = self.insert_display_panel(display_panel, region, display_item)
-                    self.document_controller.push_undo_command(command)
-                else:
-                    command = self.__replace_displayed_display_item(display_panel, display_item)
-                    self.document_controller.push_undo_command(command)
-                return "copy"
+        display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
+        if display_item:
+            if display_panel.handle_drop_display_item(region, display_item):
+                pass  # already handled
+            elif region == "right" or region == "left" or region == "top" or region == "bottom":
+                command = self.insert_display_panel(display_panel, region, display_item)
+                self.document_controller.push_undo_command(command)
+            else:
+                command = self.__replace_displayed_display_item(display_panel, display_item)
+                self.document_controller.push_undo_command(command)
+            return "copy"
         if mime_data.has_format("text/uri-list"):
             index = len(document_model.data_items)
             self.document_controller.receive_files(mime_data.file_paths, None, index, threaded=True, display_panel=display_panel)
@@ -811,7 +806,7 @@ class Workspace:
             self.__workspace_layout_uuid = workspace_layout.uuid
             self.__display_panel_uuid = display_panel.uuid
             self.__region_id = region_id
-            self.__display_item_uuid = display_item.uuid if display_item else None
+            self.__display_item_proxy = display_item.create_proxy() if display_item else None
             self.__d = d
             self.__old_splits = old_splits
             self.__new_display_panel_uuid = new_display_panel.uuid
@@ -823,7 +818,9 @@ class Workspace:
             self.__workspace_layout_uuid = None
             self.__display_panel_uuid = None
             self.__region_id = None
-            self.__display_item_uuid = None
+            if self.__display_item_proxy:
+                self.__display_item_proxy.close()
+                self.__display_item_proxy = None
             self.__d = None
             self.__old_splits = None
             self.__new_display_panel_uuid = None
@@ -850,10 +847,12 @@ class Workspace:
             new_display_panel = self.__workspace_controller.get_display_panel_by_uuid(self.__new_display_panel_uuid)
             self.__d = new_display_panel.save_contents()
             self.__workspace_controller._remove_display_panel(new_display_panel, self.__old_splits)
-            self.__display_item_uuid = None
+            if self.__display_item_proxy:
+                self.__display_item_proxy.close()
+                self.__display_item_proxy = None
 
         def _redo(self) -> None:
-            display_item = self.__workspace_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+            display_item = self.__display_item_proxy.item if self.__display_item_proxy else None
             display_panel = self.__workspace_controller.get_display_panel_by_uuid(self.__display_panel_uuid)
             _, new_display_panel = self.__workspace_controller._insert_display_panel(display_panel, self.__region_id, display_item, self.__d, self.__uuid)
             self.__new_display_panel_uuid = new_display_panel.uuid

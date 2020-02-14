@@ -39,6 +39,7 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertIsNotNone(display_item.date_for_sorting)
             self.assertIsNotNone(display_item.date_for_sorting_local_as_string)
             self.assertIsNotNone(display_item.status_str)
+            self.assertIsNotNone(display_item.project_str)
             self.assertIsNotNone(display_item.used_display_type)
 
     def test_display_item_snapshot_and_copy_preserve_display_type(self):
@@ -199,6 +200,22 @@ class TestDisplayItemClass(unittest.TestCase):
             display_item.set_display_property("legend_position", None)
             display_item.append_display_data_channel_for_data_item(data_item3)
             self.assertIsNone(display_item.get_display_property("legend_position"))
+
+    def test_closing_display_does_not_trigger_computation_binding(self):
+        # this tests to make sure that items involving filters are closed properly.
+        # notifications should not be sent during closing, otherwise the computation
+        # will try to update its dependencies using the item being destructed.
+        # this test only failed in that it printed a stack trace.
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            fft_data_item = document_model.get_fft_new(display_item)
+            document_model.recompute_all()
+            fft_display_item = document_model.get_display_item_for_data_item(fft_data_item)
+            document_model.get_fourier_filter_new(fft_display_item)
+            document_model.recompute_all()
 
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs

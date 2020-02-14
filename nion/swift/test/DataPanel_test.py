@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import logging
+import pathlib
 import unittest
 
 # third party libraries
@@ -37,17 +38,12 @@ class TestDataPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
             data_panel = document_controller.find_dock_widget("data-panel").panel
+            project_panel = document_controller.find_dock_widget("project-panel").panel
             document_controller.periodic()
             # data items
             self.assertEqual(1, data_panel.data_list_controller.display_item_adapter_count)
-            # filter
-            self.assertEqual(0, data_panel.library_widget.parent_id)
-            self.assertEqual(-1, data_panel.library_widget.parent_row)
-            self.assertEqual(0, data_panel.library_widget.index)
-            # data group
-            self.assertEqual(0, data_panel.data_group_widget.parent_id)
-            self.assertEqual(-1, data_panel.data_group_widget.parent_row)
-            self.assertEqual(-1, data_panel.data_group_widget.index)
+            # collections
+            self.assertSetEqual({0}, project_panel._collection_selection.indexes)
 
     # make sure we can delete top level items, and child items
     def test_image_panel_delete(self):
@@ -132,7 +128,7 @@ class TestDataPanelClass(unittest.TestCase):
         parent_data_group.title = "parent_data_group"
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
-        parent_data_group.append_data_group(data_group)
+        document_model.append_data_group(data_group)
         document_model.append_data_group(parent_data_group)
         data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1.title = "data_item1"
@@ -145,25 +141,18 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_panel = document_controller.find_dock_widget("data-panel").panel
-            self.assertEqual(data_panel.data_group_widget.parent_id, 0)
-            self.assertEqual(data_panel.data_group_widget.parent_row, -1)
-            self.assertEqual(data_panel.data_group_widget.index, -1)
-            self.assertEqual(document_controller.selection.indexes, set())
+            project_panel = document_controller.find_dock_widget("project-panel").panel
+            self.assertSetEqual({0}, project_panel._collection_selection.indexes)
+            self.assertSetEqual(set(), document_controller.selection.indexes)
             document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item1)
-            self.assertEqual(data_panel.data_group_widget.parent_id, 1)
-            self.assertEqual(data_panel.data_group_widget.parent_row, 0)
-            self.assertEqual(data_panel.data_group_widget.index, 0)
-            self.assertEqual(document_controller.selection.indexes, set([0]))
+            self.assertSetEqual({4}, project_panel._collection_selection.indexes)
+            self.assertSetEqual({0}, document_controller.selection.indexes)
             document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item2)
-            self.assertEqual(data_panel.data_group_widget.parent_id, 1)
-            self.assertEqual(data_panel.data_group_widget.parent_row, 0)
-            self.assertEqual(data_panel.data_group_widget.index, 0)
-            self.assertEqual(document_controller.selection.indexes, set([1]))
+            self.assertSetEqual({4}, project_panel._collection_selection.indexes)
+            self.assertSetEqual({1}, document_controller.selection.indexes)
             document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item1)
-            self.assertEqual(data_panel.data_group_widget.parent_id, 1)
-            self.assertEqual(data_panel.data_group_widget.parent_row, 0)
-            self.assertEqual(data_panel.data_group_widget.index, 0)
-            self.assertEqual(document_controller.selection.indexes, set([0]))
+            self.assertSetEqual({4}, project_panel._collection_selection.indexes)
+            self.assertSetEqual({0}, document_controller.selection.indexes)
 
     # make sure switching between two data items in different groups works
     # then make sure the same group is selected if the data item is in multiple groups
@@ -178,39 +167,32 @@ class TestDataPanelClass(unittest.TestCase):
         parent_data_group.title = "parent_data_group"
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "Group 1"
-        parent_data_group.append_data_group(data_group1)
         document_model.append_data_item(data_item1)
         display_item1 = document_model.get_display_item_for_data_item(data_item1)
         data_group1.append_display_item(display_item1)
         data_group2 = DataGroup.DataGroup()
         data_group2.title = "Group 2"
-        parent_data_group.append_data_group(data_group2)
         document_model.append_data_item(data_item2)
         data_group2.append_display_item(document_model.get_display_item_for_data_item(data_item2))
         document_model.append_data_group(parent_data_group)
+        document_model.append_data_group(data_group1)
+        document_model.append_data_group(data_group2)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_panel = document_controller.find_dock_widget("data-panel").panel
+            project_panel = document_controller.find_dock_widget("project-panel").panel
             data_panel.focused = True
-            self.assertEqual(data_panel.data_group_widget.parent_id, 0)
-            self.assertEqual(data_panel.data_group_widget.parent_row, -1)
-            self.assertEqual(data_panel.data_group_widget.index, -1)
+            self.assertSetEqual({0}, project_panel._collection_selection.indexes)
             self.assertEqual(document_controller.selection.indexes, set())
             document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
-            self.assertEqual(data_panel.data_group_widget.parent_id, 1)
-            self.assertEqual(data_panel.data_group_widget.parent_row, 0)
-            self.assertEqual(data_panel.data_group_widget.index, 0)
-            self.assertEqual(document_controller.selection.indexes, set([0]))
+            self.assertSetEqual({5}, project_panel._collection_selection.indexes)
+            self.assertSetEqual({0}, document_controller.selection.indexes)
             document_controller.select_data_group_in_data_panel(data_group=data_group2, data_item=data_item2)
-            self.assertEqual(data_panel.data_group_widget.parent_id, 1)
-            self.assertEqual(data_panel.data_group_widget.parent_row, 0)
-            self.assertEqual(data_panel.data_group_widget.index, 1)
-            self.assertEqual(document_controller.selection.indexes, set([0]))
+            self.assertSetEqual({6}, project_panel._collection_selection.indexes)
+            self.assertSetEqual({0}, document_controller.selection.indexes)
             document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
-            self.assertEqual(data_panel.data_group_widget.parent_id, 1)
-            self.assertEqual(data_panel.data_group_widget.parent_row, 0)
-            self.assertEqual(data_panel.data_group_widget.index, 0)
-            self.assertEqual(document_controller.selection.indexes, set([0]))
+            self.assertSetEqual({5}, project_panel._collection_selection.indexes)
+            self.assertSetEqual({0}, document_controller.selection.indexes)
             # now make sure if a data item is in multiple groups, the right one is selected
             data_group2.append_display_item(display_item1)
             document_controller.select_data_group_in_data_panel(data_group=data_group2, data_item=data_item2)
@@ -218,49 +200,32 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
             document_controller.selection.set(0)
             self.assertEqual(document_controller.selected_data_item, data_item1)
-            self.assertEqual(data_panel.data_group_widget.parent_id, 1)
-            self.assertEqual(data_panel.data_group_widget.parent_row, 0)
-            self.assertEqual(data_panel.data_group_widget.index, 0)
-            self.assertEqual(document_controller.selection.indexes, set([0]))
+            self.assertSetEqual({5}, project_panel._collection_selection.indexes)
+            self.assertSetEqual({0}, document_controller.selection.indexes)
             document_controller.select_data_group_in_data_panel(data_group=data_group2, data_item=data_item1)
-            self.assertEqual(data_panel.data_group_widget.parent_id, 1)
-            self.assertEqual(data_panel.data_group_widget.parent_row, 0)
-            self.assertEqual(data_panel.data_group_widget.index, 1)
-            self.assertEqual(document_controller.selection.indexes, set([1]))
+            self.assertSetEqual({6}, project_panel._collection_selection.indexes)
+            self.assertSetEqual({1}, document_controller.selection.indexes)
             document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
             self.assertEqual(document_controller.selected_data_item, data_item1)
-            self.assertEqual(data_panel.data_group_widget.parent_id, 1)
-            self.assertEqual(data_panel.data_group_widget.parent_row, 0)
-            self.assertEqual(data_panel.data_group_widget.index, 0)
-            self.assertEqual(document_controller.selection.indexes, set([0]))
+            self.assertSetEqual({5}, project_panel._collection_selection.indexes)
+            self.assertSetEqual({0}, document_controller.selection.indexes)
             # now make sure group selections are preserved
             document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
-            data_panel.data_group_widget.on_selection_changed([(1, 0, 1)])  # data_group1 now has data_group2 selected
             document_controller.selection.clear()  # data_group1 now has no data item selected
             self.assertIsNone(document_controller.selected_data_item)
-            self.assertEqual(data_panel.data_group_widget.parent_id, 1)
-            self.assertEqual(data_panel.data_group_widget.parent_row, 0)
-            self.assertEqual(data_panel.data_group_widget.index, 1)
-            self.assertEqual(document_controller.selection.indexes, set())
+            self.assertSetEqual({5}, project_panel._collection_selection.indexes)
+            self.assertSetEqual(set(), document_controller.selection.indexes)
             document_controller.select_data_group_in_data_panel(data_group=data_group2, data_item=data_item1)
-            self.assertEqual(data_panel.data_group_widget.parent_id, 1)
-            self.assertEqual(data_panel.data_group_widget.parent_row, 0)
-            self.assertEqual(data_panel.data_group_widget.index, 1)
-            self.assertEqual(document_controller.selection.indexes, set([1]))
+            self.assertSetEqual({6}, project_panel._collection_selection.indexes)
+            self.assertSetEqual({1}, document_controller.selection.indexes)
             document_controller.select_data_group_in_data_panel(data_group=data_group2)
             self.assertIsNone(document_controller.selected_data_item)
-            self.assertEqual(data_panel.data_group_widget.parent_id, 1)
-            self.assertEqual(data_panel.data_group_widget.parent_row, 0)
-            self.assertEqual(data_panel.data_group_widget.index, 1)
-            self.assertEqual(document_controller.selection.indexes, set())
+            self.assertSetEqual({6}, project_panel._collection_selection.indexes)
+            self.assertSetEqual(set(), document_controller.selection.indexes)
             # make sure root level is handled ok
-            document_controller.select_data_group_in_data_panel(data_group=data_group2)
-            data_panel.data_group_widget.on_selection_changed([(0, -1, 0)])
             document_controller.select_data_group_in_data_panel(data_group=data_group2, data_item=data_item1)
-            self.assertEqual(data_panel.data_group_widget.parent_id, 1)
-            self.assertEqual(data_panel.data_group_widget.parent_row, 0)
-            self.assertEqual(data_panel.data_group_widget.index, 1)
-            self.assertEqual(document_controller.selection.indexes, set([1]))
+            self.assertSetEqual({6}, project_panel._collection_selection.indexes)
+            self.assertSetEqual({1}, document_controller.selection.indexes)
 
     def test_data_panel_updates_focused_data_item_when_single_item_selected_when_focused(self):
         document_model = DocumentModel.DocumentModel()
@@ -473,15 +438,13 @@ class TestDataPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item.title = "data_item"
-            data_group = DataGroup.DataGroup()
-            document_controller.document_model.append_data_group(data_group)
             document_model.append_data_item(data_item)
-            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item))
             data_panel = document_controller.find_dock_widget("data-panel").panel
             data_panel.focused = True
             self.assertIsNone(document_controller.selected_display_item)
-            data_panel.data_group_model_receive_files([":/app/scroll_gem.png"], data_group, index=0, threaded=False)
-            self.assertEqual(document_controller.selected_display_item, data_group.display_items[0])
+            document_controller.receive_project_files([pathlib.Path(":/app/scroll_gem.png")], project=document_model._project, index=0, threaded=False)
+            document_controller.periodic()
+            self.assertEqual(document_controller.selected_display_item, document_model.display_items[1])
 
     def test_setting_data_browser_selection_to_multiple_items_via_document_controller_updates_selection_object(self):
         document_model = DocumentModel.DocumentModel()
@@ -573,8 +536,9 @@ class TestDataPanelClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
             data_panel = document_controller.find_dock_widget("data-panel").panel
-            data_panel.library_widget.on_selection_changed([(1, -1, 0)])
-            data_panel.library_widget.on_selection_changed([(0, -1, 0)])
+            project_panel = document_controller.find_dock_widget("project-panel").panel
+            project_panel._collection_selection.set(2)
+            project_panel._collection_selection.set(1)
 
     def test_display_filter_filters_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -719,13 +683,12 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             data_panel = document_controller.find_dock_widget("data-panel").panel
-            # index, parent_row, parent_id
-            data_panel.library_widget.on_selection_changed([(0, -1, 0)])  # all
+            project_panel = document_controller.find_dock_widget("project-panel").panel
+            project_panel._collection_selection.set(1)  # persistent
             document_controller.periodic()
-            self.assertEqual(2, data_panel.data_list_controller.display_item_adapter_count)
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).data_item, data_item2)
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(1).data_item, data_item1)
-            data_panel.library_widget.on_selection_changed([(1, -1, 0)])  # temp/live
+            self.assertEqual(1, data_panel.data_list_controller.display_item_adapter_count)
+            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).data_item, data_item1)
+            project_panel._collection_selection.set(2)  # temporary
             document_controller.periodic()
             self.assertEqual(1, data_panel.data_list_controller.display_item_adapter_count)
             self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).data_item, data_item2)
@@ -741,8 +704,9 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
             data_panel = document_controller.find_dock_widget("data-panel").panel
+            project_panel = document_controller.find_dock_widget("project-panel").panel
             # index, parent_row, parent_id
-            data_panel.library_widget.on_selection_changed([(1, -1, 0)])
+            project_panel._collection_selection.set(2)
             document_controller.periodic()
             document_controller.selected_display_panel.set_display_panel_display_item(display_item1)
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 1)
@@ -768,14 +732,15 @@ class TestDataPanelClass(unittest.TestCase):
             data_item2.session_id = "20170101-120000"
             data_item3.session_id = "20170101-120000"
             data_panel = document_controller.find_dock_widget("data-panel").panel
+            project_panel = document_controller.find_dock_widget("project-panel").panel
             # index, parent_row, parent_id
-            data_panel.library_widget.on_selection_changed([(0, -1, 0)])
+            project_panel._collection_selection.set(1)
             document_controller.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 3)
             self.assertIn(data_item1, [display_item.data_item for display_item in data_panel.data_list_controller.display_item_adapters])
             self.assertIn(data_item2, [display_item.data_item for display_item in data_panel.data_list_controller.display_item_adapters])
             self.assertIn(data_item3, [display_item.data_item for display_item in data_panel.data_list_controller.display_item_adapters])
-            data_panel.library_widget.on_selection_changed([(2, -1, 0)])
+            project_panel._collection_selection.set(3)
             document_controller.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 1)
             self.assertIn(data_item1, [display_item.data_item for display_item in data_panel.data_list_controller.display_item_adapters])
@@ -794,14 +759,15 @@ class TestDataPanelClass(unittest.TestCase):
             data_item2.session_id = "20170101-120000"
             data_item3.session_id = "20170101-120000"
             data_panel = document_controller.find_dock_widget("data-panel").panel
+            project_panel = document_controller.find_dock_widget("project-panel").panel
             # index, parent_row, parent_id
-            data_panel.library_widget.on_selection_changed([(0, -1, 0)])
+            project_panel._collection_selection.set(1)
             document_controller.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 3)
-            data_panel.library_widget.on_selection_changed([(2, -1, 0)])
+            project_panel._collection_selection.set(3)
             document_controller.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 1)
-            data_panel.library_widget.on_selection_changed([(0, -1, 0)])
+            project_panel._collection_selection.set(1)
             document_controller.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 3)
 
@@ -812,15 +778,14 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
             data_panel = document_controller.find_dock_widget("data-panel").panel
+            project_panel = document_controller.find_dock_widget("project-panel").panel
             document_controller.periodic()
             # select temporary items
-            data_panel.library_widget.on_selection_changed([(1, -1, 0)])
+            project_panel._collection_selection.set(2)
             document_controller.periodic()
             # check assumptions, temporary group selected
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 0)
-            self.assertEqual(data_panel.library_widget.parent_id, 0)
-            self.assertEqual(data_panel.library_widget.parent_row, -1)
-            self.assertEqual(data_panel.library_widget.index, 1)
+            self.assertSetEqual({2}, project_panel._collection_selection.indexes)
             # create display panel
             data_panel = document_controller.find_dock_widget("data-panel").panel
             display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
@@ -834,14 +799,7 @@ class TestDataPanelClass(unittest.TestCase):
                 display_panel.set_display_panel_display_item(display_item)
                 # check that changing display updates to the one temporary data item in the data panel
                 self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 1)
-                # filter
-                self.assertEqual(data_panel.library_widget.parent_id, 0)
-                self.assertEqual(data_panel.library_widget.parent_row, -1)
-                self.assertEqual(data_panel.library_widget.index, 1)
-                # data group
-                self.assertEqual(data_panel.data_group_widget.parent_id, 0)
-                self.assertEqual(data_panel.data_group_widget.parent_row, -1)
-                self.assertEqual(data_panel.data_group_widget.index, -1)
+                self.assertSetEqual({2}, project_panel._collection_selection.indexes)
 
     def test_data_item_starts_drag_with_data_item_mime_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -851,8 +809,9 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_panel = document_controller.find_dock_widget("data-panel").panel
+            project_panel = document_controller.find_dock_widget("project-panel").panel
             # index, parent_row, parent_id
-            data_panel.library_widget.on_selection_changed([(0, -1, 0)])  # all
+            project_panel._collection_selection.set(1)
             document_controller.periodic()
             document_controller.selected_display_panel.set_display_panel_display_item(display_item)
             display_item = data_panel.data_list_controller._test_get_display_item_adapter(0)

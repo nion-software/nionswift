@@ -68,7 +68,7 @@ class HDF5Handler:
     def __ensure_open(self):
         if not self.__fp:
             make_directory_if_needed(os.path.dirname(self.__file_path))
-            self.__fp = h5py.File(self.__file_path)
+            self.__fp = h5py.File(self.__file_path, "a")
 
     def __write_properties_to_dataset(self, properties):
         with self.__lock:

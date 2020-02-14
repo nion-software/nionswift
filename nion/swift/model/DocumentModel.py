@@ -1,29 +1,23 @@
 # standard libraries
+import abc
 import asyncio
 import collections
+import contextlib
 import copy
 import datetime
 import functools
 import gettext
 import logging
-import numbers
-import os.path
-import pathlib
 import threading
 import time
 import typing
 import uuid
 import weakref
 
-# third party libraries
-import numpy
-import scipy
-
 # local libraries
-from nion.data import Core
 from nion.data import DataAndMetadata
-from nion.data import Image
 from nion.swift.model import ApplicationData
+from nion.swift.model import Changes
 from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
@@ -31,26 +25,44 @@ from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
-from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
+from nion.swift.model import Persistence
+from nion.swift.model import Processing
 from nion.swift.model import Profile
+from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
-from nion.utils import Converter
 from nion.utils import Event
+from nion.utils import Geometry
 from nion.utils import Observable
-from nion.utils import Persistence
 from nion.utils import Recorder
 from nion.utils import ReferenceCounting
+from nion.utils import Registry
+from nion.utils import Selection
 from nion.utils import ThreadPool
 
 _ = gettext.gettext
 
+Processing.init()
+
+
+def save_item_order(items: typing.List[Persistence.PersistentObject]) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
+    return [item.item_specifier for item in items]
+
+
+def restore_item_order(name: str, projects: typing.List[Project.Project], uuid_order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> typing.List[Persistence.PersistentObject]:
+    items = list()
+    for item_specifier in uuid_order:
+        items.append(projects[0].resolve_item_specifier(item_specifier))
+    return items
+
+def insert_item_order(uuid_order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]], index: int, item: Persistence.PersistentObject) -> None:
+    uuid_order.insert(index, item.item_specifier)
+
 
 class ComputationQueueItem:
-    def __init__(self, *, data_item=None, computation=None):
+    def __init__(self, *, computation=None):
         self.computation = computation
-        self.data_item = data_item
         self.valid = True
 
     def recompute(self) -> typing.Optional[typing.Tuple[Symbolic.Computation, typing.Callable[[], None]]]:
@@ -61,7 +73,7 @@ class ComputationQueueItem:
         data_item = None
         computation = self.computation
         if computation.expression:
-            data_item = computation.get_referenced_object("target")
+            data_item = computation.get_output("target")
         if computation and computation.needs_update:
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
@@ -107,25 +119,6 @@ class ComputationQueueItem:
                 traceback.print_exc()
                 # computation.error_text = _("Unable to compute data")
         return pending_data_item_merge
-
-
-def data_item_factory(lookup_id):
-    data_item_uuid = uuid.UUID(lookup_id("uuid"))
-    large_format = lookup_id("__large_format", False)
-    return DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
-
-
-def display_item_factory(lookup_id):
-    display_item_uuid = uuid.UUID(lookup_id("uuid"))
-    return DisplayItem.DisplayItem(item_uuid=display_item_uuid)
-
-
-def computation_factory(lookup_id):
-    return Symbolic.Computation()
-
-
-def data_structure_factory(lookup_id):
-    return DataStructure.DataStructure()
 
 
 class Transaction:
@@ -233,7 +226,7 @@ class TransactionManager:
                 for display_item in self.__document_model.get_display_items_for_data_item(item):
                     self.__get_deep_transaction_item_set(display_item, items)
             if isinstance(item, DataStructure.DataStructure):
-                for referenced_object in item._referenced_objects:
+                for referenced_object in item.referenced_objects:
                     self.__get_deep_transaction_item_set(referenced_object, items)
             if isinstance(item, Connection.Connection):
                 self.__get_deep_transaction_item_set(item._source, items)
@@ -264,16 +257,272 @@ class TransactionManager:
             self.__close_transaction_items(old_items)
 
 
-class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, Persistence.PersistentObject, DataItem.SessionManager):
+class UndeleteObjectSpecifiers(Changes.UndeleteBase):
 
-    """The document model manages storage and dependencies between data items and other objects.
+    def __init__(self, document_model: "DocumentModel", computation: Symbolic.Computation, index: int, variable_index: int, object_specifier: typing.Dict):
+        self.computation_proxy = computation.create_proxy()
+        self.variable_index = variable_index
+        self.specifier = object_specifier
+        self.index = index
+
+    def close(self) -> None:
+        self.computation_proxy.close()
+        self.computation_proxy = None
+
+    def undelete(self, document_model: "DocumentModel") -> None:
+        computation = self.computation_proxy.item
+        variable = computation.variables[self.variable_index]
+        computation.undelete_variable_item(variable.name, self.index, self.specifier)
+
+
+class UndeleteDataItems(Changes.UndeleteBase):
+
+    def __init__(self, document_model: "DocumentModel", data_item: DataItem.DataItem):
+        project = Project.get_project_for_item(data_item)
+        container = data_item.container
+        index = container.data_items.index(data_item)
+        uuid_order = save_item_order(document_model.data_items)
+        self.project_item_proxy = project.create_proxy()
+        self.data_item_uuid = data_item.uuid
+        self.index = index
+        self.order = uuid_order
+
+    def close(self) -> None:
+        self.project_item_proxy.close()
+        self.project_item_proxy = None
+
+    def undelete(self, document_model: "DocumentModel") -> None:
+        project = typing.cast(Project.Project, self.project_item_proxy.item)
+        document_model.restore_data_item(project, self.data_item_uuid, self.index)
+        document_model.restore_items_order("data_items", self.order)
+
+
+class UndeleteDisplayItemInDataGroup(Changes.UndeleteBase):
+
+    def __init__(self, document_model: "DocumentModel", display_item: DisplayItem.DisplayItem, data_group: DataGroup.DataGroup):
+        self.display_item_proxy = display_item.create_proxy()
+        self.data_group_proxy = data_group.create_proxy()
+        self.index = data_group.display_items.index(display_item)
+
+    def close(self) -> None:
+        self.display_item_proxy.close()
+        self.display_item_proxy = None
+        self.data_group_proxy.close()
+        self.data_group_proxy = None
+
+    def undelete(self, document_model: "DocumentModel") -> None:
+        display_item = self.display_item_proxy.item
+        data_group = self.data_group_proxy.item
+        data_group.insert_display_item(self.index, display_item)
+
+
+class UndeleteDisplayItem(Changes.UndeleteBase):
+
+    def __init__(self, document_model: "DocumentModel", display_item: DisplayItem.DisplayItem):
+        project = Project.get_project_for_item(display_item)
+        container = display_item.container
+        index = container.display_items.index(display_item)
+        uuid_order = save_item_order(document_model.display_items)
+        self.project_item_proxy = project.create_proxy()
+        self.item_dict = display_item.write_to_dict()
+        self.index = index
+        self.order = uuid_order
+
+    def close(self) -> None:
+        self.project_item_proxy.close()
+        self.project_item_proxy = None
+
+    def undelete(self, document_model: "DocumentModel") -> None:
+        project = self.project_item_proxy.item
+        display_item = DisplayItem.DisplayItem()
+        display_item.begin_reading()
+        display_item.read_from_dict(self.item_dict)
+        display_item.finish_reading()
+        document_model.insert_display_item(self.index, display_item, update_session=False, project=project)
+        document_model.restore_items_order("display_items", self.order)
+
+
+class ItemsController(abc.ABC):
+
+    @abc.abstractmethod
+    def get_container(self, item: Persistence.PersistentObject) -> typing.Optional[Persistence.PersistentObject]: ...
+
+    @abc.abstractmethod
+    def item_index(self, item: Persistence.PersistentObject) -> int: ...
+
+    @abc.abstractmethod
+    def save_item_order(self) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]: ...
+
+    @abc.abstractmethod
+    def write_to_dict(self, data_structure: Persistence.PersistentObject) -> typing.Dict: ...
+
+    @abc.abstractmethod
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None: ...
+
+
+class DataStructuresController(ItemsController):
+    def __init__(self, document_model: "DocumentModel"):
+        self.__document_model = document_model
+
+    def get_container(self, item: Persistence.PersistentObject) -> typing.Optional[Persistence.PersistentObject]:
+        return None
+
+    def item_index(self, data_structure: Persistence.PersistentObject) -> int:
+        return data_structure.container.data_structures.index(data_structure)
+
+    def save_item_order(self) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
+        return save_item_order(self.__document_model.data_structures)
+
+    def write_to_dict(self, data_structure: Persistence.PersistentObject) -> typing.Dict:
+        return data_structure.write_to_dict()
+
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+        data_structure = DataStructure.DataStructure()
+        data_structure.begin_reading()
+        data_structure.read_from_dict(item_dict)
+        data_structure.finish_reading()
+        self.__document_model.insert_data_structure(index, data_structure, project=project)
+        self.__document_model.restore_items_order("data_structures", order)
+
+
+class ComputationsController(ItemsController):
+    def __init__(self, document_model: "DocumentModel"):
+        self.__document_model = document_model
+
+    def get_container(self, item: Persistence.PersistentObject) -> typing.Optional[Persistence.PersistentObject]:
+        return None
+
+    def item_index(self, computation: Persistence.PersistentObject) -> int:
+        return computation.container.computations.index(computation)
+
+    def save_item_order(self) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
+        return save_item_order(self.__document_model.computations)
+
+    def write_to_dict(self, computation: Persistence.PersistentObject) -> typing.Dict:
+        return computation.write_to_dict()
+
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+        computation = Symbolic.Computation()
+        computation.begin_reading()
+        computation.read_from_dict(item_dict)
+        computation.finish_reading()
+        self.__document_model.insert_computation(index, computation, project=project)
+        self.__document_model.restore_items_order("computations", order)
+
+
+class ConnectionsController(ItemsController):
+    def __init__(self, document_model: "DocumentModel"):
+        self.__document_model = document_model
+
+    def get_container(self, item: Persistence.PersistentObject) -> typing.Optional[Persistence.PersistentObject]:
+        return None
+
+    def item_index(self, connection: Persistence.PersistentObject) -> int:
+        return connection.container.connections.index(connection)
+
+    def save_item_order(self) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
+        return save_item_order(self.__document_model.connections)
+
+    def write_to_dict(self, connection: Persistence.PersistentObject) -> typing.Dict:
+        return connection.write_to_dict()
+
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+        item = Connection.connection_factory(item_dict.get)
+        item.begin_reading()
+        item.read_from_dict(item_dict)
+        item.finish_reading()
+        self.__document_model.insert_connection(index, item, project=project)
+        self.__document_model.restore_items_order("connections", order)
+
+
+class GraphicsController(ItemsController):
+    def __init__(self, document_model: "DocumentModel"):
+        self.__document_model = document_model
+
+    def get_container(self, item: Persistence.PersistentObject) -> typing.Optional[Persistence.PersistentObject]:
+        return item.container
+
+    def item_index(self, graphic: Persistence.PersistentObject) -> int:
+        return graphic.container.graphics.index(graphic)
+
+    def save_item_order(self) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
+        return list()
+
+    def write_to_dict(self, graphic: Persistence.PersistentObject) -> typing.Dict:
+        return graphic.write_to_dict()
+
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+        graphic = Graphics.factory(item_dict.get)
+        graphic.begin_reading()
+        graphic.read_from_dict(item_dict)
+        graphic.finish_reading()
+        display_item = typing.cast(DisplayItem.DisplayItem, container)
+        display_item.insert_graphic(index, graphic)
+        display_item.restore_properties(container_properties)
+
+
+class DisplayDataChannelsController(ItemsController):
+    def __init__(self, document_model: "DocumentModel"):
+        self.__document_model = document_model
+
+    def get_container(self, item: Persistence.PersistentObject) -> typing.Optional[Persistence.PersistentObject]:
+        return item.container
+
+    def item_index(self, display_data_channel: Persistence.PersistentObject) -> int:
+        return display_data_channel.container.display_data_channels.index(display_data_channel)
+
+    def save_item_order(self) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
+        return list()
+
+    def write_to_dict(self, display_data_channel: Persistence.PersistentObject) -> typing.Dict:
+        return display_data_channel.write_to_dict()
+
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+        display_data_channel = DisplayItem.display_data_channel_factory(item_dict.get)
+        display_data_channel.begin_reading()
+        display_data_channel.read_from_dict(item_dict)
+        display_data_channel.finish_reading()
+        display_item = typing.cast(DisplayItem.DisplayItem, container)
+        display_item.undelete_display_data_channel(index, display_data_channel)
+        display_item.restore_properties(container_properties)
+
+
+class UndeleteItem(Changes.UndeleteBase):
+
+    def __init__(self, document_model: "DocumentModel", items_controller: ItemsController, item: Persistence.PersistentObject):
+        self.__items_controller = items_controller
+        project = Project.get_project_for_item(item)
+        container = self.__items_controller.get_container(item)
+        index = self.__items_controller.item_index(item)
+        self.project_item_proxy = project.create_proxy()
+        self.container_item_proxy = container.create_proxy() if container else None
+        self.container_properties = container.save_properties() if hasattr(container, "save_properties") else dict()
+        self.item_dict = self.__items_controller.write_to_dict(item)
+        self.index = index
+        self.order = self.__items_controller.save_item_order()
+
+    def close(self) -> None:
+        self.project_item_proxy.close()
+        self.project_item_proxy = None
+        if self.container_item_proxy:
+            self.container_item_proxy.close()
+            self.container_item_proxy = None
+
+    def undelete(self, document_model: "DocumentModel") -> None:
+        project = typing.cast(Project.Project, self.project_item_proxy.item)
+        container = typing.cast(Persistence.PersistentObject, self.container_item_proxy.item) if self.container_item_proxy else None
+        container_properties = self.container_properties
+        self.__items_controller.restore_from_dict(self.item_dict, self.index, project, container, container_properties, self.order)
+
+
+class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, DataItem.SessionManager):
+    """Manages storage and dependencies between data items and other objects.
 
     The document model provides a dispatcher object which will run tasks in a thread pool.
     """
 
     computation_min_period = 0.0
     computation_min_factor = 0.0
-    library_version = 2
 
     def __init__(self, *, profile: Profile.Profile = None):
         super().__init__()
@@ -281,12 +530,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.about_to_close_event = Event.Event()
 
         self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
-        self.data_item_inserted_event = Event.Event()
-        self.data_item_removed_event = Event.Event()
-
-        self.display_item_will_be_removed_event = Event.Event()
-        self.display_item_inserted_event = Event.Event()
-        self.display_item_removed_event = Event.Event()
 
         self.dependency_added_event = Event.Event()
         self.dependency_removed_event = Event.Event()
@@ -294,15 +537,22 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         self.computation_updated_event = Event.Event()
 
-        self.__thread_pool = ThreadPool.ThreadPool()
         self.__computation_thread_pool = ThreadPool.ThreadPool()
 
-        self.__profile = profile if profile else Profile.Profile()
+        self.__profile = profile if profile else Profile.Profile(auto_project=True)
+        self.__profile.about_to_be_inserted(self)
         self.__profile.open(self)
 
-        # the persistent object context allows reading/writing of objects to the persistent storage specific to them.
-        # there is a single shared object context per document model. this code establishes that connection.
-        self.persistent_object_context = self.__profile.persistent_object_context
+        self.uuid = self.__profile.uuid
+
+        self.__project_item_inserted_listeners = list()
+        self.__project_item_removed_listeners = list()
+
+        self.__project_inserted_event_listener = self.__profile.project_inserted_event.listen(self.__project_inserted)
+        self.__project_removed_event_listener = self.__profile.project_removed_event.listen(self.__project_removed)
+
+        for project_index, project in enumerate(self.__profile.projects_model.value):
+            self.__project_inserted(project, project_index)
 
         self.storage_cache = self.__profile.storage_cache
         self.__transaction_manager = TransactionManager(self)
@@ -312,31 +562,45 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__dependency_tree_lock = threading.RLock()
         self.__dependency_tree_source_to_target_map = dict()
         self.__dependency_tree_target_to_source_map = dict()
-        self.__uuid_to_data_item = dict()
         self.__computation_changed_listeners = dict()
         self.__computation_output_changed_listeners = dict()
         self.__computation_changed_delay_list = None
         self.__data_item_references = dict()
         self.__computation_queue_lock = threading.RLock()
         self.__computation_pending_queue = list()  # type: typing.List[ComputationQueueItem]
-        self.__computation_active_item = None  # type: ComputationQueueItem
-        self.define_type("library")
-        self.define_relationship("data_items", data_item_factory)
-        self.define_relationship("display_items", display_item_factory, insert=self.__inserted_display_item)
-        self.define_relationship("data_groups", DataGroup.data_group_factory)
-        self.define_relationship("workspaces", WorkspaceLayout.factory)
-        self.define_relationship("computations", computation_factory, insert=self.__inserted_computation, remove=self.__removed_computation)
-        self.define_relationship("data_structures", data_structure_factory, insert=self.__inserted_data_structure, remove=self.__removed_data_structure)
-        self.define_relationship("connections", Connection.connection_factory, insert=self.__inserted_connection, remove=self.__removed_connection)
-        self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
-        self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
-        self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
-        self.define_property("data_item_deletions", list(), hidden=True)  # list of deleted uuids. usefor for migration.
+        self.__computation_active_item = None  # type: typing.Optional[ComputationQueueItem]
+        self.__data_items = list()
+        self.__display_items = list()
+        self.__data_structures = list()
+        self.__computations = list()
+        self.__connections = list()
         self.session_id = None
         self.start_new_session()
+        self.__profile.read_profile()
         self.__prune()
-        self.__read()
-        self.__profile.validate_uuid_and_version(self, self.uuid, DocumentModel.library_version)
+
+        # update the data item references
+        data_item_references = self.__profile.data_item_references
+        for key, data_item_specifier in data_item_references.items():
+            self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, profile.work_project, Persistence.PersistentObjectSpecifier.read(data_item_specifier)))
+
+        # handle the reference variable assignments
+        data_item_variables = self.profile._get_persistent_property_value("data_item_variables")
+        new_data_item_variables = dict()
+        for r_var, data_item_specifier_d in data_item_variables.items():
+            data_item_proxy = self.profile.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(data_item_specifier_d))
+            data_item = typing.cast(DataItem.DataItem, data_item_proxy.item) if data_item_proxy.item else None
+            if data_item:
+                new_data_item_variables[r_var] = data_item.item_specifier.write()
+                data_item.set_r_value(r_var, notify_changed=False)
+        self.profile._set_persistent_property_value("data_item_variables", new_data_item_variables)
+
+        def resolve_display_item_specifier(display_item_specifier_d: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:
+            display_item_specifier = Persistence.PersistentObjectSpecifier.read(display_item_specifier_d)
+            return self.resolve_item_specifier(display_item_specifier)
+
+        for data_group in self.data_groups:
+            data_group.connect_display_items(resolve_display_item_specifier)
 
         self.__data_channel_updated_listeners = dict()
         self.__data_channel_start_listeners = dict()
@@ -353,6 +617,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__pending_data_item_merge = None
         self.__current_computation = None
 
+        self.__call_soon_queue = list()
+        self.__call_soon_queue_lock = threading.RLock()
+
         self.call_soon_event = Event.Event()
 
         self.__hardware_source_added_event_listener = HardwareSource.HardwareSourceManager().hardware_source_added_event.listen(self.__hardware_source_added)
@@ -364,68 +631,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __prune(self):
         self.__profile.prune()
 
-    def __read(self):
-        # first read the library (for deletions) and the library items from the primary storage systems
-        properties = self.__profile.read_library()
-
-        self.begin_reading()
-        try:
-            self.read_from_dict(properties)
-            self.__finish_read()
-        finally:
-            self.finish_reading()
-
-    def __finish_read(self) -> None:
-        # computations and connections
-        data_items = self.data_items
-        for data_item in data_items:
-            self.__uuid_to_data_item[data_item.uuid] = data_item
-            data_item.about_to_be_inserted(self)
-            data_item.set_storage_cache(self.storage_cache)
-        for data_item in data_items:
-            self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
-        for data_item in data_items:
-            data_item.set_session_manager(self)
-        for display_item in self.display_items:
-            display_item.connect_data_items(self.get_data_item_by_uuid)
-            display_item.set_storage_cache(self.storage_cache)
-        # update the computations now that data items and display items are loaded
-        for computation in self.computations:
-            self.__computation_changed(computation)  # ensure the initial mutation is reported
-        # this loop reestablishes dependencies now that everything is loaded.
-        # the change listener for the computation will already have been established via the regular
-        # loading mechanism; but because some data items may not have been loaded at the first time computation
-        # changed was called (during insert computation), this call is made to update the dependencies.
-        for computation in self.computations:
-            computation.update_script(self._processing_descriptions)
-            self.__computation_changed(computation)
-            computation.bind(self)
-        # initialize data item references
-        data_item_references_dict = self._get_persistent_property_value("data_item_references")
-        for key, data_item_uuid in data_item_references_dict.items():
-            data_item = self.get_data_item_by_uuid(uuid.UUID(data_item_uuid))
-            if data_item:
-                self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, data_item))
-        for data_group in self.data_groups:
-            data_group.connect_display_items(self.get_display_item_by_uuid)
-        # handle the reference variable assignments
-        data_item_variables = self._get_persistent_property_value("data_item_variables")
-        new_data_item_variables = dict()
-        for r_var, data_item_uuid_str in data_item_variables.items():
-            data_item_uuid = uuid.UUID(data_item_uuid_str)
-            if data_item_uuid in self.__uuid_to_data_item:
-                new_data_item_variables[r_var] = data_item_uuid_str
-                data_item = self.__uuid_to_data_item[data_item_uuid]
-                data_item.set_r_value(r_var, notify_changed=False)
-        self._set_persistent_property_value("data_item_variables", new_data_item_variables)
-
-    def write_to_dict(self):
-        # this should not be used in regular operation of the application since it is
-        # incredibly inefficient (writing # data items). it is left here, with a warning,
-        #  as a useful debugging tool.
-        logging.warning("Writing library to dict (please report as bug).")
-        return super().write_to_dict()
-
     def close(self):
         # notify listeners
         self.about_to_close_event.fire()
@@ -436,12 +641,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if self.__computation_active_item:
                 self.__computation_active_item.valid = False
                 self.__computation_active_item = None
-
-        # close connections
-        for connection in copy.copy(self.connections):
-            connection.about_to_be_removed()
-        for connection in copy.copy(self.connections):
-            connection.close()
 
         # close hardware source related stuff
         self.__hardware_source_added_event_listener.close()
@@ -455,9 +654,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         HardwareSource.HardwareSourceManager().abort_all_and_close()
 
         # make sure the data item references shut down cleanly
-        for data_item in self.data_items:
-            for data_item_reference in self.__data_item_references.values():
-                data_item_reference.data_item_removed(data_item)
+        for k, data_item_reference in self.__data_item_references.items():
+            data_item_reference.close()
+        self.__data_item_references = None
 
         for listeners in self.__data_channel_updated_listeners.values():
             for listener in listeners:
@@ -472,43 +671,140 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_channel_start_listeners = None
         self.__data_channel_stop_listeners = None
 
-        self.__thread_pool.close()
         self.__computation_thread_pool.close()
-        for data_item in self.data_items:
-            data_item.about_to_close()
-        for data_item in self.data_items:
-            data_item.about_to_be_removed()
-        for data_item in self.data_items:
-            data_item.close()
         self.storage_cache.close()
         self.__transaction_manager.close()
         self.__transaction_manager = None
 
+        for project_item_inserted_listener in self.__project_item_inserted_listeners:
+            project_item_inserted_listener.close()
+        self.__project_item_inserted_listeners = list()
+
+        for project_item_removed_listener in self.__project_item_removed_listeners:
+            project_item_removed_listener.close()
+        self.__project_item_removed_listeners = list()
+
+        self.__project_inserted_event_listener.close()
+        self.__project_inserted_event_listener = None
+        self.__project_removed_event_listener.close()
+        self.__project_removed_event_listener = None
+
+        self.__profile.about_to_be_removed(self)
         self.__profile.close()
+        self.__profile = None
 
     def __call_soon(self, fn):
-        self.call_soon_event.fire_any(fn)
+        # add the function to the queue of items to call on the main thread.
+        # use a queue here in case it is called before the listener is configured,
+        # as is the case as the document loads.
+        with self.__call_soon_queue_lock:
+            self.__call_soon_queue.append(fn)
+        self.call_soon_event.fire_any()
+
+    def perform_call_soon(self):
+        # call one function in the call soon queue
+        fn = None
+        with self.__call_soon_queue_lock:
+            if self.__call_soon_queue:
+                fn = self.__call_soon_queue.pop(0)
+        if fn:
+            fn()
+
+    def perform_all_call_soon(self):
+        # call all functions in the call soon queue
+        with self.__call_soon_queue_lock:
+            call_soon_queue = self.__call_soon_queue
+            self.__call_soon_queue = list()
+        for fn in call_soon_queue:
+            fn()
 
     def about_to_delete(self):
         # override from ReferenceCounted. several DocumentControllers may retain references
         self.close()
-        # these are here so that the document model gets garbage collected.
-        # TODO: generalize this behavior into a close method on persistent object
-        self.undefine_properties()
-        self.undefine_items()
-        self.undefine_relationships()
+
+    def __project_item_inserted(self, project: Project.Project, name: str, item, before_index: int) -> None:
+        if name == "data_items":
+            self.__handle_data_item_inserted(project, item)
+        elif name == "display_items":
+            self.__handle_display_item_inserted(project, item)
+        elif name == "data_structures":
+            self.__handle_data_structure_inserted(project, item)
+        elif name == "computations":
+            self.__handle_computation_inserted(project, item)
+        elif name == "connections":
+            self.__handle_connection_inserted(project, item)
+
+    def __project_item_removed(self, project: Project.Project, name: str, item, index: int) -> None:
+        if name == "data_items":
+            self.__handle_data_item_removed(project, item)
+        elif name == "display_items":
+            self.__handle_display_item_removed(project, item)
+        elif name == "data_structures":
+            self.__handle_data_structure_removed(project, item)
+        elif name == "computations":
+            self.__handle_computation_removed(project, item)
+        elif name == "connections":
+            self.__handle_connection_removed(project, item)
+
+    def __project_inserted(self, project: Project.Project, before_index: int) -> None:
+        self.__project_item_inserted_listeners.insert(before_index, project.item_inserted_event.listen(functools.partial(self.__project_item_inserted, project)))
+        self.__project_item_removed_listeners.insert(before_index, project.item_removed_event.listen(functools.partial(self.__project_item_removed, project)))
+
+    def __project_removed(self, project: Project.Project, index: int) -> None:
+        self.__project_item_inserted_listeners.pop(index).close()
+        self.__project_item_removed_listeners.pop(index).close()
+
+    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+        # returns item proxy in profile. used in data group hierarchy.
+        return self.profile.create_item_proxy(item=typing.cast(Persistence.PersistentObject, self))
+
+    def create_item_proxy(self, *, item_uuid: uuid.UUID = None, item_specifier: Persistence.PersistentObjectSpecifier = None, item: Persistence.PersistentObject = None) -> Persistence.PersistentObjectProxy:
+        # returns item proxy in projects. used in data group hierarchy.
+        return self.profile.work_project.create_item_proxy(item_uuid=item_uuid, item_specifier=item_specifier, item=item)
+
+    def resolve_item_specifier(self, item_specifier: Persistence.PersistentObjectSpecifier) -> Persistence.PersistentObject:
+        assert item_specifier.context_uuid  # require full item specifier since it shouldn't match the arbitrary project used to resolve.
+        return self.profile.work_project.resolve_item_specifier(item_specifier)
+
+    @property
+    def modified_state(self) -> int:
+        return self.__profile.modified_state
+
+    @modified_state.setter
+    def modified_state(self, value: int) -> None:
+        self.__profile.modified_state = value
+
+    @property
+    def data_items(self) -> typing.List[DataItem.DataItem]:
+        return self.__data_items
+
+    @property
+    def display_items(self) -> typing.List[DisplayItem.DisplayItem]:
+        return self.__display_items
+
+    @property
+    def data_structures(self) -> typing.List[DataStructure.DataStructure]:
+        return self.__data_structures
+
+    @property
+    def computations(self) -> typing.List[Symbolic.Computation]:
+        return self.__computations
+
+    @property
+    def connections(self) -> typing.List[Connection.Connection]:
+        return self.__connections
+
+    @property
+    def _project(self) -> Project.Project:
+        return self.profile.work_project
 
     @property
     def profile(self) -> Profile.Profile:
         return self.__profile
 
     @property
-    def _s2tm(self):
-        return self.__dependency_tree_source_to_target_map
-
-    @property
-    def _t2sm(self):
-        return self.__dependency_tree_target_to_source_map
+    def projects_model(self):
+        return self.__profile.projects_model
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -521,12 +817,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.insert_workspace(len(self.workspaces), workspace)
 
     def insert_workspace(self, before_index, workspace):
-        self.insert_item("workspaces", before_index, workspace)
+        self.__profile.insert_item("workspaces", before_index, workspace)
         self.notify_insert_item("workspaces", workspace, before_index)
 
     def remove_workspace(self, workspace):
         index = self.workspaces.index(workspace)
-        self.remove_item("workspaces", workspace)
+        self.__profile.remove_item("workspaces", workspace)
         self.notify_remove_item("workspaces", workspace, index)
 
     def copy_data_item(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
@@ -536,49 +832,63 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         if computation_copy:
             computation_copy.source = None
             computation_copy._clear_referenced_object("target")
-            computation_copy.bind(self)
             self.set_data_item_computation(data_item_copy, computation_copy)
         return data_item_copy
 
-    def append_data_item(self, data_item, auto_display: bool = True) -> None:
-        self.insert_data_item(len(self.data_items), data_item, auto_display)
-
-    def insert_data_item(self, before_index, data_item, auto_display: bool = True) -> None:
-        """Insert a new data item into document model.
-
-        This method is NOT threadsafe.
-        """
+    def __handle_data_item_inserted(self, project: Project.Project, data_item: DataItem.DataItem) -> None:
         assert data_item is not None
         assert data_item not in self.data_items
-        assert before_index <= len(self.data_items) and before_index >= 0
-        assert data_item.uuid not in self.__uuid_to_data_item
-        # update the session
-        data_item.session_id = self.session_id
+        # data item bookkeeping
+        data_item.set_storage_cache(self.storage_cache)
         # insert in internal list
-        self.__insert_data_item(before_index, data_item, do_write=True)
+        before_index = len(self.__data_items)
+        self.__data_items.append(data_item)
+        data_item._document_model = self
+        data_item.set_session_manager(self)
+        self.notify_insert_item("data_items", data_item, before_index)
+        self.__rebind_computations()  # rebind any unresolved that may now be resolved
+        self.__transaction_manager._add_item(data_item)
+
+    def __handle_data_item_removed(self, project: Project.Project, data_item: DataItem.DataItem) -> None:
+        self.__transaction_manager._remove_item(data_item)
+        library_computation = self.get_data_item_computation(data_item)
+        with self.__computation_queue_lock:
+            computation_pending_queue = self.__computation_pending_queue
+            self.__computation_pending_queue = list()
+            for computation_queue_item in computation_pending_queue:
+                if not computation_queue_item.computation is library_computation:
+                    self.__computation_pending_queue.append(computation_queue_item)
+            if self.__computation_active_item and library_computation is self.__computation_active_item.computation:
+                self.__computation_active_item.valid = False
+        # remove data item from any selections
+        self.data_item_will_be_removed_event.fire(data_item)
+        # remove it from the persistent_storage
+        data_item._document_model = None
+        assert data_item is not None
+        assert data_item in self.data_items
+        index = self.data_items.index(data_item)
+        if data_item.r_var:
+            data_item_variables = self.__profile.data_item_variables
+            del data_item_variables[data_item.r_var]
+            self.__profile.data_item_variables = data_item_variables
+            data_item.r_var = None
+        self.__data_items.remove(data_item)
+        self.notify_remove_item("data_items", data_item, index)
+
+    def append_data_item(self, data_item: DataItem.DataItem, auto_display: bool = True, *, project: Project.Project = None) -> None:
+        project = project or self.__profile.target_project_for_item(data_item)
+        data_item.session_id = self.session_id
+        project.append_data_item(data_item)
         # automatically add a display
         if auto_display:
             display_item = DisplayItem.DisplayItem(data_item=data_item)
-            self.append_display_item(display_item)
+            self.append_display_item(display_item, project=project)
 
-    def __insert_data_item(self, before_index, data_item, do_write):
-        self.insert_item("data_items", before_index, data_item)
-
-        self.__uuid_to_data_item[data_item.uuid] = data_item
-        data_item.about_to_be_inserted(self)
-        data_item.set_storage_cache(self.storage_cache)
-        if do_write:
-            # don't directly write data item, or else write_pending is not cleared on data item
-            # call finish pending write instead
-            data_item._finish_pending_write()  # initially write to disk
-        self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
-        data_item.set_session_manager(self)
-        self.data_item_inserted_event.fire(self, data_item, before_index, False)
-        self.notify_insert_item("data_items", data_item, before_index)
-        for data_item_reference in self.__data_item_references.values():
-            data_item_reference.data_item_inserted(data_item)
-        self.__rebind_computations()  # rebind any unresolved that may now be resolved
-        self.__transaction_manager._add_item(data_item)
+    def insert_data_item(self, index: int, data_item: DataItem.DataItem, auto_display: bool = True, *, project: Project.Project = None) -> None:
+        uuid_order = save_item_order(self.__data_items)
+        self.append_data_item(data_item, auto_display=auto_display, project=project)
+        insert_item_order(uuid_order, index, data_item)
+        self.__data_items = restore_item_order("data_items", self.profile.projects, uuid_order)
 
     def __rebind_computations(self):
         for computation in self.computations:
@@ -588,66 +898,26 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if computation.is_resolved:
                     computation.mark_update()
 
-    def remove_data_item(self, data_item: DataItem.DataItem, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
-        """Remove data item from document model.
+    def remove_data_item(self, data_item: DataItem.DataItem, *, safe: bool=False) -> None:
+        self.__cascade_delete(data_item, safe=safe).close()
 
-        This method is NOT threadsafe.
-        """
-        # remove data item from any computations
+    def remove_data_item_with_log(self, data_item: DataItem.DataItem, *, safe: bool=False) -> Changes.UndeleteLog:
         return self.__cascade_delete(data_item, safe=safe)
 
-    def __remove_data_item(self, data_item, *, safe: bool=False) -> typing.Sequence:
-        undelete_log = list()
-        self.__transaction_manager._remove_item(data_item)
-        assert data_item.uuid in self.__uuid_to_data_item
-        library_computation = self.get_data_item_computation(data_item)
-        with self.__computation_queue_lock:
-            computation_pending_queue = self.__computation_pending_queue
-            self.__computation_pending_queue = list()
-            for computation_queue_item in computation_pending_queue:
-                if not computation_queue_item.data_item is data_item and not computation_queue_item.computation is library_computation:
-                    self.__computation_pending_queue.append(computation_queue_item)
-            if self.__computation_active_item and data_item is self.__computation_active_item.data_item:
-                self.__computation_active_item.valid = False
-        # remove data item from any selections
-        self.data_item_will_be_removed_event.fire(data_item)
-        # tell the data item it is about to be removed
-        data_item.about_to_be_removed()
-        # remove it from the persistent_storage
-        assert data_item is not None
-        assert data_item in self.data_items
-        index = self.data_items.index(data_item)
+    def restore_data_item(self, project: Project.Project, data_item_uuid: uuid.UUID, before_index: int=None) -> typing.Optional[DataItem.DataItem]:
+        return self.__profile.restore_data_item(project, data_item_uuid)
 
-        self._set_persistent_property_value("data_item_deletions", self._get_persistent_property_value("data_item_deletions") + [str(data_item.uuid)])
-        self.__uuid_to_data_item.pop(data_item.uuid, None)
-        if data_item.r_var:
-            data_item_variables = self._get_persistent_property_value("data_item_variables")
-            del data_item_variables[data_item.r_var]
-            self._set_persistent_property_value("data_item_variables", data_item_variables)
-            data_item.r_var = None
-        data_item.__storage_cache = None
-        # update data item count
-        for data_item_reference in self.__data_item_references.values():
-            data_item_reference.data_item_removed(data_item)
-        self.data_item_removed_event.fire(self, data_item, index, False)
-        self.notify_remove_item("data_items", data_item, index)
-
-        self.remove_item("data_items", data_item)
-
-        data_item.close()
-        return undelete_log
-
-    def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int=None) -> DataItem.DataItem:
-        before_index = before_index if before_index is not None else len(self.data_items)
-        properties = self.__profile.restore_data_item(data_item_uuid)
-        data_item = data_item_factory(lambda k, dv=None: properties.get(k, dv))
-        data_item.begin_reading()
-        data_item.read_from_dict(properties)
-        # insert in internal list
-        self.__insert_data_item(before_index, data_item, do_write=False)
-        data_item.finish_reading()
-        self._set_persistent_property_value("data_item_deletions", list(set(self._get_persistent_property_value("data_item_deletions")) - {str(data_item.uuid)}))
-        return data_item
+    def restore_items_order(self, name: str, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+        if name == "data_items":
+            self.__data_items = restore_item_order(name, self.profile.projects, order)
+        elif name == "display_items":
+            self.__display_items = restore_item_order(name, self.profile.projects, order)
+        elif name == "data_strutures":
+            self.__data_structures = restore_item_order(name, self.profile.projects, order)
+        elif name == "computations":
+            self.__computations = restore_item_order(name, self.profile.projects, order)
+        elif name == "connections":
+            self.__connections = restore_item_order(name, self.profile.projects, order)
 
     def deepcopy_display_item(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
         display_item_copy = copy.deepcopy(display_item)
@@ -668,44 +938,42 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.append_display_item(display_item_copy)
         return display_item_copy
 
-    def append_display_item(self, display_item):
-        self.insert_display_item(len(self.display_items), display_item)
+    def append_display_item(self, display_item: DisplayItem.DisplayItem, *, update_session: bool = True, project: Project.Project = None) -> None:
+        project = project or self.__profile.target_project_for_item(display_item)
+        if update_session:
+            display_item.session_id = self.session_id
+        project.append_display_item(display_item)
 
-    def insert_display_item(self, before_index, display_item):
-        self.insert_item("display_items", before_index, display_item)
-        self.display_item_inserted_event.fire(self, display_item, before_index, False)
-        display_item.connect_data_items(self.get_data_item_by_uuid)
-        assert not self._is_reading
-        display_item.session_id = self.session_id
-        self.__rebind_computations()  # rebind any unresolved that may now be resolved
-        self.notify_insert_item("display_items", display_item, before_index)
+    def insert_display_item(self, before_index: int, display_item: DisplayItem.DisplayItem, *, update_session: bool = True, project: Project.Project = None) -> None:
+        uuid_order = save_item_order(self.__display_items)
+        self.append_display_item(display_item, update_session=update_session, project=project)
+        insert_item_order(uuid_order, before_index, display_item)
+        self.__display_items = restore_item_order("display_items", self.profile.projects, uuid_order)
 
-    def remove_display_item(self, display_item) -> typing.Optional[typing.Sequence]:
+    def remove_display_item(self, display_item) -> None:
+        self.__cascade_delete(display_item).close()
+
+    def remove_display_item_with_log(self, display_item) -> Changes.UndeleteLog:
         return self.__cascade_delete(display_item)
 
-    def __inserted_display_item(self, name, before_index, display_item):
-        display_item.about_to_be_inserted(self)
+    def __handle_display_item_inserted(self, project: Project.Project, display_item: DisplayItem.DisplayItem) -> None:
+        assert display_item is not None
+        assert display_item not in self.__display_items
+        # data item bookkeeping
         display_item.set_storage_cache(self.storage_cache)
+        # insert in internal list
+        before_index = len(self.__display_items)
+        self.__display_items.append(display_item)
+        # send notifications
+        self.notify_insert_item("display_items", display_item, before_index)
 
-    def __remove_display_item(self, display_item, *, safe: bool=False) -> typing.Sequence:
-        undelete_log = list()
-        # remove the data item from any groups
-        for data_group in self.get_flat_data_group_generator():
-            if display_item in data_group.display_items:
-                undelete_log.append({"type": "data_group_entry", "data_group_uuid": data_group.uuid, "properties": None, "index": data_group.display_items.index(display_item), "display_item_uuid": display_item.uuid})
-                data_group.remove_display_item(display_item)
-        self.display_item_will_be_removed_event.fire(display_item)
-        # tell the display item it is about to be removed
-        display_item.about_to_be_removed()
+    def __handle_display_item_removed(self, project: Project.Project, display_item: DisplayItem.DisplayItem) -> None:
         # remove it from the persistent_storage
         assert display_item is not None
-        assert display_item in self.display_items
-        index = self.display_items.index(display_item)
-        self.display_item_removed_event.fire(self, display_item, index, False)
+        assert display_item in self.__display_items
+        index = self.__display_items.index(display_item)
         self.notify_remove_item("display_items", display_item, index)
-        self.remove_item("display_items", display_item)
-        display_item.close()
-        return undelete_log
+        self.__display_items.remove(display_item)
 
     def insert_model_item(self, container, name, before_index, item):
         container.insert_item(name, before_index, item)
@@ -714,12 +982,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # there may be a better place for this
             self.__rebind_computations()  # rebind any unresolved that may now be resolved
 
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
         return self.__cascade_delete(item, safe=safe)
 
     def assign_variable_to_data_item(self, data_item: DataItem.DataItem) -> str:
         if not data_item.r_var:
-            data_item_variables = self._get_persistent_property_value("data_item_variables")
+            data_item_variables = self.__profile.data_item_variables
             def find_var() -> str:
                 for r in range(1, 1000000):
                     r_var = "r{:02d}".format(r)
@@ -727,16 +995,21 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         return r_var
                 return str()
             data_item_var = find_var()
-            data_item_variables[data_item_var] = str(data_item.uuid)
+            data_item_variables[data_item_var] = data_item.project.create_specifier(data_item, allow_partial=False).write()
             data_item.set_r_value(data_item_var)
-            self._set_persistent_property_value("data_item_variables", data_item_variables)
+            self.__profile.data_item_variables = data_item_variables
         return data_item.r_var
 
     def variable_to_data_item_map(self) -> typing.Mapping[str, DataItem.DataItem]:
         m = dict()
-        data_item_variables = self._get_persistent_property_value("data_item_variables")
-        for variable, data_item_uuid_str in data_item_variables.items():
-            m[variable] = self.__uuid_to_data_item[uuid.UUID(data_item_uuid_str)]
+        data_item_variables = self.__profile.data_item_variables
+        for variable, data_item_specifier_d in data_item_variables.items():
+            data_item_specifier = Persistence.PersistentObjectSpecifier.read(data_item_specifier_d)
+            data_item = typing.cast(DataItem.DataItem, self.resolve_item_specifier(data_item_specifier))
+            if data_item:
+                m[variable] = data_item
+            else:
+                logging.warning(f"Missing {variable}: {data_item_specifier.write()}")
         return m
 
     def __build_cascade(self, item, items: list, dependencies: list) -> None:
@@ -791,15 +1064,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # this could obviously be optimized.
             if not isinstance(item, Symbolic.Computation):
                 for computation in self.computations:
-                    for variable in computation.variables:
-                        bound_item = variable.bound_item
-                        base_objects = getattr(bound_item, "base_objects", list()) if bound_item and not getattr(bound_item, "is_list", False) else list()
-                        if item in base_objects:
-                            targets = computation._outputs
-                            for target in targets:
-                                if (item, target) not in dependencies:
-                                    dependencies.append((item, target))
-                                self.__build_cascade(target, items, dependencies)
+                    base_objects = computation.direct_input_items
+                    if item in base_objects:
+                        targets = computation._outputs
+                        for target in targets:
+                            if (item, target) not in dependencies:
+                                dependencies.append((item, target))
+                            self.__build_cascade(target, items, dependencies)
             # dependencies are deleted
             # see note above
             # targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())
@@ -850,11 +1121,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if (source, item) not in dependencies:
                     dependencies.append((source, item))
 
-    def __cascade_delete(self, master_item, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def __cascade_delete(self, master_item, safe: bool=False) -> Changes.UndeleteLog:
         with self.transaction_context():
             return self.__cascade_delete_inner(master_item, safe=safe)
 
-    def __cascade_delete_inner(self, master_item, safe: bool=False) -> typing.Optional[typing.Sequence]:
+    def __cascade_delete_inner(self, master_item, safe: bool=False) -> Changes.UndeleteLog:
         """Cascade delete an item.
 
         Returns an undelete log that can be used to undo the cascade deletion.
@@ -876,7 +1147,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__computation_changed_delay_list = computation_changed_delay_list
         else:
             computation_changed_delay_list = None
-        undelete_log = list()
+        undelete_log = Changes.UndeleteLog()
         try:
             items = list()
             dependencies = list()
@@ -902,53 +1173,45 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # now delete the actual items
             for item in reversed(items):
                 for computation in self.computations:
-                    new_entries = computation.list_item_removed(item)
-                    undelete_log.extend(new_entries)
+                    t = computation.list_item_removed(item)
+                    if t is not None:
+                        index, variable_index, object_specifier = t
+                        undelete_log.append(UndeleteObjectSpecifiers(self, computation, index, variable_index, object_specifier))
+            for item in reversed(items):
                 container = item.container
-                if isinstance(item, DataItem.DataItem):
-                    name = "data_items"
-                elif isinstance(item, DisplayItem.DisplayItem):
-                    name = "display_items"
-                elif isinstance(item, Graphics.Graphic):
-                    name = "graphics"
-                elif isinstance(item, DataStructure.DataStructure):
-                    name = "data_structures"
-                elif isinstance(item, Symbolic.Computation):
-                    name = "computations"
-                elif isinstance(item, Connection.Connection):
-                    name = "connections"
-                elif isinstance(item, DisplayItem.DisplayDataChannel):
-                    name = "display_data_channels"
-                else:
-                    name = None
-                    assert False, "Unable to cascade delete type " + str(type(item))
-                assert name
-                # print(container, name, item)
-                if container is self and name == "data_items":
-                    # call the version of __remove_data_item that doesn't cascade again
-                    index = getattr(container, name).index(item)
-                    item_dict = item.write_to_dict()
-                    # NOTE: __remove_data_item will notify_remove_item
-                    undelete_log.extend(self.__remove_data_item(item, safe=safe))
-                    undelete_log.append({"type": name, "index": index, "properties": item_dict})
-                elif container is self and name == "display_items":
-                    # call the version of __remove_data_item that doesn't cascade again
-                    index = getattr(container, name).index(item)
-                    item_dict = item.write_to_dict()
-                    # NOTE: __remove_display_item will notify_remove_item
-                    undelete_log.extend(self.__remove_display_item(item, safe=safe))
-                    undelete_log.append({"type": name, "index": index, "properties": item_dict})
-                elif container:
-                    container_ref = str(container.uuid)
-                    index = getattr(container, name).index(item)
-                    item_dict = item.write_to_dict()
-                    container_properties = container.save_properties() if hasattr(container, "save_properties") else dict()
-                    undelete_log.append({"type": name, "container": container_ref, "index": index, "properties": item_dict, "container_properties": container_properties})
-                    container.remove_item(name, item)
-                    # handle top level 'remove item' notifications for data structures, computations, and display items here
-                    # since they're not handled elsewhere.
-                    if container == self and name in ("data_structures", "computations"):
-                        self.notify_remove_item(name, item, index)
+                # if container is None, then this object has already been removed
+                if isinstance(container, Project.Project) and isinstance(item, DataItem.DataItem):
+                    undelete_log.append(UndeleteDataItems(self, item))
+                    # call the version of remove_data_item that doesn't cascade again
+                    # NOTE: remove_data_item will notify_remove_item
+                    container.remove_data_item(item)
+                elif isinstance(container, Project.Project) and isinstance(item, DisplayItem.DisplayItem):
+                    # remove the data item from any groups
+                    for data_group in self.get_flat_data_group_generator():
+                        if item in data_group.display_items:
+                            undelete_log.append(UndeleteDisplayItemInDataGroup(self, item, data_group))
+                            data_group.remove_display_item(item)
+                    undelete_log.append(UndeleteDisplayItem(self, item))
+                    # call the version of remove_display_item that doesn't cascade again
+                    # NOTE: remove_display_item will notify_remove_item
+                    container.remove_display_item(item)
+                elif isinstance(container, Project.Project) and isinstance(item, DataStructure.DataStructure):
+                    undelete_log.append(UndeleteItem(self, DataStructuresController(self), item))
+                    container.remove_item("data_structures", item)
+                elif isinstance(container, Project.Project) and isinstance(item, Symbolic.Computation):
+                    undelete_log.append(UndeleteItem(self, ComputationsController(self), item))
+                    container.remove_item("computations", item)
+                    if item in self.__computation_changed_delay_list:
+                        self.__computation_changed_delay_list.remove(item)
+                elif isinstance(container, Project.Project) and isinstance(item, Connection.Connection):
+                    undelete_log.append(UndeleteItem(self, ConnectionsController(self), item))
+                    container.remove_item("connections", item)
+                elif container and isinstance(item, Graphics.Graphic):
+                    undelete_log.append(UndeleteItem(self, GraphicsController(self), item))
+                    container.remove_item("graphics", item)
+                elif container and isinstance(item, DisplayItem.DisplayDataChannel):
+                    undelete_log.append(UndeleteItem(self, DisplayDataChannelsController(self), item))
+                    container.remove_item("display_data_channels", item)
         except Exception as e:
             import sys, traceback
             traceback.print_exc()
@@ -960,64 +1223,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__finish_computation_changed()
         return undelete_log
 
-    def undelete_all(self, undelete_log):
-        for entry in reversed(undelete_log):
-            index = entry["index"]
-            name = entry["type"]
-            properties = entry["properties"]
-            if name == "data_items":
-                self.restore_data_item(properties["uuid"], index)
-            elif name == "display_items":
-                item = DisplayItem.DisplayItem()
-                item.begin_reading()
-                item.read_from_dict(properties)
-                item.finish_reading()
-                self.insert_display_item(index, item)
-            elif name == "computations":
-                item = Symbolic.Computation()
-                item.begin_reading()
-                item.read_from_dict(properties)
-                item.finish_reading()
-                item.bind(self)
-                self.insert_computation(index, item)
-            elif name == "object_specifiers":
-                computation = self.get_computation_by_uuid(uuid.UUID(entry["computation_uuid"]))
-                variable = computation.variables[entry["variable_index"]]
-                variable.objects_model.insert_item(index, properties)
-            elif name == "graphics":
-                item = Graphics.factory(properties.get)
-                item.begin_reading()
-                item.read_from_dict(properties)
-                item.finish_reading()
-                display_item = self.get_display_item_by_uuid(uuid.UUID(entry["container"]))
-                display_item.insert_graphic(index, item)
-                display_item.restore_properties(entry["container_properties"])
-            elif name == "connections":
-                item = Connection.connection_factory(properties.get)
-                item.begin_reading()
-                item.read_from_dict(properties)
-                item.finish_reading()
-                self.insert_connection(index, item)
-            elif name == "data_structures":
-                item = DataStructure.DataStructure()
-                item.begin_reading()
-                item.read_from_dict(properties)
-                item.finish_reading()
-                self.insert_data_structure(index, item)
-            elif name == "data_group_entry":
-                data_group = self.get_data_group_by_uuid(entry["data_group_uuid"])
-                display_item = self.get_display_item_by_uuid(entry["display_item_uuid"])
-                data_group.insert_display_item(index, display_item)
-            elif name == "display_data_channels":
-                item = DisplayItem.display_data_channel_factory(properties.get)
-                item.begin_reading()
-                item.read_from_dict(properties)
-                item.finish_reading()
-                display_item = self.get_display_item_by_uuid(uuid.UUID(entry["container"]))
-                display_item.undelete_display_data_channel(index, item, self.get_data_item_by_uuid)
-                display_item.restore_properties(entry["container_properties"])
-            else:
-                assert False
+    def undelete_all(self, undelete_log: Changes.UndeleteLog) -> None:
+        undelete_log.undelete_all(self)
 
     def __remove_dependency(self, source_item, target_item):
         # print(f"remove dependency {source_item} {target_item}")
@@ -1061,53 +1268,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 dependent_display_items = self.get_dependent_display_items(display_item) if display_item else list()
                 self.related_items_changed.fire(display_item, source_display_items, dependent_display_items)
 
-    def __computation_needs_update(self, data_item, computation):
+    def __computation_needs_update(self, computation: Symbolic.Computation) -> None:
         # When the computation for a data item is set or mutated, this function will be called.
         # This function looks through the existing pending computation queue, and if this data
         # item is not already in the queue, it adds it and ensures the dispatch thread eventually
         # executes the computation.
         with self.__computation_queue_lock:
             for computation_queue_item in self.__computation_pending_queue:
-                if data_item and computation_queue_item.data_item == data_item:
-                    return
                 if computation and computation_queue_item.computation == computation:
                     return
-            computation_queue_item = ComputationQueueItem(data_item=data_item, computation=computation)
+            computation_queue_item = ComputationQueueItem(computation=computation)
             self.__computation_pending_queue.append(computation_queue_item)
-        self.dispatch_task2(self.__recompute)
-
-    def __resolve_computation_inputs(self, computation: Symbolic.Computation) -> typing.Set:
-        # resolve the computation inputs and return the set of input items.
-        input_items = set()
-        for variable in computation.variables:
-            if variable.specifier:
-                object = self.resolve_object_specifier(variable.specifier, variable.secondary_specifier, variable.property_name)
-                if hasattr(object, "base_objects"):
-                    input_items.update(object.base_objects)
-            if variable.object_specifiers:
-                object = self.resolve_object_specifier(variable.specifier, variable.secondary_specifier, variable.property_name, variable.objects_model)
-                if hasattr(object, "base_objects"):
-                    input_items.update(object.base_objects)
-        return input_items
-
-    def __resolve_computation_outputs(self, computation: Symbolic.Computation) -> typing.Set:
-        # resolve the computation inputs and return the set of input items.
-        output_items = set()
-        for result in computation.results:
-            specifier = result.specifier
-            if specifier:
-                object = self.resolve_object_specifier(specifier)
-                if hasattr(object, "value"):
-                    source_item = object.value
-                    output_items.add(source_item)
-            specifiers = result.specifiers
-            if specifiers:
-                for specifier in specifiers:
-                    object = self.resolve_object_specifier(specifier)
-                    if hasattr(object, "value"):
-                        source_item = object.value
-                        output_items.add(source_item)
-        return output_items
+        self.dispatch_task(self.__recompute)
 
     def __establish_computation_dependencies(self, old_inputs: typing.Set, new_inputs: typing.Set, old_outputs: typing.Set, new_outputs: typing.Set) -> None:
         # establish dependencies between input and output items.
@@ -1199,19 +1371,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def transaction_context(self):
         """Return a context object for a document-wide transaction."""
-        class DocumentModelTransaction:
-            def __init__(self, document_model):
-                self.__document_model = document_model
-
-            def __enter__(self):
-                self.__document_model.persistent_object_context.enter_write_delay(self.__document_model)
-                return self
-
-            def __exit__(self, type, value, traceback):
-                self.__document_model.persistent_object_context.exit_write_delay(self.__document_model)
-                self.__document_model.persistent_object_context.rewrite_item(self.__document_model)
-
-        return DocumentModelTransaction(self)
+        return self.profile.transaction_context()
 
     def item_transaction(self, item) -> Transaction:
         return self.__transaction_manager.item_transaction(item)
@@ -1279,13 +1439,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.insert_data_group(len(self.data_groups), data_group)
 
     def insert_data_group(self, before_index, data_group):
-        self.insert_item("data_groups", before_index, data_group)
+        self.__profile.insert_item("data_groups", before_index, data_group)
         self.notify_insert_item("data_groups", data_group, before_index)
 
     def remove_data_group(self, data_group):
         data_group.disconnect_display_items()
         index = self.data_groups.index(data_group)
-        self.remove_item("data_groups", data_group)
+        self.__profile.remove_item("data_groups", data_group)
         self.notify_remove_item("data_groups", data_group, index)
 
     def create_default_data_groups(self):
@@ -1295,107 +1455,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_group.title = _("My Data")
             self.append_data_group(data_group)
 
-    def create_sample_images(self, resources_path):
-        if True:
-            data_group = self.get_or_create_data_group(_("Example Data"))
-            handler = ImportExportManager.NDataImportExportHandler("ndata1-io-handler", None, ["ndata1"])
-            samples_dir = os.path.join(resources_path, "SampleImages")
-            #logging.debug("Looking in %s", samples_dir)
-            def is_ndata(file_path):
-                #logging.debug("Checking %s", file_path)
-                base, extension = os.path.splitext(file_path)
-                return extension == ".ndata1" and not os.path.basename(base).startswith(".")
-            if os.path.isdir(samples_dir):
-                sample_paths = [os.path.normpath(os.path.join(samples_dir, d)) for d in os.listdir(samples_dir) if is_ndata(os.path.join(samples_dir, d))]
-            else:
-                sample_paths = []
-            for sample_path in sorted(sample_paths):
-                try:
-                    data_items = handler.read_data_items(None, "ndata1", sample_path)
-                    for data_item in data_items:
-                        if not self.get_data_item_by_uuid(data_item.uuid):
-                            self.append_data_item(data_item)
-                            data_group.append_display_item(self.get_display_item_for_data_item(data_item))
-                except Exception as e:
-                    logging.debug("Error reading %s", sample_path)
-        else:
-            # for testing, add a checkerboard image data item
-            checkerboard_data_item = DataItem.DataItem(Image.create_checkerboard((512, 512)))
-            checkerboard_data_item.title = "Checkerboard"
-            self.append_data_item(checkerboard_data_item)
-            # for testing, add a color image data item
-            color_data_item = DataItem.DataItem(Image.create_color_image((512, 512), 128, 255, 128))
-            color_data_item.title = "Green Color"
-            self.append_data_item(color_data_item)
-            # for testing, add a color image data item
-            lena_data_item = DataItem.DataItem(scipy.misc.lena())
-            lena_data_item.title = "Lena"
-            self.append_data_item(lena_data_item)
-
-    # Return a generator over all data items
-    def get_flat_data_item_generator(self):
-        for data_item in self.data_items:
-            yield data_item
-
     # Return a generator over all data groups
     def get_flat_data_group_generator(self):
         return DataGroup.get_flat_data_group_generator_in_container(self)
 
-    def get_data_group_by_uuid(self, uuid):
+    def get_data_group_by_uuid(self, uuid: uuid.UUID):
         for data_group in DataGroup.get_flat_data_group_generator_in_container(self):
             if data_group.uuid == uuid:
                 return data_group
-        return None
-
-    def get_data_group_or_document_model_by_uuid(self, uuid) -> typing.Optional[typing.Union["DocumentModel", DataGroup.DataGroup]]:
-        if self.uuid == uuid:
-            return self
-        for data_group in DataGroup.get_flat_data_group_generator_in_container(self):
-            if data_group.uuid == uuid:
-                return data_group
-        return None
-
-    def get_data_item_count(self):
-        return len(list(self.get_flat_data_item_generator()))
-
-    # temporary method to find the container of a data item. this goes away when
-    # data items get stored in a flat table.
-    def get_data_item_data_group(self, data_item):
-        for data_group in self.get_flat_data_group_generator():
-            if data_item in DataGroup.get_flat_data_item_generator_in_container(data_group):
-                return data_group
-        return None
-
-    # access data item by key (title, uuid, index)
-    def get_data_item_by_key(self, key):
-        if isinstance(key, numbers.Integral):
-            return list(self.get_flat_data_item_generator())[key]
-        if isinstance(key, uuid.UUID):
-            return self.get_data_item_by_uuid(key)
-        return self.get_data_item_by_title(str(key))
-
-    # access data items by title
-    def get_data_item_by_title(self, title):
-        for data_item in self.get_flat_data_item_generator():
-            if data_item.title == title:
-                return data_item
-        return None
-
-    # access data items by index
-    def get_data_item_by_index(self, index):
-        return list(self.get_flat_data_item_generator())[index]
-
-    def get_index_for_data_item(self, data_item):
-        return list(self.get_flat_data_item_generator()).index(data_item)
-
-    # access data items by uuid
-    def get_data_item_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DataItem.DataItem]:
-        return self.__uuid_to_data_item.get(uuid)
-
-    def get_display_item_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DisplayItem.DisplayItem]:
-        for display_item in self.display_items:
-            if display_item.uuid == uuid:
-                return display_item
         return None
 
     def get_display_items_for_data_item(self, data_item: DataItem.DataItem) -> typing.Sequence[DisplayItem.DisplayItem]:
@@ -1416,12 +1483,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def are_display_items_equal(self, display_item1: DisplayItem.DisplayItem, display_item2: DisplayItem.DisplayItem) -> bool:
         return display_item1 == display_item2
 
-    def get_display_data_channel_by_uuid(self, uuid: uuid.UUID) -> typing.Optional[DisplayItem.DisplayDataChannel]:
-        for display_item in self.display_items:
-            for display_data_channel in display_item.display_data_channels:
-                if display_data_channel.uuid == uuid:
-                    return display_data_channel
-        return None
+    def get_project_for_item(self, item: Project.ProjectItemType) -> typing.Optional[Project.Project]:
+        return item.container if item else None
 
     def get_or_create_data_group(self, group_name):
         data_group = DataGroup.get_data_group_in_container_by_title(self, group_name)
@@ -1433,14 +1496,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return data_group
 
     def create_computation(self, expression: str=None) -> Symbolic.Computation:
-        computation = Symbolic.Computation(expression)
-        computation.bind(self)
-        return computation
+        return Symbolic.Computation(expression)
 
     def dispatch_task(self, task, description=None):
-        self.__thread_pool.queue_fn(task, description)
-
-    def dispatch_task2(self, task, description=None):
         self.__computation_thread_pool.queue_fn(task, description)
 
     def recompute_all(self, merge=True):
@@ -1460,25 +1518,28 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.perform_data_item_merge()
 
     def start_dispatcher(self):
-        self.__thread_pool.start()
         self.__computation_thread_pool.start(1)
 
     def __recompute(self):
-        computation_queue_item = None
-        with self.__computation_queue_lock:
-            if not self.__computation_active_item and self.__computation_pending_queue:
-                computation_queue_item = self.__computation_pending_queue.pop(0)
-                self.__computation_active_item = computation_queue_item
+        while True:
+            computation_queue_item = None
+            with self.__computation_queue_lock:
+                if not self.__computation_active_item and self.__computation_pending_queue:
+                    computation_queue_item = self.__computation_pending_queue.pop(0)
+                    self.__computation_active_item = computation_queue_item
 
-        if computation_queue_item:
-            # an item was put into the active queue, so compute it, then merge
-            pending_data_item_merge = computation_queue_item.recompute()
-            if pending_data_item_merge is not None:
-                with self.__pending_data_item_merge_lock:
-                    self.__pending_data_item_merge = pending_data_item_merge
-                self.__call_soon(self.perform_data_item_merge)
+            if computation_queue_item:
+                # an item was put into the active queue, so compute it, then merge
+                pending_data_item_merge = computation_queue_item.recompute()
+                if pending_data_item_merge is not None:
+                    with self.__pending_data_item_merge_lock:
+                        self.__pending_data_item_merge = pending_data_item_merge
+                    self.__call_soon(self.perform_data_item_merge)
+                else:
+                    with self.__computation_queue_lock:
+                        self.__computation_active_item = None
             else:
-                self.__computation_active_item = None
+                break
 
     def perform_data_item_merge(self):
         with self.__pending_data_item_merge_lock:
@@ -1495,7 +1556,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 with self.__computation_queue_lock:
                     self.__computation_active_item = None
                 computation.is_initial_computation_complete.set()
-        self.dispatch_task2(self.__recompute)
+        self.dispatch_task(self.__recompute)
 
     async def compute_immediate(self, event_loop: asyncio.AbstractEventLoop, computation: Symbolic.Computation, timeout: float=None) -> None:
         if computation:
@@ -1513,393 +1574,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     return graphic
         return None
 
-    def get_data_structure_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[DataStructure.DataStructure]:
-        for data_structure in self.data_structures:
-            if data_structure.uuid == object_uuid:
-                return data_structure
-        return None
-
-    def get_computation_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Symbolic.Computation]:
-        for computation in self.computations:
-            if computation.uuid == object_uuid:
-                return computation
-        return None
-
-    def resolve_object_specifier(self, specifier: dict, secondary_specifier: dict=None, property_name: str=None, objects_model=None):
-
-        class BoundDataBase:
-            def __init__(self, document_model, object, graphic=None):
-                self.document_model = document_model
-                self._object = object
-                self._graphic = graphic
-                self.changed_event = Event.Event()
-                self.needs_rebind_event = Event.Event()
-                self.property_changed_event = Event.Event()
-                self.__data_changed_event_listener = self._object.data_changed_event.listen(self.changed_event.fire)
-                def data_item_removed(container, data_item, index, moving):
-                    if container == self.document_model and data_item == self._object:
-                        self.needs_rebind_event.fire()
-                self.__data_item_removed_event_listener = self.document_model.data_item_removed_event.listen(data_item_removed)
-            def close(self):
-                self.__data_changed_event_listener.close()
-                self.__data_changed_event_listener = None
-                self.__data_item_removed_event_listener.close()
-                self.__data_item_removed_event_listener = None
-            @property
-            def base_objects(self):
-                objects = {self._object}
-                if self._graphic:
-                    objects.add(self._graphic)
-                return objects
-
-        class BoundDisplayDataChannelBase:
-            def __init__(self, document_model, display_data_channel, graphic=None):
-                self.document_model = document_model
-                self._display_data_channel = display_data_channel
-                self._graphic = graphic
-                self.changed_event = Event.Event()
-                self.needs_rebind_event = Event.Event()
-                self.property_changed_event = Event.Event()
-                self.__display_values_changed_event_listener = self._display_data_channel.add_calculated_display_values_listener(self.changed_event.fire, send=False)
-                def data_item_removed(container, data_item, index, moving):
-                    if container == self.document_model and data_item == self._display_data_channel.data_item:
-                        self.needs_rebind_event.fire()
-                self.__data_item_removed_event_listener = self.document_model.data_item_removed_event.listen(data_item_removed)
-            def close(self):
-                self.__display_values_changed_event_listener.close()
-                self.__display_values_changed_event_listener = None
-                self.__data_item_removed_event_listener.close()
-                self.__data_item_removed_event_listener = None
-            @property
-            def base_objects(self):
-                objects = {self._display_data_channel.container, self._display_data_channel.data_item}
-                if self._graphic:
-                    objects.add(self._graphic)
-                return objects
-
-        document_model = self
-        if specifier and specifier.get("version") == 1:
-            specifier_type = specifier["type"]
-            if specifier_type == "data_source":
-                specifier_uuid_str = specifier.get("uuid")
-                secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
-                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
-                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
-                graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
-                class BoundDataSource:
-                    def __init__(self, document_model, display_data_channel, graphic):
-                        self.__document_model = document_model
-                        self.changed_event = Event.Event()
-                        self.needs_rebind_event = Event.Event()
-                        self.property_changed_event = Event.Event()
-                        self.__data_source = DataItem.DataSource(display_data_channel, graphic, self.changed_event)
-                        def data_item_removed(container, data_item, index, moving):
-                            if container == self.__document_model and data_item == self.__data_source.data_item:
-                                self.needs_rebind_event.fire()
-                        self.__data_item_removed_event_listener = self.__document_model.data_item_removed_event.listen(data_item_removed)
-                    @property
-                    def value(self):
-                        return self.__data_source
-                    @property
-                    def base_objects(self):
-                        objects = {self.__data_source.data_item}
-                        if self.__data_source.graphic:
-                            objects.add(self.__data_source.graphic)
-                        return objects
-                    def close(self):
-                        self.__data_source.close()
-                        self.__data_source = None
-                        self.__data_item_removed_event_listener.close()
-                        self.__data_item_removed_event_listener = None
-                if display_data_channel and display_data_channel.data_item:
-                    return BoundDataSource(self, display_data_channel, graphic)
-            elif specifier_type == "data_item":
-                specifier_uuid_str = specifier.get("uuid")
-                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
-                if data_item:
-                    class BoundDataItem:
-                        def __init__(self, document_model, object):
-                            self.__document_model = document_model
-                            self.__object = object
-                            self.changed_event = Event.Event()
-                            self.needs_rebind_event = Event.Event()
-                            self.property_changed_event = Event.Event()
-                            self.__data_item_changed_event_listener = self.__object.data_item_changed_event.listen(self.changed_event.fire)
-                            def data_item_removed(container, data_item, index, moving):
-                                if container == self.__document_model and data_item == self.__object:
-                                    self.needs_rebind_event.fire()
-                            self.__data_item_removed_event_listener = self.__document_model.data_item_removed_event.listen(data_item_removed)
-                        def close(self):
-                            self.__data_item_changed_event_listener.close()
-                            self.__data_item_changed_event_listener = None
-                            self.__data_item_removed_event_listener.close()
-                            self.__data_item_removed_event_listener = None
-                        @property
-                        def value(self):
-                            return self.__object
-                        @property
-                        def base_objects(self):
-                            return {self.__object}
-                    if data_item:
-                        return BoundDataItem(self, data_item)
-            elif specifier_type == "xdata":
-                specifier_uuid_str = specifier.get("uuid")
-                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
-                if not data_item:
-                    display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
-                    data_item = display_data_channel.data_item if display_data_channel else None
-                if data_item:
-                    class BoundDataItem(BoundDataBase):
-                        @property
-                        def value(self):
-                            return self._object.xdata
-                    if data_item:
-                        return BoundDataItem(self, data_item)
-            elif specifier_type == "display_xdata":
-                specifier_uuid_str = specifier.get("uuid")
-                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
-                if display_data_channel:
-                    class BoundDataItem(BoundDisplayDataChannelBase):
-                        @property
-                        def value(self):
-                            return self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata if self._display_data_channel else None
-                    if display_data_channel:
-                        return BoundDataItem(self, display_data_channel)
-            elif specifier_type == "cropped_xdata":
-                specifier_uuid_str = specifier.get("uuid")
-                secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
-                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
-                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
-                graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
-                if display_data_channel:
-                    class BoundDataItem(BoundDisplayDataChannelBase):
-                        @property
-                        def value(self):
-                            xdata = self._display_data_channel.data_item.xdata
-                            graphic = self._graphic
-                            if graphic:
-                                if hasattr(graphic, "bounds"):
-                                    return Core.function_crop(xdata, graphic.bounds)
-                                if hasattr(graphic, "interval"):
-                                    return Core.function_crop_interval(xdata, graphic.interval)
-                            return xdata
-                    if display_data_channel:
-                        return BoundDataItem(self, display_data_channel, graphic)
-            elif specifier_type == "cropped_display_xdata":
-                specifier_uuid_str = specifier.get("uuid")
-                secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
-                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
-                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
-                graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
-                if display_data_channel:
-                    class BoundDataItem(BoundDisplayDataChannelBase):
-                        @property
-                        def value(self):
-                            xdata = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata
-                            graphic = self._graphic
-                            if graphic:
-                                if hasattr(graphic, "bounds"):
-                                    return Core.function_crop(xdata, graphic.bounds)
-                                if hasattr(graphic, "interval"):
-                                    return Core.function_crop_interval(xdata, graphic.interval)
-                            return xdata
-                    if display_data_channel:
-                        return BoundDataItem(self, display_data_channel, graphic)
-            elif specifier_type == "filter_xdata":
-                specifier_uuid_str = specifier.get("uuid")
-                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
-                if display_data_channel:
-                    class BoundDataItem(BoundDisplayDataChannelBase):
-                        @property
-                        def value(self):
-                            display_item = self._display_data_channel.container
-                            # no display item is a special case for cascade removing graphics from computations. ugh.
-                            # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
-                            if display_item:
-                                shape = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
-                                mask = numpy.zeros(shape)
-                                for graphic in display_item.graphics:
-                                    if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                                        mask = numpy.logical_or(mask, graphic.get_mask(shape))
-                                return DataAndMetadata.DataAndMetadata.from_data(mask)
-                            return None
-                        @property
-                        def base_objects(self):
-                            data_item = self._display_data_channel.data_item
-                            display_item = self._display_data_channel.container
-                            objects = {data_item, display_item}
-                            for graphic in display_item.graphics:
-                                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                                    objects.add(graphic)
-                            return objects
-                    if display_data_channel:
-                        return BoundDataItem(self, display_data_channel)
-            elif specifier_type == "filtered_xdata":
-                specifier_uuid_str = specifier.get("uuid")
-                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                display_data_channel = self.get_display_data_channel_by_uuid(object_uuid) if object_uuid else None
-                if display_data_channel:
-                    class BoundDataItem(BoundDisplayDataChannelBase):
-                        @property
-                        def value(self):
-                            display_item = self._display_data_channel.container
-                            # no display item is a special case for cascade removing graphics from computations. ugh.
-                            # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
-                            if display_item:
-                                xdata = self._display_data_channel.data_item.xdata
-                                if xdata.is_data_2d and xdata.is_data_complex_type:
-                                    shape = xdata.data_shape
-                                    mask = numpy.zeros(shape)
-                                    for graphic in display_item.graphics:
-                                        if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                                            mask = numpy.logical_or(mask, graphic.get_mask(shape))
-                                    return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
-                                return xdata
-                            return None
-                        @property
-                        def base_objects(self):
-                            data_item = self._display_data_channel.data_item
-                            display_item = self._display_data_channel.container
-                            objects = {data_item, display_item}
-                            for graphic in display_item.graphics:
-                                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                                    objects.add(graphic)
-                            return objects
-                    if display_data_channel:
-                        return BoundDataItem(self, display_data_channel)
-            elif specifier_type == "structure":
-                specifier_uuid_str = specifier.get("uuid")
-                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                data_structure = self.get_data_structure_by_uuid(object_uuid)
-                if data_structure:
-                    class BoundDataStructure:
-                        def __init__(self, document_model, object):
-                            self.__document_model = document_model
-                            self.__object = object
-                            self.changed_event = Event.Event()
-                            self.needs_rebind_event = Event.Event()
-                            self.property_changed_event = Event.Event()
-                            def data_structure_changed(property_name_):
-                                self.changed_event.fire()
-                                if property_name_ == property_name:
-                                    self.property_changed_event.fire(property_name_)
-                            self.__changed_listener = self.__object.data_structure_changed_event.listen(data_structure_changed)
-                            def item_removed(name, value, index):
-                                if name == "data_structures" and value == self.__object:
-                                    self.needs_rebind_event.fire()
-                            self.__item_removed_event_listener = self.__document_model.item_removed_event.listen(item_removed)
-                        def close(self):
-                            self.__changed_listener.close()
-                            self.__changed_listener = None
-                            self.__item_removed_event_listener.close()
-                            self.__item_removed_event_listener = None
-                        @property
-                        def value(self):
-                            if property_name:
-                                return self.__object.get_property_value(property_name)
-                            return self.__object
-                        @property
-                        def base_objects(self):
-                            return {self.__object}
-                    return BoundDataStructure(self, data_structure)
-            elif specifier_type == "graphic":
-                specifier_uuid_str = specifier.get("uuid")
-                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                graphic = self.get_graphic_by_uuid(object_uuid)
-                if graphic:
-                    class BoundGraphic:
-                        def __init__(self, document_model, object):
-                            self.__document_model = document_model
-                            self.__object = object
-                            self.changed_event = Event.Event()
-                            self.needs_rebind_event = Event.Event()
-                            self.property_changed_event = Event.Event()
-                            def property_changed(property_name_):
-                                self.changed_event.fire()
-                                if property_name_ == property_name:
-                                    self.property_changed_event.fire(property_name_)
-                            self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
-                        def close(self):
-                            self.__property_changed_listener.close()
-                            self.__property_changed_listener = None
-                        @property
-                        def value(self):
-                            if property_name:
-                                return getattr(self.__object, property_name)
-                            return self.__object
-                        @property
-                        def base_objects(self):
-                            return {self.__object}
-                    return BoundGraphic(self, graphic)
-
-        if objects_model:
-
-            class BoundList:
-                def __init__(self, document_model, objects_model):
-                    self.__document_model = document_model
-                    self.__objects_model = objects_model
-                    self.__bound_items = list()
-                    self.changed_event = Event.Event()
-                    self.needs_rebind_event = Event.Event()
-                    self.child_removed_event = Event.Event()
-                    self.property_changed_event = Event.Event()
-                    self.__changed_listeners = list()
-                    self.__needs_rebind_listeners = list()
-                    self.__resolved = True
-                    self.is_list = True  # special marker to indicate items in base objects should not trigger a delete
-                    for index, variable_specifier in enumerate(objects_model.items):
-                        bound_item = document_model.resolve_object_specifier(variable_specifier)
-                        self.__bound_items.append(bound_item)
-                        self.__changed_listeners.append(bound_item.changed_event.listen(self.changed_event.fire) if bound_item else None)
-                        self.__needs_rebind_listeners.append(bound_item.needs_rebind_event.listen(functools.partial(self.child_removed_event.fire, index)) if bound_item else None)
-                        self.__resolved = self.__resolved and bound_item is not None
-                def close(self):
-                    for bound_object, change_listener, needs_rebind_listener in zip(self.__bound_items, self.__changed_listeners, self.__needs_rebind_listeners):
-                        if bound_object:
-                            bound_object.close()
-                        if change_listener:
-                            change_listener.close()
-                        if needs_rebind_listener:
-                            needs_rebind_listener.close()
-                    self.__bound_items = None
-                    self.__resolved_items = None
-                    self.__changed_listeners = None
-                @property
-                def value(self):
-                    return [bound_item.value for bound_item in self.__bound_items] if self.__resolved else None
-                @property
-                def base_objects(self):
-                    # return the base objects in a stable order
-                    base_objects = list()
-                    for bound_item in self.__bound_items:
-                        if bound_item:
-                            for base_object in bound_item.base_objects:
-                                if not base_object in base_objects:
-                                    base_objects.append(base_object)
-                    return base_objects
-                def list_item_removed(self, object) -> typing.List[dict]:
-                    base_objects = self.base_objects
-                    if object in base_objects:
-                        for index, bound_item in enumerate(self.__bound_items):
-                            for base_object in bound_item.base_objects:
-                                if base_object in base_objects:
-                                    break
-                        properties = copy.deepcopy(self.__objects_model.items[index])
-                        self.__objects_model.remove_item(index)
-                        self.needs_rebind_event.fire()
-                        return [{"type": "object_specifiers", "index": index, "properties": properties}]
-                    return list()
-
-            return BoundList(self, objects_model)
-        return None
-
     class DataItemReference:
         """A data item reference to coordinate data item access between acquisition and main thread.
 
@@ -1911,15 +1585,34 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         This class will also track when the data item is deleted and handle it appropriately if it
         happens while the acquisition thread is using it.
         """
-        def __init__(self, document_model: "DocumentModel", key: str, data_item: DataItem.DataItem=None):
+        def __init__(self, document_model: "DocumentModel", key: str, project: Project.Project, data_item_specifier: Persistence.PersistentObjectSpecifier=None):
             self.__document_model = document_model
             self.__key = key
-            self.__data_item = data_item
+            self.__data_item_proxy = project.create_item_proxy(item_specifier=data_item_specifier)
             self.__starts = 0
             self.__pending_starts = 0
             self.__data_item_transaction = None
             self.mutex = threading.RLock()
             self.data_item_reference_changed_event = Event.Event()
+
+            def item_unregistered(item) -> None:
+                # when this data item is removed, it can no longer be used.
+                # but to ensure that start/stop calls are matching in the case where this item
+                # is removed and then a new item is set, we need to copy the number of starts
+                # to the pending starts so when the new item is set, start gets called the right
+                # number of times to match the stops that will eventually be called.
+                self.__pending_starts = self.__starts
+                self.__starts = 0
+
+            self.__data_item_proxy.on_item_unregistered = item_unregistered
+
+        def close(self) -> None:
+            self.__data_item_proxy.close()
+            self.__data_item_proxy = None
+
+        @property
+        def __data_item(self) -> typing.Optional[DataItem.DataItem]:
+            return self.__data_item_proxy.item
 
         def start(self):
             """Start using the data item reference. Must call stop a matching number of times.
@@ -1967,23 +1660,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__data_item.decrement_data_ref_count()
                 self.__starts -= 1
 
-        # this method gets called directly from the document model
-        def data_item_inserted(self, data_item):
-            pass
-
-        # this method gets called directly from the document model
-        def data_item_removed(self, data_item):
-            with self.mutex:
-                if data_item == self.__data_item:
-                    # when this data item is removed, it can no longer be used.
-                    # but to ensure that start/stop calls are matching in the case where this item
-                    # is removed and then a new item is set, we need to copy the number of starts
-                    # to the pending starts so when the new item is set, start gets called the right
-                    # number of times to match the stops that will eventually be called.
-                    self.__pending_starts = self.__starts
-                    self.__starts = 0
-                    self.__data_item = None
-
         @property
         def data_item(self) -> DataItem.DataItem:
             with self.mutex:
@@ -1997,7 +1673,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         def data_item(self, value):
             with self.mutex:
                 if self.__data_item != value:
-                    self.__data_item = value
+                    self.__data_item_proxy.item = value
                     # start (internal) for each pending start.
                     for i in range(self.__pending_starts):
                         self.__start()
@@ -2048,17 +1724,27 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return len(self.__pending_data_item_updates)
 
     @property
-    def data_item_deletions(self) -> typing.Set[uuid.UUID]:
-        return {uuid.UUID(uuid_str) for uuid_str in self._get_persistent_property_value("data_item_deletions")}
+    def workspace_uuid(self) -> uuid.UUID:
+        return self.__profile.workspace_uuid
+
+    @workspace_uuid.setter
+    def workspace_uuid(self, value: uuid.UUID) -> None:
+        self.__profile.workspace_uuid = value
+
+    @property
+    def data_groups(self) -> typing.List[DataGroup.DataGroup]:
+        return self.__profile.data_groups
+
+    @property
+    def workspaces(self) -> typing.List[WorkspaceLayout.WorkspaceLayout]:
+        return self.__profile.workspaces
 
     def _update_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
         assert threading.current_thread() == threading.main_thread()
-        data_item_references_dict = copy.deepcopy(self._get_persistent_property_value("data_item_references"))
         if data_item:
-            data_item_references_dict[key] = str(data_item.uuid)
+            self.__profile.set_data_item_reference(key, data_item)
         else:
-            del data_item_references_dict[key]
-        self._set_persistent_property_value("data_item_references", data_item_references_dict)
+            self.__profile.clear_data_item_reference(key)
 
     def make_data_item_reference_key(self, *components) -> str:
         return "_".join([str(component) for component in list(components) if component is not None])
@@ -2068,11 +1754,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item_reference = self.__data_item_references.get(key)
         if data_item_reference:
             return data_item_reference
-        return self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key))
+        return self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self.profile.work_project))
 
     def setup_channel(self, data_item_reference_key: str, data_item: DataItem.DataItem) -> None:
         data_item_reference = self.get_data_item_reference(data_item_reference_key)
         data_item_reference.data_item = data_item
+        self._update_data_item_reference(data_item_reference_key, data_item)
 
     def __construct_data_item_reference(self, hardware_source: HardwareSource.HardwareSource, data_channel: HardwareSource.DataChannel):
         """Construct a data item reference.
@@ -2096,7 +1783,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 data_item_reference.data_item = data_item
 
                 def append_data_item():
-                    self.append_data_item(data_item)
+                    self.append_data_item(data_item, project=self.profile.work_project)
                     self._update_data_item_reference(key, data_item)
 
                 self.__call_soon(append_data_item)
@@ -2213,52 +1900,85 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.append_display_item(display_item_copy)
         return display_item_copy
 
-    def append_connection(self, connection: Connection.Connection) -> None:
-        self.insert_connection(len(self.connections), connection)
+    def append_connection(self, connection: Connection.Connection, *, project: Project.Project = None) -> None:
+        project = project or self.__profile.target_project_for_item(connection)
+        project.append_connection(connection)
 
-    def insert_connection(self, before_index, connection):
-        self.insert_item("connections", before_index, connection)
+    def insert_connection(self, before_index: int, connection: Connection.Connection, *, project: Project.Project = None) -> None:
+        uuid_order = save_item_order(self.__connections)
+        self.append_connection(connection, project=project)
+        insert_item_order(uuid_order, before_index, connection)
+        self.__connections = restore_item_order("connections", self.profile.projects, uuid_order)
+
+    def remove_connection(self, connection: Connection.Connection) -> None:
+        connection.container.remove_connection(connection)
+
+    def __handle_connection_inserted(self, project: Project.Project, connection: Connection.Connection) -> None:
+        assert connection is not None
+        assert connection not in self.__connections
+        # insert in internal list
+        before_index = len(self.__connections)
+        self.__connections.append(connection)
+        # send notifications
         self.notify_insert_item("connections", connection, before_index)
 
-    def remove_connection(self, connection):
-        index = self.connections.index(connection)
-        self.remove_item("connections", connection)
+    def __handle_connection_removed(self, project: Project.Project, connection: Connection.Connection) -> None:
+        # remove it from the persistent_storage
+        assert connection is not None
+        assert connection in self.__connections
+        index = self.__connections.index(connection)
         self.notify_remove_item("connections", connection, index)
-
-    def __inserted_connection(self, name, before_index, connection):
-        connection.about_to_be_inserted(self)
-
-    def __removed_connection(self, name, index, connection):
-        connection.about_to_be_removed()
-        connection.close()
+        self.__connections.remove(connection)
 
     def create_data_structure(self, *, structure_type: str=None, source=None):
         return DataStructure.DataStructure(structure_type=structure_type, source=source)
 
-    def append_data_structure(self, data_structure):
-        self.insert_data_structure(len(self.data_structures), data_structure)
+    def append_data_structure(self, data_structure: DataStructure.DataStructure, *, project: Project.Project = None) -> None:
+        project = project or self.__profile.target_project_for_item(data_structure)
+        project.append_data_structure(data_structure)
 
-    def insert_data_structure(self, before_index, data_structure):
-        self.insert_item("data_structures", before_index, data_structure)
-        assert not self._is_reading
-        self.__rebind_computations()  # rebind any unresolved that may now be resolved
-        self.notify_insert_item("data_structures", data_structure, before_index)
+    def insert_data_structure(self, before_index: int, data_structure: DataStructure.DataStructure, *, project: Project.Project = None) -> None:
+        uuid_order = save_item_order(self.__data_structures)
+        self.append_data_structure(data_structure, project=project)
+        insert_item_order(uuid_order, before_index, data_structure)
+        self.__data_structures = restore_item_order("data_structures", self.profile.projects, uuid_order)
 
-    def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> typing.Optional[typing.Sequence]:
+    def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
+        return self.__cascade_delete(data_structure).close()
+
+    def remove_data_structure_with_log(self, data_structure: DataStructure.DataStructure) -> Changes.UndeleteLog:
         return self.__cascade_delete(data_structure)
 
-    def __inserted_data_structure(self, name, before_index, data_structure):
-        data_structure.about_to_be_inserted(self)
+    def __handle_data_structure_inserted(self, project: Project.Project, data_structure: DataStructure.DataStructure) -> None:
+        assert data_structure is not None
+        assert data_structure not in self.__data_structures
+        # insert in internal list
+        before_index = len(self.__data_structures)
+        self.__data_structures.append(data_structure)
+        # listeners
         def rebuild_transactions(): self.__transaction_manager._rebuild_transactions()
         self.__data_structure_listeners[data_structure] = data_structure.referenced_objects_changed_event.listen(rebuild_transactions)
+        # transactions
         self.__transaction_manager._add_item(data_structure)
+        # computation rebinding
+        self.__rebind_computations()  # rebind any unresolved that may now be resolved
+        # send notifications
+        self.notify_insert_item("data_structures", data_structure, before_index)
 
-    def __removed_data_structure(self, name, index, data_structure):
+    def __handle_data_structure_removed(self, project: Project.Project, data_structure: DataStructure.DataStructure) -> None:
+        # remove it from the persistent_storage
+        assert data_structure is not None
+        assert data_structure in self.__data_structures
+        # listeners
         self.__data_structure_listeners[data_structure].close()
         self.__data_structure_listeners.pop(data_structure, None)
+        # transactions
         self.__transaction_manager._remove_item(data_structure)
-        data_structure.about_to_be_removed()
-        data_structure.close()
+        index = self.__data_structures.index(data_structure)
+        # notifications
+        self.notify_remove_item("data_structures", data_structure, index)
+        # remove from internal list
+        self.__data_structures.remove(data_structure)
 
     def attach_data_structure(self, data_structure, data_item):
         data_structure.source = data_item
@@ -2266,7 +1986,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def get_data_item_computation(self, data_item: DataItem.DataItem) -> typing.Optional[Symbolic.Computation]:
         for computation in self.computations:
             if computation.source == data_item:
-                target_object = computation.get_referenced_object("target")
+                target_object = computation.get_output("target")
                 if target_object == data_item:
                     return computation
         return None
@@ -2278,21 +1998,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 pass
             elif computation:
                 computation.source = data_item
-                computation.create_result("target", self.get_object_specifier(data_item))
-                self.append_computation(computation)
+                computation.create_output_item("target", Symbolic.make_item(data_item))
+                self.append_computation(computation, project=Project.get_project_for_item(data_item))
             elif old_computation:
                 # remove old computation without cascade (it would delete this data item itself)
                 old_computation.valid = False
-                self.remove_item("computations", old_computation)
-            if old_computation is not computation:
-                self.__data_item_computation_changed(data_item, old_computation, computation)
+                old_computation.container.remove_computation(old_computation)
 
-    def append_computation(self, computation):
-        self.insert_computation(len(self.computations), computation)
-
-    def insert_computation(self, before_index, computation):
-        input_items = self.__resolve_computation_inputs(computation)
-        output_items = self.__resolve_computation_outputs(computation)
+    def append_computation(self, computation: Symbolic.Computation, *, project: Project.Project = None) -> None:
+        project = project or self.__profile.target_project_for_item(computation)
+        computation.pending_project = project  # tell the computation where it will end up so get related item works
+        # input/output bookkeeping
+        input_items = computation.get_preliminary_input_items()
+        output_items = computation.get_preliminary_output_items()
         input_set = set()
         for input in input_items:
             self.__get_deep_dependent_item_set(input, input_set)
@@ -2301,50 +2019,39 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__get_deep_dependent_item_set(output, output_set)
         if input_set.intersection(output_set):
             raise Exception("Computation would result in duplicate dependency.")
-        self.insert_item("computations", before_index, computation)
-        assert not self._is_reading
+        project.append_computation(computation)
+
+    def insert_computation(self, before_index: int, computation: Symbolic.Computation, *, project: Project.Project = None) -> None:
+        uuid_order = save_item_order(self.__computations)
+        self.append_computation(computation, project=project)
+        insert_item_order(uuid_order, before_index, computation)
+        self.__computations = restore_item_order("computations", self.profile.projects, uuid_order)
+
+    def remove_computation(self, computation: Symbolic.Computation, *, safe: bool=False) -> None:
+        self.__cascade_delete(computation, safe=safe).close()
+
+    def remove_computation_with_log(self, computation: Symbolic.Computation, *, safe: bool=False) -> Changes.UndeleteLog:
+        return self.__cascade_delete(computation, safe=safe)
+
+    def __handle_computation_inserted(self, project: Project.Project, computation: Symbolic.Computation) -> None:
+        assert computation is not None
+        assert computation not in self.__computations
+        # insert in internal list
+        before_index = len(self.__computations)
+        self.__computations.append(computation)
+        computation.bind(self)
+        # listeners
+        self.__computation_changed_listeners[computation] = computation.computation_mutated_event.listen(functools.partial(self.__computation_changed, computation))
+        self.__computation_output_changed_listeners[computation] = computation.computation_output_changed_event.listen(functools.partial(self.__computation_update_dependencies, computation))
+        # send notifications
         self.__computation_changed(computation)  # ensure the initial mutation is reported
         self.notify_insert_item("computations", computation, before_index)
 
-    def remove_computation(self, computation: Symbolic.Computation, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
-        return self.__cascade_delete(computation, safe=safe)
-
-    def __computation_changed(self, computation):
-        # when the computation is mutated, this function is called. it calls the handle computation
-        # changed or mutated method to resolve computation variables and update dependencies between
-        # library objects. it also fires the computation_updated_event to allow the user interface
-        # to update.
-        # during updating of dependencies, this HUGE hack is in place to delay the computation changed
-        # messages until ALL of the dependencies are updated so as to avoid the computation changed message
-        # reestablishing dependencies during the updating of them. UGH. planning a better way...
-        if self.__computation_changed_delay_list is not None:
-            self.__computation_changed_delay_list.append(computation)
-        else:
-            self.__computation_update_dependencies(computation)
-            self.__computation_needs_update(None, computation)
-
-    def __finish_computation_changed(self):
-        computation_changed_delay_list = self.__computation_changed_delay_list
-        self.__computation_changed_delay_list = None
-        for computation in computation_changed_delay_list:
-            self.__computation_changed(computation)
-
-    def __computation_update_dependencies(self, computation):
-        # when a computation output is changed, this function is called to establish dependencies.
-        # if other parts of the computation are changed (inputs, values, etc.), the __computation_changed
-        # will handle the change (and trigger a new computation).
-        input_items = self.__resolve_computation_inputs(computation)
-        output_items = self.__resolve_computation_outputs(computation)
-        self.__establish_computation_dependencies(computation._inputs, input_items, computation._outputs, output_items)
-        computation._inputs = input_items
-        computation._outputs = output_items
-
-    def __inserted_computation(self, name: str, before_index: int, computation: Symbolic.Computation) -> None:
-        computation.about_to_be_inserted(self)
-        self.__computation_changed_listeners[computation] = computation.computation_mutated_event.listen(functools.partial(self.__computation_changed, computation))
-        self.__computation_output_changed_listeners[computation] = computation.computation_output_changed_event.listen(functools.partial(self.__computation_update_dependencies, computation))
-
-    def __removed_computation(self, name: str, index: int, computation: Symbolic.Computation) -> None:
+    def __handle_computation_removed(self, project: Project.Project, computation: Symbolic.Computation) -> None:
+        # remove it from the persistent_storage
+        assert computation is not None
+        assert computation in self.__computations
+        # remove it from any computation queues
         with self.__computation_queue_lock:
             computation_pending_queue = self.__computation_pending_queue
             self.__computation_pending_queue = list()
@@ -2358,40 +2065,48 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         computation_output_changed_listener = self.__computation_output_changed_listeners.pop(computation, None)
         if computation_output_changed_listener: computation_output_changed_listener.close()
         computation.unbind()
-        computation.about_to_be_removed()
-        computation.close()
+        # notifications
+        index = self.__computations.index(computation)
+        self.notify_remove_item("computations", computation, index)
+        # remove from internal list
+        self.__computations.remove(computation)
 
-    def __data_item_computation_changed(self, data_item, old_computation, new_computation):
-        # when the computation for a data item changes, this method is called to tear down the old listeners and
-        # configure the new listeners. it is called when the document loads the data item, when a data item is
-        # inserted, when a data item is removed, and when a data item is changed.
-        assert data_item is not None
+    def __computation_changed(self, computation):
+        # when the computation is mutated, this function is called. it calls the handle computation
+        # changed or mutated method to resolve computation variables and update dependencies between
+        # library objects. it also fires the computation_updated_event to allow the user interface
+        # to update.
+        # during updating of dependencies, this HUGE hack is in place to delay the computation changed
+        # messages until ALL of the dependencies are updated so as to avoid the computation changed message
+        # reestablishing dependencies during the updating of them. UGH. planning a better way...
+        if self.__computation_changed_delay_list is not None:
+            if computation not in self.__computation_changed_delay_list:
+                self.__computation_changed_delay_list.append(computation)
+        else:
+            self.__computation_update_dependencies(computation)
+            self.__computation_needs_update(computation)
+        self.computation_updated_event.fire(computation)
 
-        def computation_mutated():
-            # when the computation is mutated, this function is called. it calls the handle computation
-            # changed or mutated method to resolve computation variables and update dependencies between
-            # library objects. it also fires the computation_updated_event to allow the user interface
-            # to update.
-            input_items = self.__resolve_computation_inputs(new_computation) if new_computation else set()
-            old_input_items = set(self.__dependency_tree_target_to_source_map.get(weakref.ref(data_item), list()))
-            self.__establish_computation_dependencies(old_input_items, input_items, {data_item}, {data_item})
-            self.computation_updated_event.fire(data_item, new_computation)
+    def __finish_computation_changed(self):
+        computation_changed_delay_list = self.__computation_changed_delay_list
+        self.__computation_changed_delay_list = None
+        for computation in computation_changed_delay_list:
+            self.__computation_changed(computation)
 
-        if old_computation:
-            # remove computation_changed_listener associated with the old computation
-            computation_changed_listener = self.__computation_changed_listeners.pop(data_item, None)
-            if computation_changed_listener: computation_changed_listener.close()
-
-        if new_computation:
-            # add computation_changed_listener to the new computation
-            self.__computation_changed_listeners[data_item] = new_computation.computation_mutated_event.listen(computation_mutated)
-
-        computation_mutated()  # ensure the initial mutation is reported
+    def __computation_update_dependencies(self, computation):
+        # when a computation output is changed, this function is called to establish dependencies.
+        # if other parts of the computation are changed (inputs, values, etc.), the __computation_changed
+        # will handle the change (and trigger a new computation).
+        input_items = computation.input_items
+        output_items = computation.output_items
+        self.__establish_computation_dependencies(computation._inputs, input_items, computation._outputs, output_items)
+        computation._inputs = input_items
+        computation._outputs = output_items
 
     def make_data_item_with_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
         return self.__make_computation(processing_id, inputs, region_list_map)
 
-    def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None, parameters: typing.Mapping[str, typing.Any]=None) -> DataItem.DataItem:
+    def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None, parameters: typing.Mapping[str, typing.Any]=None) -> typing.Optional[DataItem.DataItem]:
         """Create a new data item with computation specified by processing_id, inputs, and region_list_map.
 
         The region_list_map associates a list of graphics corresponding to the required regions with a computation source (key).
@@ -2423,6 +2138,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             requirements = src_dict.get("requirements", list())
             for requirement in requirements:
                 requirement_type = requirement["type"]
+                if requirement_type == "datum_rank":
+                    values = requirement.get("values")
+                    if not data_item.datum_dimension_count in values:
+                        return None
+                if requirement_type == "datum_calibrations":
+                    if requirement.get("units") == "equal":
+                        if len(set([calibration.units for calibration in data_item.xdata.datum_dimensional_calibrations])) != 1:
+                            return None
                 if requirement_type == "dimensionality":
                     min_dimension = requirement.get("min")
                     max_dimension = requirement.get("max")
@@ -2437,15 +2160,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
             src_name = src_dict["name"]
             src_label = src_dict["label"]
-            use_display_data = src_dict.get("use_display_data", True)
-            xdata_property = "display_xdata" if use_display_data else "xdata"
-            if src_dict.get("croppable"):
-                xdata_property = "cropped_" + xdata_property
-            elif src_dict.get("use_filtered_data", False):
-                xdata_property = "filtered_" + xdata_property
-            src_text = "{}.{}".format(src_name, xdata_property)
             src_names.append(src_name)
-            src_texts.append(src_text)
+            src_texts.append(src_name)
             src_labels.append(src_label)
 
             # each source can have a list of regions to be matched to arguments or created on the source
@@ -2517,8 +2233,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         spot_region = region
                     else:
                         spot_region = Graphics.SpotGraphic()
-                        spot_region.center = 0.25, 0.75
-                        spot_region.size = 0.1, 0.1
+                        spot_region.bounds = Geometry.FloatRect.from_center_and_size((0.25, 0.25), (0.25, 0.25))
                         for k, v in region_params.items():
                             setattr(spot_region, k, v)
                         if display_item:
@@ -2528,15 +2243,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 elif region_type == "interval":
                     if region:
                         assert isinstance(region, Graphics.IntervalGraphic)
-                        interval_region = region
+                        interval_graphic = region
                     else:
-                        interval_region = Graphics.IntervalGraphic()
+                        interval_graphic = Graphics.IntervalGraphic()
                         for k, v in region_params.items():
-                            setattr(interval_region, k, v)
+                            setattr(interval_graphic, k, v)
                         if display_item:
-                            display_item.add_graphic(interval_region)
-                    regions.append((region_name, interval_region, region_params.get("label")))
-                    region_map[region_name] = interval_region
+                            display_item.add_graphic(interval_graphic)
+                    regions.append((region_name, interval_graphic, region_params.get("label")))
+                    region_map[region_name] = interval_graphic
                 elif region_type == "channel":
                     if region:
                         assert isinstance(region, Graphics.ChannelGraphic)
@@ -2551,35 +2266,44 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     region_map[region_name] = channel_region
 
         # now extract the script (full script) or expression (implied imports and return statement)
-        script = processing_description.get("script")
-        if not script:
-            expression = processing_description.get("expression")
-            if expression:
-                script = Symbolic.xdata_expression(expression)
-        assert script
+        script = None
+        expression = processing_description.get("expression")
+        if expression:
+            script = Symbolic.xdata_expression(expression)
+            script = script.format(**dict(zip(src_names, src_texts)))
+
+        # determine the target project
+        project = None
+        for display_item, region in inputs:
+            input_project = Project.get_project_for_item(display_item)
+            if project and input_project != project:
+                project = None
+                break
+            else:
+                project = input_project
+        project = project or self.profile.work_project
 
         # construct the computation
-        script = script.format(**dict(zip(src_names, src_texts)))
         computation = self.create_computation(script)
         computation.label = processing_description["title"]
         computation.processing_id = processing_id
         # process the data item inputs
         for src_dict, src_name, src_label, input in zip(src_dicts, src_names, src_labels, inputs):
             in_display_item = input[0]
-            secondary_specifier = None
+            secondary_item = None
             if src_dict.get("croppable", False):
-                secondary_specifier = self.get_object_specifier(input[1])
+                secondary_item = input[1]
             display_data_channel = in_display_item.display_data_channel
-            computation.create_object(src_name, self.get_object_specifier(display_data_channel), label=src_label, secondary_specifier=secondary_specifier)
+            computation.create_input_item(src_name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item), label=src_label)
         # process the regions
         for region_name, region, region_label in regions:
-            computation.create_object(region_name, self.get_object_specifier(region), label=region_label)
+            computation.create_input_item(region_name, Symbolic.make_item(region), label=region_label)
         # next process the parameters
         for param_dict in processing_description.get("parameters", list()):
             parameter_value = parameters.get(param_dict["name"], param_dict["value"])
             computation.create_variable(param_dict["name"], param_dict["type"], parameter_value, value_default=param_dict.get("value_default"),
                                         value_min=param_dict.get("value_min"), value_max=param_dict.get("value_max"),
-                                        control_type=param_dict.get("control_type"), label=param_dict["label"])
+                                        control_type=param_dict.get("control_type"), label=param_dict.get("label"))
 
         data_item0 = inputs[0][0].data_items[0]
         new_data_item = DataItem.new_data_item()
@@ -2587,7 +2311,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         new_data_item.title = prefix + data_item0.title
         new_data_item.category = data_item0.category
 
-        self.append_data_item(new_data_item)
+        self.append_data_item(new_data_item, project=project)
 
         new_display_item = self.get_display_item_for_data_item(new_data_item)
 
@@ -2598,11 +2322,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             region_name = out_region_dict["name"]
             region_params = out_region_dict.get("params", dict())
             if region_type == "interval":
-                interval_region = Graphics.IntervalGraphic()
+                interval_graphic = Graphics.IntervalGraphic()
                 for k, v in region_params.items():
-                    setattr(interval_region, k, v)
-                new_display_item.add_graphic(interval_region)
-                new_regions[region_name] = interval_region
+                    setattr(interval_graphic, k, v)
+                new_display_item.add_graphic(interval_graphic)
+                new_regions[region_name] = interval_graphic
+            elif region_type == "point":
+                point_graphic = Graphics.PointGraphic()
+                for k, v in region_params.items():
+                    setattr(point_graphic, k, v)
+                new_display_item.add_graphic(point_graphic)
+                new_regions[region_name] = point_graphic
 
         # now come the connections between the source and target
         for connection_dict in processing_description.get("connections", list()):
@@ -2617,10 +2347,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     display_item0 = self.get_display_item_for_data_item(data_item0)
                     display_data_channel0 = display_item0.display_data_channel if display_item0 else None
                     connection = Connection.PropertyConnection(display_data_channel0, connection_src_prop, new_regions[connection_dst], connection_dst_prop, parent=new_data_item)
-                    self.append_connection(connection)
+                    self.append_connection(connection, project=project)
             elif connection_type == "interval_list":
                 connection = Connection.IntervalListConnection(new_display_item, region_map[connection_dst], parent=new_data_item)
-                self.append_connection(connection)
+                self.append_connection(connection, project=project)
 
         # save setting the computation until last to work around threaded clone/merge operation bug.
         # the bug is that setting the computation triggers the recompute to occur on a thread.
@@ -2647,7 +2377,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     @classmethod
     def unregister_processing_descriptions(cls, processing_ids: typing.Sequence[str]):
-        assert len(set(cls.__get_builtin_processing_descriptions().keys()).intersection(set(processing_ids))) == len(processing_ids)
+        assert len(set(cls._processing_descriptions.keys()).intersection(set(processing_ids))) == len(processing_ids)
         for processing_id in processing_ids:
             cls._processing_descriptions.pop(processing_id)
 
@@ -2655,110 +2385,135 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def _get_builtin_processing_descriptions(cls) -> typing.Dict:
         if not cls._builtin_processing_descriptions:
             vs = dict()
-            vs["fft"] = {"title": _("FFT"), "expression": "xd.fft({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-            vs["inverse-fft"] = {"title": _("Inverse FFT"), "expression": "xd.ifft({src})",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False}]}
-            vs["auto-correlate"] = {"title": _("Auto Correlate"), "expression": "xd.autocorrelate({src})",
+
+            requirement_2d = {"type": "dimensionality", "min": 2, "max": 2}
+            requirement_3d = {"type": "dimensionality", "min": 3, "max": 3}
+            requirement_4d = {"type": "dimensionality", "min": 4, "max": 4}
+            requirement_2d_to_3d = {"type": "dimensionality", "min": 2, "max": 3}
+            requirement_2d_to_4d = {"type": "dimensionality", "min": 2, "max": 4}
+
+            for processing_component in typing.cast(typing.Sequence[Processing.ProcessingBase], Registry.get_components_by_type("processing-component")):
+                processing_component.register_computation()
+                vs[processing_component.processing_id] = {
+                    "title": processing_component.title,
+                    "sources": processing_component.sources,
+                    "parameters": processing_component.parameters,
+                }
+                if processing_component.is_mappable and not processing_component.is_scalar:
+                    mapping_param = {"name": "mapping", "label": _("Sequence/Collection Mapping"), "type": "string", "value": "none", "value_default": "none", "control_type": "choice"}
+                    vs[processing_component.processing_id].setdefault("parameters", list()).insert(0, mapping_param)
+                if processing_component.is_mappable and processing_component.is_scalar:
+                    map_out_region = {"name": "pick_point", "type": "point", "params": {"label": _("Pick")}}
+                    map_connection = {"type": "property", "src": "display_data_channel", "src_prop": "collection_point", "dst": "pick_point", "dst_prop": "position"}
+                    vs[processing_component.processing_id]["out_regions"] = [map_out_region]
+                    vs[processing_component.processing_id]["connections"] = [map_connection]
+                    # TODO: generalize this so that other sequence/collections can be accepted by making a coordinate system monitor or similar
+                    # TODO: processing should declare its relationship to input coordinate system and swift should automatically connect pickers
+                    # TODO: in appropriate places.
+                    vs[processing_component.processing_id]["requirements"] = [requirement_4d]
+
+            vs["fft"] = {"title": _("FFT"), "expression": "xd.fft({src}.cropped_display_xdata)", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+            vs["inverse-fft"] = {"title": _("Inverse FFT"), "expression": "xd.ifft({src}.xdata)",
+                "sources": [{"name": "src", "label": _("Source")}]}
+            vs["auto-correlate"] = {"title": _("Auto Correlate"), "expression": "xd.autocorrelate({src}.cropped_display_xdata)",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-            vs["cross-correlate"] = {"title": _("Cross Correlate"), "expression": "xd.crosscorrelate({src1}, {src2})",
+            vs["cross-correlate"] = {"title": _("Cross Correlate"), "expression": "xd.crosscorrelate({src1}.cropped_display_xdata, {src2}.cropped_display_xdata)",
                 "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
-            vs["sobel"] = {"title": _("Sobel"), "expression": "xd.sobel({src})",
+            vs["sobel"] = {"title": _("Sobel"), "expression": "xd.sobel({src}.cropped_display_xdata)",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-            vs["laplace"] = {"title": _("Laplace"), "expression": "xd.laplace({src})",
+            vs["laplace"] = {"title": _("Laplace"), "expression": "xd.laplace({src}.cropped_display_xdata)",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
             sigma_param = {"name": "sigma", "label": _("Sigma"), "type": "real", "value": 3, "value_default": 3, "value_min": 0, "value_max": 100,
                 "control_type": "slider"}
-            vs["gaussian-blur"] = {"title": _("Gaussian Blur"), "expression": "xd.gaussian_blur({src}, sigma)",
+            vs["gaussian-blur"] = {"title": _("Gaussian Blur"), "expression": "xd.gaussian_blur({src}.cropped_display_xdata, sigma)",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [sigma_param]}
             filter_size_param = {"name": "filter_size", "label": _("Size"), "type": "integral", "value": 3, "value_default": 3, "value_min": 1, "value_max": 100}
-            vs["median-filter"] = {"title": _("Median Filter"), "expression": "xd.median_filter({src}, filter_size)",
+            vs["median-filter"] = {"title": _("Median Filter"), "expression": "xd.median_filter({src}.cropped_display_xdata, filter_size)",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [filter_size_param]}
-            vs["uniform-filter"] = {"title": _("Uniform Filter"), "expression": "xd.uniform_filter({src}, filter_size)",
+            vs["uniform-filter"] = {"title": _("Uniform Filter"), "expression": "xd.uniform_filter({src}.cropped_display_xdata, filter_size)",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [filter_size_param]}
             do_transpose_param = {"name": "do_transpose", "label": _("Transpose"), "type": "boolean", "value": False, "value_default": False}
             do_flip_v_param = {"name": "do_flip_v", "label": _("Flip Vertical"), "type": "boolean", "value": False, "value_default": False}
             do_flip_h_param = {"name": "do_flip_h", "label": _("Flip Horizontal"), "type": "boolean", "value": False, "value_default": False}
-            vs["transpose-flip"] = {"title": _("Transpose/Flip"), "expression": "xd.transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)",
+            vs["transpose-flip"] = {"title": _("Transpose/Flip"), "expression": "xd.transpose_flip({src}.cropped_display_xdata, do_transpose, do_flip_v, do_flip_h)",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [do_transpose_param, do_flip_v_param, do_flip_h_param]}
             width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
             height_param = {"name": "height", "label": _("Height"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
-            vs["resample"] = {"title": _("Resample"), "expression": "xd.resample_image({src}, (height, width))",
+            vs["resample"] = {"title": _("Resample"), "expression": "xd.resample_image({src}.cropped_display_xdata, (height, width))",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [width_param, height_param]}
-            vs["resize"] = {"title": _("Resize"), "expression": "xd.resize({src}, (height, width), 'mean')",
+            vs["resize"] = {"title": _("Resize"), "expression": "xd.resize({src}.cropped_display_xdata, (height, width), 'mean')",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [width_param, height_param]}
             is_sequence_param = {"name": "is_sequence", "label": _("Sequence"), "type": "bool", "value": False, "value_default": False}
             collection_dims_param = {"name": "collection_dims", "label": _("Collection Dimensions"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0, "value_max": 0}
             datum_dims_param = {"name": "datum_dims", "label": _("Datum Dimensions"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1, "value_max": 0}
-            vs["redimension"] = {"title": _("Redimension"), "expression": "xd.redimension({src}, xd.data_descriptor(is_sequence=is_sequence, collection_dims=collection_dims, datum_dims=datum_dims))",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False}], "parameters": [is_sequence_param, collection_dims_param, datum_dims_param]}
-            vs["squeeze"] = {"title": _("Squeeze"), "expression": "xd.squeeze({src})",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False}]}
+            vs["redimension"] = {"title": _("Redimension"), "expression": "xd.redimension({src}.xdata, xd.data_descriptor(is_sequence=is_sequence, collection_dims=collection_dims, datum_dims=datum_dims))",
+                "sources": [{"name": "src", "label": _("Source")}], "parameters": [is_sequence_param, collection_dims_param, datum_dims_param]}
+            vs["squeeze"] = {"title": _("Squeeze"), "expression": "xd.squeeze({src}.xdata)",
+                "sources": [{"name": "src", "label": _("Source")}]}
             bins_param = {"name": "bins", "label": _("Bins"), "type": "integral", "value": 256, "value_default": 256, "value_min": 2}
-            vs["histogram"] = {"title": _("Histogram"), "expression": "xd.histogram({src}, bins)",
+            vs["histogram"] = {"title": _("Histogram"), "expression": "xd.histogram({src}.cropped_display_xdata, bins)",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [bins_param]}
-            vs["add"] = {"title": _("Add"), "expression": "{src1} + {src2}",
+            vs["add"] = {"title": _("Add"), "expression": "{src1}.cropped_display_xdata + {src2}.cropped_display_xdata",
                 "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
-            vs["subtract"] = {"title": _("Subtract"), "expression": "{src1} - {src2}",
+            vs["subtract"] = {"title": _("Subtract"), "expression": "{src1}.cropped_display_xdata - {src2}.cropped_display_xdata",
                 "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
-            vs["multiply"] = {"title": _("Multiply"), "expression": "{src1} * {src2}",
+            vs["multiply"] = {"title": _("Multiply"), "expression": "{src1}.cropped_display_xdata * {src2}.cropped_display_xdata",
                 "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
-            vs["divide"] = {"title": _("Divide"), "expression": "{src1} / {src2}",
+            vs["divide"] = {"title": _("Divide"), "expression": "{src1}.cropped_display_xdata / {src2}.cropped_display_xdata",
                 "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
-            vs["invert"] = {"title": _("Negate"), "expression": "xd.invert({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-            vs["convert-to-scalar"] = {"title": _("Scalar"), "expression": "{src}",
+            vs["invert"] = {"title": _("Negate"), "expression": "xd.invert({src}.cropped_display_xdata)", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+            vs["masked"] = {"title": _("Masked"), "expression": "{src}.filtered_xdata", "sources": [{"name": "src", "label": _("Source")}]}
+            vs["mask"] = {"title": _("Mask"), "expression": "{src}.filter_xdata", "sources": [{"name": "src", "label": _("Source")}]}
+            vs["convert-to-scalar"] = {"title": _("Scalar"), "expression": "{src}.cropped_display_xdata",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-            requirement_2d = {"type": "dimensionality", "min": 2, "max": 2}
-            requirement_3d = {"type": "dimensionality", "min": 3, "max": 3}
-            requirement_2d_to_3d = {"type": "dimensionality", "min": 2, "max": 3}
-            requirement_2d_to_4d = {"type": "dimensionality", "min": 2, "max": 4}
-            vs["crop"] = {"title": _("Crop"), "expression": "{src}",
+            vs["crop"] = {"title": _("Crop"), "expression": "{src}.cropped_display_xdata",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-            vs["sum"] = {"title": _("Sum"), "expression": "xd.sum({src}, src.xdata.datum_dimension_indexes[0])",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True, "use_display_data": False, "requirements": [requirement_2d_to_4d]}]}
+            vs["sum"] = {"title": _("Sum"), "expression": "xd.sum({src}.cropped_xdata, {src}.xdata.datum_dimension_indexes[0])",
+                "sources": [{"name": "src", "label": _("Source"), "croppable": True, "requirements": [requirement_2d_to_4d]}]}
             slice_center_param = {"name": "center", "label": _("Center"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
             slice_width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
-            vs["slice"] = {"title": _("Slice"), "expression": "xd.slice_sum({src}, center, width)",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True, "use_display_data": False, "requirements": [requirement_3d]}],
+            vs["slice"] = {"title": _("Slice"), "expression": "xd.slice_sum({src}.cropped_xdata, center, width)",
+                "sources": [{"name": "src", "label": _("Source"), "croppable": True, "requirements": [requirement_3d]}],
                 "parameters": [slice_center_param, slice_width_param]}
             pick_in_region = {"name": "pick_region", "type": "point", "params": {"label": _("Pick Point")}}
             pick_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice")}}
             pick_connection = {"type": "property", "src": "display_data_channel", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
-            vs["pick-point"] = {"title": _("Pick"), "expression": "xd.pick({src}, pick_region.position)",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_in_region], "requirements": [requirement_3d]}],
+            vs["pick-point"] = {"title": _("Pick"), "expression": "xd.pick({src}.xdata, pick_region.position)",
+                "sources": [{"name": "src", "label": _("Source"), "regions": [pick_in_region], "requirements": [requirement_3d]}],
                 "out_regions": [pick_out_region], "connections": [pick_connection]}
             pick_sum_in_region = {"name": "region", "type": "rectangle", "params": {"label": _("Pick Region")}}
             pick_sum_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice")}}
             pick_sum_connection = {"type": "property", "src": "display_data_channel", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
-            vs["pick-mask-sum"] = {"title": _("Pick Sum"), "expression": "xd.sum_region({src}, region.mask_xdata_with_shape({src}.data_shape[0:2]))",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
+            vs["pick-mask-sum"] = {"title": _("Pick Sum"), "expression": "xd.sum_region({src}.xdata, region.mask_xdata_with_shape({src}.xdata.data_shape[0:2]))",
+                "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
                 "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}
-            vs["pick-mask-average"] = {"title": _("Pick Average"), "expression": "xd.average_region({src}, region.mask_xdata_with_shape({src}.data_shape[0:2]))",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
+            vs["pick-mask-average"] = {"title": _("Pick Average"), "expression": "xd.average_region({src}.xdata, region.mask_xdata_with_shape({src}.xdata.data_shape[0:2]))",
+                "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
                 "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}
-            vs["subtract-mask-average"] = {"title": _("Subtract Average"), "expression": "{src} - xd.average_region({src}, region.mask_xdata_with_shape({src}.data_shape[0:2]))",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
+            vs["subtract-mask-average"] = {"title": _("Subtract Average"), "expression": "{src}.xdata - xd.average_region({src}.xdata, region.mask_xdata_with_shape({src}.xdata.data_shape[0:2]))",
+                "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
                 "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}
             line_profile_in_region = {"name": "line_region", "type": "line", "params": {"label": _("Line Profile")}}
             line_profile_connection = {"type": "interval_list", "src": "data_source", "dst": "line_region"}
-            vs["line-profile"] = {"title": _("Line Profile"), "expression": "xd.line_profile({src}, line_region.vector, line_region.line_width)",
+            vs["line-profile"] = {"title": _("Line Profile"), "expression": "xd.line_profile({src}.display_xdata, line_region.vector, line_region.line_width)",
                 "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}], "connections": [line_profile_connection]}
-            vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft({src}))",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "use_filtered_data": True, "requirements": [requirement_2d]}]}
+            vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft({src}.filtered_xdata))",
+                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d]}]}
             requirement_is_sequence = {"type": "is_sequence"}
-            vs["sequence-register"] = {"title": _("Shifts"), "expression": "xd.sequence_register_translation({src}, 100)",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
-            vs["sequence-align"] = {"title": _("Alignment"), "expression": "xd.sequence_align({src}, 100)",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
-            vs["sequence-integrate"] = {"title": _("Integrate"), "expression": "xd.sequence_integrate({src})",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
+            vs["sequence-register"] = {"title": _("Shifts"), "expression": "xd.sequence_squeeze_measurement(xd.sequence_measure_relative_translation({src}.xdata, {src}.xdata[numpy.unravel_index(0, {src}.xdata.navigation_dimension_shape)], 100))",
+                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d]}]}
+            vs["sequence-align"] = {"title": _("Alignment"), "expression": "xd.sequence_align({src}.xdata, 100)",
+                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
+            vs["sequence-integrate"] = {"title": _("Integrate"), "expression": "xd.sequence_integrate({src}.xdata)",
+                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
             trim_start_param = {"name": "start", "label": _("Start"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
             trim_end_param = {"name": "end", "label": _("End"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
-            vs["sequence-trim"] = {"title": _("Trim"), "expression": "xd.sequence_trim({src}, start, end)",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d, requirement_is_sequence]}],
+            vs["sequence-trim"] = {"title": _("Trim"), "expression": "xd.sequence_trim({src}.xdata, start, end)",
+                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d, requirement_is_sequence]}],
                 "parameters": [trim_start_param, trim_end_param]}
             index_param = {"name": "index", "label": _("Index"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
-            vs["sequence-extract"] = {"title": _("Extract"), "expression": "xd.sequence_extract({src}, index)",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d, requirement_is_sequence]}],
+            vs["sequence-extract"] = {"title": _("Extract"), "expression": "xd.sequence_extract({src}.xdata, index)",
+                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d, requirement_is_sequence]}],
                 "parameters": [index_param]}
             cls._builtin_processing_descriptions = vs
         return cls._builtin_processing_descriptions
@@ -2823,6 +2578,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def get_invert_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("invert", [(display_item, crop_region)])
 
+    def get_masked_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("masked", [(display_item, crop_region)])
+
+    def get_mask_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("mask", [(display_item, crop_region)])
+
     def get_convert_to_scalar_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("convert-to-scalar", [(display_item, crop_region)])
 
@@ -2875,6 +2636,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def get_subtract_region_average_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
         return self.__make_computation("subtract-mask-average", [(display_item, crop_region)], {"src": [pick_region]})
 
+    def get_mapped_sum_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("mapped-sum", [(display_item, crop_region)])
+
+    def get_mapped_average_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("mapped-average", [(display_item, crop_region)])
+
     def get_line_profile_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, line_region: Graphics.LineTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("line-profile", [(display_item, crop_region)], {"src": [line_region]})
 
@@ -2893,6 +2660,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 display_item.add_graphic(graphic)
         return self.__make_computation("filter", [(display_item, crop_region)])
 
+    def get_processing_new(self, processing_id: str, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation(processing_id, [(display_item, crop_region)])
+
     def get_sequence_measure_shifts_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("sequence-register", [(display_item, crop_region)])
 
@@ -2909,12 +2679,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return self.__make_computation("sequence-extract", [(display_item, crop_region)])
 
 
-
 DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_processing_descriptions())
+
 
 def evaluate_data(computation) -> DataAndMetadata.DataAndMetadata:
     api = PlugInManager.api_broker_fn("~1.0", None)
     api_data_item = api._new_api_object(DataItem.new_data_item(None))
-    error_text = computation.evaluate_with_target(api, api_data_item)
-    computation.error_text = error_text
-    return api_data_item.data_and_metadata
+    if computation.expression:
+        error_text = computation.evaluate_with_target(api, api_data_item)
+        computation.error_text = error_text
+        return api_data_item.data_and_metadata
+    else:
+        compute_obj, error_text = computation.evaluate(api)
+        compute_obj.commit()
+        computation.error_text = error_text
+        return computation.get_output("target").xdata

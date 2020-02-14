@@ -35,6 +35,7 @@
 """
 
 # standard libraries
+import contextlib
 import copy
 import collections
 import datetime
@@ -65,6 +66,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource as HardwareSourceModule
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Metadata
+from nion.swift.model import Persistence
 from nion.swift.model import PlugInManager
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
@@ -167,7 +169,10 @@ class ObjectSpecifier:
                     return DisplayPanel(display_panel)
             return None
         elif object_type == "data_item":
-            return DataItem(document_model.get_data_item_by_uuid(uuid_module.UUID(object_uuid_str)))
+            data_item_uuid = uuid_module.UUID(object_uuid_str)
+            data_item_specifier = Persistence.PersistentObjectSpecifier(item_uuid=data_item_uuid)
+            data_item = document_model.resolve_item_specifier(data_item_specifier)
+            return DataItem(typing.cast(DataItemModule.DataItem, data_item)) if data_item else None
         elif object_type == "data_group":
             return DataGroup(document_model.get_data_group_by_uuid(uuid_module.UUID(object_uuid_str)))
         elif object_type in ("region", "graphic"):
@@ -668,6 +673,10 @@ class Graphic(metaclass=SharedInstance):
         self.__graphic = graphic
 
     @property
+    def _item(self):
+        return self._graphic
+
+    @property
     def _graphic(self):
         return self.__graphic
 
@@ -918,6 +927,10 @@ class DataItem(metaclass=SharedInstance):
         self.__data_item = data_item
 
     @property
+    def _item(self):
+        return self._data_item
+
+    @property
     def _data_item(self) -> DataItemModule.DataItem:
         return self.__data_item
 
@@ -927,7 +940,8 @@ class DataItem(metaclass=SharedInstance):
 
     @property
     def __display_item(self) -> DisplayItemModule.DisplayItem:
-        display_item = self.__data_item.container.get_any_display_item_for_data_item(self.__data_item) if self.__data_item.container else None
+        # TODO: remove data item / document model hack (required to access display items)
+        display_item = self.__data_item._document_model.get_any_display_item_for_data_item(self.__data_item) if self.__data_item.container else None
         return display_item
 
     @property
@@ -1300,10 +1314,9 @@ class DataItem(metaclass=SharedInstance):
         """
         display_data_channel = self.__display_item.display_data_channel
         shape = display_data_channel.display_data_shape
-        mask = numpy.zeros(shape)
-        for graphic in self.__display_item.graphics:
-            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                mask = numpy.logical_or(mask, graphic.get_mask(shape))
+        calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+        mask = DataItemModule.create_mask_data(self.__display_item.graphics, shape, calibrated_origin)
         return DataAndMetadata.DataAndMetadata.from_data(mask)
 
     def data_item_to_svg(self):
@@ -1325,6 +1338,10 @@ class DataSource(metaclass=SharedInstance):
         self.__data_source = data_source
 
     @property
+    def _item(self):
+        return self._data_source
+
+    @property
     def _data_source(self):
         return self.__data_source
 
@@ -1333,8 +1350,16 @@ class DataSource(metaclass=SharedInstance):
         return ObjectSpecifier("data_source", uuid_module.uuid4())
 
     @property
+    def display_item(self) -> "Display":
+        return Display(self.__data_source.display_item)
+
+    @property
     def data_item(self) -> DataItem:
         return DataItem(self.__data_source.data_item)
+
+    @property
+    def graphic(self) -> Graphic:
+        return Graphic(self.__data_source.graphic)
 
     @property
     def cropped_display_xdata(self) -> DataAndMetadata.DataAndMetadata:
@@ -1418,6 +1443,10 @@ class Display(metaclass=SharedInstance):
 
     def __init__(self, display_item):
         self.__display_item = display_item
+
+    @property
+    def _item(self):
+        return self._display_item
 
     @property
     def _display_item(self) -> DisplayItemModule.DisplayItem:
@@ -2033,6 +2062,10 @@ class DataStructure(metaclass=SharedInstance):
         self.__data_structure = data_structure
 
     @property
+    def _item(self):
+        return self._data_structure
+
+    @property
     def _data_structure(self) -> DataStructureModule.DataStructure:
         return self.__data_structure
 
@@ -2083,60 +2116,46 @@ class Computation(metaclass=SharedInstance):
 
     def set_input_value(self, name: str, value):
         # support lists here?
-        for variable in self.__computation.variables:
-            if variable.name == name:
-                if isinstance(value, str):
-                    variable.value = value
-                elif isinstance(value, bool):
-                    variable.value = value
-                elif isinstance(value, numbers.Integral):
-                    variable.value = value
-                elif isinstance(value, numbers.Real):
-                    variable.value = value
-                elif isinstance(value, numbers.Complex):
-                    variable.value = value
-                elif isinstance(value, dict) and value.get("object"):
-                    object = value.get("object")
-                    object_type = value.get("type")
-                    if object_type == "data_source":
-                        document_model = self.__computation.container
-                        display_item = document_model.get_display_item_for_data_item(object._data_item)
-                        display_data_channel = display_item.display_data_channel
-                        specifier_dict = {"version": 1, "type": "data_source", "uuid": str(display_data_channel.uuid)}
-                    else:
-                        specifier_dict = object.specifier.rpc_dict
-                    variable.specifier = specifier_dict
-                else:
-                    specifier_dict = value.specifier.rpc_dict if value else None
-                    variable.specifier = specifier_dict
-                return
-        raise Exception("No variable matching name.")
+        if isinstance(value, (str, bool, numbers.Integral, numbers.Real, numbers.Complex)):
+            self.__computation.set_input_value(name, value)
+        if isinstance(value, dict) and value.get("object"):
+            object = value.get("object")
+            object_type = value.get("type")
+            if object_type == "data_source":
+                document_model = self.__computation.container.container.container
+                display_item = document_model.get_display_item_for_data_item(object._data_item)
+                display_data_channel = display_item.display_data_channel
+                input_value = Symbolic.make_item(display_data_channel)
+            else:
+                input_value = Symbolic.make_item(object._item)
+            self.__computation.set_input_item(name, input_value)
+        elif hasattr(value, "_item"):
+            input_value = Symbolic.make_item(value._item)
+            self.__computation.set_input_item(name, input_value)
 
     def get_result(self, name: str, value=None):
-        for result in self.__computation.results:
-            if result.name == name:
-                if isinstance(result.bound_item, list):
-                    return [_new_api_object(bound_item.value) for bound_item in result.bound_item]
-                if result.bound_item:
-                    return _new_api_object(result.bound_item.value)
-                return None
-        return value
+        result = self.__computation.get_output(name)
+        if isinstance(result, list):
+            return [_new_api_object(bound_item) for bound_item in result]
+        if result:
+            return _new_api_object(result)
+        return None
 
     def set_result(self, name: str, value) -> None:
         if isinstance(value, list):
-            result_specifiers = [v.specifier.rpc_dict for v in value]
+            output_items = Symbolic.make_item_list([v._item for v in value])
             for result in self.__computation.results:
                 if result.name == name:
-                    result.specifiers = result_specifiers
+                    self.__computation.set_output_item(name, output_items)
                     return
-            self.__computation.create_result(name, specifiers=result_specifiers)
+            self.__computation.create_output_item(name, output_items)
         else:
-            result_specifier = value.specifier.rpc_dict if value is not None else None
+            output_item = Symbolic.make_item(value._item) if value else None
             for result in self.__computation.results:
                 if result.name == name:
-                    result.specifier = result_specifier
+                    self.__computation.set_output_item(name, output_item)
                     return
-            self.__computation.create_result(name, result_specifier)
+            self.__computation.create_output_item(name, output_item)
 
     def set_referenced_data(self, name: str, data: numpy.ndarray) -> None:
         data_item = self.get_result(name)
@@ -2162,7 +2181,7 @@ class Library(metaclass=SharedInstance):
     release = ["uuid", "data_item_count", "data_items", "display_items", "create_data_item",
                "create_data_item_from_data", "create_data_item_from_data_and_metadata",
                "get_or_create_data_group", "data_ref_for_data_item", "get_data_item_for_hardware_source",
-               "get_data_item_for_reference_key", "get_data_item_by_uuid", "get_graphic_by_uuid",
+               "get_data_item_for_reference_key", "get_data_item_by_uuid", "get_graphic_by_uuid", "get_item_by_specifier",
                "get_source_data_items", "get_dependent_data_items", "has_library_value", "get_library_value",
                "set_library_value", "delete_library_value",
                "copy_data_item", "snapshot_data_item"]
@@ -2421,26 +2440,43 @@ class Library(metaclass=SharedInstance):
         """Get the data item with the given UUID.
 
         .. versionadded:: 1.0
+        .. deprecated:: 2.0
+           Use :py:meth:`~nion.swift.Facade.API_1.get_item_by_specifier` instead.
 
         Status: Provisional
         Scriptable: Yes
         """
-        data_item = self._document_model.get_data_item_by_uuid(data_item_uuid)
-        return DataItem(data_item) if data_item else None
+        data_items = list()
+        for data_item in self._document_model.data_items:
+            if data_item.uuid == data_item_uuid:
+                data_items.append(data_item)
+        return DataItem(data_items[0]) if len(data_items) == 1 else None
 
     def get_graphic_by_uuid(self, graphic_uuid: uuid_module.UUID) -> Graphic:
         """Get the graphic with the given UUID.
 
         .. versionadded:: 1.0
+        .. deprecated:: 2.0
+           Use :py:meth:`~nion.swift.Facade.API_1.get_item_by_specifier` instead.
 
         Status: Provisional
         Scriptable: Yes
         """
+        graphics = list()
         for display_item in self._document_model.display_items:
             for graphic in display_item.graphics:
                 if graphic.uuid == graphic_uuid:
-                    return Graphic(graphic)
-        return None
+                    graphics.append(graphic)
+        return Graphic(graphics[0]) if len(graphics) == 1 else None
+
+    def get_item_by_specifier(self, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[Persistence.PersistentObject]:
+        """Get the library item with the given item specifier.
+
+        .. versionadded:: 2.0
+
+        Scriptable: No
+        """
+        return _new_api_object(self.__document_model.resolve_item_specifier(item_specifier))
 
     def has_library_value(self, key: str) -> bool:
         """Return whether the library value for the given key exists.
@@ -2504,13 +2540,6 @@ class Library(metaclass=SharedInstance):
             return
         raise KeyError()
 
-    def has_computation_with_input(self, computation_type_id: str, input) -> bool:
-        for computation in self._document_model.computations:
-            for variable in computation.variables:
-                if variable.bound_item and variable.bound_item.value.uuid == input.uuid:
-                    return True
-        return False
-
     def create_computation(self, computation_type_id, inputs, outputs) -> Computation:
         computation = self.__document_model.create_computation()
         for name, item in inputs.items():
@@ -2530,20 +2559,17 @@ class Library(metaclass=SharedInstance):
                 if object_type == "data_source":
                     display_item = self.__document_model.get_display_item_for_data_item(object._data_item)
                     display_data_channel = display_item.display_data_channel
-                    specifier_dict = {"version": 1, "type": "data_source", "uuid": str(display_data_channel.uuid)}
+                    input_item = Symbolic.make_item(display_data_channel)
                 else:
-                    specifier_dict = object.specifier.rpc_dict
-                computation.create_object(name, specifier_dict)
+                    input_item = Symbolic.make_item(object._item, type=object_type)
+                computation.create_input_item(name, input_item)
             elif isinstance(item, list):
                 # TODO: handle more than just objects
-                items = [object.specifier.rpc_dict for object in item]
-                computation.create_objects(name, items)
+                computation.create_input_item(name, Symbolic.make_item_list([i._item for i in item]))
             else:
-                specifier_dict = item.specifier.rpc_dict if item else None
-                computation.create_object(name, specifier_dict)
+                computation.create_input_item(name, Symbolic.make_item(item._item))
         for name, item in outputs.items():
-            specifier_dict = item.specifier.rpc_dict if item else None
-            computation.create_result(name, specifier_dict)
+            computation.create_output_item(name, Symbolic.make_item(item._item) if item else None)
         computation.processing_id = computation_type_id
         self._document_model.append_computation(computation)
         return Computation(computation)
@@ -2664,6 +2690,8 @@ class DocumentWindow(metaclass=SharedInstance):
 
     def show_modeless_dialog(self, item, handler=None):
         if isinstance(item, dict) and item.get("type") == "modeless_dialog":
+            if handler and not getattr(handler, "get_object_converter", None):
+                handler.get_object_converter = lambda c: ObjectConverter(self, c)
             window = self._document_controller
             dialog = Declarative.construct(window.ui, window, item, handler)
             dialog.show()
@@ -2882,8 +2910,8 @@ class API_1:
 
     release = ["create_calibration", "create_data_descriptor", "create_data_and_metadata",
                "create_data_and_metadata_from_data", "create_data_and_metadata_io_handler",
-               "create_menu_item", "create_hardware_source", "create_panel", "get_all_hardware_source_ids",
-               "get_all_instrument_ids",
+               "create_menu_item", "create_hardware_source", "create_panel", "create_specifier",
+               "get_all_hardware_source_ids", "get_all_instrument_ids",
                "get_hardware_source_by_id", "get_instrument_by_id", "application", "library", "queue_task",
                "clear_queued_tasks"]
 
@@ -3158,6 +3186,15 @@ class API_1:
 
         return PanelReference()
 
+    def create_specifier(self, item_uuid: uuid_module.UUID, context_uuid: uuid_module.UUID) -> Persistence.PersistentObjectSpecifier:
+        """Create an item specifier from item_uuid and context_uuid.
+
+        .. versionadded:: 2.0
+
+        Scriptable: No
+        """
+        return Persistence.PersistentObjectSpecifier(item_uuid=item_uuid, context_uuid=context_uuid)
+
     def create_unary_operation(self, unary_operation_delegate):
         return None
 
@@ -3279,7 +3316,7 @@ class API_1:
             g["print"] = stdout.write
             exec(compiled, g)
 
-    def resolve_object_specifier(self, d):
+    def resolve_api_object_specifier(self, d):
         return ObjectSpecifier.resolve(d)
 
     def _new_api_object(self, object):
@@ -3373,7 +3410,7 @@ class Unpickler(pickle.Unpickler):
         type_tag, d = pid
         for class_ in all_classes:
             if type_tag == class_names.get(class_, class_.__name__):
-                return self.__api.resolve_object_specifier(d)
+                return self.__api.resolve_api_object_specifier(d)
         for struct in all_structs:
             if type_tag == struct_names.get(struct, struct.__name__):
                 return struct.from_rpc_dict(d)
@@ -3428,6 +3465,24 @@ def set_property(api, pickled_object, name, pickled_value):
     object = Unpickler(io.BytesIO(base64.b64decode(pickled_object.encode('utf-8'))), api).load()
     value = Unpickler(io.BytesIO(base64.b64decode(pickled_value.encode('utf-8'))), api).load()
     setattr(object, name, value)
+
+
+class ObjectConverter:
+
+    def __init__(self, item, converter):
+        self.__converter = converter
+
+    def convert(self, value):
+        """ Convert value to string using format string """
+        if value.__class__.__name__ == "Display":
+            value = value._item
+        return self.__converter.convert(value) if self.__converter else value
+
+    def convert_back(self, formatted_value):
+        """ Convert string to value using standard int conversion """
+        if formatted_value.__class__.__name__ == "DisplayItem":
+            formatted_value = Display(formatted_value)
+        return self.__converter.convert_back(formatted_value) if self.__converter else formatted_value
 
 
 def runOnThread(api):

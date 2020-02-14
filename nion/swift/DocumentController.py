@@ -1,10 +1,10 @@
 # standard libraries
 import collections
 import copy
+import datetime
 import functools
 import gettext
 import itertools
-import json
 import logging
 import math
 import operator
@@ -38,6 +38,9 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Processing
+from nion.swift.model import Profile
+from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
 from nion.ui import Dialog
@@ -47,6 +50,8 @@ from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
+from nion.utils import Model
+from nion.utils import Registry
 from nion.utils import Selection
 
 _ = gettext.gettext
@@ -81,12 +86,7 @@ class DocumentController(Window.Window):
         # to determine when to close it.
         self.document_model = document_model
         self.document_model.add_ref()
-        if app:
-            workspace_dir = app.workspace_dir
-            workspace_name = os.path.splitext(os.path.split(workspace_dir)[1])[0] if workspace_dir else _("Workspace")
-            self.title = "{0} Workspace - {1}".format(_("Nion Swift"), workspace_name)
-        else:
-            self.title = _("Nion Swift")
+        self.title = _("Nion Swift")
         self.__workspace_controller = None
         self.replaced_display_panel_content = None  # used to facilitate display panel functionality to exchange displays
         self.__weak_selected_display_panel = None
@@ -95,6 +95,8 @@ class DocumentController(Window.Window):
         self.__weak_periodic_listeners_mutex = threading.RLock()
 
         self.selection = Selection.IndexedSelection()
+
+        self.selected_projects_model = Model.PropertyModel(set())
 
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
@@ -105,14 +107,22 @@ class DocumentController(Window.Window):
         self.__filtered_display_items_model = ListModel.FilteredListModel(items_key="display_items", container=self.__display_items_model)
         self.__last_display_filter = ListModel.Filter(True)
         self.filter_changed_event = Event.Event()
+        self.active_projects_changed_event = Event.Event()
 
         self.__update_display_items_model(self.__display_items_model, None, None)
 
-        def call_soon(fn):
-            self.queue_task(fn)
-            return True
+        def call_soon():
+            # call the function (this is guaranteed to be called on the main thread)
+            self.document_model.perform_call_soon()
 
-        self.__call_soon_event_listener = self.document_model.call_soon_event.listen(call_soon)
+        def queue_call_soon():
+            # queue the function on the main thread
+            self.queue_task(call_soon)
+
+        # listen for requests from the document model to call a function on the main thread.
+        self.__call_soon_event_listener = self.document_model.call_soon_event.listen(queue_call_soon)
+
+        self.document_model.perform_all_call_soon()  # perform any pending items in the queue
 
         self.filter_controller = FilterPanel.FilterController(self)
 
@@ -163,7 +173,6 @@ class DocumentController(Window.Window):
         self._view_menu = None
         self._window_menu = None
         self._help_menu = None
-        self._library_menu = None
         self._processing_arithmetic_menu = None
         self._processing_reduce_menu = None
         self._processing_transform_menu = None
@@ -226,26 +235,18 @@ class DocumentController(Window.Window):
 
         self._help_menu = self.add_menu(_("Help"))
 
-        self._library_menu = self.create_sub_menu()
-
-        if self.app:
-            recent_workspace_file_paths = self.app.get_recent_workspace_file_paths()
-            for file_path in recent_workspace_file_paths[0:10]:
-                root_path, file_name = os.path.split(file_path)
-                name, ext = os.path.splitext(file_name)
-                self._library_menu.add_menu_item(name, functools.partial(self.app.switch_library, file_path))
-            if len(recent_workspace_file_paths) > 0:
-                self._library_menu.add_separator()
-            self._library_menu.add_menu_item(_("Choose..."), self.app.choose_library)
-            self._library_menu.add_menu_item(_("Clear"), self.app.clear_libraries)
-
         self._new_window_action = self._file_menu.add_menu_item(_("New Window"), functools.partial(self.new_window_with_data_item, "library"), key_sequence="new")
         self._close_action = self._file_menu.add_menu_item(_("Close Window"), self.request_close, key_sequence="close")
         self._file_menu.add_separator()
-        self._switch_library_action = self._file_menu.add_sub_menu(_("Switch Library"), self._library_menu)
-        if self.app:
-            self._open_library_action = self._file_menu.add_menu_item(_("Open Library..."), self.app.open_library, key_sequence="open")
-            self._new_library_action = self._file_menu.add_menu_item(_("New Library..."), self.app.new_library, key_sequence="Ctrl+Shift+N")
+        self._new_library_action = self._file_menu.add_menu_item(_("New Project..."), self.__handle_new_project)
+        self._add_project_action = self._file_menu.add_menu_item(_("Open Project..."), self.__handle_open_project)
+        self._migrate_project_action = self._file_menu.add_menu_item(_("Upgrade Project"), self.__handle_upgrade_project)
+        self._remove_project_action = self._file_menu.add_menu_item(_("Remove Project"), self.__handle_remove_project)
+        self._file_menu.add_separator()
+        self._set_target_project_action = self._file_menu.add_menu_item(_("Set Target Project"), self.__set_target_project)
+        self._unset_target_project_action = self._file_menu.add_menu_item(_("Clear Target Project"), self.__clear_target_project)
+        self._file_menu.add_separator()
+        self._set_work_project_action = self._file_menu.add_menu_item(_("Set Work Project"), self.__set_work_project)
         self._file_menu.add_separator()
         self._import_folder_action = self._file_menu.add_menu_item(_("Import Folder..."), self.__import_folder)
         self._import_action = self._file_menu.add_menu_item(_("Import Data..."), self.import_file)
@@ -304,6 +305,9 @@ class DocumentController(Window.Window):
         self._processing_graphics_menu.add_menu_item(_("Add Point Graphic"), self.add_point_graphic)
         self._processing_graphics_menu.add_menu_item(_("Add Interval Graphic"), self.add_interval_graphic)
         self._processing_graphics_menu.add_menu_item(_("Add Channel Graphic"), self.add_channel_graphic)
+        self._processing_graphics_menu.add_separator()
+        self._processing_graphics_menu.add_menu_item(_("Add to Mask"), self.add_graphic_mask)
+        self._processing_graphics_menu.add_menu_item(_("Remove from Mask"), self.remove_graphic_mask)
 
         self._processing_menu.add_menu_item(_("Snapshot"), self.processing_snapshot, key_sequence="Ctrl+S")
         self._processing_menu.add_menu_item(_("Duplicate"), self.processing_duplicate, key_sequence="Ctrl+D")
@@ -331,6 +335,9 @@ class DocumentController(Window.Window):
         self._processing_arithmetic_menu.add_menu_item(_("Divide"), functools.partial(self.__processing_new2, self.document_model.get_divide_new))
         self._processing_arithmetic_menu.add_menu_item(_("Negate"), functools.partial(self.__processing_new, self.document_model.get_invert_new))
         self._processing_arithmetic_menu.add_separator()
+        self._processing_arithmetic_menu.add_menu_item(_("Masked"), functools.partial(self.__processing_new, self.document_model.get_masked_new))
+        self._processing_arithmetic_menu.add_menu_item(_("Mask"), functools.partial(self.__processing_new, self.document_model.get_mask_new))
+        self._processing_arithmetic_menu.add_separator()
         self._processing_arithmetic_menu.add_menu_item(_("Subtract Region Average"), functools.partial(self.__processing_new, self.document_model.get_subtract_region_average_new))
 
         self._processing_reduce_menu = self.create_sub_menu()
@@ -341,6 +348,8 @@ class DocumentController(Window.Window):
         self._processing_reduce_menu.add_menu_item(_("Pick Region (Sum)"), functools.partial(self.__processing_new, self.document_model.get_pick_region_new))
         self._processing_reduce_menu.add_menu_item(_("Pick Region (Average)"), functools.partial(self.__processing_new, self.document_model.get_pick_region_average_new))
         self._processing_reduce_menu.add_menu_item(_("Projection (Sum)"), functools.partial(self.__processing_new, self.document_model.get_projection_new))
+        self._processing_reduce_menu.add_menu_item(_("Mapped Sum"), functools.partial(self.__processing_new, self.document_model.get_mapped_sum_new))
+        self._processing_reduce_menu.add_menu_item(_("Mapped Average"), functools.partial(self.__processing_new, self.document_model.get_mapped_average_new))
 
         self._processing_fourier_menu = self.create_sub_menu()
         self._processing_menu.add_sub_menu(_("Fourier"), self._processing_fourier_menu)
@@ -350,11 +359,21 @@ class DocumentController(Window.Window):
         self._processing_fourier_menu.add_menu_item(_("Auto Correlate"), functools.partial(self.__processing_new, self.document_model.get_auto_correlate_new))
         self._processing_fourier_menu.add_menu_item(_("Cross Correlate"), self.processing_cross_correlate_new)
         self._processing_fourier_menu.add_menu_item(_("Fourier Filter"), self.processing_fourier_filter_new)
+
+        processing_components = list()
+        for processing_component in typing.cast(typing.Sequence[Processing.ProcessingBase], Registry.get_components_by_type("processing-component")):
+            if "windows" in processing_component.sections:
+                processing_components.append(processing_component)
+        if processing_components:
+            self._processing_fourier_menu.add_separator()
+            for processing_component in sorted(processing_components, key=operator.attrgetter("title")):
+                self._processing_fourier_menu.add_menu_item(processing_component.title, functools.partial(self.processing_new, processing_component.processing_id))
+
         self._processing_fourier_menu.add_separator()
-        self._processing_fourier_menu.add_menu_item(_("Add Spot Mask"), self.add_spot_graphic)
-        self._processing_fourier_menu.add_menu_item(_("Add Angle Mask"), self.add_angle_graphic)
-        self._processing_fourier_menu.add_menu_item(_("Add Band Pass Mask"), self.add_band_pass_graphic)
-        self._processing_fourier_menu.add_menu_item(_("Add Lattice Mask"), self.add_lattice_graphic)
+        self._processing_fourier_menu.add_menu_item(_("Add Spot Filter"), self.add_spot_graphic)
+        self._processing_fourier_menu.add_menu_item(_("Add Angle Filter"), self.add_angle_graphic)
+        self._processing_fourier_menu.add_menu_item(_("Add Band Pass Filter"), self.add_band_pass_graphic)
+        self._processing_fourier_menu.add_menu_item(_("Add Lattice Filter"), self.add_lattice_graphic)
 
         self._processing_filter_menu = self.create_sub_menu()
         self._processing_menu.add_sub_menu(_("Filter"), self._processing_filter_menu)
@@ -663,38 +682,39 @@ class DocumentController(Window.Window):
         """
 
         with display_items_model.changes():  # change filter and sort together
+            project_filter = self.document_model.profile.project_filter
             if data_group is not None:
                 display_items_model.container = data_group
-                display_items_model.filter = ListModel.Filter(True)
+                display_items_model.filter = ListModel.AndFilter((project_filter, ListModel.Filter(True)))
                 display_items_model.sort_key = None
                 display_items_model.filter_id = None
             elif filter_id == "latest-session":
                 display_items_model.container = self.document_model
-                display_items_model.filter = ListModel.EqFilter("session_id", self.document_model.session_id)
+                display_items_model.filter = ListModel.AndFilter((project_filter, ListModel.EqFilter("session_id", self.document_model.session_id)))
                 display_items_model.sort_key = DataItem.sort_by_date_key
                 display_items_model.sort_reverse = True
                 display_items_model.filter_id = filter_id
             elif filter_id == "temporary":
                 display_items_model.container = self.document_model
-                display_items_model.filter = ListModel.NotEqFilter("category", "persistent")
+                display_items_model.filter = ListModel.AndFilter((project_filter, ListModel.NotEqFilter("category", "persistent")))
                 display_items_model.sort_key = DataItem.sort_by_date_key
                 display_items_model.sort_reverse = True
                 display_items_model.filter_id = filter_id
             elif filter_id == "persistent":
                 display_items_model.container = self.document_model
-                display_items_model.filter = ListModel.EqFilter("category", "persistent")
+                display_items_model.filter = ListModel.AndFilter((project_filter, ListModel.EqFilter("category", "persistent")))
                 display_items_model.sort_key = DataItem.sort_by_date_key
                 display_items_model.sort_reverse = True
                 display_items_model.filter_id = filter_id
             elif filter_id == "none":  # not intended to be used directly
                 display_items_model.container = self.document_model
-                display_items_model.filter = ListModel.Filter(False)
+                display_items_model.filter = ListModel.AndFilter((project_filter, ListModel.Filter(False)))
                 display_items_model.sort_key = DataItem.sort_by_date_key
                 display_items_model.sort_reverse = True
                 display_items_model.filter_id = filter_id
             else:  # "all"
                 display_items_model.container = self.document_model
-                display_items_model.filter = ListModel.Filter(True)
+                display_items_model.filter = project_filter
                 display_items_model.sort_key = DataItem.sort_by_date_key
                 display_items_model.sort_reverse = True
                 display_items_model.filter_id = None
@@ -731,6 +751,10 @@ class DocumentController(Window.Window):
     def display_filter(self, display_filter: ListModel.Filter) -> None:
         if self.__filtered_display_items_model is not None:  # during close
             self.__filtered_display_items_model.filter = display_filter
+
+    @property
+    def selected_projects(self) -> typing.List[Project.Project]:
+        return self.selected_projects_model.value
 
     @property
     def selected_display_items(self) -> typing.List[DisplayItem.DisplayItem]:
@@ -875,6 +899,159 @@ class DocumentController(Window.Window):
     def new_window_with_data_item(self, workspace_id, display_item=None):
         # hack to work around Application <-> DocumentController interdependency.
         self.create_new_document_controller_event.fire(self.document_model, workspace_id, display_item)
+
+    def __handle_new_project(self) -> None:
+        class NewProjectDialog(Dialog.ActionDialog):
+
+            def __init__(self, ui, app, parent_window, profile: Profile.Profile):
+                super().__init__(ui, title=_("New Project"), app=app, persistent_id="new_project_dialog")
+
+                self._create_menus()
+
+                self.directory = self.ui.get_persistent_string("project_directory", self.ui.get_document_location())
+
+                project_base_name = _("Nion Swift Project") + " " + datetime.datetime.now().strftime("%Y%m%d")
+                project_base_index = 0
+                project_base_index_str = ""
+                while os.path.exists(os.path.join(self.directory, project_base_name + project_base_index_str)):
+                    project_base_index += 1
+                    project_base_index_str = " " + str(project_base_index)
+
+                self.project_name = project_base_name + project_base_index_str
+
+                def safe_request_close():
+                    parent_window.queue_task(self.request_close)
+
+                def handle_new():
+                    self.project_name = self.__project_name_field.text
+                    profile.create_project(pathlib.Path(self.directory), self.project_name)
+                    return True
+
+                def handle_new_and_close():
+                    handle_new()
+                    safe_request_close()
+                    return True
+
+                column = self.ui.create_column_widget()
+
+                directory_header_row = self.ui.create_row_widget()
+                directory_header_row.add_spacing(13)
+                directory_header_row.add(self.ui.create_label_widget(_("Projects Folder: "), properties={"font": "bold"}))
+                directory_header_row.add_stretch()
+                directory_header_row.add_spacing(13)
+
+                show_directory_row = self.ui.create_row_widget()
+                show_directory_row.add_spacing(26)
+                directory_label = self.ui.create_label_widget(self.directory)
+                show_directory_row.add(directory_label)
+                show_directory_row.add_stretch()
+                show_directory_row.add_spacing(13)
+
+                choose_directory_row = self.ui.create_row_widget()
+                choose_directory_row.add_spacing(26)
+                choose_directory_button = self.ui.create_push_button_widget(_("Choose..."))
+                choose_directory_row.add(choose_directory_button)
+                choose_directory_row.add_stretch()
+                choose_directory_row.add_spacing(13)
+
+                project_name_header_row = self.ui.create_row_widget()
+                project_name_header_row.add_spacing(13)
+                project_name_header_row.add(self.ui.create_label_widget(_("Project Name: "), properties={"font": "bold"}))
+                project_name_header_row.add_stretch()
+                project_name_header_row.add_spacing(13)
+
+                project_name_row = self.ui.create_row_widget()
+                project_name_row.add_spacing(26)
+                project_name_field = self.ui.create_line_edit_widget(properties={"width": 400})
+                project_name_field.text = self.project_name
+                project_name_field.on_return_pressed = handle_new_and_close
+                project_name_field.on_escape_pressed = safe_request_close
+                project_name_row.add(project_name_field)
+                project_name_row.add_stretch()
+                project_name_row.add_spacing(13)
+
+                column.add_spacing(12)
+                column.add(directory_header_row)
+                column.add_spacing(8)
+                column.add(show_directory_row)
+                column.add_spacing(8)
+                column.add(choose_directory_row)
+                column.add_spacing(16)
+                column.add(project_name_header_row)
+                column.add_spacing(8)
+                column.add(project_name_row)
+                column.add_stretch()
+                column.add_spacing(16)
+
+                def choose() -> None:
+                    existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Project Directory"), self.directory)
+                    if existing_directory:
+                        self.directory = existing_directory
+                        directory_label.text = self.directory
+                        self.ui.set_persistent_string("project_directory", self.directory)
+
+                choose_directory_button.on_clicked = choose
+
+                self.add_button(_("Cancel"), lambda: True)
+                self.add_button(_("Create Project"), handle_new)
+
+                self.content.add(column)
+
+                self.__project_name_field = project_name_field
+
+            def show(self):
+                super().show()
+                self.__project_name_field.focused = True
+
+        new_project_dialog = NewProjectDialog(self.ui, self.app, self, self.document_model.profile)
+        new_project_dialog.show()
+
+    def __handle_open_project(self) -> None:
+        filter = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
+        import_dir = self.ui.get_persistent_string("open_directory", self.ui.get_document_location())
+        paths, selected_filter, selected_directory = self.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter)
+        self.ui.set_persistent_string("open_directory", selected_directory)
+        if len(paths) == 1:
+            self.document_model.profile.open_project(pathlib.Path(paths[0]))
+
+    def __handle_upgrade_project(self) -> None:
+        for project in self.selected_projects:
+            self.document_model.profile.upgrade_project(project)
+
+    def __handle_remove_project(self) -> None:
+        for project in self.selected_projects:
+            self.document_model.profile.remove_project(project)
+
+    def __set_target_project(self) -> None:
+        projects = self.selected_projects
+        if not projects:
+            raise Exception("Select a project in the project panel.")
+        if len(projects) > 1:
+            raise Exception("Select a single project in the project panel.")
+        self.document_model.profile.set_target_project(projects[0])
+
+    def __clear_target_project(self) -> None:
+        self.document_model.profile.set_target_project(None)
+
+    def __set_work_project(self) -> None:
+        projects = self.selected_projects
+        if not projects:
+            raise Exception("Select a project in the project panel.")
+        if len(projects) > 1:
+            raise Exception("Select a single project in the project panel.")
+        self.document_model.profile.set_work_project(projects[0])
+
+    def set_project_active(self, project: Project.Project, active: bool) -> bool:
+        changed = self.document_model.profile.set_project_active(project, active)
+        if changed:
+            self.__display_items_model.mark_changed()
+            self.active_projects_changed_event.fire()
+        return changed
+
+    def toggle_project_active(self, project: Project.Project) -> None:
+        self.document_model.profile.toggle_project_active(project)
+        self.__display_items_model.mark_changed()
+        self.active_projects_changed_event.fire()
 
     def __import_folder(self):
         documents_dir = self.ui.get_document_location()
@@ -1067,16 +1244,8 @@ class DocumentController(Window.Window):
         display_item = self.selected_display_item
         if display_item:
             mime_data = self.ui.clipboard_mime_data()
-            if mime_data.has_format(MimeTypes.GRAPHICS_MIME_TYPE):
-                json_str = mime_data.data_as_string(MimeTypes.GRAPHICS_MIME_TYPE)
-                graphics_dict = json.loads(json_str)
-                is_same_source = graphics_dict.get("src_uuid") == str(display_item.data_item.uuid)
-                graphics = list()
-                for graphic_dict in graphics_dict.get("graphics", list()):
-                    graphic = Graphics.factory(lambda t: graphic_dict["type"])
-                    graphic.read_from_mime_data(graphic_dict, is_same_source)
-                    if graphic:
-                        graphics.append(graphic)
+            graphics = MimeTypes.mime_data_get_graphics(mime_data)
+            if graphics:
                 display_item.graphic_selection.clear()
                 command = DisplayPanel.InsertGraphicsCommand(self, display_item, graphics)
                 command.perform()
@@ -1084,14 +1253,12 @@ class DocumentController(Window.Window):
                 for graphic in graphics:
                     display_item.graphic_selection.add(display_item.graphics.index(graphic))
                 return True
-            if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
-                display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
-                display_item_to_paste = self.document_model.get_display_item_by_uuid(display_item_uuid)
-                data_item_to_paste = display_item_to_paste.data_item if display_item else None
-                if data_item_to_paste:
-                    command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, display_item, data_item_to_paste)
-                    command.perform()
-                    self.push_undo_command(command)
+            display_item_to_paste = MimeTypes.mime_data_get_display_item(mime_data, self.document_model)
+            data_item_to_paste = display_item_to_paste.data_item if display_item else None
+            if data_item_to_paste:
+                command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, display_item, data_item_to_paste)
+                command.perform()
+                self.push_undo_command(command)
         return False
 
     def handle_delete(self):
@@ -1102,24 +1269,26 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, before_index: int, display_item: DisplayItem.DisplayItem):
             super().__init__("Insert Data Item")
             self.__document_model = document_model
-            self.__data_group_uuid = data_group.uuid
+            self.__data_group_proxy = data_group.create_proxy()
             self.__before_index = before_index
-            self.__display_item_uuid = display_item.uuid
+            self.__display_item_proxy = display_item.create_proxy()
             self.initialize()
 
         def close(self):
             self.__document_model = None
-            self.__data_group_uuid = None
+            self.__data_group_proxy.close()
+            self.__data_group_proxy = None
             self.__before_index = None
-            self.__display_item_uuid = None
+            self.__display_item_proxy.close()
+            self.__display_item_proxy = None
             super().close()
 
         def _get_modified_state(self):
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             return data_group.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             data_group.modified_state, self.__document_model.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
@@ -1127,12 +1296,12 @@ class DocumentController(Window.Window):
             return state1[0] == state2[0]
 
         def perform(self) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+            data_group = self.__data_group_proxy.item
+            display_item = self.__display_item_proxy.item
             data_group.insert_display_item(self.__before_index, display_item)
 
         def _undo(self) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             data_group.remove_display_item(data_group.display_items[self.__before_index])
 
         def _redo(self) -> None:
@@ -1145,55 +1314,57 @@ class DocumentController(Window.Window):
         def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):
             super().__init__("Insert Data Items")
             self.__document_controller = document_controller
-            self.__data_group_uuid = data_group.uuid
+            self.__data_group_proxy = data_group.create_proxy()
             self.__data_group_indexes = list()
-            self.__data_group_uuids = list()
+            self.__data_group_display_item_proxies = list()
             self.__data_items = data_items  # only in perform
             self.__display_item_index = index
             self.__display_item_indexes = list()
-            self.__undelete_logs = None
+            self.__undelete_logs = list()
             self.initialize()
 
         def close(self):
             self.__document_controller = None
-            self.__data_group_uuid = None
             self.__data_group_indexes = None
-            self.__data_group_uuids = None
-            self.__data_items = None
+            for display_item_proxy in self.__data_group_display_item_proxies:
+                display_item_proxy.close()
+            self.__data_group_display_item_proxies = None
             self.__display_item_index = None
+            for undelete_log in self.__undelete_logs:
+                undelete_log.close()
             self.__undelete_logs = None
+            self.__data_group_proxy.close()
+            self.__data_group_proxy = None
             super().close()
 
         def _get_modified_state(self):
-            data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             return self.__document_controller.document_model.modified_state, data_group.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             self.__document_controller.document_model.modified_state, data_group.modified_state = modified_state
 
         def perform(self):
             document_model = self.__document_controller.document_model
-            data_group = document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             index = self.__display_item_index
             display_items = list()
             for data_item in self.__data_items:
-                if not document_model.get_data_item_by_uuid(data_item.uuid):
-                    self.__display_item_indexes.append(len(document_model.display_items))
-                    document_model.append_data_item(data_item)
+                document_model.append_data_item(data_item)
+                self.__display_item_indexes.append(len(document_model.display_items))
                 display_items.append(document_model.get_display_item_for_data_item(data_item))
             for display_item in display_items:
                 if not display_item in data_group.display_items:
                     data_group.insert_display_item(index, display_item)
                     self.__data_group_indexes.append(index)
-                    self.__data_group_uuids.append(display_item.uuid)
+                    self.__data_group_display_item_proxies.append(display_item.project.create_item_proxy(item=display_item))
                     index += 1
             self.__display_items = None
 
         def _undo(self) -> None:
             document_model = self.__document_controller.document_model
-            data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            self.__undelete_logs = list()
+            data_group = self.__data_group_proxy.item
             display_items = [data_group.display_items[index] for index in self.__data_group_indexes]
             for display_item in display_items:
                 if display_item in data_group.display_items:
@@ -1201,15 +1372,16 @@ class DocumentController(Window.Window):
             display_items = [document_model.display_items[index] for index in self.__display_item_indexes]
             for display_item in display_items:
                 if display_item in document_model.display_items:
-                    self.__undelete_logs.append(document_model.remove_display_item(display_item, safe=True))
+                    self.__undelete_logs.append(document_model.remove_display_item_with_log(display_item, safe=True))
 
         def _redo(self) -> None:
-            document_model = self.__document_controller.document_model
-            data_group = self.__document_controller.document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
+                undelete_log.close()
+            self.__undelete_logs.clear()
             index = self.__display_item_index
-            display_items = [document_model.get_display_item_by_uuid(display_item_uuid) for display_item_uuid in reversed(self.__data_group_uuids)]
+            display_items = [display_item_proxy.item for display_item_proxy in reversed(self.__data_group_display_item_proxies)]
             for display_item in display_items:
                 if not display_item in data_group.display_items:
                     data_group.insert_display_item(index, display_item)
@@ -1218,19 +1390,27 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, display_items: typing.Sequence[DisplayItem.DisplayItem]):
             super().__init__("Remove Data Item")
             self.__document_model = document_model
-            self.__data_group_uuid = data_group.uuid
-            combined = [(data_group.display_items.index(display_item), display_item.uuid) for display_item in display_items]
+            self.__data_group_proxy = data_group.create_proxy()
+            combined = [(data_group.display_items.index(display_item), display_item) for display_item in display_items]
             combined = sorted(combined, key=operator.itemgetter(0), reverse=True)
             self.__display_item_indexes = list(map(operator.itemgetter(0), combined))
-            self.__display_item_uuids = list(map(operator.itemgetter(1), combined))
+            self.__display_item_proxies = [display_item.create_proxy() for index, display_item in combined]
             self.initialize()
 
+        def close(self):
+            self.__data_group_proxy.close()
+            self.__data_group_proxy = None
+            for display_item_proxy in self.__display_item_proxies:
+                display_item_proxy.close()
+            self.__display_item_proxies = None
+            super().close()
+
         def _get_modified_state(self):
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             return data_group.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             data_group.modified_state, self.__document_model.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
@@ -1238,15 +1418,15 @@ class DocumentController(Window.Window):
             return state1[0] == state2[0]
 
         def perform(self) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             display_items = [data_group.display_items[index] for index in self.__display_item_indexes]
             for display_item in display_items:
                 if display_item in data_group.display_items:
                     data_group.remove_display_item(display_item)
 
         def _undo(self) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
-            display_items = [self.__document_model.get_display_item_by_uuid(display_item_uuid) for display_item_uuid in self.__display_item_uuids]
+            data_group = self.__data_group_proxy.item
+            display_items = [display_item_proxy.item for display_item_proxy in self.__display_item_proxies]
             for index, display_item in zip(self.__display_item_indexes, display_items):
                 data_group.insert_display_item(index, display_item)
 
@@ -1257,17 +1437,22 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, data_group: DataGroup.DataGroup, title: str):
             super().__init__("Rename Data Group")
             self.__document_model = document_model
-            self.__data_group_uuid = data_group.uuid
+            self.__data_group_proxy = data_group.create_proxy()
             self.__title = title
             self.__new_title = None
             self.initialize()
 
+        def close(self):
+            self.__data_group_proxy.close()
+            self.__data_group_proxy = None
+            super().close()
+
         def _get_modified_state(self):
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             return data_group.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             data_group.modified_state, self.__document_model.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
@@ -1275,12 +1460,12 @@ class DocumentController(Window.Window):
             return state1[0] == state2[0]
 
         def perform(self) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             self.__new_title = data_group.title
             data_group.title = self.__title
 
         def _undo(self) -> None:
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            data_group = self.__data_group_proxy.item
             data_group.title = self.__new_title
 
         def _redo(self) -> None:
@@ -1293,18 +1478,26 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, container: typing.Union[DataGroup.DataGroup, DocumentModel.DocumentModel], before_index: int, data_group: DataGroup.DataGroup):
             super().__init__("Insert Data Group")
             self.__document_model = document_model
-            self.__container_uuid = container.uuid
+            self.__container_proxy = container.create_proxy()
             self.__before_index = before_index
             self.__data_group_properties = data_group.write_to_dict()
-            self.__data_group_uuid = data_group.uuid
+            self.__data_group_proxy = None
             self.initialize()
 
+        def close(self):
+            if self.__data_group_proxy:
+                self.__data_group_proxy.close()
+                self.__data_group_proxy = None
+            self.__container_proxy.close()
+            self.__container_proxy = None
+            super().close()
+
         def _get_modified_state(self):
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            container = self.__container_proxy.item
             return container.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            container = self.__container_proxy.item
             container.modified_state, self.__document_model.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
@@ -1312,15 +1505,18 @@ class DocumentController(Window.Window):
             return state1[0] == state2[0]
 
         def perform(self) -> None:
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            container = self.__container_proxy.item
             data_group = DataGroup.DataGroup()
             data_group.read_from_dict(self.__data_group_properties)
             container.insert_data_group(self.__before_index, data_group)
+            self.__data_group_proxy = data_group.create_proxy()
 
         def _undo(self) -> None:
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            container = self.__container_proxy.item
+            data_group = self.__data_group_proxy.item
             container.remove_data_group(data_group)
+            self.__data_group_proxy.close()
+            self.__data_group_proxy = None
 
         def _redo(self) -> None:
             self.perform()
@@ -1332,18 +1528,25 @@ class DocumentController(Window.Window):
         def __init__(self, document_model, container: typing.Union[DataGroup.DataGroup, DocumentModel.DocumentModel], data_group: DataGroup.DataGroup):
             super().__init__("Remove Data Group")
             self.__document_model = document_model
-            self.__container_uuid = container.uuid
-            self.__data_group_uuid = data_group.uuid
+            self.__container_proxy = container.create_proxy()
+            self.__data_group_proxy = data_group.create_proxy()
             self.__data_group_properties = None
             self.__data_group_index = None
             self.initialize()
 
+        def close(self):
+            self.__data_group_proxy.close()
+            self.__data_group_proxy = None
+            self.__container_proxy.close()
+            self.__container_proxy = None
+            super().close()
+
         def _get_modified_state(self):
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            container = self.__container_proxy.item
             return container.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            container = self.__container_proxy.item
             container.modified_state, self.__document_model.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
@@ -1351,14 +1554,14 @@ class DocumentController(Window.Window):
             return state1[0] == state2[0]
 
         def perform(self) -> None:
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
-            data_group = self.__document_model.get_data_group_by_uuid(self.__data_group_uuid)
+            container = self.__container_proxy.item
+            data_group = self.__data_group_proxy.item
             self.__data_group_properties = data_group.write_to_dict()
             self.__data_group_index = container.data_groups.index(data_group)
             container.remove_data_group(data_group)
 
         def _undo(self) -> None:
-            container = self.__document_model.get_data_group_or_document_model_by_uuid(self.__container_uuid)
+            container = self.__container_proxy.item
             data_group = DataGroup.DataGroup()
             data_group.begin_reading()
             data_group.read_from_dict(self.__data_group_properties)
@@ -1461,7 +1664,7 @@ class DocumentController(Window.Window):
         display_item = self.selected_display_item
         if display_item:
             graphic = Graphics.SpotGraphic()
-            graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
+            graphic.bounds = Geometry.FloatRect.from_center_and_size((0.25, 0.25), (0.25, 0.25))
             command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
@@ -1506,6 +1709,25 @@ class DocumentController(Window.Window):
             return graphic
         return None
 
+    def __change_graphics_role(self, role: typing.Optional[str]) -> bool:
+        display_item = self.selected_display_item
+        if display_item:
+            if display_item.graphic_selection.has_selection:
+                graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
+                graphics = itertools.filterfalse(lambda graphic: isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)), graphics)
+                if graphics:
+                    command = DisplayPanel.ChangeGraphicsCommand(self.document_model, display_item, graphics, command_id="change_role", is_mergeable=True, role=role)
+                    command.perform()
+                    self.push_undo_command(command)
+                    return True
+        return False
+
+    def add_graphic_mask(self) -> bool:
+        return self.__change_graphics_role("mask")
+
+    def remove_graphic_mask(self) -> bool:
+        return self.__change_graphics_role(None)
+
     def copy_selected_graphics(self):
         display_item = self.selected_display_item
         if display_item:
@@ -1533,18 +1755,13 @@ class DocumentController(Window.Window):
 
             if display_item.graphic_selection.has_selection:
                 # copy the graphic on the selected display item
-                graphic_dict_list = list()
                 graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
-                for graphic in graphics:
-                    graphic_dict_list.append(graphic.mime_data_dict())
-                graphics_dict = {"src_uuid": str(display_item.data_item.uuid), "graphics": graphic_dict_list}
-                json_str = json.dumps(graphics_dict)
-                mime_data.set_data_as_string(MimeTypes.GRAPHICS_MIME_TYPE, json_str)
+                MimeTypes.mime_data_put_graphics(mime_data, graphics)
                 self.ui.clipboard_set_mime_data(mime_data)
                 return True
             else:
                 # copy the selected display item if graphic is not selected
-                mime_data.set_data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE, str(display_item.uuid))
+                MimeTypes.mime_data_put_display_item(mime_data, display_item)
                 self.ui.clipboard_set_mime_data(mime_data)
 
         return False
@@ -1564,39 +1781,45 @@ class DocumentController(Window.Window):
         def __init__(self, document_controller: "DocumentController", display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic]):
             super().__init__(_("Remove Graphics"))
             self.__document_controller = document_controller
-            self.__display_item_uuid = display_item.uuid
+            self.__display_item_proxy = display_item.create_proxy()
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
             self.__graphic_indexes = [display_item.graphics.index(graphic) for graphic in graphics]
+            self.__undelete_logs = list()
             self.initialize()
 
         def close(self):
             self.__document_controller = None
-            self.__display_item_uuid = None
+            self.__display_item_proxy.close()
+            self.__display_item_proxy = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             self.__graphic_indexes = None
+            for undelete_log in self.__undelete_logs:
+                undelete_log.close()
+            self.__undelete_logs = None
             super().close()
 
         def perform(self):
-            display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
-            self.__undelete_logs = list()
+            display_item = self.__display_item_proxy.item
             graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
             for graphic in graphics:
                 self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
 
         def _get_modified_state(self):
-            display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+            display_item = self.__display_item_proxy.item
             return display_item.modified_state, self.__document_controller.document_model.modified_state
 
         def _set_modified_state(self, modified_state):
-            display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+            display_item = self.__display_item_proxy.item
             display_item.modified_state, self.__document_controller.document_model.modified_state = modified_state
 
         def _undo(self):
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
+                undelete_log.close()
+            self.__undelete_logs.clear()
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
         def _redo(self):
@@ -1619,6 +1842,7 @@ class DocumentController(Window.Window):
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
             self.__display_item_indexes = [document_controller.document_model.display_items.index(display_item) for display_item in display_items]
+            self.__undelete_logs = list()
             self.initialize()
 
         def close(self):
@@ -1626,10 +1850,12 @@ class DocumentController(Window.Window):
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             self.__display_item_indexes = None
+            for undelete_log in self.__undelete_logs:
+                undelete_log.close()
+            self.__undelete_logs = None
             super().close()
 
         def perform(self):
-            self.__undelete_logs = list()
             document_model = self.__document_controller.document_model
             display_items = [document_model.display_items[index] for index in self.__display_item_indexes]
             for display_item in display_items:
@@ -1637,7 +1863,7 @@ class DocumentController(Window.Window):
                     selected_display_items = self.__document_controller.selected_display_items
                     if display_item in selected_display_items:
                         selected_display_items.remove(display_item)
-                    self.__undelete_logs.append(document_model.remove_display_item(display_item))
+                    self.__undelete_logs.append(document_model.remove_display_item_with_log(display_item))
                     self.__document_controller.select_display_items_in_data_panel(selected_display_items)
 
         def _get_modified_state(self):
@@ -1650,6 +1876,8 @@ class DocumentController(Window.Window):
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
+                undelete_log.close()
+            self.__undelete_logs.clear()
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
         def _redo(self):
@@ -1667,6 +1895,7 @@ class DocumentController(Window.Window):
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
             self.__data_item_indexes = [document_controller.document_model.data_items.index(data_item) for data_item in data_items]
+            self.__undelete_logs = list()
             self.initialize()
 
         def close(self):
@@ -1674,15 +1903,17 @@ class DocumentController(Window.Window):
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             self.__data_item_indexes = None
+            for undelete_log in self.__undelete_logs:
+                undelete_log.close()
+            self.__undelete_logs = None
             super().close()
 
         def perform(self):
-            self.__undelete_logs = list()
             document_model = self.__document_controller.document_model
             data_items = [document_model.data_items[index] for index in self.__data_item_indexes]
             for data_item in data_items:
                 if data_item in document_model.data_items:
-                    self.__undelete_logs.append(document_model.remove_data_item(data_item, safe=True))
+                    self.__undelete_logs.append(document_model.remove_data_item_with_log(data_item, safe=True))
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -1694,6 +1925,8 @@ class DocumentController(Window.Window):
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
+                undelete_log.close()
+            self.__undelete_logs.clear()
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
         def _redo(self):
@@ -1878,27 +2111,31 @@ class DocumentController(Window.Window):
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
-            self.__data_item_uuid = None
+            self.__data_item_proxy = None
             self.__data_item_fn = data_item_fn
-            self.__data_item_index = None
+            self.__undelete_log = None
             self.initialize()
 
         def close(self):
             self.__document_controller = None
-            self.__data_item_uuid = None
             self.__data_item_fn = None
-            self.__data_item_index = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
+            if self.__undelete_log:
+                self.__undelete_log.close()
+                self.__undelete_log = None
+            if self.__data_item_proxy:
+                self.__data_item_proxy.close()
+                self.__data_item_proxy = None
             super().close()
 
         def perform(self):
             data_item = self.__data_item_fn()
-            self.__data_item_uuid = data_item.uuid if data_item else None
+            self.__data_item_proxy = data_item.create_proxy() if data_item else None
 
         @property
         def data_item(self):
-            return self.__document_controller.document_model.get_data_item_by_uuid(self.__data_item_uuid)
+            return self.__data_item_proxy.item if self.__data_item_proxy else None
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -1913,14 +2150,14 @@ class DocumentController(Window.Window):
 
         def _redo(self):
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
-            self.__data_item_uuid = self.__document_controller.document_model.data_items[self.__data_item_index].uuid
+            self.__undelete_log.close()
+            self.__undelete_log = None
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
         def _undo(self):
-            data_item = self.__document_controller.document_model.get_data_item_by_uuid(self.__data_item_uuid)
+            data_item = self.data_item
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__data_item_index = self.__document_controller.document_model.data_items.index(data_item)
-            self.__undelete_log = self.__document_controller.document_model.remove_data_item(data_item, safe=True)
+            self.__undelete_log = self.__document_controller.document_model.remove_data_item_with_log(data_item, safe=True)
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def create_insert_data_item_command(self, data_item_fn: typing.Callable[[], DataItem.DataItem]) -> Undo.UndoableCommand:
@@ -1956,18 +2193,24 @@ class DocumentController(Window.Window):
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
-            self.__display_item_uuid = None
+            self.__display_item_proxy = None
             self.__display_item = display_item
             self.__display_item_fn = display_item_fn
             self.__display_item_index = None
+            self.__undelete_log = None
             self.initialize()
 
         def close(self):
             self.__document_controller = None
-            self.__display_item_uuid = None
+            if self.__display_item_proxy:
+                self.__display_item_proxy.close()
+                self.__display_item_proxy = None
             self.__display_item_index = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
+            if self.__undelete_log:
+                self.__undelete_log.close()
+                self.__undelete_log = None
             super().close()
 
         def perform(self):
@@ -1983,7 +2226,7 @@ class DocumentController(Window.Window):
                 if inspector_panel is not None:
                     inspector_panel.request_focus = True
             document_controller.show_display_item(snapshot_display_item, source_display_item=snapshot_display_item, request_focus=request_focus)
-            self.__display_item_uuid = display_item.uuid if display_item else None
+            self.__display_item_proxy = display_item.create_proxy() if display_item else None
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -1993,14 +2236,15 @@ class DocumentController(Window.Window):
 
         def _redo(self):
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
-            self.__display_item_uuid = self.__document_controller.document_model.display_items[self.__display_item_index].uuid
+            self.__undelete_log.close()
+            self.__undelete_log = None
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
         def _undo(self):
-            display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+            display_item = self.__display_item_proxy.item if self.__display_item_proxy else None
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__display_item_index = self.__document_controller.document_model.display_items.index(display_item)
-            self.__undelete_log = self.__document_controller.document_model.remove_display_item(display_item)
+            self.__undelete_log = self.__document_controller.document_model.remove_display_item_with_log(display_item)
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def _perform_display_item_snapshot(self, display_item: DisplayItem.DisplayItem) -> None:
@@ -2028,6 +2272,7 @@ class DocumentController(Window.Window):
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
             self.__display_item_index = document_controller.document_model.display_items.index(display_item)
+            self.__undelete_logs = list()
             self.initialize()
 
         def close(self):
@@ -2035,13 +2280,15 @@ class DocumentController(Window.Window):
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             self.__display_item_index = None
+            for undelete_log in self.__undelete_logs:
+                undelete_log.close()
+            self.__undelete_logs = None
             super().close()
 
         def perform(self):
-            self.__undelete_logs = list()
             document_model = self.__document_controller.document_model
             display_item = document_model.display_items[self.__display_item_index]
-            self.__undelete_logs.append(document_model.remove_display_item(display_item))
+            self.__undelete_logs.append(document_model.remove_display_item_with_log(display_item))
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -2053,6 +2300,8 @@ class DocumentController(Window.Window):
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
+                undelete_log.close()
+            self.__undelete_logs.clear()
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
         def _redo(self):
@@ -2066,25 +2315,22 @@ class DocumentController(Window.Window):
             command.perform()
             self.push_undo_command(command)
 
-    def processing_computation(self, expression, map=None):
+    def processing_computation(self, expression, map: typing.Mapping[str, Symbolic.ComputationItem]=None):
         if map is None:
             map = dict()
             for variable_name, data_item in self.document_model.variable_to_data_item_map().items():
-                map[variable_name] = self.document_model.get_object_specifier(data_item)
+                map[variable_name] = Symbolic.make_item(data_item)
         data_item = DataItem.DataItem()
         data_item.ensure_data_source()
         data_item.title = _("Computation on ") + data_item.title
         computation = self.document_model.create_computation(expression)
         names = Symbolic.Computation.parse_names(expression)
-        for variable_name, object_specifier in map.items():
+        for variable_name, input_item in map.items():
             if variable_name in names:
-                computation.create_object(variable_name, object_specifier)
-        for variable in computation.variables:
-            specifier = variable.specifier
-            if specifier:
-                object = self.document_model.resolve_object_specifier(variable.specifier)
-                if isinstance(object, DataItem.DataItem) and object.category == "temporary":
-                    data_item.category = "temporary"
+                computation.create_input_item(variable_name, input_item)
+        for item in computation.input_items:
+            if isinstance(item, DataItem.DataItem) and item.category == "temporary":
+                data_item.category = "temporary"
         self.document_model.append_data_item(data_item)
         self.document_model.set_data_item_computation(data_item, computation)
         display_item = self.document_model.get_display_item_for_data_item(data_item)
@@ -2187,6 +2433,13 @@ class DocumentController(Window.Window):
             return self._perform_processing(display_item, None, self.document_model.get_fourier_filter_new)
         return None
 
+    def processing_new(self, processing_id: str) -> typing.Optional[DataItem.DataItem]:
+        display_item = self.selected_display_item
+        data_item = display_item.data_item if display_item else None
+        if data_item:
+            return self._perform_processing(display_item, None, functools.partial(self.document_model.get_processing_new, processing_id))
+        return None
+
     def __change_to_previous_workspace(self):
         if self.workspace_controller:
             self.workspace_controller.change_to_previous_workspace()
@@ -2259,7 +2512,7 @@ class DocumentController(Window.Window):
 
     class InsertDataItemsCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: "DocumentController", data_items: typing.Sequence[DataItem.DataItem], index: int, display_panel: DisplayPanel.DisplayPanel=None):
+        def __init__(self, document_controller: "DocumentController", data_items: typing.Sequence[DataItem.DataItem], index: int, display_panel: DisplayPanel.DisplayPanel=None, *, project: Project.Project = None):
             super().__init__(_("Insert Data Items"))
             self.__document_controller = document_controller
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
@@ -2268,7 +2521,8 @@ class DocumentController(Window.Window):
             self.__data_item_index = index
             self.__data_item_indexes = list()
             self.__display_panel = display_panel  # only used in perform
-            self.__undelete_logs = None
+            self.__project = project
+            self.__undelete_logs = list()
             self.initialize()
 
         def close(self):
@@ -2277,6 +2531,8 @@ class DocumentController(Window.Window):
             self.__new_workspace_layout = None
             self.__data_items = None
             self.__data_item_index = None
+            for undelete_log in self.__undelete_logs:
+                undelete_log.close()
             self.__undelete_logs = None
             super().close()
 
@@ -2284,10 +2540,10 @@ class DocumentController(Window.Window):
             document_model = self.__document_controller.document_model
             index = self.__data_item_index
             for data_item in self.__data_items:
-                if not document_model.get_data_item_by_uuid(data_item.uuid):
-                    document_model.insert_data_item(index, data_item)
-                    self.__data_item_indexes.append(index)
-                    index += 1
+                # insert will throw an exception if data item already exists in the project
+                document_model.insert_data_item(index, data_item, auto_display=True, project=self.__project)
+                self.__data_item_indexes.append(index)
+                index += 1
             if self.__display_panel and self.__data_items:
                 display_item = self.__document_controller.document_model.get_display_item_for_data_item(self.__data_items[-1])
                 if display_item:
@@ -2303,28 +2559,51 @@ class DocumentController(Window.Window):
         def _redo(self):
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
+                undelete_log.close()
+            self.__undelete_logs.clear()
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
         def _undo(self):
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__undelete_logs = list()
             document_model = self.__document_controller.document_model
             data_items = [document_model.data_items[index] for index in self.__data_item_indexes]
             for data_item in data_items:
                 if data_item in document_model.data_items:
-                    self.__undelete_logs.append(document_model.remove_data_item(data_item, safe=True))
+                    self.__undelete_logs.append(document_model.remove_data_item_with_log(data_item, safe=True))
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+
+    def receive_project_files(self, file_paths: typing.Sequence[pathlib.Path], project: Project.Project, index: int = -1, threaded: bool = True) -> None:
+        def receive_files_complete(received_data_items):
+            def select_library_all():
+                self.select_data_items_in_data_panel([received_data_items[0]])
+
+            if len(received_data_items) > 0:
+                self.queue_task(select_library_all)
+
+        self.__receive_files(file_paths, index=index, threaded=threaded, completion_fn=receive_files_complete, project=project)
 
     # receive files into the document model. data_group and index can optionally
     # be specified. if data_group is specified, the item is added to an arbitrary
     # position in the document model (the end) and at the group at the position
     # specified by the index. if the data group is not specified, the item is added
     # at the index within the document model.
-    def receive_files(self, file_paths, data_group=None, index=-1, threaded=True, completion_fn=None, display_panel: DisplayPanel.DisplayPanel=None):
+    def receive_files(self, files: typing.Sequence[str], data_group=None, index=-1, threaded=True, completion_fn=None,
+                      display_panel: DisplayPanel.DisplayPanel = None, project: Project.Project = None) -> typing.Optional[
+        typing.List[DataItem.DataItem]]:
+        file_paths = [pathlib.Path(file_path) for file_path in files]
+        return self.__receive_files(file_paths, data_group, index, threaded, completion_fn, display_panel, project=project)
+
+    def __receive_files(self, file_paths: typing.Sequence[pathlib.Path],
+                        data_group=None,
+                        index=-1,
+                        threaded=True,
+                        completion_fn=None,
+                        display_panel: DisplayPanel.DisplayPanel = None, *,
+                        project: Project.Project = None) -> typing.Optional[typing.List[DataItem.DataItem]]:
         assert index is not None
 
         # this function will be called on a thread to receive files in the background.
-        def receive_files_on_thread(file_paths, data_group, index, completion_fn):
+        def receive_files_on_thread(file_paths: typing.Sequence[pathlib.Path], data_group: typing.Optional[DataGroup.DataGroup], index: int, completion_fn) -> typing.List[DataItem.DataItem]:
 
             received_data_items = list()
 
@@ -2334,16 +2613,16 @@ class DocumentController(Window.Window):
 
                 for file_index, file_path in enumerate(file_paths):
                     data = task_data.setdefault("data", list())
-                    root_path, file_name = os.path.split(file_path)
+                    file_name = file_path.name
                     task_data_entry = [str(file_index + 1), file_name]
                     data.append(task_data_entry)
                     task.update_progress(_("Importing item {}.").format(file_index + 1), (file_index + 1, len(file_paths)), task_data)
                     try:
-                        data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path)
+                        data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, str(file_path))
                         if data_items:
                             received_data_items.extend(data_items)
                     except Exception as e:
-                        logging.debug("Could not read image %s / %s", file_path, str(e))
+                        logging.debug(f"Could not read image {file_path} / {e}")
                         traceback.print_exc()
                         traceback.print_stack()
 
@@ -2361,7 +2640,7 @@ class DocumentController(Window.Window):
                 self.push_undo_command(command)
             else:
                 index = index if index >= 0 else len(self.document_model.data_items)
-                command = DocumentController.InsertDataItemsCommand(self, data_items, index, display_panel)
+                command = DocumentController.InsertDataItemsCommand(self, data_items, index, display_panel, project=project)
                 command.perform()
                 self.push_undo_command(command)
             if callable(completion_fn):

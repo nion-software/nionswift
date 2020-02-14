@@ -3,6 +3,7 @@ import copy
 import datetime
 import gettext
 import logging
+import typing
 import uuid
 
 from nion.swift.model import Utility
@@ -28,6 +29,12 @@ def migrate_to_latest(reader_info_list, library_updates) -> None:
     # TODO: file format. Rename workspaces to workspace_layouts.
     # TODO: store session metadata as regular metadata
     # TODO: consolidate specifier fields in computation variable into a single dict (specifier, secondary_specifier, property_name)
+    # TODO: rename source_uuid and others to source_specifier
+
+
+def migrate_library_to_latest(library_properties: typing.Dict) -> None:
+    migrate_library_to_v2(library_properties)
+    migrate_library_to_v3(library_properties)
 
 
 def transform_to_latest(properties):
@@ -478,7 +485,8 @@ def migrate_to_v9(reader_info_list):
                                     var["value"] = operation_dict["values"].get(var_name, var.get("value"))
                                     variables_list.append(var)
                             computation_dict["variables"] = variables_list
-                            computation_dict["original_expression"] = info[operation_id].expression.format(**kws)
+                            if info[operation_id].expression:
+                                computation_dict["original_expression"] = info[operation_id].expression.format(**kws)
                             data_source_dict["computation"] = computation_dict
                 properties["version"] = 9
                 logging.getLogger("migration").debug("Updated {} to {} (operation to computation)".format(storage_handler.reference, properties["version"]))
@@ -737,3 +745,91 @@ def migrate_to_v2(reader_info_list):
             import traceback
             traceback.print_exc()
             traceback.print_stack()
+
+
+def migrate_library_to_v2(library_properties):
+    if library_properties.get("version", 0) < 2:
+        for data_group_properties in library_properties.get("data_groups", list()):
+            data_group_properties.pop("data_groups")
+            display_item_references = data_group_properties.setdefault("display_item_references", list())
+            data_item_uuid_strs = data_group_properties.pop("data_item_uuids", list())
+            for data_item_uuid_str in data_item_uuid_strs:
+                for display_item_properties in library_properties.get("display_items", list()):
+                    data_item_references = [d.get("data_item_reference", None) for d in
+                                            display_item_properties.get("display_data_channels", list())]
+                    if data_item_uuid_str in data_item_references:
+                        display_item_references.append(display_item_properties["uuid"])
+        data_item_uuid_to_display_item_uuid_map = dict()
+        data_item_uuid_to_display_item_dict_map = dict()
+        display_to_display_item_map = dict()
+        display_to_display_data_channel_map = dict()
+        for display_item_properties in library_properties.get("display_items", list()):
+            display_to_display_item_map[display_item_properties["display"]["uuid"]] = display_item_properties["uuid"]
+            display_to_display_data_channel_map[display_item_properties["display"]["uuid"]] = \
+            display_item_properties["display_data_channels"][0]["uuid"]
+            data_item_references = [d.get("data_item_reference", None) for d in
+                                    display_item_properties.get("display_data_channels", list())]
+            for data_item_uuid_str in data_item_references:
+                data_item_uuid_to_display_item_uuid_map.setdefault(data_item_uuid_str, display_item_properties["uuid"])
+                data_item_uuid_to_display_item_dict_map.setdefault(data_item_uuid_str, display_item_properties)
+            display_item_properties.pop("display", None)
+        for workspace_properties in library_properties.get("workspaces", list()):
+            def replace1(d):
+                if "children" in d:
+                    for dd in d["children"]:
+                        replace1(dd)
+                if "data_item_uuid" in d:
+                    data_item_uuid_str = d.pop("data_item_uuid")
+                    display_item_uuid_str = data_item_uuid_to_display_item_uuid_map.get(data_item_uuid_str)
+                    if display_item_uuid_str:
+                        d["display_item_uuid"] = display_item_uuid_str
+
+            replace1(workspace_properties["layout"])
+        for connection_dict in library_properties.get("connections", list()):
+            source_uuid_str = connection_dict["source_uuid"]
+            if connection_dict["type"] == "interval-list-connection":
+                connection_dict["source_uuid"] = display_to_display_item_map.get(source_uuid_str, None)
+            if connection_dict["type"] == "property-connection" and connection_dict[
+                "source_property"] == "slice_interval":
+                connection_dict["source_uuid"] = display_to_display_data_channel_map.get(source_uuid_str, None)
+
+        def fix_specifier(specifier_dict):
+            if specifier_dict.get("type") in (
+            "data_item", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
+                if specifier_dict.get("uuid") in data_item_uuid_to_display_item_dict_map:
+                    specifier_dict["uuid"] = \
+                    data_item_uuid_to_display_item_dict_map[specifier_dict["uuid"]]["display_data_channels"][0]["uuid"]
+                else:
+                    specifier_dict.pop("uuid", None)
+            if specifier_dict.get("type") == "data_item":
+                specifier_dict["type"] = "data_source"
+            if specifier_dict.get("type") == "data_item_object":
+                specifier_dict["type"] = "data_item"
+            if specifier_dict.get("type") == "region":
+                specifier_dict["type"] = "graphic"
+
+        for computation_dict in library_properties.get("computations", list()):
+            for variable_dict in computation_dict.get("variables", list()):
+                if "specifier" in variable_dict:
+                    specifier_dict = variable_dict["specifier"]
+                    if specifier_dict is not None:
+                        fix_specifier(specifier_dict)
+                if "secondary_specifier" in variable_dict:
+                    specifier_dict = variable_dict["secondary_specifier"]
+                    if specifier_dict is not None:
+                        fix_specifier(specifier_dict)
+            for result_dict in computation_dict.get("results", list()):
+                if "specifier" in result_dict:
+                    fix_specifier(result_dict["specifier"])
+        library_properties["version"] = 2
+        logging.getLogger("migration").debug("Updated 1 to 2 (display items)")
+
+def migrate_library_to_v3(library_properties):
+    if library_properties.get("version", 0) == 2:
+        library_properties.pop("workspaces", None)
+        library_properties.pop("data_groups", None)
+        library_properties.pop("workspace_uuid", None)
+        library_properties.pop("data_item_references", None)
+        library_properties.pop("data_item_variables", None)
+        library_properties["version"] = 3
+        logging.getLogger("migration").debug("Updated 2 to 3 (profiles)")

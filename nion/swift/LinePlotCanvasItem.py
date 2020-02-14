@@ -1,11 +1,9 @@
 # standard libraries
 import collections
 import copy
-import json
 import math
 import threading
 import typing
-import uuid
 
 # third party libraries
 import numpy
@@ -17,6 +15,8 @@ from nion.data import Image
 from nion.swift import LineGraphCanvasItem
 from nion.swift import MimeTypes
 from nion.swift import Undo
+from nion.swift.model import DisplayItem
+from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
@@ -79,7 +79,7 @@ class LinePlotCanvasItemDelegate:
 
     def nudge_slice(self, delta) -> None: ...
 
-    def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers) -> None: ...
+    def adjust_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers) -> None: ...
 
     def show_display_context_menu(self, gx, gy) -> bool: ...
 
@@ -89,7 +89,9 @@ class LinePlotCanvasItemDelegate:
     @tool_mode.setter
     def tool_mode(self, value: str) -> None: ...
 
-    def create_move_display_layer_command(self, src_id: uuid.UUID, src_index: int, target_index: int) -> Undo.UndoableCommand: ...
+    def create_move_display_layer_command(self, display_item: DisplayItem.DisplayItem, src_index: int, target_index: int) -> Undo.UndoableCommand: ...
+
+    def get_document_model(self) -> DocumentModel.DocumentModel: ...
 
 
 class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
@@ -334,7 +336,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__last_xdata_list = copy.copy(self.__xdata_list)
         super().update()
 
-    def update_graphics(self, graphics, graphic_selection, display_calibration_info):
+    def update_graphics_coordinate_system(self, graphics, graphic_selection, display_calibration_info):
         dimensional_scales = display_calibration_info.displayed_dimensional_scales
 
         self.__graphics = copy.copy(graphics)
@@ -877,7 +879,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__update_cursor_info()
             if self.__graphic_drag_items:
                 widget_mapping = self.__get_mouse_mapping()
-                self.delegate.update_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
+                self.delegate.adjust_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
                                               self.__graphic_part_data, self.__graphic_drag_start_pos, pos, modifiers)
                 self.__graphic_drag_changed = True
                 self.__line_graph_regions_canvas_item.update()
@@ -994,13 +996,12 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         if not mime_data.has_format(MimeTypes.LAYER_MIME_TYPE):
             return "ignore"
 
-        legend_data = json.loads(mime_data.data_as_string(MimeTypes.LAYER_MIME_TYPE))
-        source_display_item_uuid = uuid.UUID(legend_data["display_item"])
+        legend_data, source_display_item = MimeTypes.mime_data_get_layer(mime_data, self.delegate.get_document_model())
 
         from_index = legend_data["index"]
 
         # if we aren't the source item, move the display layer between display items
-        command = self.delegate.create_move_display_layer_command(source_display_item_uuid, from_index, len(self.__display_layers))
+        command = self.delegate.create_move_display_layer_command(source_display_item, from_index, len(self.__display_layers))
 
         # TODO: perform only if the display channel doesn't exist in the target
         command.perform()

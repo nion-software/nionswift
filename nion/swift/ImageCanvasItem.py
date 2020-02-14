@@ -20,7 +20,7 @@ from nion.utils import Geometry
 
 class ImageCanvasItemMapping:
 
-    def __init__(self, data_shape, canvas_origin, canvas_size):
+    def __init__(self, data_shape, canvas_rect=None, calibrations=None):
         assert data_shape is None or len(data_shape) == 2
         self.data_shape = data_shape
         # double check dimensions are not zero
@@ -30,9 +30,9 @@ class ImageCanvasItemMapping:
                     self.data_shape = None
         # calculate transformed image rect
         self.canvas_rect = None
-        if self.data_shape:
-            rect = (canvas_origin, canvas_size)
-            self.canvas_rect = Geometry.fit_to_size(rect, self.data_shape)
+        if self.data_shape and canvas_rect:
+            self.canvas_rect = Geometry.fit_to_size(canvas_rect, self.data_shape)
+        self.calibrations = calibrations
 
     def map_point_image_norm_to_widget(self, p):
         p = Geometry.FloatPoint.make(p)
@@ -43,22 +43,22 @@ class ImageCanvasItemMapping:
     def map_size_image_norm_to_widget(self, s):
         ms = self.map_point_image_norm_to_widget(s)
         ms0 = self.map_point_image_norm_to_widget((0, 0))
-        return ms - ms0
+        return Geometry.FloatSize.make(ms - ms0)
 
     def map_size_image_to_image_norm(self, s):
         ms = self.map_point_image_to_image_norm(s)
         ms0 = self.map_point_image_to_image_norm((0, 0))
-        return ms - ms0
+        return Geometry.FloatSize.make(ms - ms0)
 
     def map_size_image_to_widget(self, s):
         ms = self.map_point_image_to_widget(s)
         ms0 = self.map_point_image_to_widget((0, 0))
-        return ms - ms0
+        return Geometry.FloatSize.make(ms - ms0)
 
     def map_size_widget_to_image_norm(self, s):
         ms = self.map_point_widget_to_image_norm(s)
         ms0 = self.map_point_widget_to_image_norm((0, 0))
-        return ms - ms0
+        return Geometry.FloatSize.make(ms - ms0)
 
     def map_point_widget_to_image_norm(self, p):
         if self.data_shape:
@@ -99,6 +99,25 @@ class ImageCanvasItemMapping:
             return Geometry.FloatPoint(y=p.y * self.canvas_rect.height / self.data_shape[0] + self.canvas_rect.top, x=p.x * self.canvas_rect.width / self.data_shape[1] + self.canvas_rect.left)
         return None
 
+    @property
+    def calibrated_origin_image(self) -> typing.Optional[Geometry.FloatPoint]:
+        if self.calibrations:
+            return Geometry.FloatPoint.make([calibration.convert_from_calibrated_value(0.0) for calibration in self.calibrations])
+        return None
+
+    @property
+    def calibrated_origin_image_norm(self) -> typing.Optional[Geometry.FloatPoint]:
+        if self.calibrations:
+            return self.map_point_image_to_image_norm(self.calibrated_origin_image)
+        return None
+
+    @property
+    def calibrated_origin_widget(self) -> typing.Optional[Geometry.FloatPoint]:
+        if self.calibrations:
+            return self.map_point_image_to_widget(self.calibrated_origin_image)
+        return None
+
+
 
 class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
     """A canvas item to paint the graphic items on the image.
@@ -107,14 +126,16 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
     """
 
     def __init__(self, get_font_metrics_fn):
-        super(GraphicsCanvasItem, self).__init__()
+        super().__init__()
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.__displayed_shape = None
         self.__graphics = None
         self.__graphics_for_compare = list()
         self.__graphic_selection = None
+        self.__coordinate_system = None
 
-    def update_graphics(self, displayed_shape, graphics, graphic_selection):
+    def update_coordinate_system(self, displayed_shape, coordinate_system, graphics, graphic_selection):
+        self.__coordinate_system = coordinate_system
         if displayed_shape is None or len(displayed_shape) != 2:
             displayed_shape = None
             graphics = None
@@ -137,7 +158,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def _repaint(self, drawing_context):
         if self.__graphics:
-            widget_mapping = ImageCanvasItemMapping(self.__displayed_shape, (0, 0), self.canvas_size)
+            widget_mapping = ImageCanvasItemMapping(self.__displayed_shape, self.canvas_bounds, self.__coordinate_system)
             with drawing_context.saver():
                 for graphic_index, graphic in enumerate(self.__graphics):
                     if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
@@ -228,7 +249,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             scale_marker_width = 120
             scale_marker_height = 6
             data_shape = self.__data_shape
-            widget_mapping = ImageCanvasItemMapping(data_shape, image_canvas_origin, image_canvas_size)
+            widget_mapping = ImageCanvasItemMapping(data_shape, Geometry.FloatRect(origin=image_canvas_origin, size=image_canvas_size))
             if data_shape[0] > 1.0 and data_shape[1] > 0.0:
                 screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / data_shape[0]
                 if screen_pixel_per_image_pixel > 0:
@@ -294,7 +315,7 @@ class ImageCanvasItemDelegate:
 
     def drag_graphics(self, graphics) -> None: ...
 
-    def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers) -> None: ...
+    def adjust_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers) -> None: ...
 
     def image_clicked(self, image_position, modifiers) -> bool: ...
 
@@ -321,6 +342,8 @@ class ImageCanvasItemDelegate:
     def create_wedge(self, angle): ...
 
     def create_ring(self, radius): ...
+
+    def create_lattice(self, radius): ...
 
     @property
     def tool_mode(self) -> str: return str()
@@ -375,7 +398,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         set_selection(index)
         clear_selection()
         nudge_selected_graphics(mapping, delta)
-        update_graphics(widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers)
+        adjust_graphics(widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers)
         tool_mode (property)
         show_display_context_menu(gx, gy)
         begin_mouse_tracking(self)
@@ -438,6 +461,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__display_values_dirty = False
         self.__display_values = None
         self.__data_shape = None
+        self.__coordinate_system = None
         self.__graphics = list()
         self.__graphic_selection = None
 
@@ -533,6 +557,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                     self.__last_display_properties = copy.deepcopy(display_properties)
                     self.__last_display_calibration_info = copy.deepcopy(display_calibration_info)
                     self.__data_shape = data_shape
+                    self.__coordinate_system = display_calibration_info.datum_calibrations
                     if self.__display_frame_rate_id:
                         frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
                         if frame_index != self.__display_frame_rate_last_index:
@@ -574,10 +599,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
                 self.__info_overlay_canvas_item.set_data_info(data_shape, dimensional_calibration, metadata)
 
-    def update_graphics(self, graphics, graphic_selection, display_calibration_info) -> None:
+    def update_graphics_coordinate_system(self, graphics, graphic_selection, display_calibration_info) -> None:
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
-        self.__graphics_canvas_item.update_graphics(display_calibration_info.display_data_shape, self.__graphics, self.__graphic_selection)
+        self.__graphics_canvas_item.update_coordinate_system(display_calibration_info.display_data_shape, display_calibration_info.datum_calibrations, self.__graphics, self.__graphic_selection)
 
     def handle_auto_display(self) -> bool:
         # enter key has been pressed. calculate best display limits and set them.
@@ -597,7 +622,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def __update_image_canvas_position(self, widget_delta):
         if self.__data_shape is not None:
             # create a widget mapping to get from image norm to widget coordinates and back
-            widget_mapping = ImageCanvasItemMapping(self.__data_shape, (0, 0), self.__composite_canvas_item.canvas_size)
+            widget_mapping = ImageCanvasItemMapping(self.__data_shape, self.__composite_canvas_item.canvas_bounds)
             # figure out what composite canvas point lies at the center of the scroll area.
             last_widget_center = widget_mapping.map_point_image_norm_to_widget(self.__image_position)
             # determine what new point will lie at the center of the scroll area by adding delta
@@ -983,9 +1008,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         if self.delegate.tool_mode == "pointer":
             def get_pointer_tool_shape():
                 for graphic in self.__graphics:
-                    if isinstance(graphic, Graphics.RectangleTypeGraphic):
+                    if isinstance(graphic, (Graphics.RectangleTypeGraphic, Graphics.SpotGraphic)):
                         part, specific = graphic.test(self.__get_mouse_mapping(), self.__get_font_metrics_fn, Geometry.IntPoint(x=x, y=y), False)
-                        if part == "rotate":
+                        if part and part.endswith("rotate"):
                             return "cross"
                 return "arrow"
             self.cursor_shape = get_pointer_tool_shape()
@@ -1019,7 +1044,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                     self.delegate.drag_graphics(self.__graphic_drag_items)
                     return True
             widget_mapping = self.__get_mouse_mapping()
-            self.delegate.update_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
+            self.delegate.adjust_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
                                           self.__graphic_part_data, self.__graphic_drag_start_pos,
                                           Geometry.FloatPoint(y=y, x=x), modifiers)
             self.__graphic_drag_changed = True
@@ -1132,7 +1157,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         return False
 
     def __get_mouse_mapping(self):
-        return ImageCanvasItemMapping(self.__data_shape, self.__composite_canvas_item.canvas_origin, self.__composite_canvas_item.canvas_size)
+        return ImageCanvasItemMapping(self.__data_shape, self.__composite_canvas_item.canvas_rect, self.__coordinate_system)
 
     # map from widget coordinates to image coordinates
     def map_widget_to_image(self, p):

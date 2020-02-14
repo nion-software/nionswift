@@ -12,6 +12,7 @@ from nion.swift import DocumentController
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import Persistence
 from nion.ui import TestUI
 
 
@@ -46,7 +47,8 @@ class TestDataGroupClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_group.append_display_item(display_item)
             data_group_copy = copy.deepcopy(data_group)
-            self.assertEqual(display_item.uuid, data_group_copy.display_item_references[0])
+            display_item_specifier = Persistence.PersistentObjectSpecifier.read(data_group_copy.display_item_specifiers[0])
+            self.assertEqual(display_item, document_model.resolve_item_specifier(display_item_specifier))
 
     def test_counted_display_items(self):
         # TODO: split test_counted_display_items into separate tests
@@ -408,7 +410,11 @@ class TestDataGroupClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.random.randn(4, 4))
             document_model.append_data_item(data_item2)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
-            command = DocumentController.DocumentController.InsertDataGroupDataItemsCommand(document_controller, data_group, [data_item2, data_item4], 1)
+            # hack until InsertDataGroupDisplayItemCommand handles multiple display items, call it twice
+            command = DocumentController.DocumentController.InsertDataGroupDisplayItemCommand(document_controller.document_model, data_group, 1, display_item2)
+            command.perform()
+            document_controller.push_undo_command(command)
+            command = DocumentController.DocumentController.InsertDataGroupDisplayItemCommand(document_controller.document_model, data_group, 2, display_item4)
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(4, len(document_model.data_items))
@@ -417,11 +423,13 @@ class TestDataGroupClass(unittest.TestCase):
             self.assertListEqual([display_item1, display_item2, display_item4, display_item3], list(data_group.display_items))
             # undo and check
             document_controller.handle_undo()
+            document_controller.handle_undo()
             self.assertEqual(4, len(document_model.data_items))
             self.assertEqual(2, len(data_group.display_items))
             self.assertListEqual([data_item1, data_item3, data_item4, data_item2], list(document_model.data_items))
             self.assertListEqual([display_item1, display_item3], list(data_group.display_items))
             # redo and check
+            document_controller.handle_redo()
             document_controller.handle_redo()
             data_item2 = document_model.data_items[3]
             self.assertEqual(4, len(document_model.data_items))

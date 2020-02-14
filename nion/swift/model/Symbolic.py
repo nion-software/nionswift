@@ -9,7 +9,9 @@
 
 # standard libraries
 import ast
+import contextlib
 import copy
+import functools
 import threading
 import time
 import typing
@@ -17,13 +19,25 @@ import uuid
 import weakref
 
 # third party libraries
+import numpy
 
 # local libraries
+from nion.data import Core
+from nion.data import DataAndMetadata
+from nion.swift.model import Changes
+from nion.swift.model import DataItem
+from nion.swift.model import DataStructure
+from nion.swift.model import DisplayItem
+from nion.swift.model import Graphics
+from nion.swift.model import Persistence
 from nion.utils import Converter
 from nion.utils import Event
+from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Observable
-from nion.utils import Persistence
+
+if typing.TYPE_CHECKING:
+    from nion.swift.model import Project
 
 
 class ComputationVariableType:
@@ -65,6 +79,7 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         for needs_rebind_event_listener in self.__needs_rebind_event_listeners:
             needs_rebind_event_listener.close()
         self.__needs_rebind_event_listeners = None
+        super().close()
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -75,19 +90,28 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         # self.specifier = None
         self.bound_item = None
 
-    def bind(self, resolve_object_specifier):
+    def bind(self, resolve_object_specifier_fn):
         if self.specifier:
-            self.bound_item = resolve_object_specifier(self.specifier)
+            self.bound_item = resolve_object_specifier_fn(self.specifier)
             if self.bound_item:
                 self.__needs_rebind_event_listeners.append(self.bound_item.needs_rebind_event.listen(self.__unbind))
         elif self.specifiers is not None:
-            bound_items = [resolve_object_specifier(specifier) for specifier in self.specifiers]
+            bound_items = [resolve_object_specifier_fn(specifier) for specifier in self.specifiers]
             bound_items = [bound_item for bound_item in bound_items if bound_item is not None]
             for bound_item in bound_items:
                 self.__needs_rebind_event_listeners.append(bound_item.needs_rebind_event.listen(self.__unbind))
             self.bound_item = bound_items
         else:
             self.bound_item = None
+
+    @property
+    def output_items(self) -> typing.Set:
+        item = self.bound_item
+        if isinstance(item, list):
+            return {list_item.value for list_item in item}
+        elif item:
+            return {item.value}
+        return set()
 
 
 class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
@@ -114,7 +138,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
     Clients can also get/set the bound_item, which must be an object that provides a read-only value property and a
     changed_event.  This object can be used to watch for changes to the object portion of this object.
     """
-    def __init__(self, name: str=None, *, property_name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None, secondary_specifier: dict=None, objects: ListModel.ListModel=None):  # defaults are None for factory
+    def __init__(self, name: str=None, *, property_name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None, secondary_specifier: dict=None, items: typing.List["ComputationItem"]=None):  # defaults are None for factory
         super().__init__()
         self.define_type("variable")
         self.define_property("name", name, changed=self.__property_changed)
@@ -128,32 +152,15 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("secondary_specifier", secondary_specifier, changed=self.__property_changed)
         self.define_property("property_name", property_name, changed=self.__property_changed)
         self.define_property("control_type", control_type, changed=self.__property_changed)
-        self.define_property("object_specifiers", copy.deepcopy(objects.items) if objects else None, changed=self.__property_changed)
+        item_specifiers = [DataStructure.get_object_specifier(item.item, item.type, allow_partial=False) if item else None for item in items] if items is not None else None
+        self.define_property("object_specifiers", copy.deepcopy(item_specifiers) if item_specifiers is not None else None, changed=self.__property_changed)
         self.changed_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
         self.needs_rebind_event = Event.Event()  # an event to be fired when the computation needs to rebind
         self.needs_rebuild_event = Event.Event()  # an event to be fired when the UI needs a rebuild
-        self.__objects_model = objects
-        self.__objects_model_item_inserted_event_listener = None
-        self.__objects_model_item_removed_event_listener = None
-        if objects is not None:
-
-            def item_inserted(key, value, index):
-                self.needs_rebind_event.fire()
-                # self.changed_event.fire()  # implicit when setting object_specifiers
-                self.object_specifiers = copy.deepcopy(objects.items)
-
-            def item_removed(key, value, index):
-                self.needs_rebind_event.fire()
-                # self.changed_event.fire()  # implicit when setting object_specifiers
-                self.object_specifiers = copy.deepcopy(objects.items)
-
-            self.__objects_model_item_inserted_event_listener = self.__objects_model.item_inserted_event.listen(item_inserted)
-            self.__objects_model_item_removed_event_listener = self.__objects_model.item_removed_event.listen(item_removed)
-
-            for index, object in enumerate(objects.items):
-                item_inserted("items", object, index)
-
+        self.__bound_items_model = None
+        self.__bound_items_model_item_inserted_event_listener = None
+        self.__bound_items_model_item_removed_event_listener = None
         self.__bound_item = None
         self.__bound_item_changed_event_listener = None
         self.__bound_item_removed_event_listener = None
@@ -161,12 +168,13 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
 
     def close(self):
         # TODO: this is not called
-        if self.__objects_model_item_inserted_event_listener:
-            self.__objects_model_item_inserted_event_listener.close()
-            self.__objects_model_item_inserted_event_listener = None
-        if self.__objects_model_item_removed_event_listener:
-            self.__objects_model_item_removed_event_listener.close()
-            self.__objects_model_item_removed_event_listener = None
+        if self.__bound_items_model_item_inserted_event_listener:
+            self.__bound_items_model_item_inserted_event_listener.close()
+            self.__bound_items_model_item_inserted_event_listener = None
+        if self.__bound_items_model_item_removed_event_listener:
+            self.__bound_items_model_item_removed_event_listener.close()
+            self.__bound_items_model_item_removed_event_listener = None
+        super().close()
 
     def __repr__(self):
         return "{} ({} {} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self.specifier, self.secondary_specifier)
@@ -177,12 +185,47 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         value_type_property = self._get_persistent_property("value_type")
         value_type_property.read_from_dict(properties)
         super().read_from_dict(properties)
-        if self.object_specifiers:
-            self.__objects_model = ListModel.ListModel(items=self.object_specifiers)
 
     def write_to_dict(self) -> dict:
         # used for persistence. left here since read_from_dict is defined.
         return super().write_to_dict()
+
+    def connect_items(self, bound_items: typing.List) -> None:
+        self.disconnect_items()
+
+        bound_items_model = ListModel.ListModel(items=bound_items) if bound_items is not None else None
+        self.__bound_items_model = bound_items_model
+        self.__bound_items_model_item_inserted_event_listener = None
+        self.__bound_items_model_item_removed_event_listener = None
+        if bound_items_model is not None:
+
+            def item_inserted(key, value, index):
+                # self.changed_event.fire()  # implicit when setting object_specifiers
+                object_specifiers = self.object_specifiers
+                object_specifiers.insert(index, copy.deepcopy(value.specifier))
+                self.object_specifiers = object_specifiers
+                self.bound_item.item_inserted(index, self.__bound_items_model.items[index])
+                self.needs_rebind_event.fire()
+
+            def item_removed(key, value, index):
+                # self.changed_event.fire()  # implicit when setting object_specifiers
+                object_specifiers = self.object_specifiers
+                object_specifiers.pop(index)
+                self.object_specifiers = object_specifiers
+                self.bound_item.item_removed(index)
+                self.needs_rebind_event.fire()
+
+            self.__bound_items_model_item_inserted_event_listener = self.__bound_items_model.item_inserted_event.listen(item_inserted)
+            self.__bound_items_model_item_removed_event_listener = self.__bound_items_model.item_removed_event.listen(item_removed)
+
+    def disconnect_items(self) -> None:
+        if self.__bound_items_model:
+            self.__bound_items_model.close()
+            self.__bound_items_model = None
+            self.__bound_items_model_item_inserted_event_listener.close()
+            self.__bound_items_model_item_inserted_event_listener = None
+            self.__bound_items_model_item_removed_event_listener.close()
+            self.__bound_items_model_item_removed_event_listener = None
 
     def save_properties(self):
         # used for undo
@@ -236,27 +279,37 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             return self.specifier
 
     @property
-    def bound_variable(self):
+    def bound_variable(self) -> "BoundItemBase":
         """Return an object with a value property and a changed_event.
 
         The value property returns the value of the variable. The changed_event is fired
         whenever the value changes.
         """
-        class BoundVariable:
+
+        class BoundVariable(BoundItemBase):
             def __init__(self, variable):
+                super().__init__(None)
+                self.valid = True
                 self.__variable = variable
-                self.changed_event = Event.Event()
-                self.needs_rebind_event = Event.Event()
+
                 def property_changed(key):
                     if key == "value":
                         self.changed_event.fire()
+
                 self.__variable_property_changed_listener = variable.property_changed_event.listen(property_changed)
+
             @property
             def value(self):
                 return self.__variable.value
+
+            @property
+            def base_objects(self):
+                return set()
+
             def close(self):
                 self.__variable_property_changed_listener.close()
                 self.__variable_property_changed_listener = None
+                super().close()
 
         return BoundVariable(self)
 
@@ -281,24 +334,35 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         if self.__bound_item:
             self.__bound_item_changed_event_listener = self.__bound_item.changed_event.listen(self.changed_event.fire)
             self.__bound_item_removed_event_listener = self.__bound_item.needs_rebind_event.listen(self.needs_rebind_event.fire)
-            if hasattr(self.__bound_item, "child_removed_event"):
-                self.__bound_item_child_removed_event_listener = self.__bound_item.child_removed_event.listen(self.objects_model.remove_item)
 
     @property
-    def objects_model(self):
-        return self.__objects_model
+    def bound_items_model(self):
+        return self.__bound_items_model
+
+    @property
+    def input_items(self) -> typing.Set:
+        return self.bound_item.base_objects if self.bound_item else set()
+
+    @property
+    def direct_input_items(self) -> typing.Set:
+        return self.bound_item.base_objects if self.bound_item and not getattr(self.bound_item, "is_list", False) else set()
 
     def __property_changed(self, name, value):
+        # rebind first, so that property changed listeners get the right value
+        if name in ("specifier", "secondary_specifier"):
+            self.needs_rebind_event.fire()
+        # send the primary property changed event
         self.notify_property_changed(name)
+        # now send out dependent property changed events
         if name in ["name", "label"]:
             self.notify_property_changed("display_label")
         if name in ("specifier"):
             self.notify_property_changed("specifier_uuid_str")
-            self.needs_rebind_event.fire()
         if name in ("secondary_specifier"):
             self.notify_property_changed("secondary_specifier_uuid_str")
-            self.needs_rebind_event.fire()
+        # send out the changed event
         self.changed_event.fire()
+        # finally send out the rebuild event for the inspectors
         if name in ["value_type", "value_min", "value_max", "control_type"]:
             self.needs_rebuild_event.fire()
 
@@ -427,24 +491,508 @@ def result_factory(lookup_id):
     return ComputationOutput()
 
 
-class ComputationContext:
-    def __init__(self, computation, context):
-        self.__computation = weakref.ref(computation)
-        self.__context = context
+class BoundItemBase:
 
-    def resolve_object_specifier(self, object_specifier, secondary_specifier=None, property_name=None, objects_model=None):
-        """Resolve the object specifier.
+    def __init__(self, specifier):
+        self.specifier = specifier
+        self.changed_event = Event.Event()
+        self.needs_rebind_event = Event.Event()
+        self.property_changed_event = Event.Event()
+        self.valid = False
 
-        First lookup the object specifier in the enclosing computation. If it's not found,
-        then lookup in the computation's context. Otherwise it should be a value type variable.
-        In that case, return the bound variable.
-        """
-        variable = self.__computation().resolve_variable(object_specifier)
-        if not variable:
-            return self.__context.resolve_object_specifier(object_specifier, secondary_specifier, property_name, objects_model)
-        elif variable.specifier is None:
-            return variable.bound_variable
+    def close(self) -> None:
+        pass
+
+    @property
+    def value(self):
         return None
+
+    @property
+    def base_objects(self) -> typing.Set:
+        return set()
+
+
+class BoundData(BoundItemBase):
+
+    def __init__(self, project, specifier):
+        super().__init__(specifier)
+
+        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__data_changed_event_listener = None
+
+        def maintain_data_source():
+            if self.__data_changed_event_listener:
+                self.__data_changed_event_listener.close()
+                self.__data_changed_event_listener = None
+            object = self._object
+            if object:
+                self.__data_changed_event_listener = object.data_changed_event.listen(self.changed_event.fire)
+            self.valid = object is not None
+
+        def item_registered(item):
+            maintain_data_source()
+
+        def item_unregistered(item):
+            maintain_data_source()
+            self.needs_rebind_event.fire()
+
+        self.__item_proxy.on_item_registered = item_registered
+        self.__item_proxy.on_item_unregistered = item_unregistered
+
+        maintain_data_source()
+
+    def close(self):
+        if self.__data_changed_event_listener:
+            self.__data_changed_event_listener.close()
+            self.__data_changed_event_listener = None
+        self.__item_proxy.close()
+        self.__item_proxy = None
+        super().close()
+
+    @property
+    def base_objects(self):
+        return {self._object}
+
+    @property
+    def value(self):
+        return self._object.xdata
+
+    @property
+    def _object(self):
+        item = self.__item_proxy.item
+        if isinstance(item, DisplayItem.DisplayDataChannel):
+            item = item.data_item
+        return item
+
+
+class BoundDisplayDataChannelBase(BoundItemBase):
+
+    def __init__(self, project, specifier, secondary_specifier):
+        super().__init__(specifier)
+
+        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__graphic_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(secondary_specifier))
+        self.__display_values_changed_event_listener = None
+
+        def maintain_data_source():
+            if self.__display_values_changed_event_listener:
+                self.__display_values_changed_event_listener.close()
+                self.__display_values_changed_event_listener = None
+            display_data_channel = self._display_data_channel
+            if display_data_channel:
+                self.__display_values_changed_event_listener = display_data_channel.add_calculated_display_values_listener(self.changed_event.fire, send=False)
+            self.valid = self.__display_values_changed_event_listener is not None
+
+        def item_registered(item):
+            maintain_data_source()
+
+        def item_unregistered(item):
+            maintain_data_source()
+            self.needs_rebind_event.fire()
+
+        self.__item_proxy.on_item_registered = item_registered
+        self.__item_proxy.on_item_unregistered = item_unregistered
+
+        self.__graphic_proxy.on_item_registered = item_registered
+        self.__graphic_proxy.on_item_unregistered = item_unregistered
+
+        maintain_data_source()
+
+    def close(self):
+        if self.__display_values_changed_event_listener:
+            self.__display_values_changed_event_listener.close()
+            self.__display_values_changed_event_listener = None
+        self.__item_proxy.close()
+        self.__item_proxy = None
+        self.__graphic_proxy.close()
+        self.__graphic_proxy = None
+        super().close()
+
+    @property
+    def base_objects(self):
+        objects = {self._display_data_channel.container, self._display_data_channel.data_item}
+        if self._graphic:
+            objects.add(self._graphic)
+        return objects
+
+    @property
+    def _display_data_channel(self):
+        return self.__item_proxy.item
+
+    @property
+    def _graphic(self):
+        return self.__graphic_proxy.item
+
+
+class BoundDataSource(BoundItemBase):
+
+    def __init__(self, project, specifier, secondary_specifier):
+        super().__init__(specifier)
+
+        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__graphic_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(secondary_specifier))
+        self.__data_source = None
+
+        def maintain_data_source():
+            if self.__data_source:
+                self.__data_source.close()
+                self.__data_source = None
+            display_data_channel = self.__item_proxy.item
+            if display_data_channel and display_data_channel.data_item:
+                self.__data_source = DataItem.MonitoredDataSource(display_data_channel, self.__graphic_proxy.item, self.changed_event)
+            self.valid = self.__data_source is not None
+
+        def item_registered(item):
+            maintain_data_source()
+
+        def item_unregistered(item):
+            maintain_data_source()
+            self.needs_rebind_event.fire()
+
+        self.__item_proxy.on_item_registered = item_registered
+        self.__item_proxy.on_item_unregistered = item_unregistered
+
+        self.__graphic_proxy.on_item_registered = item_registered
+        self.__graphic_proxy.on_item_unregistered = item_unregistered
+
+        maintain_data_source()
+
+    def close(self):
+        if self.__data_source:
+            self.__data_source.close()
+            self.__data_source = None
+        self.__item_proxy.close()
+        self.__item_proxy = None
+        self.__graphic_proxy.close()
+        self.__graphic_proxy = None
+        super().close()
+
+    @property
+    def value(self):
+        return self.__data_source
+
+    @property
+    def base_objects(self):
+        objects = {self.__data_source.data_item}
+        if self.__data_source.graphic:
+            objects.add(self.__data_source.graphic)
+        return objects
+
+
+class BoundDataItem(BoundItemBase):
+
+    def __init__(self, project, specifier):
+        super().__init__(specifier)
+
+        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__data_item_changed_event_listener = None
+
+        def item_registered(item):
+            self.__data_item_changed_event_listener = item.data_item_changed_event.listen(self.changed_event.fire)
+
+        def item_unregistered(item):
+            self.__data_item_changed_event_listener.close()
+            self.__data_item_changed_event_listener = None
+            self.needs_rebind_event.fire()
+
+        self.__item_proxy.on_item_registered = item_registered
+        self.__item_proxy.on_item_unregistered = item_unregistered
+
+        if self.__item_proxy.item:
+            item_registered(self.__item_proxy.item)
+            self.valid = True
+        else:
+            self.valid = False
+
+    def close(self):
+        if self.__data_item_changed_event_listener:
+            self.__data_item_changed_event_listener.close()
+            self.__data_item_changed_event_listener = None
+        self.__item_proxy.close()
+        self.__item_proxy = None
+        super().close()
+
+    @property
+    def value(self):
+        return self.__item_proxy.item
+
+    @property
+    def base_objects(self):
+        return {self.value}
+
+
+class BoundDisplayData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        return self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata if self._display_data_channel else None
+
+
+class BoundCroppedData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        xdata = self._display_data_channel.data_item.xdata
+        graphic = self._graphic
+        if graphic:
+            if hasattr(graphic, "bounds"):
+                return Core.function_crop(xdata, graphic.bounds)
+            if hasattr(graphic, "interval"):
+                return Core.function_crop_interval(xdata, graphic.interval)
+        return xdata
+
+
+class BoundCroppedDisplayData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        xdata = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata
+        graphic = self._graphic
+        if graphic:
+            if hasattr(graphic, "bounds"):
+                return Core.function_crop(xdata, graphic.bounds)
+            if hasattr(graphic, "interval"):
+                return Core.function_crop_interval(xdata, graphic.interval)
+        return xdata
+
+
+class BoundFilterData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        display_item = self._display_data_channel.container
+        # no display item is a special case for cascade removing graphics from computations. ugh.
+        # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
+        if display_item:
+            shape = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
+            calibrated_origin = Geometry.FloatPoint(y=display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                    x=display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+            mask = DataItem.create_mask_data(display_item.graphics, shape, calibrated_origin)
+            return DataAndMetadata.DataAndMetadata.from_data(mask)
+        return None
+
+    @property
+    def base_objects(self):
+        data_item = self._display_data_channel.data_item
+        display_item = self._display_data_channel.container
+        objects = {data_item, display_item}
+        graphics = display_item.graphics if display_item else list()
+        for graphic in graphics:
+            if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                objects.add(graphic)
+        return objects
+
+
+class BoundFilteredData(BoundDisplayDataChannelBase):
+
+    @property
+    def value(self):
+        display_item = self._display_data_channel.container
+        # no display item is a special case for cascade removing graphics from computations. ugh.
+        # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
+        if display_item:
+            xdata = self._display_data_channel.data_item.xdata
+            if xdata.is_data_2d and xdata.is_data_complex_type:
+                shape = xdata.data_shape
+                calibrated_origin = Geometry.FloatPoint(y=display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                        x=display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+                mask = DataItem.create_mask_data(display_item.graphics, shape, calibrated_origin)
+                return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
+            return xdata
+        return None
+
+    @property
+    def base_objects(self):
+        data_item = self._display_data_channel.data_item
+        display_item = self._display_data_channel.container
+        objects = {data_item, display_item}
+        graphics = display_item.graphics if display_item else list()
+        for graphic in graphics:
+            if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                objects.add(graphic)
+        return objects
+
+
+class BoundDataStructure(BoundItemBase):
+
+    def __init__(self, project, specifier, property_name: str):
+        super().__init__(specifier)
+
+        self.__property_name = property_name
+
+        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__changed_listener = None
+
+        def data_structure_changed(property_name):
+            self.changed_event.fire()
+            if property_name == self.__property_name:
+                self.property_changed_event.fire(property_name)
+
+        def item_registered(item):
+            self.__changed_listener = item.data_structure_changed_event.listen(data_structure_changed)
+
+        def item_unregistered(item):
+            self.__changed_listener.close()
+            self.__changed_listener = None
+            self.needs_rebind_event.fire()
+
+        self.__item_proxy.on_item_registered = item_registered
+        self.__item_proxy.on_item_unregistered = item_unregistered
+
+        if self.__item_proxy.item:
+            item_registered(self.__item_proxy.item)
+            self.valid = True
+        else:
+            self.valid = False
+
+    def close(self):
+        if self.__changed_listener:
+            self.__changed_listener.close()
+            self.__changed_listener = None
+        self.__item_proxy.close()
+        self.__item_proxy = None
+        super().close()
+
+    @property
+    def value(self):
+        if self.__property_name:
+            return self.__object.get_property_value(self.__property_name)
+        return self.__object
+
+    @property
+    def base_objects(self):
+        return {self.__object}
+
+    @property
+    def __object(self):
+        return self.__item_proxy.item
+
+
+class BoundGraphic(BoundItemBase):
+
+    def __init__(self, project, specifier, property_name: str):
+        super().__init__(specifier)
+
+        self.__property_name = property_name
+
+        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__changed_listener = None
+
+        def property_changed(property_name):
+            self.changed_event.fire()
+            if property_name == self.__property_name:
+                self.property_changed_event.fire(property_name)
+
+        def item_registered(item):
+            self.__changed_listener = item.property_changed_event.listen(property_changed)
+
+        def item_unregistered(item):
+            self.__changed_listener.close()
+            self.__changed_listener = None
+            self.needs_rebind_event.fire()
+
+        self.__item_proxy.on_item_registered = item_registered
+        self.__item_proxy.on_item_unregistered = item_unregistered
+
+        if self.__item_proxy.item:
+            item_registered(self.__item_proxy.item)
+            self.valid = True
+        else:
+            self.valid = False
+
+    def close(self):
+        if self.__changed_listener:
+            self.__changed_listener.close()
+            self.__changed_listener = None
+        self.__item_proxy.close()
+        self.__item_proxy = None
+        super().close()
+
+    @property
+    def value(self):
+        if self.__property_name:
+            return getattr(self.__object, self.__property_name)
+        return self.__object
+
+    @property
+    def base_objects(self):
+        return {self.__object}
+
+    @property
+    def __object(self):
+        return self.__item_proxy.item
+
+
+class ComputationItem:
+    def __init__(self, *, item=None, type: str=None, secondary_item=None, items: typing.List["ComputationItem"] = None):
+        self.item = item
+        self.type = type
+        self.secondary_item = secondary_item
+        self.items = items
+
+
+def make_item(item, *, type: str=None, secondary_item=None) -> ComputationItem:
+    return ComputationItem(item=item, type=type, secondary_item=secondary_item)
+
+
+def make_item_list(items, *, type: str=None) -> ComputationItem:
+    items = [make_item(item, type=type) if not isinstance(item, ComputationItem) else item for item in items]
+    return ComputationItem(items=items)
+
+
+class BoundList:
+
+    def __init__(self, bound_items: typing.List):
+        self.__bound_items = list()
+        self.changed_event = Event.Event()
+        self.needs_rebind_event = Event.Event()
+        self.child_removed_event = Event.Event()
+        self.property_changed_event = Event.Event()
+        self.is_list = True
+        self.__changed_listeners = list()
+        self.__needs_rebind_listeners = list()
+        self.__resolved = True
+        for index, bound_item in enumerate(bound_items):
+            self.item_inserted(index, bound_item)
+
+    def close(self):
+        while len(self.__bound_items) > 0:
+            self.item_removed(0)
+        self.__bound_items = None
+        self.__resolved_items = None
+        self.__changed_listeners = None
+
+    @property
+    def value(self):
+        return [bound_item.value for bound_item in self.__bound_items] if self.__resolved else None
+
+    @property
+    def base_objects(self):
+        # return the base objects in a stable order
+        base_objects = list()
+        for bound_item in self.__bound_items:
+            if bound_item:
+                for base_object in bound_item.base_objects:
+                    if not base_object in base_objects:
+                        base_objects.append(base_object)
+        return base_objects
+
+    def item_inserted(self, index, bound_item):
+        self.__bound_items.insert(index, bound_item)
+        self.__changed_listeners.insert(index, bound_item.changed_event.listen(self.changed_event.fire) if bound_item else None)
+        self.__needs_rebind_listeners.insert(index, bound_item.needs_rebind_event.listen(functools.partial(self.child_removed_event.fire, index)) if bound_item else None)
+        self.__resolved = self.__resolved and bound_item is not None
+
+    def item_removed(self, index):
+        bound_item = self.__bound_items.pop(index)
+        if bound_item:
+            bound_item.close()
+        changed_listener = self.__changed_listeners.pop(index)
+        if changed_listener:
+            changed_listener.close()
+        needs_rebind_listener = self.__needs_rebind_listeners.pop(index)
+        if needs_rebind_listener:
+            needs_rebind_listener.close()
 
 
 class Computation(Observable.Observable, Persistence.PersistentObject):
@@ -474,20 +1022,16 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def __init__(self, expression: str=None):
         super().__init__()
-        self.__container_weak_ref = None
-        self.about_to_be_removed_event = Event.Event()
         self.about_to_cascade_delete_event = Event.Event()
-        self._about_to_be_removed = False
-        self._closed = False
         self.define_type("computation")
-        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
         self.define_property("original_expression", expression)
         self.define_property("error_text", hidden=True, changed=self.__error_changed)
         self.define_property("label", changed=self.__label_changed)
         self.define_property("processing_id")  # see note above
         self.define_relationship("variables", variable_factory)
         self.define_relationship("results", result_factory)
-        self.__source = None
+        self.__source_proxy = self.create_item_proxy()
         self.__variable_changed_event_listeners = dict()
         self.__variable_needs_rebind_event_listeners = dict()
         self.__result_needs_rebind_event_listeners = dict()
@@ -499,82 +1043,73 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.variable_removed_event = Event.Event()
         self.is_initial_computation_complete = threading.Event()  # helpful for waiting for initial computation
         self._evaluation_count_for_test = 0
-        self.target_output = None
         self._inputs = set()  # used by document model for tracking dependencies
         self._outputs = set()
+        self.pending_project = None  # used for new computations to tell them where they'll end up
 
-    def close(self):
-        assert self._about_to_be_removed
-        assert not self._closed
-        self._closed = True
-        self.__container_weak_ref = None
+    def close(self) -> None:
+        self.__source_proxy.close()
+        self.__source_proxy = None
+        super().close()
 
     @property
-    def container(self):
-        return self.__container_weak_ref()
+    def project(self) -> "Project.Project":
+        return typing.cast("Project.Project", self.container)
+
+    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+        return self.project.create_item_proxy(item=self)
+
+    @property
+    def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
+        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
 
     def prepare_cascade_delete(self) -> typing.List:
         cascade_items = list()
         self.about_to_cascade_delete_event.fire(cascade_items)
         return cascade_items
 
-    def about_to_be_inserted(self, container):
-        assert self.__container_weak_ref is None
-        self.__container_weak_ref = weakref.ref(container)
-
-    def about_to_be_removed(self):
-        # called before close and before item is removed from its container
-        self.about_to_be_removed_event.fire()
-        assert not self._about_to_be_removed
-        self._about_to_be_removed = True
-        self.__container_weak_ref = None
-
     def read_properties_from_dict(self, d):
-        if "source_uuid" in d:
-            self.source_uuid = uuid.UUID(d["source_uuid"])
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d.get("source_uuid", None))
         self.original_expression = d.get("original_expression", self.original_expression)
         self.error_text = d.get("error_text", self.error_text)
         self.label = d.get("label", self.label)
         self.processing_id = d.get("processing_id", self.processing_id)
 
     def insert_model_item(self, container, name, before_index, item):
-        if self.__container_weak_ref:
+        if self.container:
             self.container.insert_model_item(container, name, before_index, item)
         else:
             container.insert_item(name, before_index, item)
 
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> typing.Optional[typing.Sequence]:
-        if self.__container_weak_ref:
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
+        if self.container:
             return self.container.remove_model_item(container, name, item, safe=safe)
         else:
             container.remove_item(name, item)
-            return None
+            return Changes.UndeleteLog()
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
 
+    # override this so it can be short circuited if self.pending_project is available.
+    # this is used to check inputs/outputs for circular dependencies before the computation is added to the project.
+    def _get_related_item(self, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[Persistence.PersistentObject]:
+        related_item = super()._get_related_item(item_specifier)
+        if related_item is None and self.pending_project:
+            related_item = self.pending_project._get_related_item(item_specifier)
+        return related_item
+
     @property
     def source(self):
-        return self.__source
+        return self.__source_proxy.item
 
     @source.setter
     def source(self, source):
-        self.__source = source
-        self.source_uuid = source.uuid if source else None
+        self.__source_proxy.item = source
+        self.source_specifier = source.project.create_specifier(source).write() if source else None
 
-    def persistent_object_context_changed(self):
-        super().persistent_object_context_changed()
-
-        def registered(source):
-            self.__source = source
-
-        def unregistered(source=None):
-            self.__source = None
-
-        if self.persistent_object_context:
-            self.persistent_object_context.subscribe(self.source_uuid, registered, unregistered)
-        else:
-            unregistered()
+    def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
+        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     @property
     def error_text(self) -> typing.Optional[str]:
@@ -599,7 +1134,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def insert_variable(self, index: int, variable: ComputationVariable) -> None:
         self.insert_item("variables", index, variable)
-        self.__bind_variable(variable)
+        if self.persistent_object_context:
+            self.__bind_variable(variable)
         self.variable_inserted_event.fire(index, variable)
         self.computation_mutated_event.fire()
         self.needs_update = True
@@ -617,50 +1153,72 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.add_variable(variable)
         return variable
 
-    def create_input(self, name: str, object_specifier: dict, property_name: str, label: str=None) -> ComputationVariable:
-        variable = ComputationVariable(name, specifier=object_specifier, property_name=property_name, label=label)
-        self.add_variable(variable)
-        return variable
+    def create_input_item(self, name: str, input_item: ComputationItem, *, property_name: str=None, label: str=None, _item_specifier: typing.Dict = None) -> ComputationVariable:
+        # Note: _item_specifier is only for testing
+        if input_item.items is not None:
+            variable = ComputationVariable(name, items=input_item.items, label=label)
+            self.add_variable(variable)
+            return variable
+        else:
+            specifier = _item_specifier or DataStructure.get_object_specifier(input_item.item, input_item.type, allow_partial=False)
+            secondary_specifier = DataStructure.get_object_specifier(input_item.secondary_item, allow_partial=False) if input_item.secondary_item else None
+            variable = ComputationVariable(name, specifier=specifier, secondary_specifier=secondary_specifier, property_name=property_name, label=label)
+            self.add_variable(variable)
+            return variable
 
-    def create_object(self, name: str, object_specifier: dict, label: str=None, secondary_specifier: dict=None) -> ComputationVariable:
-        variable = ComputationVariable(name, specifier=object_specifier, label=label, secondary_specifier=secondary_specifier)
-        self.add_variable(variable)
-        return variable
-
-    def create_objects(self, name: str, items, label: str=None) -> ComputationVariable:
-        list_model = ListModel.ListModel(items=items)
-        variable = ComputationVariable(name, objects=list_model, label=label)
-        self.add_variable(variable)
-        return variable
-
-    def create_result(self, name: str=None, object_specifier: dict=None, specifiers: typing.Sequence[dict]=None, label: str=None) -> ComputationOutput:
-        result = ComputationOutput(name, specifier=object_specifier, specifiers=specifiers, label=label)
-        self.append_item("results", result)
-        self.__bind_result(result)
-        self.computation_mutated_event.fire()
-        return result
+    def create_output_item(self, name: str, output_item: ComputationItem = None, *, label: str = None, _item_specifier: typing.Dict = None) -> ComputationOutput:
+        # Note: _item_specifier is only for testing
+        if output_item and output_item.items is not None:
+            specifiers = [DataStructure.get_object_specifier(item.item, allow_partial=False) for item in output_item.items]
+            result = ComputationOutput(name, specifiers=specifiers, label=label)
+            self.append_item("results", result)
+            if self.persistent_object_context:
+                self.__bind_result(result)
+            self.computation_mutated_event.fire()
+            return result
+        elif output_item:
+            assert not output_item.type
+            assert not output_item.secondary_item
+            specifier = _item_specifier or DataStructure.get_object_specifier(output_item.item, allow_partial=False)
+            result = ComputationOutput(name, specifier=specifier, label=label)
+            self.append_item("results", result)
+            if self.persistent_object_context:
+                self.__bind_result(result)
+            self.computation_mutated_event.fire()
+            return result
 
     def remove_item_from_objects(self, name: str, index: int) -> None:
         variable = self._get_variable(name)
-        variable.objects_model.remove_item(index)
+        variable.bound_items_model.remove_item(index)
 
-    def insert_item_into_objects(self, name: str, index: int, object) -> None:
+    def insert_item_into_objects(self, name: str, index: int, input_item: ComputationItem) -> None:
         variable = self._get_variable(name)
-        variable.objects_model.insert_item(index, object)
+        specifier = DataStructure.get_object_specifier(input_item.item, input_item.type, allow_partial=False)
+        variable.bound_items_model.insert_item(index, self.__resolve_object_specifier(specifier))
 
-    def list_item_removed(self, object) -> typing.Sequence[dict]:
-        undelete_entries = list()
+    def list_item_removed(self, object) -> typing.Optional[typing.Tuple[int, int, dict]]:
+        # when an item is removed from the library, this method is called for each computation.
+        # if the item being removed matches a variable item, mark the computation as needing an update.
+        # if the item is contained in a list variable, create the undelete entries and return them.
+        # undelete_entries = list()
         for variable in self.variables:
+            # check if the bound item matches the object. mark for update if so.
+            # TODO: really needed?
             if variable.bound_item and variable.bound_item.value == object:
                 self.needs_update = True
-            if variable.bound_item and hasattr(variable.bound_item, "list_item_removed"):
-                for undelete_entry in variable.bound_item.list_item_removed(object):
-                    undelete_entry["computation_uuid"] = str(self.uuid)
-                    undelete_entry["variable_index"] = self.variables.index(variable)
-                    undelete_entries.append(undelete_entry)
-        return undelete_entries
+            # check if the bound item is a list and item in list matches the object. if so, create
+            # an undelete entry for the variable. the undelete entry describes how to reconstitute
+            # the list item.
+            if variable.object_specifiers is not None:
+                for index, (object_specifier, bound_item) in enumerate(zip(variable.object_specifiers, variable.bound_items_model.items)):
+                    base_objects = bound_item.base_objects if bound_item else list()
+                    if object in base_objects:
+                        variables_index = self.variables.index(variable)
+                        variable.bound_items_model.remove_item(index)
+                        return (index, variables_index, copy.deepcopy(object_specifier))
+        return None
 
-    def resolve_variable(self, object_specifier: dict) -> typing.Optional[ComputationVariable]:
+    def __resolve_variable(self, object_specifier: dict) -> typing.Optional[ComputationVariable]:
         if object_specifier:
             uuid_str = object_specifier.get("uuid")
             uuid_ = Converter.UuidToStringConverter().convert_back(uuid_str) if uuid_str else None
@@ -669,6 +1227,46 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                     if variable.uuid == uuid_:
                         return variable
         return None
+
+    def __resolve_object_specifier(self, specifier, secondary_specifier=None, property_name=None) -> typing.Optional[BoundItemBase]:
+        """Resolve the object specifier.
+
+        First lookup the object specifier in the enclosing computation. If it's not found,
+        then lookup in the computation's context. Otherwise it should be a value type variable.
+        In that case, return the bound variable.
+        """
+        bound_item = None
+        variable = self.__resolve_variable(specifier)
+        if not variable:
+            if specifier and specifier.get("version") == 1:
+                specifier_type = specifier["type"]
+                project = self.container or self.pending_project
+                if specifier_type == "data_source":
+                    bound_item = BoundDataSource(project, specifier, secondary_specifier)
+                elif specifier_type == "data_item":
+                    bound_item = BoundDataItem(project, specifier)
+                elif specifier_type == "xdata":
+                    bound_item = BoundData(project, specifier)
+                elif specifier_type == "display_xdata":
+                    bound_item = BoundDisplayData(project, specifier, secondary_specifier)
+                elif specifier_type == "cropped_xdata":
+                    bound_item = BoundCroppedData(project, specifier, secondary_specifier)
+                elif specifier_type == "cropped_display_xdata":
+                    bound_item = BoundCroppedDisplayData(project, specifier, secondary_specifier)
+                elif specifier_type == "filter_xdata":
+                    bound_item = BoundFilterData(project, specifier, secondary_specifier)
+                elif specifier_type == "filtered_xdata":
+                    bound_item = BoundFilteredData(project, specifier, secondary_specifier)
+                elif specifier_type == "structure":
+                    bound_item = BoundDataStructure(project, specifier, property_name)
+                elif specifier_type == "graphic":
+                    bound_item = BoundGraphic(project, specifier, property_name)
+        elif variable.specifier is None:
+            bound_item = variable.bound_variable
+        if bound_item and not bound_item.valid:
+            bound_item.close()
+            bound_item = None
+        return bound_item
 
     @property
     def expression(self) -> str:
@@ -811,6 +1409,11 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 return False
         return True
 
+    def undelete_variable_item(self, name: str, index: int, specifier: typing.Dict) -> None:
+        for variable in self.variables:
+            if variable.name == name:
+                variable.bound_items_model.insert_item(index, self.__resolve_object_specifier(specifier))
+
     def __bind_variable(self, variable: ComputationVariable) -> None:
         # bind the variable. the variable has a reference to another object in the library.
         # this method finds that object and stores it into the variable. it also sets up
@@ -831,7 +1434,15 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
         self.__variable_needs_rebind_event_listeners[variable.uuid] = variable.needs_rebind_event.listen(rebind)
 
-        variable.bound_item = self.__computation_context.resolve_object_specifier(variable.variable_specifier, variable.secondary_specifier, variable.property_name, variable.objects_model)
+        if variable.object_specifiers is not None:
+            bound_items = list()
+            for object_specifier in variable.object_specifiers:
+                bound_item = self.__resolve_object_specifier(object_specifier)
+                bound_items.append(bound_item)
+            variable.connect_items(bound_items)
+            variable.bound_item = BoundList(bound_items)
+        else:
+            variable.bound_item = self.__resolve_object_specifier(variable.variable_specifier, variable.secondary_specifier, variable.property_name)
 
     def __unbind_variable(self, variable: ComputationVariable) -> None:
         self.__variable_changed_event_listeners[variable.uuid].close()
@@ -839,6 +1450,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__variable_needs_rebind_event_listeners[variable.uuid].close()
         del self.__variable_needs_rebind_event_listeners[variable.uuid]
         variable.bound_item = None
+        variable.disconnect_items()
 
     def __bind_result(self, result: ComputationOutput) -> None:
         # bind the result. the result has an optional reference to another object in the library.
@@ -853,7 +1465,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
         self.__result_needs_rebind_event_listeners[result.uuid] = result.needs_rebind_event.listen(rebind)
 
-        result.bind(self.__computation_context.resolve_object_specifier)
+        result.bind(self.__resolve_object_specifier)
 
     def __unbind_result(self, result: ComputationOutput) -> None:
         self.__result_needs_rebind_event_listeners[result.uuid].close()
@@ -867,7 +1479,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         """
 
         # make a computation context based on the enclosing context.
-        self.__computation_context = ComputationContext(self, context)
+        assert self.persistent_object_context
 
         # re-bind is not valid. be careful to set the computation after the data item is already in document.
         for variable in self.variables:
@@ -889,6 +1501,112 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.__unbind_variable(variable)
         for result in self.results:
             self.__unbind_result(result)
+
+    def get_preliminary_input_items(self) -> typing.Set:
+        input_items = set()
+        for variable in self.variables:
+            if variable.object_specifiers is not None:
+                for object_specifier in variable.object_specifiers:
+                    bound_item = self.__resolve_object_specifier(object_specifier)
+                    if bound_item:
+                        with contextlib.closing(bound_item):
+                            input_items.update(bound_item.base_objects)
+            else:
+                bound_item = self.__resolve_object_specifier(variable.variable_specifier, variable.secondary_specifier, variable.property_name)
+                if bound_item:
+                    with contextlib.closing(bound_item):
+                        input_items.update(bound_item.base_objects)
+        return input_items
+
+    def get_preliminary_output_items(self) -> typing.Set:
+        output_items = set()
+        for result in self.results:
+            if result.specifier:
+                bound_item = self.__resolve_object_specifier(result.specifier)
+                if bound_item:
+                    with contextlib.closing(bound_item):
+                        output_items.update(bound_item.base_objects)
+            elif result.specifiers is not None:
+                for specifier in result.specifiers:
+                    bound_item = self.__resolve_object_specifier(specifier)
+                    if bound_item:
+                        with contextlib.closing(bound_item):
+                            output_items.update(bound_item.base_objects)
+        return output_items
+
+    @property
+    def input_items(self) -> typing.Set:
+        input_items = set()
+        for variable in self.variables:
+            input_items.update(variable.input_items)
+        return input_items
+
+    @property
+    def direct_input_items(self) -> typing.Set:
+        input_items = set()
+        for variable in self.variables:
+            input_items.update(variable.direct_input_items)
+        return input_items
+
+    @property
+    def output_items(self) -> typing.Set:
+        output_items = set()
+        for result in self.results:
+            output_items.update(result.output_items)
+        return output_items
+
+    def set_input_item(self, name: str, input_item: ComputationItem) -> None:
+        for variable in self.variables:
+            if variable.name == name:
+                assert input_item.item
+                assert input_item.type is None
+                assert input_item.secondary_item is None
+                assert input_item.items is None
+                variable.specifier = DataStructure.get_object_specifier(input_item.item, allow_partial=False)
+
+    def set_output_item(self, name:str, output_item: ComputationItem) -> None:
+        for result in self.results:
+            if result.name == name:
+                if output_item and output_item.items is not None:
+                    result.specifiers = [DataStructure.get_object_specifier(o.item, allow_partial=False) for o in output_item.items]
+                else:
+                    if output_item:
+                        assert output_item.item
+                        assert output_item.type is None
+                        assert output_item.secondary_item is None
+                    result.specifier = DataStructure.get_object_specifier(output_item.item, allow_partial=False) if output_item else None
+
+    def get_input(self, name: str):
+        for variable in self.variables:
+            if variable.name == name:
+                return variable.bound_item.value if variable.bound_item else None
+        return None
+
+    def get_output(self, name: str):
+        for result in self.results:
+            if result.name == name:
+                if isinstance(result.bound_item, list):
+                    return [bound_item.value for bound_item in result.bound_item]
+                if result.bound_item:
+                    return result.bound_item.value
+        return None
+
+    def set_input_value(self, name: str, value) -> None:
+        for variable in self.variables:
+            if variable.name == name:
+                variable.value = value
+
+    def get_input_value(self, name: str):
+        for variable in self.variables:
+            if variable.name == name:
+                return variable.bound_variable.value if variable.bound_variable else None
+        return None
+
+    def get_input_base_items(self, name: str) -> typing.Optional[typing.Set]:
+        for variable in self.variables:
+            if variable.name == name:
+                return variable.bound_item.base_objects if variable.bound_item else None
+        return None
 
     def _get_variable(self, variable_name) -> ComputationVariable:
         for variable in self.variables:
@@ -924,39 +1642,19 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 return result
         return None
 
-    def get_referenced_object(self, name: str):
-        for result in self.results:
-            if result.name == name:
-                if isinstance(result.bound_item, list):
-                    return [bound_item.value for bound_item in result.bound_item]
-                if result.bound_item:
-                    return result.bound_item.value
-        return None
-
     def update_script(self, processing_descriptions) -> None:
         processing_id = self.processing_id
         processing_description = processing_descriptions.get(processing_id)
         if processing_description:
-            src_names = list()
-            src_texts = list()
-            source_dicts = processing_description["sources"]
-            for i, source_dict in enumerate(source_dicts):
-                src_names.append(source_dict["name"])
-                use_display_data = source_dict.get("use_display_data", True)
-                xdata_property = "display_xdata" if use_display_data else "xdata"
-                if source_dict.get("croppable"):
-                    xdata_property = "cropped_" + xdata_property
-                elif source_dict.get("use_filtered_data", False):
-                    xdata_property = "filtered_" + xdata_property
-                data_expression = source_dict["name"] + "." + xdata_property
-                src_texts.append(data_expression)
-            script = processing_description.get("script")
-            if not script:
-                expression = processing_description.get("expression")
-                if expression:
-                    script = xdata_expression(expression)
-            script = script.format(**dict(zip(src_names, src_texts)))
-            self._get_persistent_property("original_expression").value = script
+            expression = processing_description.get("expression")
+            if expression:
+                src_names = list()
+                source_dicts = processing_description["sources"]
+                for i, source_dict in enumerate(source_dicts):
+                    src_names.append(source_dict["name"])
+                script = xdata_expression(expression)
+                script = script.format(**dict(zip(src_names, src_names)))
+                self._get_persistent_property("original_expression").value = script
 
 # for computations
 

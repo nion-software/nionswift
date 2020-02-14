@@ -19,6 +19,10 @@ class Graphic:
         self._proxy = proxy
         self.specifier = specifier
 
+    @property
+    def _item(self):
+        return self._proxy._item
+
     def get_property(self, property):
         return call_method(self, 'get_property', property)
 
@@ -141,6 +145,10 @@ class DataItem:
 
     def _repr_svg_(self):
         return call_method(self, 'data_item_to_svg')
+
+    @property
+    def _item(self):
+        return self._proxy._item
 
     def add_channel_region(self, position):
         return call_method(self, 'add_channel_region', position)
@@ -268,6 +276,10 @@ class DisplayPanel:
         self._proxy = proxy
         self.specifier = specifier
 
+    @property
+    def _item(self):
+        return self._proxy._item
+
     def set_data_item(self, data_item):
         call_method(self, 'set_data_item', data_item)
 
@@ -281,6 +293,10 @@ class Display:
     def __init__(self, proxy, specifier):
         self._proxy = proxy
         self.specifier = specifier
+
+    @property
+    def _item(self):
+        return self._proxy._item
 
     def get_graphic_by_id(self, graphic_id):
         return call_method(self, 'get_graphic_by_id', graphic_id)
@@ -320,6 +336,10 @@ class DataGroup:
         self._proxy = proxy
         self.specifier = specifier
 
+    @property
+    def _item(self):
+        return self._proxy._item
+
     def add_data_item(self, data_item):
         call_method(self, 'add_data_item', data_item)
 
@@ -333,6 +353,10 @@ class Library:
     def __init__(self, proxy, specifier):
         self._proxy = proxy
         self.specifier = specifier
+
+    @property
+    def _item(self):
+        return self._proxy._item
 
     def copy_data_item(self, data_item):
         return call_method(self, 'copy_data_item', data_item)
@@ -366,6 +390,9 @@ class Library:
 
     def get_graphic_by_uuid(self, graphic_uuid):
         return call_method(self, 'get_graphic_by_uuid', graphic_uuid)
+
+    def get_item_by_specifier(self, item_specifier):
+        return call_method(self, 'get_item_by_specifier', item_specifier)
 
     def get_library_value(self, key):
         return call_method(self, 'get_library_value', key)
@@ -407,6 +434,10 @@ class DocumentWindow:
     def __init__(self, proxy, specifier):
         self._proxy = proxy
         self.specifier = specifier
+
+    @property
+    def _item(self):
+        return self._proxy._item
 
     def add_data(self, data, title=None):
         return call_method(self, 'add_data', data, title=title)
@@ -483,6 +514,10 @@ class API:
         self._proxy = proxy
         self.specifier = specifier
 
+    @property
+    def _item(self):
+        return self._proxy._item
+
     def clear_queued_tasks(self):
         call_method(self, 'clear_queued_tasks')
 
@@ -509,6 +544,9 @@ class API:
 
     def create_panel(self, panel_delegate):
         return call_method(self, 'create_panel', panel_delegate)
+
+    def create_specifier(self, item_uuid, context_uuid):
+        return call_method(self, 'create_specifier', item_uuid, context_uuid)
 
     def get_all_hardware_source_ids(self):
         return call_method(self, 'get_all_hardware_source_ids')
@@ -539,6 +577,10 @@ class HardwareSource:
     def __init__(self, proxy, specifier):
         self._proxy = proxy
         self.specifier = specifier
+
+    @property
+    def _item(self):
+        return self._proxy._item
 
     def abort_playing(self):
         call_method(self, 'abort_playing')
@@ -640,6 +682,10 @@ class Instrument:
     def __init__(self, proxy, specifier):
         self._proxy = proxy
         self.specifier = specifier
+
+    @property
+    def _item(self):
+        return self._proxy._item
 
     def close(self):
         call_method(self, 'close')

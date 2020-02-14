@@ -2,10 +2,10 @@
 import copy
 import functools
 import gettext
-import json
 import operator
 import random
 import string
+import typing
 import uuid
 import weakref
 
@@ -16,10 +16,11 @@ import weakref
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import MimeTypes
 from nion.swift import Undo
-from nion.swift.model import DataItem
+from nion.swift.model import DataStructure
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
 from nion.ui import Dialog
+from nion.ui import UserInterface
 from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Event
@@ -87,7 +88,7 @@ class ComputationModel:
         def __init__(self, document_model, computation: Symbolic.Computation, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None):
             super().__init__(_("Add Computation Variable"))
             self.__document_model = document_model
-            self.__computation_uuid = computation.uuid
+            self.__computation_proxy = computation.create_proxy()
             self.__name = name
             self.__value_type = value_type
             self.__value = value
@@ -101,7 +102,8 @@ class ComputationModel:
             self.initialize()
 
         def close(self):
-            self.__computation_uuid = None
+            self.__computation_proxy.close()
+            self.__computation_proxy = None
             self.__name = None
             self.__value_type = None
             self.__value = None
@@ -115,16 +117,16 @@ class ComputationModel:
             super().close()
 
         def perform(self):
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             variable = computation.create_variable(self.__name, self.__value_type, self.__value, self.__value_default, self.__value_min, self.__value_max, self.__control_type, self.__specifier, self.__label)
             self.__variable_index = computation.variables.index(variable)
 
         def _get_modified_state(self):
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             return computation.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             computation.modified_state, self.__document_model.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
@@ -132,7 +134,7 @@ class ComputationModel:
             return state1[0] == state2[0]
 
         def _undo(self):
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             variable = computation.variables[self.__variable_index]
             computation.remove_variable(variable)
 
@@ -144,28 +146,29 @@ class ComputationModel:
         def __init__(self, document_model, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
             super().__init__(_("Remove Computation Variable"))
             self.__document_model = document_model
-            self.__computation_uuid = computation.uuid
+            self.__computation_proxy = computation.create_proxy()
             self.__variable_index = computation.variables.index(variable)
             self.__variable_dict = variable.write_to_dict()
             self.initialize()
 
         def close(self):
-            self.__computation_uuid = None
+            self.__computation_proxy.close()
+            self.__computation_proxy = None
             self.__variable_index = None
             self.__variable_dict = None
             super().close()
 
         def perform(self):
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             variable = computation.variables[self.__variable_index]
             computation.remove_variable(variable)
 
         def _get_modified_state(self):
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             return computation.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             computation.modified_state, self.__document_model.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
@@ -173,7 +176,7 @@ class ComputationModel:
             return state1[0] == state2[0]
 
         def _undo(self):
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             variable = Symbolic.ComputationVariable()
             variable.begin_reading()
             variable.read_from_dict(self.__variable_dict)
@@ -181,7 +184,7 @@ class ComputationModel:
             computation.insert_variable(self.__variable_index, variable)
 
         def _redo(self):
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             computation.remove_variable(computation.variables[self.__variable_index])
 
     class CreateComputationCommand(Undo.UndoableCommand):
@@ -189,13 +192,12 @@ class ComputationModel:
         def __init__(self, document_model, data_item):
             super().__init__(_("Create Computation"))
             self.__document_model = document_model
-            self.__data_item_uuid = data_item.uuid
-            self.__computation_uuid = None
+            self.__data_item_proxy = data_item.create_proxy()
 
         def close(self):
             self.__document_model = None
-            self.__data_item_uuid = None
-            self.__computation_uuid = None
+            self.__data_item_proxy.close()
+            self.__data_item_proxy = None
             super().close()
 
         @property
@@ -203,10 +205,9 @@ class ComputationModel:
             return self.__document_model.create_computation()
 
         def perform(self):
-            data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+            data_item = self.__data_item_proxy.item
             computation = self.__document_model.create_computation()
             self.__document_model.set_data_item_computation(data_item, computation)
-            self.__computation_uuid = computation.uuid
 
         def _get_modified_state(self):
             return self.__document_model.modified_state
@@ -215,7 +216,7 @@ class ComputationModel:
             self.__document_model.modified_state = modified_state
 
         def _undo(self):
-            data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+            data_item = self.__data_item_proxy.item
             self.__document_model.set_data_item_computation(data_item, None)
 
     class ChangeComputationCommand(Undo.UndoableCommand):
@@ -223,29 +224,30 @@ class ComputationModel:
         def __init__(self, document_model, computation: Symbolic.Computation, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
             super().__init__(title if title else _("Change Computation"), command_id=command_id, is_mergeable=is_mergeable)
             self.__document_model = document_model
-            self.__computation_uuid = computation.uuid
+            self.__computation_proxy = computation.create_proxy()
             self.__properties = {key: getattr(computation, key) for key in kwargs.keys()}
             self.__value_dict = kwargs
             self.initialize()
 
         def close(self):
             self.__properties = None
-            self.__computation_uuid = None
+            self.__computation_proxy.close()
+            self.__computation_proxy = None
             self.__properties = None
             self.__value_dict = None
             super().close()
 
         def perform(self):
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             for key, value in self.__value_dict.items():
                 setattr(computation, key, value)
 
         def _get_modified_state(self):
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             return computation.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             computation.modified_state, self.__document_model.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
@@ -253,21 +255,21 @@ class ComputationModel:
             return state1[0] == state2[0]
 
         def _undo(self):
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             properties = self.__properties
             self.__properties = computation.write_to_dict()
             # NOTE: use read_properties_from_dict (read properties only), not read_from_dict (used for initialization).
             computation.read_properties_from_dict(properties)
 
         def can_merge(self, command: Undo.UndoableCommand) -> bool:
-            return isinstance(command, ComputationModel.ChangeComputationCommand) and self.command_id and self.command_id == command.command_id and self.__computation_uuid == command.__computation_uuid
+            return isinstance(command, ComputationModel.ChangeComputationCommand) and self.command_id and self.command_id == command.command_id and self.__computation_proxy.item == command.__computation_proxy.item
 
     class ChangeVariableCommand(Undo.UndoableCommand):
 
         def __init__(self, document_model, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
             super().__init__(title if title else _("Change Computation Variable"), command_id=command_id, is_mergeable=is_mergeable)
             self.__document_model = document_model
-            self.__computation_uuid = computation.uuid
+            self.__computation_proxy = computation.create_proxy()
             self.__variable_index = computation.variables.index(variable)
             self.__property_keys = kwargs.keys()
             self.__properties = copy.deepcopy(kwargs)
@@ -275,13 +277,14 @@ class ComputationModel:
 
         def close(self):
             self.__properties = None
-            self.__computation_uuid = None
+            self.__computation_proxy.close()
+            self.__computation_proxy = None
             self.__properties = None
             self.__property_keys = None
             super().close()
 
         def perform(self):
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             variable = computation.variables[self.__variable_index]
             properties = self.__properties
             self.__properties = {key: getattr(variable, key) for key in self.__property_keys}
@@ -289,11 +292,11 @@ class ComputationModel:
                 setattr(variable, key, value)
 
         def _get_modified_state(self):
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             return computation.modified_state, self.__document_model.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             computation.modified_state, self.__document_model.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
@@ -301,7 +304,7 @@ class ComputationModel:
             return state1[0] == state2[0]
 
         def _undo(self):
-            computation = self.__document_model.get_computation_by_uuid(self.__computation_uuid)
+            computation = self.__computation_proxy.item
             variable = computation.variables[self.__variable_index]
             properties = self.__properties
             self.__properties = {key: getattr(variable, key) for key in self.__property_keys}
@@ -309,7 +312,7 @@ class ComputationModel:
                 setattr(variable, key, value)
 
         def can_merge(self, command: Undo.UndoableCommand) -> bool:
-            return isinstance(command, ComputationModel.ChangeVariableCommand) and self.command_id and self.command_id == command.command_id and self.__computation_uuid == command.__computation_uuid and self.__variable_index == command.__variable_index
+            return isinstance(command, ComputationModel.ChangeVariableCommand) and self.command_id and self.command_id == command.command_id and self.__computation_proxy.item == command.__computation_proxy.item and self.__variable_index == command.__variable_index
 
     def add_variable(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None) -> None:
         computation = self.__computation
@@ -434,8 +437,8 @@ class ComputationModel:
             computation = self.__computation
             if computation:
                 document_model = self.document_controller.document_model
-                def computation_updated(data_item, computation):
-                    if data_item == self.__get_data_item():
+                def computation_updated(computation):
+                    if computation == self.__computation:
                         self.__update_computation_display()
                 def property_changed(property):
                     if property == "error_text":
@@ -729,7 +732,40 @@ class ComputationPanelSection:
         self.__variable_type_changed_event_listener = None
 
 
-def make_image_chooser(document_controller, computation, variable, drag_fn):
+def drop_mime_data(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
+    project = computation.project  # all variables/specifiers will go into the same project as the computation
+    display_item, graphic = MimeTypes.mime_data_get_data_source(mime_data, document_controller.document_model)
+    data_item = display_item.data_item if display_item else None
+    if data_item:
+        variable_specifier = DataStructure.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item), project=project)
+        secondary_specifier = None
+        if graphic:
+            secondary_specifier = DataStructure.get_object_specifier(graphic, project=project)
+        properties = {"variable_type": "data_source", "secondary_specifier": secondary_specifier, "specifier": variable_specifier}
+        command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
+        command.perform()
+        document_controller.push_undo_command(command)
+        return "copy"
+    display_item = MimeTypes.mime_data_get_display_item(mime_data, document_controller.document_model)
+    data_item = display_item.data_item if display_item else None
+    if data_item:
+        variable_specifier = DataStructure.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item), project=project)
+        properties = {"variable_type": "data_source", "secondary_specifier": dict(), "specifier": variable_specifier}
+        command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
+        command.perform()
+        document_controller.push_undo_command(command)
+        return "copy"
+    return None
+
+
+def data_item_delete(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
+    variable_specifier = {"type": variable.variable_type, "version": 1, "uuid": str(uuid.uuid4())}
+    command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), specifier=variable_specifier)
+    command.perform()
+    document_controller.push_undo_command(command)
+
+
+def make_image_chooser(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, drag_fn):
     ui = document_controller.ui
     document_model = document_controller.document_model
     # drag_fn is necessary because it is unsafe to start a drag on the column containing the thumbnail
@@ -741,49 +777,7 @@ def make_image_chooser(document_controller, computation, variable, drag_fn):
     label_row.add_stretch()
     label_row.add(label_widget)
     label_row.add_stretch()
-    base_variable_specifier = copy.copy(variable.specifier)
-
-    bound_data_source = document_model.resolve_object_specifier(base_variable_specifier)
-    data_item = bound_data_source.value.data_item if bound_data_source else None
-
-    def drop_mime_data(mime_data, x, y):
-        data_source_mime_str = mime_data.data_as_string(MimeTypes.DATA_SOURCE_MIME_TYPE)
-        if data_source_mime_str:
-            data_source_mime_data = json.loads(data_source_mime_str)
-            display_item_uuid = uuid.UUID(data_source_mime_data["display_item_uuid"])
-            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
-            data_item = display_item.data_item if display_item else None
-            if data_item:
-                variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
-                secondary_specifier = None
-                if "graphic_uuid" in data_source_mime_data:
-                    graphic_uuid = uuid.UUID(data_source_mime_data["graphic_uuid"])
-                    graphic = document_model.get_graphic_by_uuid(graphic_uuid)
-                    if graphic:
-                        secondary_specifier = document_model.get_object_specifier(graphic)
-                properties = {"variable_type": "data_source", "secondary_specifier": secondary_specifier, "specifier": variable_specifier}
-                command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
-                command.perform()
-                document_controller.push_undo_command(command)
-                return "copy"
-        if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
-            display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
-            display_item = document_model.get_display_item_by_uuid(display_item_uuid)
-            data_item = display_item.data_item if display_item else None
-            if data_item:
-                variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
-                properties = {"variable_type": "data_source", "secondary_specifier": dict(), "specifier": variable_specifier}
-                command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
-                command.perform()
-                document_controller.push_undo_command(command)
-                return "copy"
-        return None
-
-    def data_item_delete():
-        variable_specifier = {"type": variable.variable_type, "version": 1, "uuid": str(uuid.uuid4())}
-        command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), specifier=variable_specifier)
-        command.perform()
-        document_controller.push_undo_command(command)
+    data_item = computation.get_input(variable.name).data_item
 
     display_item = document_model.get_display_item_for_data_item(data_item)
     data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, display_item=display_item)
@@ -794,14 +788,12 @@ def make_image_chooser(document_controller, computation, variable, drag_fn):
         drag_fn(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
     data_item_chooser_widget.on_drag = thumbnail_widget_drag
-    data_item_chooser_widget.on_delete = data_item_delete
-    data_item_chooser_widget.on_drop_mime_data = drop_mime_data
+    data_item_chooser_widget.on_delete = functools.partial(data_item_delete, document_controller, computation, variable)
+    data_item_chooser_widget.on_drop_mime_data = functools.partial(drop_mime_data, document_controller, computation, variable)
 
     def property_changed(key):
         if key == "specifier":
-            base_variable_specifier = copy.copy(variable.specifier)
-            bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
-            data_item = bound_data_item.value if bound_data_item else None
+            data_item = computation.get_input(variable.name).data_item
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_item_thumbnail_source.set_display_item(display_item)
 

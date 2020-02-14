@@ -3,7 +3,6 @@ import contextlib
 import copy
 import functools
 import gettext
-import json
 import math
 import random
 import string
@@ -26,10 +25,13 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Persistence
+from nion.swift.model import Project
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
+from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
@@ -250,12 +252,12 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             self.on_context_menu_event(x, y, gx, gy)
         return False
 
-    def wants_drag_event(self, mime_data, x, y) -> bool:
+    def wants_drag_event(self, mime_data: UserInterface.MimeData, x: int, y: int) -> bool:
         if self.on_wants_drag_event:
             return self.on_wants_drag_event(mime_data)
         return False
 
-    def drag_enter(self, mime_data):
+    def drag_enter(self, mime_data: UserInterface.MimeData) -> str:
         self.__is_dragging = True
         self.__set_drop_region("none")
         if self.on_drag_enter:
@@ -454,7 +456,7 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
     def update_display_properties(self, display_calibration_info, display_properties, display_layers) -> None:
         pass
 
-    def update_graphics(self, graphics, graphic_selection, display_calibration_info) -> None:
+    def update_graphics_coordinate_system(self, graphics, graphic_selection, display_calibration_info) -> None:
         pass
 
     def handle_auto_display(self) -> bool:
@@ -522,7 +524,7 @@ class DisplayTracker:
 
         def display_graphics_changed(graphic_selection):
             # this message comes from the display when the graphic selection changes
-            self.__display_canvas_item.update_graphics(display_item.graphics, graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item))
+            self.__display_canvas_item.update_graphics_coordinate_system(display_item.graphics, graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item))
 
         def display_values_changed():
             # this notification is for the rgba values only
@@ -537,7 +539,7 @@ class DisplayTracker:
             if new_display_data_channel_shapes != display_data_channel_shapes_ref[0]:
                 # use display data shape from the new shapes
                 display_data_shape = new_display_data_channel_shapes[0] if len(new_display_data_channel_shapes) > 0 else None
-                self.__display_canvas_item.update_graphics(display_item.graphics, display_item.graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item, display_data_shape))
+                self.__display_canvas_item.update_graphics_coordinate_system(display_item.graphics, display_item.graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item, display_data_shape))
                 display_data_channel_shapes_ref[0] = new_display_data_channel_shapes
 
         def display_changed():
@@ -638,56 +640,61 @@ class DisplayTracker:
 
 class InsertGraphicsCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic]):
+    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic], *, existing_graphics: typing.Sequence[Graphics.Graphic] = None):
         super().__init__(_("Insert Graphics"))
         self.__document_controller = document_controller
-        self.__display_item_uuid = display_item.uuid
+        self.__display_item_proxy = display_item.create_proxy()
         self.__graphics = graphics  # only used for perform
         self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
         self.__new_workspace_layout = None
         self.__graphics_properties = None
-        self.__graphic_uuids = [graphic.uuid for graphic in graphics]
-        self.__undelete_logs = None
+        self.__graphic_proxies = [graphic.create_proxy() for graphic in existing_graphics or list()]
+        self.__undelete_logs = list()
         self.initialize()
 
     def close(self):
-        self.__undelete_logs = None
         self.__graphics_properties = None
-        self.__display_item_uuid = None
-        self.__graphic_uuids = None
         self.__document_controller = None
         self.__old_workspace_layout = None
         self.__new_workspace_layout = None
+        for undelete_log in self.__undelete_logs:
+            undelete_log.close()
+        self.__undelete_logs = None
+        for graphic_proxy in self.__graphic_proxies:
+            graphic_proxy.close()
+        self.__graphic_proxies = None
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
         super().close()
 
     def perform(self):
-        display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         graphics = self.__graphics
         for graphic in graphics:
             display_item.add_graphic(graphic)
-        self.__graphic_uuids = [graphic.uuid for graphic in graphics]
+            new_graphic = display_item.graphics[-1]
+            self.__graphic_proxies.append(new_graphic.create_proxy())
         self.__graphics = None
 
     def _get_modified_state(self):
-        display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         return display_item.modified_state, self.__document_controller.workspace_controller.document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         display_item.modified_state, self.__document_controller.workspace_controller.document_model.modified_state = modified_state
 
     def _redo(self):
-        display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
         for undelete_log in reversed(self.__undelete_logs):
             self.__document_controller.document_model.undelete_all(undelete_log)
-        self.__graphic_uuids = [graphic.uuid for graphic in display_item.graphics[-len(self.__graphic_uuids):]]
+            undelete_log.close()
+        self.__undelete_logs.clear()
         self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
     def _undo(self):
-        display_item = self.__document_controller.document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        graphics = [self.__document_controller.document_model.get_graphic_by_uuid(graphic_uuid) for graphic_uuid in self.__graphic_uuids]
+        display_item = self.__display_item_proxy.item
+        graphics = [graphic_proxy.item for graphic_proxy in self.__graphic_proxies]
         self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-        self.__undelete_logs = list()
         for graphic in graphics:
             self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
         self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
@@ -698,8 +705,8 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, *, title: str=None, command_id: str=None, **kwargs):
         super().__init__(title if title else _("Append Display"), command_id=command_id)
         self.__document_model = document_model
-        self.__display_item_uuid = display_item.uuid
-        self.__data_item_uuid = data_item.uuid
+        self.__display_item_proxy = display_item.create_proxy()
+        self.__data_item_proxy = data_item.create_proxy()
         self.__old_properties = None
         self.__display_data_channel_index = None
         self.__value_dict = kwargs
@@ -707,29 +714,31 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
 
     def close(self):
         self.__document_model = None
-        self.__display_item = None
-        self.__data_item = None
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
+        self.__data_item_proxy.close()
+        self.__data_item_proxy = None
         super().close()
 
     def perform(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        display_item = self.__display_item_proxy.item
+        data_item = self.__data_item_proxy.item
         self.__old_properties = display_item.save_properties()
         display_item.append_display_data_channel_for_data_item(data_item)
         self.__display_data_channel_index = display_item.display_data_channels.index(display_item.get_display_data_channel_for_data_item(data_item))
 
     def _get_modified_state(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        display_item = self.__display_item_proxy.item
+        data_item = self.__data_item_proxy.item
         return data_item.modified_state, display_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
-        data_item = self.__document_model.get_data_item_by_uuid(self.__data_item_uuid)
+        display_item = self.__display_item_proxy.item
+        data_item = self.__data_item_proxy.item
         data_item.modified_state, display_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _undo(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
         display_item.remove_display_data_channel(display_data_channel, safe=True)
         display_item.restore_properties(self.__old_properties)
@@ -743,28 +752,29 @@ class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_data_channel: DisplayItem.DisplayDataChannel, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Change Display"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
-        self.__display_data_channel_uuid = display_data_channel.uuid
+        self.__display_data_channel_proxy = display_data_channel.create_proxy()
         self.__properties = display_data_channel.save_properties()
         self.__value_dict = kwargs
         self.initialize()
 
     def close(self):
         self.__document_model = None
-        self.__display_data_channel_uuid = None
+        self.__display_data_channel_proxy.close()
+        self.__display_data_channel_proxy = None
         self.__properties = None
         super().close()
 
     def perform(self):
-        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
+        display_data_channel = self.__display_data_channel_proxy.item
         for key, value in self.__value_dict.items():
             setattr(display_data_channel, key, value)
 
     def _get_modified_state(self):
-        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
+        display_data_channel = self.__display_data_channel_proxy.item
         return display_data_channel.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
+        display_data_channel = self.__display_data_channel_proxy.item
         display_data_channel.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
@@ -772,13 +782,13 @@ class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self):
-        display_data_channel = self.__document_model.get_display_data_channel_by_uuid(self.__display_data_channel_uuid)
+        display_data_channel = self.__display_data_channel_proxy.item
         properties = self.__properties
         self.__properties = display_data_channel.save_properties()
         display_data_channel.restore_properties(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDisplayDataChannelCommand) and self.command_id and self.command_id == command.command_id and self.__display_data_channel_uuid == command.__display_data_channel_uuid
+        return isinstance(command, ChangeDisplayDataChannelCommand) and self.command_id and self.command_id == command.command_id and self.__display_data_channel_proxy.item == command.__display_data_channel_proxy.item
 
 
 class MoveDisplayLayerCommand(Undo.UndoableCommand):
@@ -791,43 +801,49 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         old_display_layer = old_display_item.display_layers[old_display_layer_index]
         old_display_data_channel_index = old_display_layer["data_index"]
         self.__document_model = document_model
-        self.__old_display_item_uuid = old_display_item.uuid
+        self.__old_display_item_proxy = old_display_item.create_proxy()
         self.__old_display_layer_index = old_display_layer_index
         self.__old_display_data_channel_index = old_display_data_channel_index
-        self.__new_display_item_uuid = new_display_item.uuid
+        self.__new_display_item_proxy = new_display_item.create_proxy()
         self.__new_display_layer_index = new_display_layer_index
         self.__new_display_data_channel_index = None
+        self.__undelete_logs = list()
         self.initialize()
 
     def close(self):
         self.__document_model = None
         self.__display_data_channel_uuid = None
         self.__properties = None
+        for undelete_log in self.__undelete_logs:
+            undelete_log.close()
+        self.__undelete_logs = None
+        self.__old_display_item_proxy.close()
+        self.__old_display_item_proxy = None
+        self.__new_display_item_proxy.close()
+        self.__new_display_item_proxy = None
         super().close()
 
     def perform(self):
         # add display data channel and display layer to new display item
-        old_display_item = self.__document_model.get_display_item_by_uuid(self.__old_display_item_uuid)
+        old_display_item = self.__old_display_item_proxy.item
         old_display_layer = old_display_item.display_layers[self.__old_display_layer_index]
-        new_display_item = self.__document_model.get_display_item_by_uuid(self.__new_display_item_uuid)
+        new_display_item = self.__new_display_item_proxy.item
         self.__new_original_legend_position = new_display_item.get_display_property("legend_position")
         new_display_item.copy_display_layer(self.__new_display_layer_index, old_display_item, old_display_layer)
-        new_display_item.connect_data_items(self.__document_model.get_data_item_by_uuid)
         self.__new_display_data_channel_index = len(new_display_item.display_data_channels) - 1
         # remove display layer and then display data channel from old display item
         self.__old_display_layers = copy.deepcopy(old_display_item.display_layers)
         old_display_item.remove_display_layer(self.__old_display_layer_index)
-        self.__undelete_logs = list()
         self.__undelete_logs.append(old_display_item.remove_display_data_channel(old_display_item.display_data_channels[self.__old_display_data_channel_index]))
 
     def _get_modified_state(self):
-        old_display_item = self.__document_model.get_display_item_by_uuid(self.__old_display_item_uuid)
-        new_display_item = self.__document_model.get_display_item_by_uuid(self.__new_display_item_uuid)
+        old_display_item = self.__old_display_item_proxy.item
+        new_display_item = self.__new_display_item_proxy.item
         return old_display_item.modified_state, new_display_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        old_display_item = self.__document_model.get_display_item_by_uuid(self.__old_display_item_uuid)
-        new_display_item = self.__document_model.get_display_item_by_uuid(self.__new_display_item_uuid)
+        old_display_item = self.__old_display_item_proxy.item
+        new_display_item = self.__new_display_item_proxy.item
         old_display_item.modified_state, new_display_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
@@ -835,11 +851,13 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         return state1[0] == state2[0] and state1[1] == state2[1]
 
     def _undo(self):
-        old_display_item = self.__document_model.get_display_item_by_uuid(self.__old_display_item_uuid)
-        new_display_item = self.__document_model.get_display_item_by_uuid(self.__new_display_item_uuid)
+        old_display_item = self.__old_display_item_proxy.item
+        new_display_item = self.__new_display_item_proxy.item
         # restore original display item display data channel, display layer
         for undelete_log in reversed(self.__undelete_logs):
             self.__document_model.undelete_all(undelete_log)
+            undelete_log.close()
+        self.__undelete_logs.clear()
         old_display_item.display_layers = self.__old_display_layers
         # remove new display item display layer, display data channel, and restore legend state
         new_display_item.remove_display_layer(self.__new_display_layer_index)
@@ -852,28 +870,29 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_item: DisplayItem.DisplayItem, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Change Display"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
-        self.__display_item_uuid = display_item.uuid
+        self.__display_item_proxy = display_item.create_proxy()
         self.__properties = display_item.save_properties()
         self.__value_dict = kwargs
         self.initialize()
 
     def close(self):
         self.__document_model = None
-        self.__display_uuid = None
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
         self.__properties = None
         super().close()
 
     def perform(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         for key, value in self.__value_dict.items():
             display_item.set_display_property(key, value)
 
     def _get_modified_state(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         return display_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         display_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
@@ -881,13 +900,13 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         properties = self.__properties
         self.__properties = display_item.save_properties()
         display_item.restore_properties(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDisplayCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
+        return isinstance(command, ChangeDisplayCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item
 
 
 class ChangeGraphicsCommand(Undo.UndoableCommand):
@@ -895,7 +914,7 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
     def __init__(self, document_model, display_item, graphics, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Change Graphics"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
-        self.__display_item_uuid = display_item.uuid
+        self.__display_item_proxy = display_item.create_proxy()
         self.__graphic_indexes = [display_item.graphics.index(graphic) for graphic in graphics]
         self.__properties = [graphic.write_to_dict() for graphic in graphics]
         self.__value_dict = kwargs
@@ -904,23 +923,24 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
     def close(self):
         self.__document_model = None
         self.__properties = None
-        self.__display_item_uuid = None
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
         self.__graphic_indexes = None
         super().close()
 
     def perform(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
         for key, value in self.__value_dict.items():
             for graphic in graphics:
                 setattr(graphic, key, value)
 
     def _get_modified_state(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         return display_item.modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         display_item.modified_state, self.__document_model.modified_state = modified_state
 
     def _compare_modified_states(self, state1, state2) -> bool:
@@ -928,7 +948,7 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
         return state1[0] == state2[0]
 
     def _undo(self):
-        display_item = self.__document_model.get_display_item_by_uuid(self.__display_item_uuid)
+        display_item = self.__display_item_proxy.item
         properties = self.__properties
         graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
         self.__properties = [graphic.write_to_dict() for graphic in graphics]
@@ -937,7 +957,7 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
             graphic.read_properties_from_dict(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeGraphicsCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid and self.__graphic_indexes == command.__graphic_indexes
+        return isinstance(command, ChangeGraphicsCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item and self.__graphic_indexes == command.__graphic_indexes
 
 
 class ReplaceDisplayPanelCommand(Undo.UndoableCommand):
@@ -1018,17 +1038,13 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             display_canvas_item = self.display_canvas_item
             if display_canvas_item and hasattr(display_canvas_item, "get_drop_regions_map"):
                 # give the display canvas item a chance to provide drop regions based on the display item being dropped
-                display_item_uuid = None
+                display_item = None
                 if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
-                    d = json.loads(mime_data.data_as_string(MimeTypes.DISPLAY_PANEL_MIME_TYPE))
-                    display_item_uuid_str = d.get("display_item_uuid", None)
-                    display_item_uuid = uuid.UUID(display_item_uuid_str) if display_item_uuid_str else None
-                if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
-                    display_item_uuid = uuid.UUID(mime_data.data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
-                if display_item_uuid:
-                    display_item = document_controller.document_model.get_display_item_by_uuid(display_item_uuid)
-                    if display_item:
-                        self.__content_canvas_item.drop_regions_map = display_canvas_item.get_drop_regions_map(display_item)
+                    display_item, d = MimeTypes.mime_data_get_panel(mime_data, self.document_controller.document_model)
+                if not display_item:
+                    display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
+                if display_item:
+                    self.__content_canvas_item.drop_regions_map = display_canvas_item.get_drop_regions_map(display_item)
             else:
                 self.__content_canvas_item.drop_regions_map = None
             if workspace_controller:
@@ -1289,7 +1305,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
         if self.__display_item:
-            d["display_item_uuid"] = str(self.display_item.uuid)
+            d["display_item_specifier"] = self.__display_item.project.create_specifier(self.__display_item, allow_partial=False).write()
         if self.__display_panel_controller is None and self.__horizontal_browser_canvas_item.visible:
             d["browser_type"] = "horizontal"
         if self.__display_panel_controller is None and self.__grid_browser_canvas_item.visible:
@@ -1308,9 +1324,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             self.__set_display_panel_controller(DisplayPanelManager().make_display_panel_controller(controller_type, self, d))
             if not self.__display_panel_controller:
                 display_item = None
-                display_item_uuid_str = d.get("display_item_uuid")
-                if display_item_uuid_str:
-                    display_item = self.__document_controller.document_model.get_display_item_by_uuid(uuid.UUID(display_item_uuid_str))
+                if "display_item_specifier" in d:
+                    display_item_specifier = Persistence.PersistentObjectSpecifier.read(d["display_item_specifier"])
+                    display_item = self.document_controller.document_model.resolve_item_specifier(display_item_specifier)
                 self.set_display_item(display_item)
                 self.__update_selection_to_display()
                 if d.get("browser_type") == "horizontal":
@@ -1420,7 +1436,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def set_display_panel_display_item(self, display_item: DisplayItem.DisplayItem, detect_controller: bool=False) -> None:
         if display_item:
-            d = {"type": "image", "display_item_uuid": str(display_item.uuid)}
+            d = {"type": "image", "display_item_specifier": display_item.project.create_specifier(display_item, allow_partial=False).write()}
             if detect_controller:
                 data_item = display_item.data_item
                 if display_item == self.document_controller.document_model.get_any_display_item_for_data_item(data_item):
@@ -1499,6 +1515,10 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         self.__display_item = display_item
 
+        # ensure the graphics get updated by triggering the graphics changed event.
+        if self.__display_item:
+            self.__display_item.graphics_changed_event.fire(self.__display_item.graphic_selection)
+
         # update the related icons canvas item with the new display.
         self.__related_icons_canvas_item.set_display_item(display_item)
 
@@ -1551,8 +1571,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def __handle_begin_drag(self):
         mime_data = self.ui.create_mime_data()
         if self.__display_item:
-            mime_data.set_data_as_string(MimeTypes.DISPLAY_ITEM_MIME_TYPE, str(self.__display_item.uuid))
-        mime_data.set_data_as_string(MimeTypes.DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
+            MimeTypes.mime_data_put_display_item(mime_data, self.__display_item)
+        MimeTypes.mime_data_put_panel(mime_data, None, self.save_contents())
         thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(self.__display_item)
         self.__begin_drag(mime_data, thumbnail_data)
 
@@ -1688,10 +1708,11 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__display_item.graphic_selection.clear()
 
     def add_and_select_region(self, region: Graphics.Graphic) -> Undo.UndoableCommand:
-        self.__display_item.add_graphic(region)  # this will also make a drawn graphic
+        command = InsertGraphicsCommand(self.__document_controller, self.__display_item, [region])
+        command.perform()
         # hack to select it. it will be the last item.
         self.__display_item.graphic_selection.set(len(self.__display_item.graphics) - 1)
-        return InsertGraphicsCommand(self.__document_controller, self.__display_item, [region])
+        return command
 
     def nudge_selected_graphics(self, mapping, delta):
         all_graphics = self.__display_item.graphics
@@ -1702,7 +1723,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 graphic.nudge(mapping, delta)
             self.__document_controller.push_undo_command(command)
 
-    def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
+    def adjust_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
         with self.__display_item.display_item_changes():
             for graphic in graphic_drag_items:
                 index = self.__display_item.graphics.index(graphic)
@@ -1747,17 +1768,17 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def begin_mouse_tracking(self):
         self.__mouse_tracking_transaction = self.__document_controller.document_model.begin_display_item_transaction(self.__display_item)
 
-    def create_mime_data(self):
+    def create_mime_data(self) -> UserInterface.MimeData:
         return self.ui.create_mime_data()
 
     def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int):
         return self.ui.create_rgba_image(drawing_context, width, height)
 
-    def get_display_item_uuid(self) -> uuid.UUID:
-        return self.display_item.uuid
+    def get_display_item(self) -> DisplayItem.DisplayItem:
+        return self.display_item
 
-    def get_display_item_by_uuid(self, id: uuid.UUID) -> DisplayItem:
-        return self.document_controller.document_model.get_display_item_by_uuid(id)
+    def get_document_model(self) -> DocumentModel.DocumentModel:
+        return self.document_controller.document_model
 
     def end_mouse_tracking(self, undo_command):
         self.__mouse_tracking_transaction.close()
@@ -1801,11 +1822,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         display_item = self.display_item
         if display_item:
             mime_data = self.ui.create_mime_data()
-            mime_data_content = dict()
-            mime_data_content["display_item_uuid"] = str(display_item.uuid)
-            if graphics and len(graphics) == 1:
-                mime_data_content["graphic_uuid"] = str(graphics[0].uuid)
-            mime_data.set_data_as_string(MimeTypes.DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
+            MimeTypes.mime_data_put_data_source(mime_data, display_item, graphics[0] if len(graphics) == 1 else None)
             thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(display_item)
             self.__begin_drag(mime_data, thumbnail_data)
 
@@ -1820,17 +1837,15 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 setattr(display_data_channel, key, value)
 
     def create_insert_graphics_command(self, graphics: typing.Sequence[Graphics.Graphic]) -> InsertGraphicsCommand:
-        return InsertGraphicsCommand(self.__document_controller, self.__display_item, graphics)
+        return InsertGraphicsCommand(self.__document_controller, self.__display_item, list(), existing_graphics=graphics)
 
     def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> ChangeDisplayCommand:
         return ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item, command_id=command_id, is_mergeable=is_mergeable)
 
-    def create_move_display_layer_command(self, src_id: uuid.UUID, src_index: int, target_index: int) -> MoveDisplayLayerCommand:
-        src_display_item = self.__document_controller.document_model.get_display_item_by_uuid(src_id)
-        return MoveDisplayLayerCommand(self.__document_controller.document_model, src_display_item, src_index, self.__display_item, target_index)
+    def create_move_display_layer_command(self, display_item: DisplayItem.DisplayItem, src_index: int, target_index: int) -> MoveDisplayLayerCommand:
+        return MoveDisplayLayerCommand(self.__document_controller.document_model, display_item, src_index, self.__display_item, target_index)
 
-    def create_change_display_item_property_command(self, id: uuid.UUID, property_name: str, value) -> Inspector.ChangeDisplayItemPropertyCommand:
-        display_item = self.__document_controller.document_model.get_display_item_by_uuid(id)
+    def create_change_display_item_property_command(self, display_item: DisplayItem.DisplayItem, property_name: str, value) -> Inspector.ChangeDisplayItemPropertyCommand:
         return Inspector.ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, display_item, property_name, value)
 
     def create_change_graphics_command(self) -> ChangeGraphicsCommand:
@@ -1896,7 +1911,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return None
 
     def create_spot(self, pos):
-        bounds = tuple(pos), (0, 0)
+        data_shape = self.__display_item.data_item.data_shape
+        mapping = ImageCanvasItem.ImageCanvasItemMapping(data_shape, None, self.__display_item.datum_calibrations)
+        bounds = Geometry.FloatRect.from_center_and_size(pos - mapping.calibrated_origin_image_norm, Geometry.FloatSize())
         self.__display_item.graphic_selection.clear()
         region = Graphics.SpotGraphic()
         region.bounds = bounds
@@ -1922,9 +1939,11 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return region
 
     def create_lattice(self, u_pos):
+        data_shape = self.__display_item.data_item.data_shape
+        mapping = ImageCanvasItem.ImageCanvasItemMapping(data_shape, None, self.__display_item.datum_calibrations)
         self.__display_item.graphic_selection.clear()
         region = Graphics.LatticeGraphic()
-        region.u_pos = u_pos
+        region.u_pos = u_pos - mapping.calibrated_origin_image_norm
         self.__display_item.add_graphic(region)
         self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
@@ -1994,7 +2013,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
     def switch_to_display_content(self, document_controller, display_panel: DisplayPanel, display_panel_type, display_item: DisplayItem.DisplayItem = None):
         d = {"type": "image", "display-panel-type": display_panel_type}
         if display_item and display_panel_type != "empty-display-panel":
-            d["display_item_uuid"] = str(display_item.uuid)
+            d["display_item_specifier"] = display_item.project.create_specifier(display_item, allow_partial=False).write()
         command = ReplaceDisplayPanelCommand(document_controller.workspace_controller)
         display_panel.change_display_panel_content(d)
         document_controller.push_undo_command(command)
@@ -2050,7 +2069,7 @@ def preview(get_font_metrics_fn, display_item: DisplayItem.DisplayItem, width: i
             display_calibration_info = DisplayItem.DisplayCalibrationInfo(display_item)
             display_canvas_item.update_display_values(display_values_list)
             display_canvas_item.update_display_properties(display_calibration_info, display_item.display_properties, display_item.display_layers)
-            display_canvas_item.update_graphics(display_item.graphics, DisplayItem.GraphicSelection(), display_calibration_info)
+            display_canvas_item.update_graphics_coordinate_system(display_item.graphics, DisplayItem.GraphicSelection(), display_calibration_info)
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)
                 display_canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(height=frame_height, width=frame_width))

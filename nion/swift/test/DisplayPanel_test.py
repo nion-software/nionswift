@@ -26,6 +26,7 @@ from nion.swift.model import Profile
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import TestUI
+from nion.ui import UserInterface
 from nion.utils import Geometry
 
 
@@ -61,11 +62,14 @@ def create_1d_data(length=1024, data_min=0.0, data_max=1.0):
 class TestDisplayPanel:
     def __init__(self):
         self.drop_region = None
-    def handle_drag_enter(self, mime_data):
+
+    def handle_drag_enter(self, mime_data: UserInterface.MimeData) -> str:
         return "copy"
-    def handle_drag_move(self, mime_data, x, y):
+
+    def handle_drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         return "copy"
-    def handle_drop(self, mime_data, region, x, y):
+
+    def handle_drop(self, mime_data: UserInterface.MimeData, region, x: int, y: int) -> str:
         self.drop_region = region
         return "copy"
 
@@ -2074,17 +2078,18 @@ class TestDisplayPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
-            data_item_reference = DocumentModel.DocumentModel.DataItemReference(document_model, "abc")
-            data_item_reference.data_item = data_item
-            display_panel = document_controller.selected_display_panel
-            display_panel.set_data_item_reference(data_item_reference)
-            self.assertEqual(None, display_panel.display_item)
-            self.assertEqual(None, display_panel.data_item)
-            document_model.append_data_item(data_item)
-            document_controller.periodic()
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertEqual(display_item, display_panel.display_item)
-            self.assertEqual(data_item, display_panel.data_item)
+            data_item_reference = DocumentModel.DocumentModel.DataItemReference(document_model, "abc", document_model._project)
+            with contextlib.closing(data_item_reference):
+                data_item_reference.data_item = data_item
+                display_panel = document_controller.selected_display_panel
+                display_panel.set_data_item_reference(data_item_reference)
+                self.assertEqual(None, display_panel.display_item)
+                self.assertEqual(None, display_panel.data_item)
+                document_model.append_data_item(data_item)
+                document_controller.periodic()
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                self.assertEqual(display_item, display_panel.display_item)
+                self.assertEqual(data_item, display_panel.data_item)
 
     def test_move_display_layer_undo_redo(self):
         document_model = DocumentModel.DocumentModel()

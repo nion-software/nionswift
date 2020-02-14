@@ -19,11 +19,16 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.ui import TestUI
 
 
 Facade.initialize()
+
+
+def create_memory_profile_context():
+    return Profile.MemoryProfileContext()
 
 
 def construct_test_document(app, workspace_id=None):
@@ -138,21 +143,27 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertIsNone(weak_data_item())
 
     def test_document_controller_releases_itself(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        weak_document_controller = weakref.ref(document_controller)
-        document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
-        document_controller.periodic()
-        document_controller.close()
-        document_controller = None
-        gc.collect()
-        self.assertIsNone(weak_document_controller())
+        i = 0
+        try:
+            for i in range(100):
+                document_model = DocumentModel.DocumentModel()
+                document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+                weak_document_controller = weakref.ref(document_controller)
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+                document_controller.periodic()
+                document_controller.close()
+                document_controller = None
+                gc.collect()
+                self.assertIsNone(weak_document_controller())
+        except Exception as e:
+            print(i)
+            raise
 
     def test_flat_data_groups(self):
         document_controller = construct_test_document(self.app)
         with contextlib.closing(document_controller):
             self.assertEqual(len(list(document_controller.document_model.get_flat_data_group_generator())), 7)
-            self.assertEqual(len(list(document_controller.document_model.get_flat_data_item_generator())), 3)
+            self.assertEqual(len(document_controller.document_model.data_items), 3)
             self.assertEqual(document_controller.document_model.display_items[0], document_controller.document_model.data_groups[0].display_items[0])
             self.assertEqual(document_controller.document_model.display_items[1], document_controller.document_model.data_groups[0].display_items[1])
             self.assertEqual(document_controller.document_model.display_items[2], document_controller.document_model.data_groups[1].data_groups[1].data_groups[0].display_items[0])
@@ -207,7 +218,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             data_item3.title = "data_item3"
             document_model.append_data_item(data_item3)
             data_group.append_display_item(document_model.get_display_item_for_data_item(data_item3))
-            new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], data_group=data_group, index=2, threaded=False)
+            new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], data_group=data_group, index=2, threaded=False, project=document_model._project)
             self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
             self.assertEqual(data_group.display_items.index(document_model.get_display_item_for_data_item(new_data_items[0])), 2)
 
@@ -323,9 +334,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_item = document_model.get_display_item_for_data_item(data_item)
         display_item.add_graphic(crop_region)
         new_data_item = document_model.get_invert_new(display_item, crop_region)
-        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(document_model.get_data_item_computation(new_data_item).variables[0].secondary_specifier).value.bounds)
+        self.assertEqual(crop_region.bounds, document_model.get_data_item_computation(new_data_item).get_input("src").graphic.bounds)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(document_model.get_data_item_computation(new_data_item).variables[0].secondary_specifier).value.bounds)
+        self.assertEqual(crop_region.bounds, document_model.get_data_item_computation(new_data_item).get_input("src").graphic.bounds)
         document_controller.close()
 
     def test_processing_on_crop_region_recomputes_when_bounds_changes(self):
@@ -444,7 +455,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             intermediate_display_item.add_graphic(interval_region)
             target_data_item = document_model.get_invert_new(source_display_item)
             target_computation = document_model.get_data_item_computation(target_data_item)
-            target_computation.create_object("interval", document_model.get_object_specifier(interval_region), label="I")
+            target_computation.create_input_item("interval", Symbolic.make_item(interval_region), label="I")
             self.assertIn(source_data_item, document_model.data_items)
             self.assertIn(intermediate_data_item, document_model.data_items)
             self.assertIn(target_data_item, document_model.data_items)
@@ -468,8 +479,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             intermediate_display_item.add_graphic(interval_region2)
             target_data_item = document_model.get_invert_new(source_display_item)
             target_computation = document_model.get_data_item_computation(target_data_item)
-            target_computation.create_object("interval1", document_model.get_object_specifier(interval_region1), label="I")
-            target_computation.create_object("interval2", document_model.get_object_specifier(interval_region2), label="I")
+            target_computation.create_input_item("interval1", Symbolic.make_item(interval_region1), label="I")
+            target_computation.create_input_item("interval2", Symbolic.make_item(interval_region2), label="I")
             self.assertIn(source_data_item, document_model.data_items)
             self.assertIn(intermediate_data_item, document_model.data_items)
             self.assertIn(target_data_item, document_model.data_items)
@@ -571,8 +582,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertNotEqual(document_model.get_data_item_computation(data_item_dup), document_model.get_data_item_computation(data_item))
             self.assertNotEqual(document_model.get_data_item_computation(data_item_dup).variables[0], document_model.get_data_item_computation(data_item).variables[0])
             self.assertEqual(document_model.get_data_item_computation(data_item_dup).variables[0].variable_specifier["uuid"], document_model.get_data_item_computation(data_item).variables[0].variable_specifier["uuid"])
-            self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item_dup).variables[0].variable_specifier).value.data_item,
-                             document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item).variables[0].variable_specifier).value.data_item)
+            self.assertEqual(document_model.get_data_item_computation(data_item_dup).get_input("src").data_item,
+                             document_model.get_data_item_computation(data_item).get_input("src").data_item)
 
     def test_fixing_display_limits_works_for_all_data_types(self):
         document_model = DocumentModel.DocumentModel()
@@ -808,14 +819,17 @@ class TestDocumentControllerClass(unittest.TestCase):
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(4, len(document_model.data_items))
+            self.assertEqual(4, len(document_model.display_items))
             self.assertListEqual([data_item1, data_item2, data_item3, data_item4], list(document_model.data_items))
             # undo and check
             document_controller.handle_undo()
             self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
             self.assertListEqual([data_item1, data_item4], list(document_model.data_items))
             # redo and check
             document_controller.handle_redo()
             self.assertEqual(4, len(document_model.data_items))
+            self.assertEqual(4, len(document_model.display_items))
             self.assertListEqual(data_item_uuids, [data_item.uuid for data_item in document_model.data_items])
 
     def test_remove_display_items_undo_redo_cycle(self):
@@ -992,9 +1006,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_item.add_graphic(Graphics.RectangleGraphic())
             display_item.add_graphic(Graphics.RectangleGraphic())
             computation = document_model.create_computation()
-            items = [document_model.get_object_specifier(display_item.graphics[0]), document_model.get_object_specifier(display_item.graphics[1])]
-            computation.create_object("src", document_model.get_object_specifier(data_item))
-            computation.create_objects("graphics_list", items)
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_input_item("graphics_list", Symbolic.make_item_list(display_item.graphics))
             computation.processing_id = "add_g"
             document_model.append_computation(computation)
             document_model.recompute_all()
@@ -1057,6 +1070,51 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(3, len(document_model.data_items))
             self.assertEqual(2, len(display_item1.data_items))
             self.assertEqual(2, len(display_item1.display_layers))
+
+    def test_profile_selected_projects_updated_when_one_deleted(self):
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.add_project_memory()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                project_panel = document_controller.find_dock_widget("project-panel").panel
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item, project=profile.projects[0])
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item, project=profile.projects[1])
+                project_panel._tree_selection.set_multiple({0, 1})
+                self.assertEqual(2, len(document_controller.selected_projects))
+                self.assertIn(profile.projects[0], document_controller.selected_projects)
+                self.assertIn(profile.projects[1], document_controller.selected_projects)
+                profile.remove_project(profile.projects[1])  # note: cannot remove project 0, since it is work project
+                self.assertEqual(1, len(document_controller.selected_projects))
+                self.assertIn(profile.projects[0], document_controller.selected_projects)
+
+    def test_profile_selected_projects_updated_when_middle_one_deleted(self):
+        # this test ensures that the project selection is updated properly when an item
+        # is removed but the index of the item is still valid in the new list.
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.add_project_memory()
+            profile.add_project_memory()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                project_panel = document_controller.find_dock_widget("project-panel").panel
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item, project=profile.projects[0])
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item, project=profile.projects[1])
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item, project=profile.projects[2])
+                project_panel._tree_selection.set_multiple({1, 2})
+                self.assertEqual(2, len(document_controller.selected_projects))
+                self.assertIn(profile.projects[1], document_controller.selected_projects)
+                self.assertIn(profile.projects[2], document_controller.selected_projects)
+                profile.remove_project(profile.projects[1])  # note: cannot remove project 0, since it is work project
+                self.assertEqual(1, len(document_controller.selected_projects))
+                self.assertIn(profile.projects[1], document_controller.selected_projects)
 
 
 if __name__ == '__main__':

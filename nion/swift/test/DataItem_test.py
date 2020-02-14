@@ -26,6 +26,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Profile
+from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.ui import TestUI
 from nion.utils import Recorder
@@ -134,10 +135,10 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
             data_item2a.ensure_data_source()
-            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
-            computation.create_object("src", document_model.get_object_specifier(data_item2))
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
+            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
+            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.set_data_item_computation(data_item2a, computation)
             # verify
             self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
@@ -149,10 +150,10 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
             data_item2a.ensure_data_source()
-            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
-            computation.create_object("src", document_model.get_object_specifier(data_item2))
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
+            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
+            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.set_data_item_computation(data_item2a, computation)
             # verify
             self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
@@ -169,10 +170,10 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
             data_item2a.ensure_data_source()
-            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
-            computation.create_object("src", document_model.get_object_specifier(data_item2))
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
+            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
+            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.set_data_item_computation(data_item2a, computation)
             # verify
             self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
@@ -208,10 +209,10 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
             data_item2a.ensure_data_source()
-            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
-            computation.create_object("src", document_model.get_object_specifier(data_item2))
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
+            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
+            computation.create_input_item("src", Symbolic.make_item(data_item2))
             document_model.set_data_item_computation(data_item2a, computation)
             # copy the dependent item
             data_item2a_copy = document_model.copy_data_item(data_item2a)
@@ -230,8 +231,8 @@ class TestDataItemClass(unittest.TestCase):
             # copy the dependent item
             data_item2a_copy = document_model.copy_data_item(data_item2a)
             # verify data source
-            self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item2a).variables[0].variable_specifier).value.data_item, data_item2)
-            self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item2a_copy).variables[0].variable_specifier).value.data_item, data_item2)
+            self.assertEqual(document_model.get_data_item_computation(data_item2a).get_input("src").data_item, data_item2)
+            self.assertEqual(document_model.get_data_item_computation(data_item2a_copy).get_input("src").data_item, data_item2)
 
     def test_copy_data_item_with_crop(self):
         document_model = DocumentModel.DocumentModel()
@@ -246,8 +247,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item_copy = document_model.copy_data_item(data_item)
             self.assertNotEqual(document_model.get_data_item_computation(data_item_copy), document_model.get_data_item_computation(data_item))
             document_model.recompute_all()
-            self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item_copy).variables[0].secondary_specifier).value,
-                             document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item).variables[0].secondary_specifier).value)
+            self.assertEqual(document_model.get_data_item_computation(data_item_copy).get_input("src").graphic,
+                             document_model.get_data_item_computation(data_item).get_input("src").graphic)
 
     def test_copy_data_item_with_transaction(self):
         document_model = DocumentModel.DocumentModel()
@@ -916,7 +917,7 @@ class TestDataItemClass(unittest.TestCase):
             # begin the transaction
             with document_model.item_transaction(data_item):
                 document_model.append_data_item(data_item)
-                self.assertTrue(data_item.persistent_object_context.is_write_delayed(data_item))
+                self.assertTrue(data_item.is_write_delayed)
 
     def test_data_item_added_to_live_data_item_becomes_live_and_unlive_based_on_parent_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -1004,7 +1005,7 @@ class TestDataItemClass(unittest.TestCase):
             copied_display_item = document_model.get_display_item_for_data_item(copied_data_item)
             document_model.recompute_all()
             self.assertFalse(document_model.get_data_item_computation(copied_display_item.data_item).needs_update)
-            document_model.get_data_item_computation(copied_data_item).variables[1].value = 0.1
+            document_model.get_data_item_computation(copied_data_item).set_input_value("sigma", 0.1)
             self.assertTrue(document_model.get_data_item_computation(copied_display_item.data_item).needs_update)
 
     def test_reloading_stale_data_should_still_be_stale(self):
@@ -1359,6 +1360,22 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertEqual(1, data_item_xdata._data_ref_count)
                 data_item.set_data(numpy.zeros((16, 16)))
             self.assertEqual(0, data_item_xdata._data_ref_count)
+
+    def test_filter_xdata_returns_ones_when_no_graphics(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            # setup by adding data item and a dependent data item
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation("target.xdata = src")
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            computation.create_input_item("src", Symbolic.make_item(display_item.display_data_channel, type="filter_xdata"))
+            document_model.set_data_item_computation(data_item2, computation)
+            document_model.recompute_all()
+            # verify
+            self.assertTrue(numpy.array_equal(data_item2.xdata.data, numpy.ones((8, 8))))
 
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot

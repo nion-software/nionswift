@@ -35,10 +35,11 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Persistence
 from nion.swift.model import Utility
 from nion.utils import Event
+from nion.utils import Geometry
 from nion.utils import Observable
-from nion.utils import Persistence
 
 _ = gettext.gettext
 
@@ -331,7 +332,8 @@ class AcquisitionTask:
         for data_element in data_elements:
             sub_area = data_element.get("sub_area")
             state = data_element.get("state", "complete")
-            if not (sub_area is None or state == "complete"):
+            section_state = data_element.get("section_state")
+            if not (sub_area is None or state == "complete" or section_state == "complete"):
                 complete = False
                 break
 
@@ -423,7 +425,7 @@ class DataChannel:
         * data_channel_start_event
         * data_channel_stop_event
 
-    All events will be fired the acquisition thread.
+    All events will be fired on the acquisition thread.
 
     The client can access the following properties of the channel:
         * channel_id
@@ -441,6 +443,7 @@ class DataChannel:
         self.__processor = processor
         self.__start_count = False
         self.__state = None
+        self.__data_shape = None
         self.__sub_area = None
         self.__data_and_metadata = None
         self.is_dirty = False
@@ -465,8 +468,16 @@ class DataChannel:
         return self.__state
 
     @property
+    def data_shape(self):
+        return self.__data_shape
+
+    @property
     def sub_area(self):
         return self.__sub_area
+
+    @property
+    def dest_sub_area(self):
+        return self.__dest_sub_area
 
     @property
     def src_channel_index(self):
@@ -484,9 +495,12 @@ class DataChannel:
     def is_started(self):
         return self.__start_count > 0
 
-    def update(self, data_and_metadata: DataAndMetadata.DataAndMetadata, state: str, sub_area, view_id) -> None:
+    def update(self, data_and_metadata: DataAndMetadata.DataAndMetadata, state: str, data_shape, dest_sub_area, sub_area, view_id) -> None:
         """Called from hardware source when new data arrives."""
         self.__state = state
+        self.__data_shape = data_shape or data_and_metadata.data_shape
+        dest_sub_area = dest_sub_area or sub_area
+        self.__dest_sub_area = dest_sub_area
         self.__sub_area = sub_area
 
         hardware_source_id = self.__hardware_source.hardware_source_id
@@ -509,18 +523,21 @@ class DataChannel:
         metadata.setdefault("hardware_source", dict()).update(hardware_source_metadata)
 
         data = data_and_metadata.data
+        data_shape = data_shape or data.shape
         master_data = self.__data_and_metadata.data if self.__data_and_metadata else None
-        data_matches = master_data is not None and data.shape == master_data.shape and data.dtype == master_data.dtype
+        if master_data is None or (master_data.shape != data_shape and data.shape != data_shape):
+            master_data = numpy.zeros(data_shape, data.dtype)
+        data_matches = master_data is not None and data_shape == master_data.shape and data.dtype == master_data.dtype
         if data_matches and sub_area is not None:
-            top = sub_area[0][0]
-            bottom = sub_area[0][0] + sub_area[1][0]
-            left = sub_area[0][1]
-            right = sub_area[0][1] + sub_area[1][1]
-            if top > 0 or left > 0 or bottom < data.shape[0] or right < data.shape[1]:
-                master_data[top:bottom, left:right] = data[top:bottom, left:right]
+            src_rect = Geometry.IntRect.make(sub_area)
+            dst_rect = Geometry.IntRect.make(dest_sub_area)
+            if (dst_rect.top > 0 or dst_rect.left > 0 or dst_rect.bottom < master_data.shape[0] or dst_rect.right < master_data.shape[1])\
+                    or (src_rect.top > 0 or src_rect.left > 0 or src_rect.bottom < data.shape[0] or src_rect.right < data.shape[1]):
+                master_data[dst_rect.slice] = data[src_rect.slice]
             else:
                 master_data = numpy.copy(data)
         else:
+            assert data.shape == data_shape
             master_data = data  # numpy.copy(data). assume data does not need a copy.
 
         data_descriptor = data_and_metadata.data_descriptor
@@ -696,14 +713,33 @@ class HardwareSource:
     def _record_task_updated(self, record_task):
         pass
 
-    # data_elements is a list of data_elements; may be an empty list
-    # data_elements optionally include 'channel_id', 'state', and 'sub_area'.
-    # the 'channel_id' will be used to determine channel index if applicable. default will be None / channel 0.
-    # the 'state' may be 'partial', 'complete', or 'marked' (requested stop at end of frame). default is 'complete'.
-    # the 'sub_area' will be used to determine valid sub-area if applicable.
-    # beyond these three items, the data element will be converted to xdata using convert_data_element_to_data_and_metadata.
-    # thread safe
     def __data_elements_changed(self, task, data_elements, view_id, is_complete, is_stopping):
+        """Called in response to a data_elements_changed event from the task.
+
+        data_elements is a list of data_elements; may be an empty list
+
+        data_elements optionally include 'channel_id', 'section_state', 'state', 'data_shape', 'sub_area', and 'dest_sub_area'.
+
+        the 'channel_id' will be used to determine channel index if applicable. default will be None / channel 0.
+
+        the 'section_state' may be 'partial' or 'complete'. default is 'partial'. it is used to indicate data should be
+        returned from a grab but that the frame is still incomplete. used during partial SI.
+
+        the 'state' may be 'partial', 'complete', or 'marked' (requested stop at end of frame). default is 'partial'. it
+        is used to indicated that the entire frame is complete.
+
+        the 'data_shape' will be used to determine the shape of the destination data. if omitted, the size of the data
+        in the data element will be used.
+
+        the 'dest_sub_area' will be used to determine destination sub-area if applicable. if data is returned in
+        chunks or sections, dest sub area can be used to indicate the destination area.
+
+        the 'sub_area' will be used to determine source sub-area if applicable. data can be returned in partial
+        chunks from top to bottom with a constant width.
+
+        beyond these three items, the data element will be converted to xdata using convert_data_element_to_data_and_metadata.
+        thread safe
+        """
         xdatas = list()
         data_channels = list()
         for data_element in data_elements:
@@ -716,10 +752,12 @@ class HardwareSource:
             channel_state = data_element.get("state", "complete")
             if channel_state != "complete" and is_stopping:
                 channel_state = "marked"
+            data_shape = data_element.get("data_shape")
+            dest_sub_area = data_element.get("dest_sub_area")
             sub_area = data_element.get("sub_area")
             data_channel = self.__data_channels[channel_index]
             # data_channel.update will make a copy of the data_and_metadata
-            data_channel.update(data_and_metadata, channel_state, sub_area, view_id)
+            data_channel.update(data_and_metadata, channel_state, data_shape, dest_sub_area, sub_area, view_id)
             data_channels.append(data_channel)
             xdatas.append(data_channel.data_and_metadata)
         # update channel buffers with processors
@@ -729,7 +767,7 @@ class HardwareSource:
                 src_data_channel = self.__data_channels[src_channel_index]
                 if src_data_channel.is_dirty and src_data_channel.state == "complete":
                     processed_data_and_metadata = data_channel.processor.process(src_data_channel.data_and_metadata)
-                    data_channel.update(processed_data_and_metadata, "complete", None, view_id)
+                    data_channel.update(processed_data_and_metadata, "complete", None, None, None, view_id)
                 data_channels.append(data_channel)
                 xdatas.append(data_channel.data_and_metadata)
         # all channel buffers are clean now
@@ -954,7 +992,7 @@ class HardwareSource:
         return HardwareSourceFacade()
 
 
-class SumProcessor(Observable.Observable, Persistence.PersistentObject):
+class SumProcessor(Observable.Observable):
     def __init__(self, bounds, processor_id=None, label=None):
         super().__init__()
         self.__bounds = bounds

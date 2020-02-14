@@ -23,6 +23,7 @@ class ThumbnailProcessor:
 
     def __init__(self, display_item: DisplayItem.DisplayItem):
         self.__display_item = display_item
+        self.__display_item_about_to_close_listener = self.__display_item.about_to_close_event.listen(self.__about_to_close_display_item)
         self.__cache = self.__display_item._display_cache
         self.__cache_property_name = "thumbnail_data"
         # the next two fields represent a memory cache -- a cache of the cache values.
@@ -46,6 +47,13 @@ class ThumbnailProcessor:
             if self.__recompute_thread:
                 self.__recompute_thread_cancel.set()
                 self.__recompute_thread.join()
+
+    def __about_to_close_display_item(self) -> None:
+        with self.__is_recomputing_lock:
+            if self.__recompute_thread:
+                self.__recompute_thread_cancel.set()
+                self.__recompute_thread.join()
+        self.__display_item = None
 
     # used for testing
     @property

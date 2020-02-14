@@ -98,26 +98,31 @@ class Recorder:
             self.__recorder = recorder
             self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
             self.__new_workspace_layout = None
-            self.__data_item_uuid = None
+            self.__data_item_proxy = None
             self.__data_item_fn = data_item_fn
-            self.__data_item_index = None
+            self.__undelete_log = None
             self.initialize()
 
         def close(self):
             self.__document_controller = None
-            self.__data_item_uuid = None
+            if self.__data_item_proxy:
+                self.__data_item_proxy.close()
+                self.__data_item_proxy = None
             self.__data_item_fn = None
-            self.__data_item_index = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
+            if self.__undelete_log:
+                self.__undelete_log.close()
+                self.__undelete_log = None
             super().close()
 
         def perform(self):
-            self.__data_item_uuid = self.__data_item_fn().uuid
+            data_item = self.__data_item_fn()
+            self.__data_item_proxy = data_item.create_proxy()
 
         @property
         def data_item(self):
-            return self.__document_controller.document_model.get_data_item_by_uuid(self.__data_item_uuid)
+            return self.__data_item_proxy.item if self.__data_item_proxy else None
 
         def _get_modified_state(self):
             return self.__document_controller.document_model.modified_state
@@ -127,15 +132,15 @@ class Recorder:
 
         def _redo(self):
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
-            self.__data_item_uuid = self.__document_controller.document_model.data_items[self.__data_item_index].uuid
+            self.__undelete_log.close()
+            self.__undelete_log = None
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
         def _undo(self):
-            data_item = self.__document_controller.document_model.get_data_item_by_uuid(self.__data_item_uuid)
+            data_item = self.data_item
             self.__recorder.stop_recording()
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__data_item_index = self.__document_controller.document_model.data_items.index(data_item)
-            self.__undelete_log = self.__document_controller.document_model.remove_data_item(data_item, safe=True)
+            self.__undelete_log = self.__document_controller.document_model.remove_data_item_with_log(data_item, safe=True)
             self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def continue_recording(self, current_time: float) -> None:

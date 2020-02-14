@@ -170,14 +170,14 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(Graphics.PointGraphic())
-            graphic_widget = self.app.ui.create_column_widget()
             display_item.calibration_style_id = "calibrated"
             display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
-            Inspector.make_point_type_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0])
-            x_widget = graphic_widget.find_widget_by_id("x")
-            self.assertEqual(x_widget.text, "128.0 mm")
-            display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mmm"))
-            self.assertEqual(x_widget.text, "128.0 mmm")
+            graphic_widget = Inspector.make_point_type_inspector(document_controller, display_item, display_item.graphics[0])
+            with contextlib.closing(graphic_widget):
+                x_widget = graphic_widget.find_widget_by_id("x")
+                self.assertEqual(x_widget.text, "128.0 mm")
+                display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mmm"))
+                self.assertEqual(x_widget.text, "128.0 mmm")
 
     def test_changing_calibration_style_to_calibrated_displays_correct_values(self):
         document_model = DocumentModel.DocumentModel()
@@ -188,20 +188,20 @@ class TestInspectorClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             point_graphic = Graphics.PointGraphic()
             display_item.add_graphic(point_graphic)
-            graphic_widget = self.app.ui.create_column_widget()
             display_item.calibration_style_id = "calibrated"
             display_item.data_item.set_dimensional_calibration(0, Calibration.Calibration(offset=-100, scale=2, units="mm"))
             display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(offset=-100, scale=2, units="mm"))
-            Inspector.make_point_type_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0])
-            x_widget = graphic_widget.find_widget_by_id("x")
-            y_widget = graphic_widget.find_widget_by_id("y")
-            self.assertEqual(x_widget.text, "0.0 mm")
-            self.assertEqual(y_widget.text, "0.0 mm")
-            x_widget.text = "-10"
-            x_widget.on_editing_finished(x_widget.text)
-            y_widget.text = "20"
-            y_widget.on_editing_finished(y_widget.text)
-            self.assertEqual(point_graphic.position, (0.6, 0.45))
+            graphic_widget = Inspector.make_point_type_inspector(document_controller, display_item, display_item.graphics[0])
+            with contextlib.closing(graphic_widget):
+                x_widget = graphic_widget.find_widget_by_id("x")
+                y_widget = graphic_widget.find_widget_by_id("y")
+                self.assertEqual(x_widget.text, "0.0 mm")
+                self.assertEqual(y_widget.text, "0.0 mm")
+                x_widget.text = "-10"
+                x_widget.on_editing_finished(x_widget.text)
+                y_widget.text = "20"
+                y_widget.on_editing_finished(y_widget.text)
+                self.assertEqual(point_graphic.position, (0.6, 0.45))
 
     def test_graphic_inspector_section_displays_sensible_units(self):
         document_model = DocumentModel.DocumentModel()
@@ -211,20 +211,20 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(Graphics.PointGraphic())
-            graphic_widget = self.app.ui.create_column_widget()
             display_item.calibration_style_id = "calibrated"
-            Inspector.make_point_type_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0])
-            display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0), units="mm"))
-            x_widget = graphic_widget.find_widget_by_id("x")
-            self.assertEqual(x_widget.text, "181.0 mm")
-            display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0), offset=5.55555, units="mm"))
-            self.assertEqual(x_widget.text, "186.6 mm")
-            display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0)/10, units="mm"))
-            self.assertEqual(x_widget.text, "18.10 mm")
-            display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0)/10, offset=0.55555, units="mm"))
-            self.assertEqual(x_widget.text, "18.66 mm")
-            display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=-math.sqrt(2.0)/10, units="mm"))
-            self.assertEqual(x_widget.text, "-18.10 mm")
+            graphic_widget = Inspector.make_point_type_inspector(document_controller, display_item, display_item.graphics[0])
+            with contextlib.closing(graphic_widget):
+                display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0), units="mm"))
+                x_widget = graphic_widget.find_widget_by_id("x")
+                self.assertEqual(x_widget.text, "181.0 mm")
+                display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0), offset=5.55555, units="mm"))
+                self.assertEqual(x_widget.text, "186.6 mm")
+                display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0)/10, units="mm"))
+                self.assertEqual(x_widget.text, "18.10 mm")
+                display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0)/10, offset=0.55555, units="mm"))
+                self.assertEqual(x_widget.text, "18.66 mm")
+                display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=-math.sqrt(2.0)/10, units="mm"))
+                self.assertEqual(x_widget.text, "-18.10 mm")
 
     def test_graphic_inspector_display_calibrated_length_units(self):
         document_model = DocumentModel.DocumentModel()
@@ -237,12 +237,12 @@ class TestInspectorClass(unittest.TestCase):
             line_region.start = (0, 0)
             line_region.end = (1, 1)
             display_item.add_graphic(line_region)
-            graphic_widget = self.app.ui.create_column_widget()
             display_item.calibration_style_id = "calibrated"
-            Inspector.make_line_type_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0])
-            data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
-            data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
-            self.assertEqual(graphic_widget.find_widget_by_id("length").text, "223.607 mm")  # sqrt(100*100 + 200*200)
+            graphic_widget = Inspector.make_line_type_inspector(document_controller, display_item, display_item.graphics[0])
+            with contextlib.closing(graphic_widget):
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
+                data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
+                self.assertEqual(graphic_widget.find_widget_by_id("length").text, "223.607 mm")  # sqrt(100*100 + 200*200)
 
     def test_graphic_inspector_sets_calibrated_length_units(self):
         document_model = DocumentModel.DocumentModel()
@@ -255,17 +255,17 @@ class TestInspectorClass(unittest.TestCase):
             line_region.start = (0, 0)
             line_region.end = (0.5, 0.5)
             display_item.add_graphic(line_region)
-            graphic_widget = self.app.ui.create_column_widget()
             display_item.calibration_style_id = "calibrated"
-            Inspector.make_line_type_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0])
-            data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
-            data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
-            length_str = "{0:g}".format(math.sqrt(100 * 100 + 200 * 200))
-            length_widget = graphic_widget.find_widget_by_id("length")
-            length_widget.text = length_str
-            length_widget.on_editing_finished(length_str)
-            self.assertAlmostEqual(line_region.end[0], 1.0, 3)
-            self.assertAlmostEqual(line_region.end[1], 1.0, 3)
+            graphic_widget = Inspector.make_line_type_inspector(document_controller, display_item, display_item.graphics[0])
+            with contextlib.closing(graphic_widget):
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
+                data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
+                length_str = "{0:g}".format(math.sqrt(100 * 100 + 200 * 200))
+                length_widget = graphic_widget.find_widget_by_id("length")
+                length_widget.text = length_str
+                length_widget.on_editing_finished(length_str)
+                self.assertAlmostEqual(line_region.end[0], 1.0, 3)
+                self.assertAlmostEqual(line_region.end[1], 1.0, 3)
 
     def test_line_profile_inspector_display_calibrated_width_units(self):
         document_model = DocumentModel.DocumentModel()
@@ -279,12 +279,12 @@ class TestInspectorClass(unittest.TestCase):
             line_profile.end = (1, 1)
             line_profile.width = 10
             display_item.add_graphic(line_profile)
-            graphic_widget = self.app.ui.create_column_widget()
             display_item.calibration_style_id = "calibrated"
-            Inspector.make_line_profile_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0])
-            data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
-            data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
-            self.assertEqual(graphic_widget.find_widget_by_id("width").text, "10.0 mm")
+            graphic_widget = Inspector.make_line_profile_inspector(document_controller, display_item, display_item.graphics[0])
+            with contextlib.closing(graphic_widget):
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
+                data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
+                self.assertEqual(graphic_widget.find_widget_by_id("width").text, "10.0 mm")
 
     def test_float_to_string_converter_strips_units(self):
         document_model = DocumentModel.DocumentModel()
@@ -595,15 +595,15 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(Graphics.RectangleGraphic())
-            graphic_widget = self.app.ui.create_column_widget()
             display_item.calibration_style_id = "calibrated"
             data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm", scale=0.5))  # y
             data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=2.0))  # x
-            Inspector.make_rectangle_type_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0], str())
-            self.assertEqual(graphic_widget.find_widget_by_id("x").text, "256.0 mm")  # x
-            self.assertEqual(graphic_widget.find_widget_by_id("y").text, "64.00 mm")  # y
-            self.assertEqual(graphic_widget.find_widget_by_id("width").text, "512.0 mm")  # width
-            self.assertEqual(graphic_widget.find_widget_by_id("height").text, "128.00 mm")  # height
+            graphic_widget = Inspector.make_rectangle_type_inspector(document_controller, display_item, display_item.graphics[0], str())
+            with contextlib.closing(graphic_widget):
+                self.assertEqual(graphic_widget.find_widget_by_id("x").text, "256.0 mm")  # x
+                self.assertEqual(graphic_widget.find_widget_by_id("y").text, "64.00 mm")  # y
+                self.assertEqual(graphic_widget.find_widget_by_id("width").text, "512.0 mm")  # width
+                self.assertEqual(graphic_widget.find_widget_by_id("height").text, "128.00 mm")  # height
 
     def test_line_dimensions_show_calibrated_units(self):
         document_model = DocumentModel.DocumentModel()
@@ -616,15 +616,15 @@ class TestInspectorClass(unittest.TestCase):
             line_graphic.start = 0.2, 0.2
             line_graphic.end = 0.8, 0.8
             display_item.add_graphic(line_graphic)
-            graphic_widget = self.app.ui.create_column_widget()
             display_item.calibration_style_id = "calibrated"
             data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm", scale=0.5))  # y
             data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=2.0))  # x
-            Inspector.make_line_type_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0])
-            self.assertEqual(graphic_widget.find_widget_by_id("x0").text, "40.0 mm")  # x0
-            self.assertEqual(graphic_widget.find_widget_by_id("y0").text, "10.00 mm")  # y0
-            self.assertEqual(graphic_widget.find_widget_by_id("x1").text, "160.0 mm")  # x1
-            self.assertEqual(graphic_widget.find_widget_by_id("y1").text, "40.00 mm")  # y1
+            graphic_widget = Inspector.make_line_type_inspector(document_controller, display_item, display_item.graphics[0])
+            with contextlib.closing(graphic_widget):
+                self.assertEqual(graphic_widget.find_widget_by_id("x0").text, "40.0 mm")  # x0
+                self.assertEqual(graphic_widget.find_widget_by_id("y0").text, "10.00 mm")  # y0
+                self.assertEqual(graphic_widget.find_widget_by_id("x1").text, "160.0 mm")  # x1
+                self.assertEqual(graphic_widget.find_widget_by_id("y1").text, "40.00 mm")  # y1
 
     def test_point_dimensions_show_calibrated_units(self):
         document_model = DocumentModel.DocumentModel()
@@ -634,13 +634,13 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(Graphics.PointGraphic())
-            graphic_widget = self.app.ui.create_column_widget()
             display_item.calibration_style_id = "calibrated"
             display_item.data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm", scale=0.5))  # y
             display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=2.0))  # x
-            Inspector.make_point_type_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0])
-            self.assertEqual(graphic_widget.find_widget_by_id("x").text, "256.0 mm")  # x
-            self.assertEqual(graphic_widget.find_widget_by_id("y").text, "64.00 mm")  # y
+            graphic_widget = Inspector.make_point_type_inspector(document_controller, display_item, display_item.graphics[0])
+            with contextlib.closing(graphic_widget):
+                self.assertEqual(graphic_widget.find_widget_by_id("x").text, "256.0 mm")  # x
+                self.assertEqual(graphic_widget.find_widget_by_id("y").text, "64.00 mm")  # y
 
     def test_point_dimensions_show_calibrated_units_on_4d(self):
         document_model = DocumentModel.DocumentModel()
@@ -650,15 +650,15 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(Graphics.PointGraphic())
-            graphic_widget = self.app.ui.create_column_widget()
             display_item.calibration_style_id = "calibrated"
             display_item.data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm", scale=0.5))  # a
             display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=2.0))  # b
             display_item.data_item.set_dimensional_calibration(2, Calibration.Calibration(units="nm", scale=0.5))  # y
             display_item.data_item.set_dimensional_calibration(3, Calibration.Calibration(units="nm", scale=2.0))  # x
-            Inspector.make_point_type_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0])
-            self.assertEqual("6.00 nm", graphic_widget.find_widget_by_id("y").text)  # y
-            self.assertEqual("24.0 nm", graphic_widget.find_widget_by_id("x").text)  # x
+            graphic_widget = Inspector.make_point_type_inspector(document_controller, display_item, display_item.graphics[0])
+            with contextlib.closing(graphic_widget):
+                self.assertEqual("6.00 nm", graphic_widget.find_widget_by_id("y").text)  # y
+                self.assertEqual("24.0 nm", graphic_widget.find_widget_by_id("x").text)  # x
 
     def test_pixel_center_rounding_correct_on_odd_dimensioned_image(self):
         document_model = DocumentModel.DocumentModel()
@@ -670,11 +670,11 @@ class TestInspectorClass(unittest.TestCase):
             point_graphic = Graphics.PointGraphic()
             point_graphic.position = 0.5, 0.5
             display_item.add_graphic(point_graphic)
-            graphic_widget = self.app.ui.create_column_widget()
-            Inspector.make_point_type_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0])
-            display_item.calibration_style_id = "pixels-center"
-            self.assertEqual(graphic_widget.find_widget_by_id("x").text, "0.0")  # x
-            self.assertEqual(graphic_widget.find_widget_by_id("y").text, "0.0")  # y
+            graphic_widget = Inspector.make_point_type_inspector(document_controller, display_item, display_item.graphics[0])
+            with contextlib.closing(graphic_widget):
+                display_item.calibration_style_id = "pixels-center"
+                self.assertEqual(graphic_widget.find_widget_by_id("x").text, "0.0")  # x
+                self.assertEqual(graphic_widget.find_widget_by_id("y").text, "0.0")  # y
 
     def test_editing_pixel_width_on_rectangle_adjusts_rectangle_properly(self):
         document_model = DocumentModel.DocumentModel()
@@ -685,19 +685,19 @@ class TestInspectorClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             point_graphic = Graphics.RectangleGraphic()
             display_item.add_graphic(point_graphic)
-            graphic_widget = self.app.ui.create_column_widget()
-            Inspector.make_rectangle_type_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0], str())
-            display_item.calibration_style_id = "pixels-center"
-            self.assertEqual(graphic_widget.find_widget_by_id("x").text, "0.0")  # x
-            self.assertEqual(graphic_widget.find_widget_by_id("y").text, "0.0")  # y
-            self.assertEqual(graphic_widget.find_widget_by_id("width").text, "50.0")  # width
-            self.assertEqual(graphic_widget.find_widget_by_id("height").text, "100.0")  # height
-            graphic_widget.find_widget_by_id("width").text = "40"
-            graphic_widget.find_widget_by_id("width").editing_finished("40")
-            self.assertEqual(graphic_widget.find_widget_by_id("x").text, "0.0")  # x
-            self.assertEqual(graphic_widget.find_widget_by_id("y").text, "0.0")  # y
-            self.assertEqual(graphic_widget.find_widget_by_id("width").text, "40.0")  # width
-            self.assertEqual(graphic_widget.find_widget_by_id("height").text, "100.0")  # height
+            graphic_widget = Inspector.make_rectangle_type_inspector(document_controller, display_item, display_item.graphics[0], str())
+            with contextlib.closing(graphic_widget):
+                display_item.calibration_style_id = "pixels-center"
+                self.assertEqual(graphic_widget.find_widget_by_id("x").text, "0.0")  # x
+                self.assertEqual(graphic_widget.find_widget_by_id("y").text, "0.0")  # y
+                self.assertEqual(graphic_widget.find_widget_by_id("width").text, "50.0")  # width
+                self.assertEqual(graphic_widget.find_widget_by_id("height").text, "100.0")  # height
+                graphic_widget.find_widget_by_id("width").text = "40"
+                graphic_widget.find_widget_by_id("width").editing_finished("40")
+                self.assertEqual(graphic_widget.find_widget_by_id("x").text, "0.0")  # x
+                self.assertEqual(graphic_widget.find_widget_by_id("y").text, "0.0")  # y
+                self.assertEqual(graphic_widget.find_widget_by_id("width").text, "40.0")  # width
+                self.assertEqual(graphic_widget.find_widget_by_id("height").text, "100.0")  # height
 
     def test_interval_dimensions_show_calibrated_units_on_single_spectrum(self):
         document_model = DocumentModel.DocumentModel()
@@ -710,12 +710,12 @@ class TestInspectorClass(unittest.TestCase):
             interval_graphic.start = 0.2
             interval_graphic.end = 0.4
             display_item.add_graphic(interval_graphic)
-            graphic_widget = self.app.ui.create_column_widget()
             display_item.calibration_style_id = "calibrated"
             data_item.set_dimensional_calibration(0, Calibration.Calibration(units="eV", scale=2.0))  # energy
-            Inspector.make_interval_type_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0])
-            self.assertEqual("40.0 eV", graphic_widget.find_widget_by_id("start").text)  # energy
-            self.assertEqual("80.0 eV", graphic_widget.find_widget_by_id("end").text)  # energy
+            graphic_widget = Inspector.make_interval_type_inspector(document_controller, display_item, display_item.graphics[0])
+            with contextlib.closing(graphic_widget):
+                self.assertEqual("40.0 eV", graphic_widget.find_widget_by_id("start").text)  # energy
+                self.assertEqual("80.0 eV", graphic_widget.find_widget_by_id("end").text)  # energy
 
     def test_interval_dimensions_show_calibrated_units_on_sequence_of_spectra(self):
         document_model = DocumentModel.DocumentModel()
@@ -728,13 +728,13 @@ class TestInspectorClass(unittest.TestCase):
             interval_graphic.start = 0.2
             interval_graphic.end = 0.4
             display_item.add_graphic(interval_graphic)
-            graphic_widget = self.app.ui.create_column_widget()
             display_item.calibration_style_id = "calibrated"
             data_item.set_dimensional_calibration(0, Calibration.Calibration(units="s", scale=1.0))  # time
             data_item.set_dimensional_calibration(1, Calibration.Calibration(units="eV", scale=2.0))  # energy
-            Inspector.make_interval_type_inspector(document_controller, graphic_widget, display_item, display_item.graphics[0])
-            self.assertEqual("40.0 eV", graphic_widget.find_widget_by_id("start").text)  # energy
-            self.assertEqual("80.0 eV", graphic_widget.find_widget_by_id("end").text)  # energy
+            graphic_widget = Inspector.make_interval_type_inspector(document_controller, display_item, display_item.graphics[0])
+            with contextlib.closing(graphic_widget):
+                self.assertEqual("40.0 eV", graphic_widget.find_widget_by_id("start").text)  # energy
+                self.assertEqual("80.0 eV", graphic_widget.find_widget_by_id("end").text)  # energy
 
     def test_calibration_inspector_updates_for_when_data_shape_changes(self):
         document_model = DocumentModel.DocumentModel()
@@ -851,10 +851,10 @@ class TestInspectorClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
-            self.assertIsNone(inspector_panel.column.find_widget_by_id("rectangle_type_inspector"))
+            self.assertIsNone(inspector_panel.column.find_widget_by_id("spot_inspector"))
             document_controller.add_spot_graphic()
             document_controller.periodic()
-            self.assertIsNotNone(inspector_panel.column.find_widget_by_id("rectangle_type_inspector"))
+            self.assertIsNotNone(inspector_panel.column.find_widget_by_id("spot_inspector"))
 
     def test_band_pass_graphic_inspector_updates_without_exception(self):
         document_model = DocumentModel.DocumentModel()
@@ -994,15 +994,15 @@ class TestInspectorClass(unittest.TestCase):
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             computation = document_model.get_data_item_computation(new_data_item)
-            self.assertFalse(computation._get_variable("do_transpose").value)
+            self.assertFalse(computation.get_input_value("do_transpose"))
             inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))
             cb_widget = inspector_section.find_widget_by_id("value")
             cb_widget.on_checked_changed(True)
-            self.assertTrue(computation._get_variable("do_transpose").value)
+            self.assertTrue(computation.get_input_value("do_transpose"))
             document_controller.handle_undo()
-            self.assertFalse(computation._get_variable("do_transpose").value)
+            self.assertFalse(computation.get_input_value("do_transpose"))
             document_controller.handle_redo()
-            self.assertTrue(computation._get_variable("do_transpose").value)
+            self.assertTrue(computation.get_input_value("do_transpose"))
 
     def test_computation_inspector_handles_computation_variable_slider_and_undo_redo_cycle(self):
         document_model = DocumentModel.DocumentModel()
@@ -1019,15 +1019,15 @@ class TestInspectorClass(unittest.TestCase):
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             computation = document_model.get_data_item_computation(new_data_item)
-            old_sigma = computation._get_variable("sigma").value
+            old_sigma = computation.get_input_value("sigma")
             inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))
             slider_widget = inspector_section.find_widget_by_id("value")
             slider_widget.on_value_changed(0)
-            self.assertEqual(0, computation._get_variable("sigma").value)
+            self.assertEqual(0, computation.get_input_value("sigma"))
             document_controller.handle_undo()
-            self.assertEqual(old_sigma, computation._get_variable("sigma").value)
+            self.assertEqual(old_sigma, computation.get_input_value("sigma"))
             document_controller.handle_redo()
-            self.assertEqual(0, computation._get_variable("sigma").value)
+            self.assertEqual(0, computation.get_input_value("sigma"))
 
     def test_computation_inspector_handles_computation_variable_int_and_undo_redo_cycle(self):
         document_model = DocumentModel.DocumentModel()
@@ -1044,15 +1044,15 @@ class TestInspectorClass(unittest.TestCase):
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             computation = document_model.get_data_item_computation(new_data_item)
-            old_bins = computation._get_variable("bins").value
+            old_bins = computation.get_input_value("bins")
             inspector_section = Inspector.ComputationInspectorSection(document_controller, new_data_item)
             field_widget = inspector_section.find_widget_by_id("value")
             field_widget.on_editing_finished("100")
-            self.assertEqual(100, computation._get_variable("bins").value)
+            self.assertEqual(100, computation.get_input_value("bins"))
             document_controller.handle_undo()
-            self.assertEqual(old_bins, computation._get_variable("bins").value)
+            self.assertEqual(old_bins, computation.get_input_value("bins"))
             document_controller.handle_redo()
-            self.assertEqual(100, computation._get_variable("bins").value)
+            self.assertEqual(100, computation.get_input_value("bins"))
 
     def test_computation_inspector_handles_computation_variable_specifier_and_undo_redo_cycle(self):
         document_model = DocumentModel.DocumentModel()
@@ -1064,17 +1064,17 @@ class TestInspectorClass(unittest.TestCase):
             new_data_item = document_model.get_invert_new(display_item)
             document_model.recompute_all()
             computation = document_model.get_data_item_computation(new_data_item)
-            self.assertEqual(data_item, list(computation._get_variable("src").bound_item.base_objects)[0])
+            self.assertEqual({data_item}, computation.get_input_base_items("src"))
             specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
             command = Inspector.ChangeComputationVariableCommand(document_model, computation, computation._get_variable("src"), specifier=specifier)
             command.perform()
             document_controller.push_undo_command(command)
-            self.assertIsNone(computation._get_variable("src").bound_item)
+            self.assertIsNone(computation.get_input("src"))
             self.assertTrue(document_controller._undo_stack.can_undo)
             document_controller.handle_undo()
-            self.assertEqual(data_item, list(computation._get_variable("src").bound_item.base_objects)[0])
+            self.assertEqual({data_item}, computation.get_input_base_items("src"))
             document_controller.handle_redo()
-            self.assertIsNone(computation._get_variable("src").bound_item)
+            self.assertIsNone(computation.get_input("src"))
 
     def test_change_property_command_multiple_undo(self):
         document_model = DocumentModel.DocumentModel()

@@ -10,12 +10,19 @@ from nion.swift import Application
 from nion.swift import ComputationPanel
 from nion.swift import DocumentController
 from nion.swift import Facade
+from nion.swift import MimeTypes
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import Profile
+from nion.swift.model import Symbolic
 from nion.ui import TestUI
 
 
 Facade.initialize()
+
+
+def create_memory_profile_context() -> Profile.MemoryProfileContext:
+    return Profile.MemoryProfileContext()
 
 
 class TestComputationPanelClass(unittest.TestCase):
@@ -35,7 +42,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
-            computation.create_object("a", document_model.get_object_specifier(data_item1))
+            computation.create_input_item("a", Symbolic.make_item(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
             panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # execute queue
@@ -54,7 +61,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
-            computation.create_object("a", document_model.get_object_specifier(data_item1))
+            computation.create_input_item("a", Symbolic.make_item(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
             panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # execute queue
@@ -74,7 +81,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
-            computation.create_object("a", document_model.get_object_specifier(data_item1))
+            computation.create_input_item("a", Symbolic.make_item(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
             panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # let the inspector see the computation
@@ -110,7 +117,7 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
-            computation.create_object("a", document_model.get_object_specifier(data_item1))
+            computation.create_input_item("a", Symbolic.make_item(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
             panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # let the inspector see the computation
@@ -145,17 +152,19 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = a.xdata + x")
-            computation.create_object("a", document_model.get_object_specifier(data_item1))
+            computation.create_input_item("a", Symbolic.make_item(data_item1))
             computation.create_variable("x", value_type="integral", value=5)
             document_model.set_data_item_computation(data_item2, computation)
             panel1 = ComputationPanel.EditComputationDialog(document_controller, data_item1)
-            document_controller.periodic()  # execute queue
-            self.assertEqual(len(panel1._sections_for_testing), 0)
-            panel2 = ComputationPanel.EditComputationDialog(document_controller, data_item2)
-            document_controller.periodic()  # execute queue
-            self.assertEqual(len(panel2._sections_for_testing), 2)
-            document_controller.periodic()  # execute queue
-            self.assertEqual(len(panel1._sections_for_testing), 0)
+            with contextlib.closing(panel1):
+                document_controller.periodic()  # execute queue
+                self.assertEqual(len(panel1._sections_for_testing), 0)
+                panel2 = ComputationPanel.EditComputationDialog(document_controller, data_item2)
+                with contextlib.closing(panel2):
+                    document_controller.periodic()  # execute queue
+                    self.assertEqual(len(panel2._sections_for_testing), 2)
+                    document_controller.periodic()  # execute queue
+                    self.assertEqual(len(panel1._sections_for_testing), 0)
 
     def test_change_variable_command_resulting_in_error_undo_redo(self):
         document_model = DocumentModel.DocumentModel()
@@ -169,11 +178,11 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item3 = DataItem.DataItem(numpy.zeros((10, )))
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation("target.xdata = a.xdata[1] + x")
-            variable = computation.create_object("a", document_model.get_object_specifier(data_item2))
+            variable = computation.create_input_item("a", Symbolic.make_item(data_item2))
             computation.create_variable("x", value_type="integral", value=5)
             document_model.set_data_item_computation(data_item1, computation)
             # verify setup
-            self.assertEqual(variable.bound_item.value, data_item2)
+            self.assertEqual(data_item2, computation.get_input("a"))
             document_model.recompute_all()
             document_controller.periodic()
             # change variable
@@ -183,13 +192,13 @@ class TestComputationPanelClass(unittest.TestCase):
             command.perform()
             document_controller.push_undo_command(command)
             # verify change and trigger error
-            self.assertEqual(variable.bound_item.value, data_item3)
+            self.assertEqual(data_item3, computation.get_input("a"))
             document_model.recompute_all()
             document_controller.periodic()
             self.assertIsNotNone(computation.error_text)
             # undo and verify
             document_controller.handle_undo()
-            self.assertEqual(variable.bound_item.value, data_item2)
+            self.assertEqual(data_item2, computation.get_input("a"))
             document_model.recompute_all()
             document_controller.periodic()
             self.assertIsNone(computation.error_text)
@@ -197,7 +206,7 @@ class TestComputationPanelClass(unittest.TestCase):
             document_controller.handle_redo()
             document_model.recompute_all()
             document_controller.periodic()
-            self.assertEqual(variable.bound_item.value, data_item3)
+            self.assertEqual(data_item3, computation.get_input("a"))
             self.assertIsNotNone(computation.error_text)
 
     def test_change_variable_command_resulting_in_creating_data_item_undo_redo(self):
@@ -212,11 +221,11 @@ class TestComputationPanelClass(unittest.TestCase):
             data_item3 = DataItem.DataItem(numpy.zeros((10, )))
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation("target.xdata = a.xdata[1] + x")
-            variable = computation.create_object("a", document_model.get_object_specifier(data_item3))
+            variable = computation.create_input_item("a", Symbolic.make_item(data_item3))
             computation.create_variable("x", value_type="integral", value=5)
             document_model.set_data_item_computation(data_item1, computation)
             # verify setup
-            self.assertEqual(variable.bound_item.value, data_item3)
+            self.assertEqual(data_item3, computation.get_input("a"))
             document_model.recompute_all()
             document_controller.periodic()
             self.assertIsNotNone(computation.error_text)
@@ -227,13 +236,13 @@ class TestComputationPanelClass(unittest.TestCase):
             command.perform()
             document_controller.push_undo_command(command)
             # verify change and trigger computation
-            self.assertEqual(variable.bound_item.value, data_item2)
+            self.assertEqual(data_item2, computation.get_input("a"))
             document_model.recompute_all()
             document_controller.periodic()
             self.assertIsNone(computation.error_text)
             # undo and verify
             document_controller.handle_undo()
-            self.assertEqual(variable.bound_item.value, data_item3)
+            self.assertEqual(data_item3, computation.get_input("a"))
             document_model.recompute_all()
             document_controller.periodic()
             self.assertIsNotNone(computation.error_text)
@@ -241,8 +250,41 @@ class TestComputationPanelClass(unittest.TestCase):
             document_controller.handle_redo()
             document_model.recompute_all()
             document_controller.periodic()
-            self.assertEqual(variable.bound_item.value, data_item2)
+            self.assertEqual(data_item2, computation.get_input("a"))
             self.assertIsNone(computation.error_text)
+
+    def test_dropping_data_source_from_different_project_works(self):
+        # create three data items, two in the first project, one in the second project.
+        # create the computation with the first two. then simulate a drag and drop from
+        # the second project. recompute and make sure no error occur.
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.add_project_memory()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                data1 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
+                data2 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
+                data3 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
+                data_item1 = DataItem.DataItem(data1)
+                data_item2 = DataItem.DataItem(data2)
+                data_item3 = DataItem.DataItem(data3)
+                document_model.append_data_item(data_item1, project=document_model.profile.projects[0])
+                document_model.append_data_item(data_item2, project=document_model.profile.projects[0])
+                document_model.append_data_item(data_item3, project=document_model.profile.projects[1])
+                display_item1 = document_model.get_display_item_for_data_item(data_item1)
+                display_item2 = document_model.get_display_item_for_data_item(data_item2)
+                display_item3 = document_model.get_display_item_for_data_item(data_item3)
+                document_controller.select_display_items_in_data_panel([display_item1, display_item2])
+                document_controller.processing_cross_correlate_new()
+                computation = document_model.computations[-1]
+                document_model.recompute_all()
+                self.assertIsNone(document_model.computations[0].error_text)
+                mime_data = self.app.ui.create_mime_data()
+                MimeTypes.mime_data_put_data_source(mime_data, display_item3, None)
+                ComputationPanel.drop_mime_data(document_controller, computation, computation.variables[1], mime_data, 0, 0)
+                document_model.recompute_all()
+                self.assertIsNone(document_model.computations[0].error_text)
 
     def disabled_test_expression_updates_when_variable_is_assigned(self):
         raise Exception()

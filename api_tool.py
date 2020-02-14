@@ -325,7 +325,10 @@ class ProxyProducer:
             print("        return call_method(self, 'data_item_to_svg')")
 
     def print_methods_begin(self) -> None:
-        pass
+        print("")
+        print("    @property")
+        print("    def _item(self):")
+        print("        return self._proxy._item")
 
     def print_method_def(self, member_name: str, arg_strings: typing.Sequence[str], raw_arg_strings: typing.Sequence[str], return_type: str) -> None:
         print("")
