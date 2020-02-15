@@ -143,10 +143,16 @@ class ProjectPanelFolderItem:
         self.project = None
 
     def __str__(self) -> str:
-        if self.folder_closed:
-            return f"\N{BLACK RIGHT-POINTING TRIANGLE} \N{FILE FOLDER} {self.folder_name} {len(self.node.children)} {len(self.node.data)}"
+        if sys.platform == "win32":
+            triangle_right = "\N{BLACK MEDIUM RIGHT-POINTING TRIANGLE CENTRED}"
+            triangle_down = "\N{BLACK MEDIUM DOWN-POINTING TRIANGLE CENTRED}"
         else:
-            return f"\N{BLACK DOWN-POINTING TRIANGLE} \N{OPEN FILE FOLDER} {self.folder_name} {len(self.node.children)} {len(self.node.data)}"
+            triangle_right = "\N{BLACK RIGHT-POINTING TRIANGLE}"
+            triangle_down = "\N{BLACK DOWN-POINTING TRIANGLE}"
+        if self.folder_closed:
+            return f"{triangle_right} \N{FILE FOLDER} {self.folder_name} {len(self.node.children)} {len(self.node.data)}"
+        else:
+            return f"{triangle_down} \N{OPEN FILE FOLDER} {self.folder_name} {len(self.node.children)} {len(self.node.data)}"
 
 
 class TreeNode:
