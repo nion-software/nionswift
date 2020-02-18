@@ -867,6 +867,9 @@ class MemoryStorageHandler:
     def write_data(self, data, file_datetime):
         self.__data_map[self.__uuid] = data.copy()
 
+    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype, file_datetime) -> None:
+        self.__data_map[self.__uuid] = numpy.zeros(data_shape, data_dtype)
+
 
 class MemoryProjectStorageSystem(ProjectStorageSystem):
 
