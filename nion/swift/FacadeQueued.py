@@ -23,7 +23,7 @@ def convert_to_facade(x, q):
     if isinstance(x, list):
         return [convert_to_facade(xx, q) for xx in x]
     if isinstance(x, tuple):
-        return (convert_to_facade(xx, q) for xx in x)
+        return tuple(convert_to_facade(xx, q) for xx in x)
     if isinstance(x, dict):
         return {k: convert_to_facade(v, q) for k, v in x.items()}
     class_name = x.__class__.__name__
@@ -41,7 +41,7 @@ def convert_from_facade(x):
     if isinstance(x, list):
         return [convert_from_facade(xx) for xx in x]
     if isinstance(x, tuple):
-        return (convert_from_facade(xx) for xx in x)
+        return tuple(convert_from_facade(xx) for xx in x)
     if isinstance(x, dict):
         return {k: convert_from_facade(v) for k, v in x.items()}
     class_name = x.__class__.__name__
