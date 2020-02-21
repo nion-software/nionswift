@@ -1715,7 +1715,7 @@ class DocumentController(Window.Window):
         if display_item:
             if display_item.graphic_selection.has_selection:
                 graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
-                graphics = itertools.filterfalse(lambda graphic: isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)), graphics)
+                graphics = itertools.filterfalse(lambda graphic: isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.LatticeGraphic)), graphics)
                 if graphics:
                     command = DisplayPanel.ChangeGraphicsCommand(self.document_model, display_item, graphics, command_id="change_role", is_mergeable=True, role=role)
                     command.perform()

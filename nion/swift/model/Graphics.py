@@ -1966,18 +1966,21 @@ class RingGraphic(Graphic):
     def __init__(self):
         super().__init__("ring-graphic")
         self.title = _("Annular Ring")
+        self.last_position = None
 
         def validate_angles(value: float) -> float:
             return abs(float(value))
 
         self.define_property("radius_1", 0.2, validate=validate_angles, changed=self._property_changed)
         self.define_property("radius_2", 0.2, validate=validate_angles, changed=self._property_changed)
+        self.define_property("position", (0.5, 0.5), validate=lambda value: tuple(value), changed=self._property_changed)
         self.define_property("mode", "band-pass", changed=self._property_changed)
 
     def mime_data_dict(self) -> dict:
         d = super().mime_data_dict()
         d["radius_1"] = self.radius_1
         d["radius_2"] = self.radius_2
+        d["position"] = self.position
         d["mode"] = self.mode
         return d
 
@@ -1985,28 +1988,25 @@ class RingGraphic(Graphic):
         super().read_from_mime_data(graphic_dict)
         self.radius_1 = graphic_dict.get("radius_1", self.radius_1)
         self.radius_2 = graphic_dict.get("radius_2", self.radius_2)
+        self.position = graphic_dict.get("position", self.position)
         self.mode = graphic_dict.get("mode", self.mode)
-
-    @property
-    def used_role(self) -> typing.Optional[str]:
-        return "fourier_mask"
 
     # test is required for Graphic interface
     def test(self, mapping, get_font_metrics_fn, p, move_only: bool) -> typing.Tuple[str, bool]:
         p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
-        calibrated_origin = mapping.calibrated_origin_image_norm
-        top_marker_outer = mapping.map_point_image_norm_to_widget((calibrated_origin[0], calibrated_origin[1] - self.radius_1))
-        left_marker_outer = mapping.map_point_image_norm_to_widget((calibrated_origin[0] - self.radius_1, calibrated_origin[1]))
-        right_marker_outer = mapping.map_point_image_norm_to_widget((calibrated_origin[0] + self.radius_1, calibrated_origin[1]))
-        bottom_marker_outer = mapping.map_point_image_norm_to_widget((calibrated_origin[0], calibrated_origin[1] + self.radius_1))
-        top_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0], calibrated_origin[1] - self.radius_2))
-        left_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0] - self.radius_2, calibrated_origin[1]))
-        right_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0] + self.radius_2, calibrated_origin[1]))
-        bottom_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0], calibrated_origin[1] + self.radius_2))
+        center_norm = self.position
+        top_marker_outer = mapping.map_point_image_norm_to_widget((center_norm[0], center_norm[1] - self.radius_1))
+        left_marker_outer = mapping.map_point_image_norm_to_widget((center_norm[0] - self.radius_1, center_norm[1]))
+        right_marker_outer = mapping.map_point_image_norm_to_widget((center_norm[0] + self.radius_1, center_norm[1]))
+        bottom_marker_outer = mapping.map_point_image_norm_to_widget((center_norm[0], center_norm[1] + self.radius_1))
+        top_marker_inner = mapping.map_point_image_norm_to_widget((center_norm[0], center_norm[1] - self.radius_2))
+        left_marker_inner = mapping.map_point_image_norm_to_widget((center_norm[0] - self.radius_2, center_norm[1]))
+        right_marker_inner = mapping.map_point_image_norm_to_widget((center_norm[0] + self.radius_2, center_norm[1]))
+        bottom_marker_inner = mapping.map_point_image_norm_to_widget((center_norm[0], center_norm[1] + self.radius_2))
         image_norm_test_point = mapping.map_point_widget_to_image_norm(p)
-        test_radius = math.sqrt((image_norm_test_point[0] - calibrated_origin[0]) ** 2 + (image_norm_test_point[1] - calibrated_origin[1]) ** 2)
+        test_radius = math.sqrt((image_norm_test_point[0] - center_norm[0]) ** 2 + (image_norm_test_point[1] - center_norm[1]) ** 2)
         if test_point(top_marker_outer, p, 4):
             return "radius_1", True
         if test_point(bottom_marker_outer, p, 4):
@@ -2040,19 +2040,26 @@ class RingGraphic(Graphic):
         return None, None
 
     def begin_drag(self):
-        return self.radius_1, self.radius_2
+        return self.radius_1, self.radius_2, self.position
 
     def end_drag(self, part_data):
-        pass
+        self.last_position = self.position
 
     def adjust_part(self, mapping, original, current, part, modifiers):
-        calibrated_origin = mapping.calibrated_origin_image_norm
+        if self.last_position == None:
+            self.last_position = self.position
+        original_norm = mapping.map_point_widget_to_image_norm(original)
         current_norm = mapping.map_point_widget_to_image_norm(current)
-        radius = math.sqrt((current_norm[1] - calibrated_origin[0]) ** 2 + (current_norm[0] - calibrated_origin[1]) ** 2)
+        center_norm = self.position
+        last_position_widget = mapping.map_point_image_norm_to_widget(self.last_position)
+        delta = current - original
+        radius = math.sqrt((current_norm[1] - center_norm[1]) ** 2 + (current_norm[0] - center_norm[0]) ** 2)
         if part[0] == "radius_1":
             self.radius_1 = radius
         if part[0] == "radius_2":
             self.radius_2 = radius
+        if part[0] == "all":
+            self.position = mapping.map_point_widget_to_image_norm((last_position_widget[0] + delta.y, last_position_widget[1] + delta.x))
         return None, None
 
     def get_mask(self, data_shape: typing.Tuple[int], calibrated_origin: Geometry.FloatPoint = None):
@@ -2078,12 +2085,11 @@ class RingGraphic(Graphic):
         return mask
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
-        # origin is top left
-        center = mapping.calibrated_origin_widget
-        bounds0 = mapping.map_point_image_norm_to_widget((0.0, 0.0))
-        bounds1 = mapping.map_point_image_norm_to_widget((1.0, 1.0))
+        center = mapping.map_point_image_norm_to_widget(self.position)
         radius_1_widget = mapping.map_size_image_norm_to_widget((self.radius_1, self.radius_1))
         radius_2_widget = mapping.map_size_image_norm_to_widget((self.radius_2, self.radius_2))
+        bounds0 = mapping.map_point_image_norm_to_widget((0.0, 0.0))
+        bounds1 = mapping.map_point_image_norm_to_widget((1.0, 1.0))
         with ctx.saver():
             ctx.line_width = 1
             ctx.stroke_style = self.used_stroke_style
