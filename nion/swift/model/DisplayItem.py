@@ -446,8 +446,8 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         display_data_channel._set_persistent_property_value("slice_center", self._get_persistent_property_value("slice_center"))
         display_data_channel._set_persistent_property_value("slice_width", self._get_persistent_property_value("slice_width"))
         display_data_channel._set_persistent_property_value("data_item_reference", self._get_persistent_property_value("data_item_reference"))
-        if self.data_item.uuid == uuid.UUID(self._get_persistent_property_value("data_item_reference")):
-            display_data_channel.__data_item_proxy.item = self.data_item
+        if self.__data_item.uuid == uuid.UUID(self._get_persistent_property_value("data_item_reference")):
+            display_data_channel.__data_item_proxy.item = self.__data_item
         memo[id(self)] = display_data_channel
         return display_data_channel
 
