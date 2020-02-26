@@ -569,12 +569,13 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
                     def update_layout():
                         # layout. this makes sure that the info overlay gets updated too.
-                        with self.update_context():
-                            self.__update_image_canvas_size()
-                            # trigger updates
-                            self.__bitmap_canvas_item.update()
-                            with self.__update_layout_handle_lock:
-                                self.__update_layout_handle = None
+                        self.__update_image_canvas_size()
+                        # trigger updates
+                        self.update()
+                        self.__composite_canvas_item.update()
+                        self.__bitmap_canvas_item.update()
+                        with self.__update_layout_handle_lock:
+                            self.__update_layout_handle = None
 
                     if self.__event_loop:
                         with self.__update_layout_handle_lock:
@@ -638,6 +639,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             # and update the image canvas accordingly
             self.__image_canvas_mode = "custom"
             self.__update_image_canvas_size()
+            self.__composite_canvas_item.update()
 
     # update the image canvas origin and size
     def __update_overlay_canvas_item(self, scroll_area_canvas_size, *, immediate=False):
@@ -654,7 +656,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         scroll_area_canvas_size = self.scroll_area_canvas_item.canvas_size
         if scroll_area_canvas_size is not None:
             self.__update_overlay_canvas_item(scroll_area_canvas_size)
-            self.__composite_canvas_item.update()
 
     def mouse_clicked(self, x, y, modifiers):
         if super().mouse_clicked(x, y, modifiers):
