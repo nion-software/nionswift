@@ -1,3 +1,15 @@
+"""
+Provide a library of processing functions.
+
+The processing functions declare their item sources and input parameters along with a identifier, title, and
+what UI sections they are likely to appear in.
+
+The processing functions also declare how they are applied to sequences/collections and what form
+their output takes (scalar or not).
+
+TODO: Processing functions using this system do not have editable scripts yet.
+"""
+
 # standard libraries
 import functools
 import gettext
@@ -124,7 +136,7 @@ class ProcessingFFT(ProcessingBase):
 class ProcessingIFFT(ProcessingBase):
     def __init__(self, **kwargs):
         super().__init__()
-        self.processing_id = "inverse-fft"
+        self.processing_id = "inverse_fft"
         self.title = _("Inverse FFT")
         self.sections = {"fourier"}
         self.sources = [
@@ -138,7 +150,7 @@ class ProcessingIFFT(ProcessingBase):
 class ProcessingGaussianWindow(ProcessingBase):
     def __init__(self, **kwargs):
         super().__init__()
-        self.processing_id = "gaussian-window"
+        self.processing_id = "gaussian_window"
         self.title = _("Gaussian Window")
         self.sections = {"windows"}
         self.sources = [
@@ -175,7 +187,7 @@ class ProcessingGaussianWindow(ProcessingBase):
 class ProcessingHammingWindow(ProcessingBase):
     def __init__(self, **kwargs):
         super().__init__()
-        self.processing_id = "hamming-window"
+        self.processing_id = "hamming_window"
         self.title = _("Hamming Window")
         self.sections = {"windows"}
         self.sources = [
@@ -198,7 +210,7 @@ class ProcessingHammingWindow(ProcessingBase):
 class ProcessingHannWindow(ProcessingBase):
     def __init__(self, **kwargs):
         super().__init__()
-        self.processing_id = "hann-window"
+        self.processing_id = "hann_window"
         self.title = _("Hann Window")
         self.sections = {"windows"}
         self.sources = [
@@ -221,7 +233,7 @@ class ProcessingHannWindow(ProcessingBase):
 class ProcessingMappedSum(ProcessingBase):
     def __init__(self, **kwargs):
         super().__init__()
-        self.processing_id = "mapped-sum"
+        self.processing_id = "mapped_sum"
         self.title = _("Mapped Sum")
         self.sections = {"scalar-maps"}
         self.sources = [
@@ -238,7 +250,7 @@ class ProcessingMappedSum(ProcessingBase):
 class ProcessingMappedAverage(ProcessingBase):
     def __init__(self, **kwargs):
         super().__init__()
-        self.processing_id = "mapped-average"
+        self.processing_id = "mapped_average"
         self.title = _("Mapped Average")
         self.sections = {"scalar-maps"}
         self.sources = [
@@ -257,8 +269,8 @@ class ProcessingMappedAverage(ProcessingBase):
 Registry.register_component(ProcessingGaussianWindow(), {"processing-component"})
 Registry.register_component(ProcessingHammingWindow(), {"processing-component"})
 Registry.register_component(ProcessingHannWindow(), {"processing-component"})
-Registry.register_component(ProcessingMappedSum(), {"processing-component"})
-Registry.register_component(ProcessingMappedAverage(), {"processing-component"})
+# Registry.register_component(ProcessingMappedSum(), {"processing-component"})
+# Registry.register_component(ProcessingMappedAverage(), {"processing-component"})
 
 
 def init(): pass
