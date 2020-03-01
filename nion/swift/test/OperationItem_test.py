@@ -818,7 +818,7 @@ class TestProcessingClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            document_controller.processing_cross_correlate_new()
+            document_controller.perform_action("processing.cross_correlate")
 
     def test_cross_correlate_works_in_2d(self):
         document_model = DocumentModel.DocumentModel()
@@ -830,7 +830,7 @@ class TestProcessingClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            document_controller.processing_cross_correlate_new()
+            document_controller.perform_action("processing.cross_correlate")
 
     def test_get_two_data_sources_handles_no_selection(self):
         document_model = DocumentModel.DocumentModel()

@@ -328,7 +328,7 @@ class TestInspectorClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             document_controller.selected_display_panel = None
             document_controller.selected_display_panel = display_panel
-            document_controller.processing_slice()
+            document_controller.perform_action("processing.slice_sum")
             document_model.recompute_all()
             data_item1 = document_model.data_items[1]
             display_item1 = document_model.get_display_item_for_data_item(data_item1)

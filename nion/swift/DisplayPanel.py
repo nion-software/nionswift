@@ -1592,6 +1592,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             if key.text == "v":
                 self.__cycle_display()
                 return True
+        if self.document_controller.perform_display_panel_command(key):
+            return True
         return DisplayPanelManager().key_pressed(self, key)
 
     def __cycle_display(self):

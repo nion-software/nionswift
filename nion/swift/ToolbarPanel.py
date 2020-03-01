@@ -110,17 +110,17 @@ class ToolbarPanel(Panel.Panel):
         new_group_button = self.ui.create_push_button_widget()
         new_group_button.tool_tip = _("New Group")
         new_group_button.icon = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/new_group_icon.png"))
-        new_group_button.on_clicked = lambda: document_controller_weak_ref()._add_group_action.trigger()
+        new_group_button.on_clicked = lambda: document_controller_weak_ref().perform_action("project.add_group")
 
         delete_button = self.ui.create_push_button_widget()
         delete_button.tool_tip = _("Delete")
         delete_button.icon = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/delete_icon.png"))
-        delete_button.on_clicked = lambda: document_controller_weak_ref()._delete_action.trigger()
+        delete_button.on_clicked = lambda: document_controller_weak_ref().perform_action("window.delete")
 
         export_button = self.ui.create_push_button_widget()
         export_button.tool_tip = _("Export")
         export_button.icon = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/export_icon.png"))
-        export_button.on_clicked = lambda: document_controller_weak_ref()._export_action.trigger()
+        export_button.on_clicked = lambda: document_controller_weak_ref().perform_action("file.export")
 
         view_palette_grid_canvas_item = CanvasItem.CanvasItemComposition()
         view_palette_grid_canvas_item.layout = CanvasItem.CanvasItemGridLayout(size=Geometry.IntSize(height=2, width=2), margins=margins)

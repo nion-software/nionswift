@@ -166,23 +166,7 @@ class DocumentController(Window.Window):
                     dialog.request_close()
                 except Exception as e:
                     pass
-        # menus
-        self._file_menu = None
-        self._edit_menu = None
-        self._processing_menu = None
-        self._view_menu = None
-        self._window_menu = None
-        self._help_menu = None
-        self._processing_arithmetic_menu = None
-        self._processing_reduce_menu = None
-        self._processing_transform_menu = None
-        self._processing_filter_menu = None
-        self._processing_fourier_menu = None
-        self._processing_graphics_menu = None
-        self._processing_sequence_menu = None
-        self._processing_redimension_menu = None
-        self._display_type_menu = None
-
+        self.__dialogs = list()
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
@@ -223,293 +207,218 @@ class DocumentController(Window.Window):
     def _create_menus(self):
         # don't use default implementation
 
-        self._file_menu = self.add_menu(_("File"))
-
-        self._edit_menu = self.add_menu(_("Edit"))
-
-        self._processing_menu = self.add_menu(_("Processing"))
-
-        self._view_menu = self.add_menu(_("View"))
-
-        self._window_menu = self.add_menu(_("Window"))
-
-        self._help_menu = self.add_menu(_("Help"))
-
-        self._new_window_action = self._file_menu.add_menu_item(_("New Window"), functools.partial(self.new_window_with_data_item, "library"), key_sequence="new")
-        self._close_action = self._file_menu.add_menu_item(_("Close Window"), self.request_close, key_sequence="close")
-        self._file_menu.add_separator()
-        self._new_library_action = self._file_menu.add_menu_item(_("New Project..."), self.__handle_new_project)
-        self._add_project_action = self._file_menu.add_menu_item(_("Open Project..."), self.__handle_open_project)
-        self._migrate_project_action = self._file_menu.add_menu_item(_("Upgrade Project"), self.__handle_upgrade_project)
-        self._remove_project_action = self._file_menu.add_menu_item(_("Remove Project"), self.__handle_remove_project)
-        self._file_menu.add_separator()
-        self._set_target_project_action = self._file_menu.add_menu_item(_("Set Target Project"), self.__set_target_project)
-        self._unset_target_project_action = self._file_menu.add_menu_item(_("Clear Target Project"), self.__clear_target_project)
-        self._file_menu.add_separator()
-        self._set_work_project_action = self._file_menu.add_menu_item(_("Set Work Project"), self.__set_work_project)
-        self._file_menu.add_separator()
-        self._import_folder_action = self._file_menu.add_menu_item(_("Import Folder..."), self.__import_folder)
-        self._import_action = self._file_menu.add_menu_item(_("Import Data..."), self.import_file)
-        def export_files():
-            selected_display_items = self.selected_display_items
-            if len(selected_display_items) > 1:
-                self.export_files(selected_display_items)
-            elif len(selected_display_items) == 1:
-                self.export_file(selected_display_items[0])
-            elif self.selected_display_item:
-                self.export_file(self.selected_display_item)
-        self._export_action = self._file_menu.add_menu_item(_("Export..."), export_files)
-        def export_svg():
-            selected_display_item = self.selected_display_item
-            if selected_display_item:
-                self.export_svg(selected_display_item)
-        self._export_svg_action = self._file_menu.add_menu_item(_("Export SVG..."), export_svg)
-        #self._file_menu.add_separator()
-        #self._save_action = self._file_menu.add_menu_item(_("Save"), self.no_operation, key_sequence="save")
-        #self._save_as_action = self._file_menu.add_menu_item(_("Save As..."), self.no_operation, key_sequence="save-as")
-        self._file_menu.add_separator()
-        self._file_menu.add_menu_item(_("Scripts..."), self.new_interactive_script_dialog, key_sequence="Ctrl+R")
-        self._file_menu.add_menu_item(_("Python Console..."), self.new_console_dialog, key_sequence="Ctrl+K")
-        self._file_menu.add_separator()
-        self._add_group_action = self._file_menu.add_menu_item(_("Add Group"), self.add_group)
-        self._file_menu.add_separator()
-        self._page_setup_action = self._file_menu.add_menu_item(_("Page Setup"), self._page_setup)
-        self._print_action = self._file_menu.add_menu_item(_("Print"), self._print, key_sequence="Ctrl+P")
-        self._file_menu.add_separator()
-        self._quit_action = self._file_menu.add_menu_item(_("Exit"), lambda: self.app.exit(), key_sequence="quit", role="quit")
-
-        self._undo_action = self._edit_menu.add_menu_item(_("Undo"), self._undo, key_sequence="undo")
-        self._redo_action = self._edit_menu.add_menu_item(_("Redo"), self._redo, key_sequence="redo")
-        self._edit_menu.add_separator()
-        self._cut_action = self._edit_menu.add_menu_item(_("Cut"), self._cut, key_sequence="cut")
-        self._copy_action = self._edit_menu.add_menu_item(_("Copy"), self._copy, key_sequence="copy")
-        # self._deep_copy_action = self._edit_menu.add_menu_item(_("Deep Copy"), self.__deep_copy, key_sequence="Ctrl+Shift+C")
-        self._paste_action = self._edit_menu.add_menu_item(_("Paste"), self._paste, key_sequence="paste")
-        self._delete_action = self._edit_menu.add_menu_item(_("Delete"), self._delete, key_sequence="delete")
-        self._select_all_action = self._edit_menu.add_menu_item(_("Select All"), self._select_all, key_sequence="select-all")
-        self._edit_menu.add_separator()
-        self._script_action = self._edit_menu.add_menu_item(_("Assign Variable Reference"), self.prepare_data_item_script, key_sequence="Ctrl+Shift+K")
-        self._copy_uuid_action = self._edit_menu.add_menu_item(_("Copy Item UUID"), self.copy_uuid, key_sequence="Ctrl+Shift+U")
-        self._empty_data_item_action = self._edit_menu.add_menu_item(_("Create New Data Item"), self.create_empty_data_item)
-        self._edit_menu.add_separator()
-        self.properties_action = self._edit_menu.add_menu_item(_("Preferences..."), self.open_preferences, role="preferences")
-
-        # these are temporary menu items, so don't need to assign them to variables, for now
-        self._processing_graphics_menu = self.create_sub_menu()
-        self._processing_menu.add_sub_menu(_("Graphics"), self._processing_graphics_menu)
-        self._processing_menu.add_separator()
-
-        self._processing_graphics_menu.add_menu_item(_("Add Line Graphic"), self.add_line_graphic)
-        self._processing_graphics_menu.add_menu_item(_("Add Ellipse Graphic"), self.add_ellipse_graphic)
-        self._processing_graphics_menu.add_menu_item(_("Add Rectangle Graphic"), self.add_rectangle_graphic)
-        self._processing_graphics_menu.add_menu_item(_("Add Point Graphic"), self.add_point_graphic)
-        self._processing_graphics_menu.add_menu_item(_("Add Interval Graphic"), self.add_interval_graphic)
-        self._processing_graphics_menu.add_menu_item(_("Add Channel Graphic"), self.add_channel_graphic)
-        self._processing_graphics_menu.add_separator()
-        self._processing_graphics_menu.add_menu_item(_("Add to Mask"), self.add_graphic_mask)
-        self._processing_graphics_menu.add_menu_item(_("Remove from Mask"), self.remove_graphic_mask)
-
-        self._processing_menu.add_menu_item(_("Snapshot"), self.processing_snapshot, key_sequence="Ctrl+S")
-        self._processing_menu.add_menu_item(_("Duplicate"), self.processing_duplicate, key_sequence="Ctrl+D")
-        self._processing_menu.add_separator()
-
-        self._processing_menu.add_menu_item(_("Edit Data Item Scripts"), self.new_edit_computation_dialog, key_sequence="Ctrl+E")
-        self._processing_menu.add_menu_item(_("Edit Display Script"), self.new_display_editor_dialog, key_sequence="Ctrl+Shift+D")
-        self._processing_menu.add_separator()
-
-        self._processing_transform_menu = self.create_sub_menu()
-        self._processing_menu.add_sub_menu(_("Transform"), self._processing_transform_menu)
-
-        self._processing_transform_menu.add_menu_item(_("Transpose and Flip"), functools.partial(self.__processing_new, self.document_model.get_transpose_flip_new))
-        self._processing_transform_menu.add_menu_item(_("Resample"), functools.partial(self.__processing_new, self.document_model.get_resample_new))
-        self._processing_transform_menu.add_menu_item(_("Crop"), functools.partial(self.__processing_new, self.document_model.get_crop_new))
-        self._processing_transform_menu.add_menu_item(_("Resize"), functools.partial(self.__processing_new, self.document_model.get_resize_new))
-        self._processing_transform_menu.add_menu_item(_("Convert to Scalar"), functools.partial(self.__processing_new, self.document_model.get_convert_to_scalar_new))
-
-        self._processing_arithmetic_menu = self.create_sub_menu()
-        self._processing_menu.add_sub_menu(_("Arithmetic"), self._processing_arithmetic_menu)
-
-        self._processing_arithmetic_menu.add_menu_item(_("Add"), functools.partial(self.__processing_new2, self.document_model.get_add_new))
-        self._processing_arithmetic_menu.add_menu_item(_("Subtract"), functools.partial(self.__processing_new2, self.document_model.get_subtract_new))
-        self._processing_arithmetic_menu.add_menu_item(_("Multiply"), functools.partial(self.__processing_new2, self.document_model.get_multiply_new))
-        self._processing_arithmetic_menu.add_menu_item(_("Divide"), functools.partial(self.__processing_new2, self.document_model.get_divide_new))
-        self._processing_arithmetic_menu.add_menu_item(_("Negate"), functools.partial(self.__processing_new, self.document_model.get_invert_new))
-        self._processing_arithmetic_menu.add_separator()
-        self._processing_arithmetic_menu.add_menu_item(_("Masked"), functools.partial(self.__processing_new, self.document_model.get_masked_new))
-        self._processing_arithmetic_menu.add_menu_item(_("Mask"), functools.partial(self.__processing_new, self.document_model.get_mask_new))
-        self._processing_arithmetic_menu.add_separator()
-        self._processing_arithmetic_menu.add_menu_item(_("Subtract Region Average"), functools.partial(self.__processing_new, self.document_model.get_subtract_region_average_new))
-
-        self._processing_reduce_menu = self.create_sub_menu()
-        self._processing_menu.add_sub_menu(_("Reduce"), self._processing_reduce_menu)
-
-        self._processing_reduce_menu.add_menu_item(_("Slice Sum"), functools.partial(self.__processing_new, self.document_model.get_slice_sum_new))
-        self._processing_reduce_menu.add_menu_item(_("Pick"), functools.partial(self.__processing_new, self.document_model.get_pick_new))
-        self._processing_reduce_menu.add_menu_item(_("Pick Region (Sum)"), functools.partial(self.__processing_new, self.document_model.get_pick_region_new))
-        self._processing_reduce_menu.add_menu_item(_("Pick Region (Average)"), functools.partial(self.__processing_new, self.document_model.get_pick_region_average_new))
-        self._processing_reduce_menu.add_menu_item(_("Projection (Sum)"), functools.partial(self.__processing_new, self.document_model.get_projection_new))
-        self._processing_reduce_menu.add_menu_item(_("Mapped Sum"), functools.partial(self.__processing_new, self.document_model.get_mapped_sum_new))
-        self._processing_reduce_menu.add_menu_item(_("Mapped Average"), functools.partial(self.__processing_new, self.document_model.get_mapped_average_new))
-
-        self._processing_fourier_menu = self.create_sub_menu()
-        self._processing_menu.add_sub_menu(_("Fourier"), self._processing_fourier_menu)
-
-        self._processing_fourier_menu.add_menu_item(_("FFT"), functools.partial(self.__processing_new, self.document_model.get_fft_new), key_sequence="Ctrl+F")
-        self._processing_fourier_menu.add_menu_item(_("Inverse FFT"), functools.partial(self.__processing_new, self.document_model.get_ifft_new), key_sequence="Ctrl+Shift+F")
-        self._processing_fourier_menu.add_menu_item(_("Auto Correlate"), functools.partial(self.__processing_new, self.document_model.get_auto_correlate_new))
-        self._processing_fourier_menu.add_menu_item(_("Cross Correlate"), self.processing_cross_correlate_new)
-        self._processing_fourier_menu.add_menu_item(_("Fourier Filter"), self.processing_fourier_filter_new)
+        processing_component_menu_items = list()
 
         processing_components = list()
         for processing_component in typing.cast(typing.Sequence[Processing.ProcessingBase], Registry.get_components_by_type("processing-component")):
             if "windows" in processing_component.sections:
                 processing_components.append(processing_component)
         if processing_components:
-            self._processing_fourier_menu.add_separator()
+            processing_component_menu_items.append({"type": "separator"})
             for processing_component in sorted(processing_components, key=operator.attrgetter("title")):
-                self._processing_fourier_menu.add_menu_item(processing_component.title, functools.partial(self.processing_new, processing_component.processing_id))
+                processing_component_menu_items.append({"type": "item", "action_id": "processing." + processing_component.processing_id})
 
-        self._processing_fourier_menu.add_separator()
-        self._processing_fourier_menu.add_menu_item(_("Add Spot Filter"), self.add_spot_graphic)
-        self._processing_fourier_menu.add_menu_item(_("Add Angle Filter"), self.add_angle_graphic)
-        self._processing_fourier_menu.add_menu_item(_("Add Band Pass Filter"), self.add_band_pass_graphic)
-        self._processing_fourier_menu.add_menu_item(_("Add Lattice Filter"), self.add_lattice_graphic)
+        menu_descriptions = [
+            {"type": "menu", "menu_id": "file", "title": _("File"), "items":
+                [
+                    {"type": "item", "action_id": "window.new"},
+                    {"type": "item", "action_id": "window.close"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "project.new_project"},
+                    {"type": "item", "action_id": "project.open_project"},
+                    {"type": "item", "action_id": "project.ugprade_project"},
+                    {"type": "item", "action_id": "project.remove_project"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "project.set_target_project"},
+                    {"type": "item", "action_id": "project.clear_target_project"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "project.set_work_project"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "file.import_folder"},
+                    {"type": "item", "action_id": "file.import_data"},
+                    {"type": "item", "action_id": "file.export"},
+                    {"type": "item", "action_id": "file.export_svg"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "window.open_run_scripts"},
+                    {"type": "item", "action_id": "window.open_console"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "project.add_group"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "window.page_setup"},
+                    {"type": "item", "action_id": "window.print"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "application.exit"},
+                ]
+            },
+            {"type": "menu", "menu_id": "edit", "title": _("Edit"), "items":
+                [
+                    {"type": "item", "action_id": "window.undo"},
+                    {"type": "item", "action_id": "window.redo"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "window.cut"},
+                    {"type": "item", "action_id": "window.copy"},
+                    {"type": "item", "action_id": "window.paste"},
+                    {"type": "item", "action_id": "window.delete"},
+                    {"type": "item", "action_id": "window.select_all"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "item.assign_variable_reference"},
+                    {"type": "item", "action_id": "item.copy_uuid"},
+                    {"type": "item", "action_id": "item.create_data_item"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "application.preferences"},
+                ]
+            },
+            {"type": "menu", "menu_id": "processing", "title": _("Processing"), "items":
+                [
+                    {"type": "sub_menu", "menu_id": "processing_transform", "title": _("Graphics"), "items":
+                        [
+                            {"type": "item", "action_id": "graphics.add_line_graphic"},
+                            {"type": "item", "action_id": "graphics.add_ellipse_graphic"},
+                            {"type": "item", "action_id": "graphics.add_rectangle_graphic"},
+                            {"type": "item", "action_id": "graphics.add_point_graphic"},
+                            {"type": "item", "action_id": "graphics.add_interval_graphic"},
+                            {"type": "item", "action_id": "graphics.add_channel_graphic"},
+                            {"type": "separator"},
+                            {"type": "item", "action_id": "graphics.add_graphic_mask"},
+                            {"type": "item", "action_id": "graphics.remove_graphic_mask"},
+                        ]
+                    },
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "item.snapshot"},
+                    {"type": "item", "action_id": "item.duplicate"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "window.edit_data_item_script"},
+                    {"type": "item", "action_id": "window.edit_display_script"},
+                    {"type": "separator"},
+                    {"type": "sub_menu", "menu_id": "processing_transform", "title": _("Transform"), "items":
+                        [
+                            {"type": "item", "action_id": "processing.transform"},
+                            {"type": "item", "action_id": "processing.resample"},
+                            {"type": "item", "action_id": "processing.crop"},
+                            {"type": "item", "action_id": "processing.resize"},
+                            {"type": "item", "action_id": "processing.scalar"},
+                        ]
+                    },
+                    {"type": "sub_menu", "menu_id": "processing_arithmetic", "title": _("Arithmetic"), "items":
+                        [
+                            {"type": "item", "action_id": "processing.add"},
+                            {"type": "item", "action_id": "processing.subtract"},
+                            {"type": "item", "action_id": "processing.multiply"},
+                            {"type": "item", "action_id": "processing.divide"},
+                            {"type": "item", "action_id": "processing.negate"},
+                            {"type": "separator"},
+                            {"type": "item", "action_id": "processing.mask"},
+                            {"type": "item", "action_id": "processing.masked"},
+                            {"type": "separator"},
+                            {"type": "item", "action_id": "processing.subtract_average"},
+                        ]
+                    },
+                    {"type": "sub_menu", "menu_id": "processing_reduce", "title": _("Reduce"), "items":
+                        [
+                            {"type": "item", "action_id": "processing.slice_sum"},
+                            {"type": "item", "action_id": "processing.pick"},
+                            {"type": "item", "action_id": "processing.pick_sum"},
+                            {"type": "item", "action_id": "processing.pick_average"},
+                            {"type": "item", "action_id": "processing.projection_sum"},
+                            {"type": "item", "action_id": "processing.mapped_sum"},
+                            {"type": "item", "action_id": "processing.mapped_average"},
+                        ]
+                    },
+                    {"type": "sub_menu", "menu_id": "processing_fourier", "title": _("Fourier"), "items":
+                        [
+                            {"type": "item", "action_id": "processing.fft"},
+                            {"type": "item", "action_id": "processing.inverse_fft"},
+                            {"type": "item", "action_id": "processing.auto_correlate"},
+                            {"type": "item", "action_id": "processing.cross_correlate"},
+                            {"type": "item", "action_id": "processing.fourier_filter"},
+                            *processing_component_menu_items,
+                            {"type": "separator"},
+                            {"type": "item", "action_id": "graphics.add_spot_graphic"},
+                            {"type": "item", "action_id": "graphics.add_angle_graphic"},
+                            {"type": "item", "action_id": "graphics.add_band_pass_graphic"},
+                            {"type": "item", "action_id": "graphics.add_lattice_graphic"},
+                        ]
+                    },
+                    {"type": "sub_menu", "menu_id": "processing_filter", "title": _("Filter"), "items":
+                        [
+                            {"type": "item", "action_id": "processing.sobel_filter"},
+                            {"type": "item", "action_id": "processing.laplace_filter"},
+                            {"type": "item", "action_id": "processing.gaussian_filter"},
+                            {"type": "item", "action_id": "processing.median_filter"},
+                            {"type": "item", "action_id": "processing.uniform_filter"},
+                        ]
+                    },
+                    {"type": "sub_menu", "menu_id": "processing_redimension", "title": _("Redimension Data"), "items":
+                        [
+                        ]
+                    },
+                    {"type": "sub_menu", "menu_id": "processing_sequence", "title": _("Sequence"), "items":
+                        [
+                            {"type": "item", "action_id": "processing.sequence_measure_shifts"},
+                            {"type": "item", "action_id": "processing.sequence_align_spline_1"},
+                            {"type": "item", "action_id": "processing.sequence_align_fourier"},
+                            {"type": "item", "action_id": "processing.sequence_integrate"},
+                            {"type": "item", "action_id": "processing.sequence_trim"},
+                            {"type": "item", "action_id": "processing.sequence_extract"},
+                        ]
+                    },
+                    {"type": "item", "action_id": "processing.line_profile"},
+                    {"type": "item", "action_id": "processing.histogram"},
+                    {"type": "separator"},
+                ]
+             },
+            {"type": "menu", "menu_id": "view", "title": _("View"), "items":
+                [
+                    {"type": "sub_menu", "menu_id": "display_panel_type", "title": _("Display Panel Type"), "items":
+                        [
+                        ]
+                    },
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "display.copy_display"},
+                    {"type": "item", "action_id": "display.remove_display"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "display.fit_view"},
+                    {"type": "item", "action_id": "display.fill_view"},
+                    {"type": "item", "action_id": "display.1_view"},
+                    {"type": "item", "action_id": "display.2_view"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "window.toggle_filter"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "workspace.previous"},
+                    {"type": "item", "action_id": "workspace.next"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "workspace.new"},
+                    {"type": "item", "action_id": "workspace.rename"},
+                    {"type": "item", "action_id": "workspace.remove"},
+                    {"type": "item", "action_id": "workspace.clone"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "window.data_item_recorder"},
+                ]
+            },
+            {"type": "menu", "menu_id": "window", "title": _("Window"), "items":
+                [
+                    {"type": "item", "action_id": "window.minimize"},
+                    {"type": "item", "action_id": "window.zoom"},
+                    {"type": "item", "action_id": "window.bring_to_front"},
+                    {"type": "separator"},
+                ]
+            },
+            {"type": "menu", "menu_id": "help", "title": _("Help"), "items":
+                [
+                    {"type": "item", "action_id": "application.about"},
+                ]
+            },
+        ]
 
-        self._processing_filter_menu = self.create_sub_menu()
-        self._processing_menu.add_sub_menu(_("Filter"), self._processing_filter_menu)
-
-        self._processing_filter_menu.add_menu_item(_("Sobel Filter"), functools.partial(self.__processing_new, self.document_model.get_sobel_new))
-        self._processing_filter_menu.add_menu_item(_("Laplace Filter"), functools.partial(self.__processing_new, self.document_model.get_laplace_new))
-        self._processing_filter_menu.add_menu_item(_("Gaussian Blur"), functools.partial(self.__processing_new, self.document_model.get_gaussian_blur_new))
-        self._processing_filter_menu.add_menu_item(_("Median Filter"), functools.partial(self.__processing_new, self.document_model.get_median_filter_new))
-        self._processing_filter_menu.add_menu_item(_("Uniform Filter"), functools.partial(self.__processing_new, self.document_model.get_uniform_filter_new))
+        self.build_menu(None, menu_descriptions)
 
         self.__data_menu_actions = list()
-        self._processing_redimension_menu = self.create_sub_menu()
-        self._processing_redimension_menu.on_about_to_show = self.__adjust_redimension_data_menu
-        self._processing_menu.add_sub_menu(_("Redimension Data"), self._processing_redimension_menu)
-
-        self._processing_sequence_menu = self.create_sub_menu()
-        self._processing_menu.add_sub_menu(_("Sequence"), self._processing_sequence_menu)
-
-        self._processing_sequence_menu.add_menu_item(_("Measure Shifts"), functools.partial(self.__processing_new, self.document_model.get_sequence_measure_shifts_new))
-        self._processing_sequence_menu.add_menu_item(_("Align (Spline 1st Order)"), functools.partial(self.__processing_new, self.document_model.get_sequence_align_new))
-        self._processing_sequence_menu.add_menu_item(_("Align (Fourier)"), functools.partial(self.__processing_new, self.document_model.get_sequence_fourier_align_new))
-        self._processing_sequence_menu.add_menu_item(_("Integrate"), functools.partial(self.__processing_new, self.document_model.get_sequence_integrate_new))
-        self._processing_sequence_menu.add_menu_item(_("Trim"), functools.partial(self.__processing_new, self.document_model.get_sequence_trim_new))
-        self._processing_sequence_menu.add_menu_item(_("Extract"), functools.partial(self.__processing_new, self.document_model.get_sequence_extract_new))
-
-        self._processing_menu.add_menu_item(_("Line Profile"), functools.partial(self.__processing_new, self.document_model.get_line_profile_new))
-        self._processing_menu.add_menu_item(_("Histogram"), functools.partial(self.__processing_new, self.document_model.get_histogram_new))
-        self._processing_menu.add_separator()
 
         self.__dynamic_live_actions = []
 
-        def about_to_show_display_type_menu():
-            for dynamic_live_action in self.__dynamic_live_actions:
-                self._display_type_menu.remove_action(dynamic_live_action)
-            self.__dynamic_live_actions = []
-
-            selected_display_panel = self.selected_display_panel
-            if not selected_display_panel:
-                return
-
-            self.__dynamic_live_actions.extend(DisplayPanel.DisplayPanelManager().build_menu(self._display_type_menu, self, selected_display_panel))
-
-        self._display_type_menu = self.create_sub_menu()
-        self._display_type_menu.on_about_to_show = about_to_show_display_type_menu
-
-        self._view_menu.add_sub_menu(_("Display Panel Type"), self._display_type_menu)
-        self._view_menu.add_separator()
-
-        self._view_menu.add_menu_item(_("Display Copy"), self.processing_display_copy)
-        self._display_remove_action = self._view_menu.add_menu_item(_("Display Remove"), self.processing_display_remove)
-        self._view_menu.add_separator()
-
-        # these are temporary menu items, so don't need to assign them to variables, for now
-        def fit_to_view():
-            if self.selected_display_panel is not None:
-                self.selected_display_panel.perform_action("set_fit_mode")
-
-        self._fit_view_action = self._view_menu.add_menu_item(_("Fit to View"), fit_to_view, key_sequence="0")
-
-        def fill_view():
-            if self.selected_display_panel is not None:
-                self.selected_display_panel.perform_action("set_fill_mode")
-
-        self._fill_view_action = self._view_menu.add_menu_item(_("Fill View"), fill_view, key_sequence="Shift+0")
-
-        def one_to_one_view():
-            if self.selected_display_panel is not None:
-                self.selected_display_panel.perform_action("set_one_to_one_mode")
-
-        def two_to_one_view():
-            if self.selected_display_panel is not None:
-                self.selected_display_panel.perform_action("set_two_to_one_mode")
-
-        self._one_to_one_view_action = self._view_menu.add_menu_item(_("1:1 View"), one_to_one_view, key_sequence="1")
-        self._two_to_one_view_action = self._view_menu.add_menu_item(_("2:1 View"), two_to_one_view, key_sequence="2")
-        self._view_menu.add_separator()
-        self._toggle_filter_action = self._view_menu.add_menu_item(_("Filter"), self.toggle_filter, key_sequence="Ctrl+\\")
-        self._view_menu.add_separator()
-        self._view_menu.add_menu_item(_("Previous Workspace"), self.__change_to_previous_workspace, key_sequence="Ctrl+[")
-        self._view_menu.add_menu_item(_("Next Workspace"), self.__change_to_next_workspace, key_sequence="Ctrl+]")
-        self._view_menu.add_separator()
-        self._view_menu.add_menu_item(_("New Workspace"), self.__create_workspace, key_sequence="Ctrl+Alt+L")
-        self._view_menu.add_menu_item(_("Rename Workspace"), self.__rename_workspace)
-        self._view_menu.add_menu_item(_("Remove Workspace"), self.__remove_workspace)
-        self._view_menu.add_menu_item(_("Clone Workspace"), self.__clone_workspace)
-        self._view_menu.add_separator()
-        self._view_menu.add_menu_item(_("Data Item Recorder..."), self.new_recorder_dialog, key_sequence="Ctrl+Shift+R")
-        self._view_menu.add_separator()
-
         self.__dynamic_view_actions = []
 
-        def adjust_view_menu():
-            for dynamic_view_action in self.__dynamic_view_actions:
-                self._view_menu.remove_action(dynamic_view_action)
-            self.__dynamic_view_actions = []
-            for workspace in self.document_model.workspaces:
-                def switch_to_workspace(workspace):
-                    self.workspace_controller.change_workspace(workspace)
-                action = self._view_menu.add_menu_item(workspace.name, functools.partial(switch_to_workspace, workspace))
-                action.checked = self.document_model.workspace_uuid == workspace.uuid
-                self.__dynamic_view_actions.append(action)
-            selected_display_panel = self.selected_display_panel
-            data_item = selected_display_panel.data_item if selected_display_panel else None
-            display_items = self.document_model.get_display_items_for_data_item(data_item) if data_item else list()
-            self._display_remove_action.enabled = len(display_items) > 1
-
-        self._view_menu.on_about_to_show = adjust_view_menu
-
-        #self.help_action = self._help_menu.add_menu_item(_("Help"), self.no_operation, key_sequence="help")
-        self._about_action = self._help_menu.add_menu_item(_("About"), self.show_about_box, role="about")
-
-        self._minimize_action = self._window_menu.add_menu_item(_("Minimize"), self._minimize)
-        self._zoom_action = self._window_menu.add_menu_item(_("Zoom"), self._zoom)
-        self._bring_to_front_action = self._window_menu.add_menu_item(_("Bring to Front"), self._bring_to_front)
-        self._window_menu.add_separator()
-
         self.__dynamic_window_actions = []
-
-        def adjust_window_menu():
-            for dynamic_window_action in self.__dynamic_window_actions:
-                self._window_menu.remove_action(dynamic_window_action)
-            self.__dynamic_window_actions = []
-            toggle_actions = [dock_widget.toggle_action for dock_widget in self.workspace_controller.dock_widgets]
-            for toggle_action in sorted(toggle_actions, key=operator.attrgetter("title")):
-                self._window_menu.add_action(toggle_action)
-                self.__dynamic_window_actions.append(toggle_action)
-            self._window_menu_about_to_show()
-
-        self._window_menu.on_about_to_show = adjust_window_menu
-        self._file_menu.on_about_to_show = self._file_menu_about_to_show
-
-        def adjust_edit_menu():
-            # self._deep_copy_action.apply_state(self._get_focus_widget_menu_item_state("deep_copy"))
-            self._edit_menu_about_to_show()
-
-        self._edit_menu.on_about_to_show = adjust_edit_menu
 
     def get_menu(self, menu_id):
         assert menu_id.endswith("_menu")
@@ -901,7 +810,7 @@ class DocumentController(Window.Window):
         # hack to work around Application <-> DocumentController interdependency.
         self.create_new_document_controller_event.fire(self.document_model, workspace_id, display_item)
 
-    def __handle_new_project(self) -> None:
+    def _handle_new_project(self) -> None:
         class NewProjectDialog(Dialog.ActionDialog):
 
             def __init__(self, ui, app, parent_window, profile: Profile.Profile):
@@ -1007,7 +916,7 @@ class DocumentController(Window.Window):
         new_project_dialog = NewProjectDialog(self.ui, self.app, self, self.document_model.profile)
         new_project_dialog.show()
 
-    def __handle_open_project(self) -> None:
+    def _handle_open_project(self) -> None:
         filter = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
         import_dir = self.ui.get_persistent_string("open_directory", self.ui.get_document_location())
         paths, selected_filter, selected_directory = self.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter)
@@ -1015,15 +924,15 @@ class DocumentController(Window.Window):
         if len(paths) == 1:
             self.document_model.profile.open_project(pathlib.Path(paths[0]))
 
-    def __handle_upgrade_project(self) -> None:
+    def _handle_upgrade_project(self) -> None:
         for project in self.selected_projects:
             self.document_model.profile.upgrade_project(project)
 
-    def __handle_remove_project(self) -> None:
+    def _handle_remove_project(self) -> None:
         for project in self.selected_projects:
             self.document_model.profile.remove_project(project)
 
-    def __set_target_project(self) -> None:
+    def _set_target_project(self) -> None:
         projects = self.selected_projects
         if not projects:
             raise Exception("Select a project in the project panel.")
@@ -1031,10 +940,10 @@ class DocumentController(Window.Window):
             raise Exception("Select a single project in the project panel.")
         self.document_model.profile.set_target_project(projects[0])
 
-    def __clear_target_project(self) -> None:
+    def _clear_target_project(self) -> None:
         self.document_model.profile.set_target_project(None)
 
-    def __set_work_project(self) -> None:
+    def _set_work_project(self) -> None:
         projects = self.selected_projects
         if not projects:
             raise Exception("Select a project in the project panel.")
@@ -1054,7 +963,7 @@ class DocumentController(Window.Window):
         self.__display_items_model.mark_changed()
         self.active_projects_changed_event.fire()
 
-    def __import_folder(self):
+    def _import_folder(self):
         documents_dir = self.ui.get_document_location()
         workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Image Folder"), documents_dir)
         absolute_file_paths = set()
@@ -1086,6 +995,20 @@ class DocumentController(Window.Window):
         paths, selected_filter, selected_directory = self.get_file_paths_dialog(_("Import File(s)"), import_dir, filter)
         self.ui.set_persistent_string("import_directory", selected_directory)
         self.receive_files(paths, display_panel=self.next_result_display_panel())
+
+    def handle_export_files(self):
+        selected_display_items = self.selected_display_items
+        if len(selected_display_items) > 1:
+            self.export_files(selected_display_items)
+        elif len(selected_display_items) == 1:
+            self.export_file(selected_display_items[0])
+        elif self.selected_display_item:
+            self.export_file(self.selected_display_item)
+
+    def export_svg(self):
+        selected_display_item = self.selected_display_item
+        if selected_display_item:
+            self.export_svg(selected_display_item)
 
     def export_file(self, display_item: DisplayItem.DisplayItem) -> None:
         # present a loadfile dialog to the user
@@ -1990,9 +1913,52 @@ class DocumentController(Window.Window):
         else:
             command.close()
 
-    def __adjust_redimension_data_menu(self):
+    def _menu_about_to_show(self, menu: UserInterface.Menu) -> None:
+        if menu.menu_id == "processing_redimension":
+            self.__adjust_redimension_data_menu(menu)
+        elif menu.menu_id == "display_panel_type":
+            self.__about_to_show_display_type_menu(menu)
+        elif menu.menu_id == "view":
+            self.__adjust_view_menu(menu)
+            super()._menu_about_to_show(menu)
+        elif menu.menu_id == "window":
+            self.__adjust_window_menu(menu)
+            super()._menu_about_to_show(menu)
+        else:
+            super()._menu_about_to_show(menu)
+
+    def __adjust_window_menu(self, menu: UserInterface.Menu) -> None:
+        for dynamic_window_action in self.__dynamic_window_actions:
+            menu.remove_action(dynamic_window_action)
+        self.__dynamic_window_actions = []
+        toggle_actions = [dock_widget.toggle_action for dock_widget in self.workspace_controller.dock_widgets]
+        for toggle_action in sorted(toggle_actions, key=operator.attrgetter("title")):
+            menu.add_action(toggle_action)
+            self.__dynamic_window_actions.append(toggle_action)
+
+    def __adjust_view_menu(self, menu: UserInterface.Menu) -> None:
+        for dynamic_view_action in self.__dynamic_view_actions:
+            menu.remove_action(dynamic_view_action)
+        self.__dynamic_view_actions = []
+        for workspace in self.document_model.workspaces:
+            def switch_to_workspace(workspace):
+                self.workspace_controller.change_workspace(workspace)
+            action = menu.add_menu_item(workspace.name, functools.partial(switch_to_workspace, workspace))
+            action.checked = self.document_model.workspace_uuid == workspace.uuid
+            self.__dynamic_view_actions.append(action)
+
+    def __about_to_show_display_type_menu(self, menu: UserInterface.Menu) -> None:
+        for dynamic_live_action in self.__dynamic_live_actions:
+            menu.remove_action(dynamic_live_action)
+        self.__dynamic_live_actions = []
+        selected_display_panel = self.selected_display_panel
+        if not selected_display_panel:
+            return
+        self.__dynamic_live_actions.extend(DisplayPanel.DisplayPanelManager().build_menu(menu, self, selected_display_panel))
+
+    def __adjust_redimension_data_menu(self, menu: UserInterface.Menu) -> None:
         for action in self.__data_menu_actions:
-            self._processing_redimension_menu.remove_action(action)
+            menu.remove_action(action)
         self.__data_menu_actions = list()
         selected_display_panel = self.selected_display_panel
         display_item = selected_display_panel.display_item
@@ -2020,7 +1986,7 @@ class DocumentController(Window.Window):
 
             # add (disabled) existing data type menu item
             data_type_name = describe_data_descriptor(data_item.xdata.data_descriptor, data_item.xdata.data_shape)
-            action = self._processing_redimension_menu.add_menu_item(data_type_name, None)
+            action = menu.add_menu_item(data_type_name, None)
             action.enabled = False
             self.__data_menu_actions.append(action)
 
@@ -2029,7 +1995,7 @@ class DocumentController(Window.Window):
                 data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dims, data_dims)
                 if data_descriptor.expected_dimension_count == data_item.xdata.data_descriptor.expected_dimension_count and data_descriptor != data_item.xdata.data_descriptor:
                     data_type_name = describe_data_descriptor(data_descriptor, data_item.xdata.data_shape)
-                    action = self._processing_redimension_menu.add_menu_item(_("Redimension to {}").format(data_type_name), functools.partial(self._perform_redimension, display_item, data_descriptor))
+                    action = menu.add_menu_item(_("Redimension to {}").format(data_type_name), functools.partial(self._perform_redimension, display_item, data_descriptor))
                     self.__data_menu_actions.append(action)
 
             # add squeeze menu item if available
@@ -2048,14 +2014,13 @@ class DocumentController(Window.Window):
                     del data_shape[data_descriptor.datum_dimension_index_slice.start + index]
                     data_descriptor.datum_dimension_count -= 1
                 data_type_name = describe_data_descriptor(data_descriptor, data_shape)
-                self.__data_menu_actions.append(self._processing_redimension_menu.add_menu_item(_("Squeeze to {}").format(data_type_name), functools.partial(self._perform_squeeze, display_item)))
+                self.__data_menu_actions.append(menu.add_menu_item(_("Squeeze to {}").format(data_type_name), functools.partial(self._perform_squeeze, display_item)))
         else:
-            action = self._processing_redimension_menu.add_menu_item(_("No Data Selected"), None)
+            action = menu.add_menu_item(_("No Data Selected"), None)
             action.enabled = False
             self.__data_menu_actions.append(action)
-        self._window_menu_about_to_show()
 
-    def __get_crop_graphic(self, display_item: DisplayItem.DisplayItem) -> typing.Optional[Graphics.Graphic]:
+    def _get_crop_graphic(self, display_item: DisplayItem.DisplayItem) -> typing.Optional[Graphics.Graphic]:
         crop_graphic = None
         data_item = display_item.data_item if display_item else None
         current_index = display_item.graphic_selection.current_index if display_item else None
@@ -2078,32 +2043,21 @@ class DocumentController(Window.Window):
                     mask_graphics.append(graphic)
         return mask_graphics
 
-    def processing_fft(self) -> DisplayItem.DisplayItem:
-        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_fft_new))
-
-    def processing_ifft(self) -> DisplayItem.DisplayItem:
-        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_ifft_new))
-
-    def processing_gaussian_blur(self) -> DisplayItem.DisplayItem:
-        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_gaussian_blur_new))
-
-    def processing_resample(self) -> DisplayItem.DisplayItem:
-        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_resample_new))
-
     def processing_crop(self) -> DisplayItem.DisplayItem:
-        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_crop_new))
-
-    def processing_slice(self) -> DisplayItem.DisplayItem:
-        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_slice_sum_new))
+        self.perform_action("processing.crop")
+        return self.document_model.display_items[-1]
 
     def processing_projection(self) -> DisplayItem.DisplayItem:
-        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_projection_new))
+        self.perform_action("processing.projection_sum")
+        return self.document_model.display_items[-1]
 
     def processing_line_profile(self) -> DisplayItem.DisplayItem:
-        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_line_profile_new))
+        self.perform_action("processing.line_profile")
+        return self.document_model.display_items[-1]
 
     def processing_invert(self) -> DisplayItem.DisplayItem:
-        return self.document_model.get_display_item_for_data_item(self.__processing_new(self.document_model.get_invert_new))
+        self.perform_action("processing.negate")
+        return self.document_model.display_items[-1]
 
     class InsertDataItemCommand(Undo.UndoableCommand):
 
@@ -2362,20 +2316,20 @@ class DocumentController(Window.Window):
                         crop_graphic1 = graphic1
                         crop_graphic2 = graphic2
                     else:
-                        crop_graphic1 = self.__get_crop_graphic(display_item)
+                        crop_graphic1 = self._get_crop_graphic(display_item)
                         crop_graphic2 = crop_graphic1
                 else:
-                    crop_graphic1 = self.__get_crop_graphic(display_item)
+                    crop_graphic1 = self._get_crop_graphic(display_item)
                     crop_graphic2 = crop_graphic1
             else:
-                crop_graphic1 = self.__get_crop_graphic(display_item)
+                crop_graphic1 = self._get_crop_graphic(display_item)
                 crop_graphic2 = crop_graphic1
             return (display_item, crop_graphic1), (display_item, crop_graphic2)
         if len(selected_display_items) == 2:
             display_item1 = selected_display_items[0]
-            crop_graphic1 = self.__get_crop_graphic(display_item1)
+            crop_graphic1 = self._get_crop_graphic(display_item1)
             display_item2 = selected_display_items[1]
-            crop_graphic2 = self.__get_crop_graphic(display_item2)
+            crop_graphic2 = self._get_crop_graphic(display_item2)
             return (display_item1, crop_graphic1), (display_item2, crop_graphic2)
         return None
 
@@ -2395,16 +2349,6 @@ class DocumentController(Window.Window):
             command.close()
         return None
 
-    def __processing_new2(self, fn):
-        data_sources = self._get_two_data_sources()
-        if data_sources:
-            (display_item1, crop_graphic1), (display_item2, crop_graphic2) = data_sources
-            return self._perform_processing2(display_item1, display_item2, crop_graphic1, crop_graphic2, fn)
-        return None
-
-    def processing_cross_correlate_new(self):
-        return self.__processing_new2(self.document_model.get_cross_correlate_new)
-
     def _perform_processing(self, display_item: DisplayItem.DisplayItem, crop_graphic: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
         def process() -> DataItem.DataItem:
             new_data_item = fn(display_item, crop_graphic)
@@ -2422,11 +2366,6 @@ class DocumentController(Window.Window):
             command.close()
         return None
 
-    def __processing_new(self, fn) -> typing.Optional[DataItem.DataItem]:
-        display_item = self.selected_display_item
-        crop_graphic = self.__get_crop_graphic(display_item)
-        return self._perform_processing(display_item, crop_graphic, fn)
-
     def processing_fourier_filter_new(self):
         display_item = self.selected_display_item
         data_item = display_item.data_item if display_item else None
@@ -2434,34 +2373,27 @@ class DocumentController(Window.Window):
             return self._perform_processing(display_item, None, self.document_model.get_fourier_filter_new)
         return None
 
-    def processing_new(self, processing_id: str) -> typing.Optional[DataItem.DataItem]:
-        display_item = self.selected_display_item
-        data_item = display_item.data_item if display_item else None
-        if data_item:
-            return self._perform_processing(display_item, None, functools.partial(self.document_model.get_processing_new, processing_id))
-        return None
-
-    def __change_to_previous_workspace(self):
+    def _change_to_previous_workspace(self):
         if self.workspace_controller:
             self.workspace_controller.change_to_previous_workspace()
 
-    def __change_to_next_workspace(self):
+    def _change_to_next_workspace(self):
         if self.workspace_controller:
             self.workspace_controller.change_to_next_workspace()
 
-    def __create_workspace(self):
+    def _create_workspace(self):
         if self.workspace_controller:
             self.workspace_controller.create_workspace()
 
-    def __rename_workspace(self):
+    def _rename_workspace(self):
         if self.workspace_controller:
             self.workspace_controller.rename_workspace()
 
-    def __remove_workspace(self):
+    def _remove_workspace(self):
         if self.workspace_controller:
             self.workspace_controller.remove_workspace()
 
-    def __clone_workspace(self):
+    def _clone_workspace(self):
         if self.workspace_controller:
             self.workspace_controller.clone_workspace()
 
@@ -2737,3 +2669,881 @@ class DocumentController(Window.Window):
                     menu.add_menu_item("{0} \"{1}\"".format(_("Go to Dependent "), dependent_data_item.title),
                                        functools.partial(show_dependent_data_item, dependent_data_item))
         return menu
+
+    ActionContext = collections.namedtuple("ActionContext", ["application", "window", "focus_widget", "display_panel", "model", "display_item", "crop_graphic", "data_item"])
+
+    def _get_action_context(self) -> typing.NamedTuple:
+        focus_widget = self.focus_widget
+        display_panel = self.selected_display_panel
+        model = self.document_model
+        display_item = self.selected_display_item
+        crop_graphic = self._get_crop_graphic(display_item)
+        data_item = display_item.data_item if display_item else None
+        return DocumentController.ActionContext(self.app, self, focus_widget, display_panel, model, display_item, crop_graphic, data_item)
+
+    def perform_display_panel_command(self, key) -> bool:
+        action_id = Window.get_action_id_for_key("display_panel", key)
+        if action_id:
+            self.perform_action(action_id)
+            return True
+        return False
+
+
+class ExportAction(Window.Action):
+    action_id = "file.export"
+    action_name = _("Export...")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.handle_export_files()
+
+
+class ExportSVGAction(Window.Action):
+    action_id = "file.export_svg"
+    action_name = _("Export SVG...")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.export_svg()
+
+
+class ImportDataAction(Window.Action):
+    action_id = "file.import_data"
+    action_name = _("Import Data...")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.import_file()
+
+
+class ImportFolderAction(Window.Action):
+    action_id = "file.import_folder"
+    action_name = _("Import Folder...")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window._import_folder()
+
+
+Window.register_action(ExportAction())
+Window.register_action(ExportSVGAction())
+Window.register_action(ImportDataAction())
+Window.register_action(ImportFolderAction())
+
+
+
+class DataItemRecorderAction(Window.Action):
+    action_id = "window.data_item_recorder"
+    action_name = _("Data Item Recorder...")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.new_recorder_dialog()
+
+
+class EditDataItemScriptAction(Window.Action):
+    action_id = "window.edit_data_item_script"
+    action_name = _("Edit Data Item Scripts")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.new_edit_computation_dialog()
+
+
+class EditDisplayScriptAction(Window.Action):
+    action_id = "window.edit_display_script"
+    action_name = _("Edit Display Script")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.new_display_editor_dialog()
+
+
+class NewWindowAction(Window.Action):
+    action_id = "window.new"
+    action_name = _("New Window")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.new_window_with_data_item("library")
+
+
+class OpenConsoleAction(Window.Action):
+    action_id = "window.open_console"
+    action_name = _("Python Console...")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.new_console_dialog()
+
+
+class OpenRunScriptsAction(Window.Action):
+    action_id = "window.open_run_scripts"
+    action_name = _("Scripts...")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.new_interactive_script_dialog()
+
+
+class ToggleFilterAction(Window.Action):
+    action_id = "window.toggle_filter"
+    action_name = _("Filter")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.toggle_filter()
+
+
+Window.register_action(DataItemRecorderAction())
+Window.register_action(EditDataItemScriptAction())
+Window.register_action(EditDisplayScriptAction())
+Window.register_action(NewWindowAction())
+Window.register_action(OpenConsoleAction())
+Window.register_action(OpenRunScriptsAction())
+Window.register_action(ToggleFilterAction())
+
+
+class WorkspaceCloneAction(Window.Action):
+    action_id = "workspace.clone"
+    action_name = _("Clone Workspace")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window._clone_workspace()
+
+
+class WorkspaceNewAction(Window.Action):
+    action_id = "workspace.new"
+    action_name = _("New Workspace")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window._create_workspace()
+
+
+class WorkspaceNextAction(Window.Action):
+    action_id = "workspace.next"
+    action_name = _("Next Workspace")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window._change_to_next_workspace()
+
+
+class WorkspacePreviousAction(Window.Action):
+    action_id = "workspace.previous"
+    action_name = _("Previous Workspace")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window._change_to_previous_workspace()
+
+
+class WorkspaceRemoveAction(Window.Action):
+    action_id = "workspace.remove"
+    action_name = _("Remove Workspace")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window._remove_workspace()
+
+
+class WorkspaceRenameAction(Window.Action):
+    action_id = "workspace.rename"
+    action_name = _("Rename Workspace")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window._rename_workspace()
+
+
+Window.register_action(WorkspaceCloneAction())
+Window.register_action(WorkspaceNewAction())
+Window.register_action(WorkspaceNextAction())
+Window.register_action(WorkspacePreviousAction())
+Window.register_action(WorkspaceRemoveAction())
+Window.register_action(WorkspaceRenameAction())
+
+
+class AddGroupAction(Window.Action):
+    action_id = "project.add_group"
+    action_name = _("Add Group")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.project.add_group()
+
+
+class ClearTargetProjectAction(Window.Action):
+    action_id = "project.clear_target_project"
+    action_name = _("Clear Target Project")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window._clear_target_project()
+
+
+class NewProjectAction(Window.Action):
+    action_id = "project.new_project"
+    action_name = _("New Project...")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window._handle_new_project()
+
+
+class OpenProjectAction(Window.Action):
+    action_id = "project.open_project"
+    action_name = _("Open Project...")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window._handle_open_project()
+
+
+class RemoveProjectAction(Window.Action):
+    action_id = "project.remove_project"
+    action_name = _("Remove Project")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window._handle_remove_project()
+
+
+class SetTargetProjectAction(Window.Action):
+    action_id = "project.set_target_project"
+    action_name = _("Set Target Project")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window._set_target_project()
+
+
+class SetWorkProjectAction(Window.Action):
+    action_id = "project.set_work_project"
+    action_name = _("Set Work Project")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window._set_work_project()
+
+
+class UpgradeProjectAction(Window.Action):
+    action_id = "project.upgrade_project"
+    action_name = _("Upgrade Project")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window._handle_upgrade_project()
+
+
+Window.register_action(AddGroupAction())
+Window.register_action(ClearTargetProjectAction())
+Window.register_action(NewProjectAction())
+Window.register_action(OpenProjectAction())
+Window.register_action(RemoveProjectAction())
+Window.register_action(SetTargetProjectAction())
+Window.register_action(SetWorkProjectAction())
+Window.register_action(UpgradeProjectAction())
+
+
+class DisplayCopyAction(Window.Action):
+    action_id = "display.copy_display"
+    action_name = _("Display Copy")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.processing_display_copy()
+
+
+class DisplayFitToViewAction(Window.Action):
+    action_id = "display.fit_view"
+    action_name = _("Fit to View")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.display_panel.perform_action("set_fit_mode")
+
+
+class DisplayFillViewAction(Window.Action):
+    action_id = "display.fill_view"
+    action_name = _("Fill View")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.display_panel.perform_action("set_fill_mode")
+
+
+class DisplayOneViewAction(Window.Action):
+    action_id = "display.1_view"
+    action_name = _("1:1 View")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.display_panel.perform_action("set_one_to_one_mode")
+
+
+class DisplayTwoViewAction(Window.Action):
+    action_id = "display.2_view"
+    action_name = _("2:1 View")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.display_panel.perform_action("set_two_to_one_mode")
+
+
+class DisplayRemoveAction(Window.Action):
+    action_id = "display.remove_display"
+    action_name = _("Display Remove")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.processing_display_remove()
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        display_items = context.model.get_display_items_for_data_item(context.data_item) if context.data_item else list()
+        return len(display_items) > 1
+
+
+Window.register_action(DisplayCopyAction())
+Window.register_action(DisplayFitToViewAction())
+Window.register_action(DisplayFillViewAction())
+Window.register_action(DisplayOneViewAction())
+Window.register_action(DisplayTwoViewAction())
+Window.register_action(DisplayRemoveAction())
+
+
+class AssignVariableReference(Window.Action):
+    action_id = "item.assign_variable_reference"
+    action_name = _("Assign Variable Reference")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.prepare_data_item_script()
+
+
+class CopyItemUUIDAction(Window.Action):
+    action_id = "item.copy_uuid"
+    action_name = _("Copy Item UUID")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.copy_uuid()
+
+
+class CreateDataItemAction(Window.Action):
+    action_id = "item.create_data_item"
+    action_name = _("Create New Data Item")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.create_empty_data_item()
+
+
+class DuplicateAction(Window.Action):
+    action_id = "item.duplicate"
+    action_name = _("Duplicate")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.processing_duplicate()
+
+
+class SnapshotAction(Window.Action):
+    action_id = "item.snapshot"
+    action_name = _("Snapshot")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.processing_snapshot()
+
+
+Window.register_action(AssignVariableReference())
+Window.register_action(CopyItemUUIDAction())
+Window.register_action(CreateDataItemAction())
+Window.register_action(DuplicateAction())
+Window.register_action(SnapshotAction())
+
+
+class AddLineGraphicAction(Window.Action):
+    action_id = "graphics.add_line_graphic"
+    action_name = _("Add Line Graphic")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.add_line_graphic()
+
+
+class AddEllipseGraphicAction(Window.Action):
+    action_id = "graphics.add_ellipse_graphic"
+    action_name = _("Add Ellipse Graphic")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.add_ellipse_graphic()
+
+
+class AddRectangleGraphicAction(Window.Action):
+    action_id = "graphics.add_rectangle_graphic"
+    action_name = _("Add Rectangle Graphic")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.add_rectangle_graphic()
+
+
+class AddPointGraphicAction(Window.Action):
+    action_id = "graphics.add_point_graphic"
+    action_name = _("Add Point Graphic")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.add_point_graphic()
+
+
+class AddIntervalGraphicAction(Window.Action):
+    action_id = "graphics.add_interval_graphic"
+    action_name = _("Add Interval Graphic")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.add_interval_graphic()
+
+
+class AddChannelGraphicAction(Window.Action):
+    action_id = "graphics.add_channel_graphic"
+    action_name = _("Add Channel Graphic")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.add_channel_graphic()
+
+
+class AddGraphicToMaskAction(Window.Action):
+    action_id = "graphics.add_graphic_mask"
+    action_name = _("Add to Mask")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.add_graphic_mask()
+
+
+class AddSpotGraphicAction(Window.Action):
+    action_id = "graphics.add_spot_graphic"
+    action_name = _("Add Spot Filter")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.add_spot_graphic()
+
+
+class AddAngleGraphicAction(Window.Action):
+    action_id = "graphics.add_angle_graphic"
+    action_name = _("Add Angle Filter")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.add_angle_graphic()
+
+
+class AddBandPassGraphicAction(Window.Action):
+    action_id = "graphics.add_band_pass_graphic"
+    action_name = _("Add Band Pass Filter")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.add_band_pass_graphic()
+
+
+class AddLatticeGraphicAction(Window.Action):
+    action_id = "graphics.add_lattice_graphic"
+    action_name = _("Add Lattice Filter")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.add_lattice_graphic()
+
+
+class RemoveGraphicFromMaskAction(Window.Action):
+    action_id = "graphics.remove_graphic_mask"
+    action_name = _("Remove from Mask")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.remove_graphic_mask()
+
+
+Window.register_action(AddLineGraphicAction())
+Window.register_action(AddEllipseGraphicAction())
+Window.register_action(AddRectangleGraphicAction())
+Window.register_action(AddPointGraphicAction())
+Window.register_action(AddIntervalGraphicAction())
+Window.register_action(AddChannelGraphicAction())
+Window.register_action(AddGraphicToMaskAction())
+Window.register_action(AddSpotGraphicAction())
+Window.register_action(AddAngleGraphicAction())
+Window.register_action(AddBandPassGraphicAction())
+Window.register_action(AddLatticeGraphicAction())
+Window.register_action(RemoveGraphicFromMaskAction())
+
+
+class ProcessingAction(Window.Action):
+
+    def invoke_processing(self, context: Window.ActionContext, fn) -> None:
+        context.window._perform_processing(context.display_item, context.crop_graphic, fn)
+
+    def invoke_processing2(self, context: Window.ActionContext, fn) -> None:
+        data_sources = context.window._get_two_data_sources()
+        if data_sources:
+            (display_item1, crop_graphic1), (display_item2, crop_graphic2) = data_sources
+            return context.window._perform_processing2(display_item1, display_item2, crop_graphic1, crop_graphic2, fn)
+        return None
+
+
+class AddAction(ProcessingAction):
+    action_id = "processing.add"
+    action_name = _("Add")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing2(context, context.model.get_add_new)
+
+
+class AutoCorrelateAction(ProcessingAction):
+    action_id = "processing.auto_correlate"
+    action_name = _("Auto Correlate")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_auto_correlate_new)
+
+
+class CropAction(ProcessingAction):
+    action_id = "processing.crop"
+    action_name = _("Crop")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_crop_new)
+
+
+class CrossCorrelateAction(ProcessingAction):
+    action_id = "processing.cross_correlate"
+    action_name = _("Cross Correlate")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing2(context, context.model.get_cross_correlate_new)
+
+
+class DivideAction(ProcessingAction):
+    action_id = "processing.divide"
+    action_name = _("Divide")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing2(context, context.model.get_divide_new)
+
+
+class FourierFilterAction(ProcessingAction):
+    action_id = "processing.fourier_filter"
+    action_name = _("Fourier Filter")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        if context.data_item:
+            context.window._perform_processing(context.window.display_item, None, context.model.get_fourier_filter_new)
+
+
+class FFTAction(ProcessingAction):
+    action_id = "processing.fft"
+    action_name = _("FFT")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_fft_new)
+
+
+class GaussianFilterAction(ProcessingAction):
+    action_id = "processing.gaussian_filter"
+    action_name = _("Gaussian Filter")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_gaussian_blur_new)
+
+
+class HistogramAction(ProcessingAction):
+    action_id = "processing.histogram"
+    action_name = _("Histogram")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_histogram_new)
+
+
+class InverseFFTAction(ProcessingAction):
+    action_id = "processing.inverse_fft"
+    action_name = _("Inverse FFT")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_ifft_new)
+
+
+class LaplaceFilterAction(ProcessingAction):
+    action_id = "processing.laplace_filter"
+    action_name = _("Laplace Filter")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_laplace_new)
+
+
+class LineProfileAction(ProcessingAction):
+    action_id = "processing.line_profile"
+    action_name = _("Line Profile")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_line_profile_new)
+
+
+class MappedSumAction(ProcessingAction):
+    action_id = "processing.mapped_sum"
+    action_name = _("Mapped Sum")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_mapped_sum_new)
+
+
+class MappedAverageAction(ProcessingAction):
+    action_id = "processing.mapped_average"
+    action_name = _("Mapped Average")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_mapped_average_new)
+
+
+class MaskAction(ProcessingAction):
+    action_id = "processing.mask"
+    action_name = _("Mask")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_mask_new)
+
+
+class MaskedAction(ProcessingAction):
+    action_id = "processing.masked"
+    action_name = _("Masked")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_masked_new)
+
+
+class MedianFilterAction(ProcessingAction):
+    action_id = "processing.median_filter"
+    action_name = _("Median Filter")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_median_filter_new)
+
+
+class MultiplyAction(ProcessingAction):
+    action_id = "processing.multiply"
+    action_name = _("Multiply")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing2(context, context.model.get_multiply_new)
+
+
+class NegateAction(ProcessingAction):
+    action_id = "processing.negate"
+    action_name = _("Negate")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_invert_new)
+
+
+class PickAction(ProcessingAction):
+    action_id = "processing.pick"
+    action_name = _("Pick")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_pick_new)
+
+
+class PickAverageAction(ProcessingAction):
+    action_id = "processing.pick_average"
+    action_name = _("Pick (Average)")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_pick_region_average_new)
+
+
+class PickSumAction(ProcessingAction):
+    action_id = "processing.pick_sum"
+    action_name = _("Pick (Sum)")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_pick_region_new)
+
+
+class ProjectionSumAction(ProcessingAction):
+    action_id = "processing.projection_sum"
+    action_name = _("Projection (Sum)")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_projection_new)
+
+
+class ResampleAction(ProcessingAction):
+    action_id = "processing.resample"
+    action_name = _("Resample")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_resample_new)
+
+
+class ResizeAction(ProcessingAction):
+    action_id = "processing.resize"
+    action_name = _("Resize")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_resize_new)
+
+
+class ScalarAction(ProcessingAction):
+    action_id = "processing.scalar"
+    action_name = _("Convert to Scalar")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_convert_to_scalar_new)
+
+
+class SequenceAlignFourierAction(ProcessingAction):
+    action_id = "processing.sequence_align_fourier"
+    action_name = _("Align (Fourier)")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_sequence_fourier_align_new)
+
+
+class SequenceAlignSplineAction(ProcessingAction):
+    action_id = "processing.sequence_align_spline_1"
+    action_name = _("Align (Spline 1st Order)")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_sequence_align_new)
+
+
+class SequenceExtractAction(ProcessingAction):
+    action_id = "processing.sequence_extract"
+    action_name = _("Extract")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_sequence_extract_new)
+
+
+class SequenceIntegrateAction(ProcessingAction):
+    action_id = "processing.sequence_integrate"
+    action_name = _("Integrate")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_sequence_integrate_new)
+
+
+class SequenceMeasureShiftsAction(ProcessingAction):
+    action_id = "processing.sequence_measure_shifts"
+    action_name = _("Measure Shifts")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_sequence_measure_shifts_new)
+
+
+class SequenceTrimAction(ProcessingAction):
+    action_id = "processing.sequence_trim"
+    action_name = _("Trim")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_sequence_trim_new)
+
+
+class SliceSumAction(ProcessingAction):
+    action_id = "processing.slice_sum"
+    action_name = _("Slice Sum")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.window.document_model.get_slice_sum_new)
+
+
+class SobelFilterAction(ProcessingAction):
+    action_id = "processing.sobel_filter"
+    action_name = _("Sobel Filter")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_sobel_new)
+
+
+class SubtractAction(ProcessingAction):
+    action_id = "processing.subtract"
+    action_name = _("Subtract")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing2(context, context.model.get_subtract_new)
+
+
+class SubtractAverageAction(ProcessingAction):
+    action_id = "processing.subtract_average"
+    action_name = _("Subtract Region Average")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_subtract_region_average_new)
+
+
+class TransformAction(ProcessingAction):
+    action_id = "processing.transform"
+    action_name = _("Transpose and Flip")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_transpose_flip_new)
+
+
+class UniformFilterAction(ProcessingAction):
+    action_id = "processing.uniform_filter"
+    action_name = _("Uniform Filter")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        self.invoke_processing(context, context.model.get_uniform_filter_new)
+
+
+class ProcessingComponentAction(ProcessingAction):
+    def __init__(self, processing_id: str, title: str):
+        self.action_id = "processing." + processing_id
+        self.action_name = title
+        self.__processing_id = processing_id
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        if context.data_item:
+            context.window._perform_processing(context.display_item, None, functools.partial(context.model.get_processing_new, self.__processing_id))
+
+
+Window.register_action(AddAction())
+Window.register_action(AutoCorrelateAction())
+Window.register_action(CropAction())
+Window.register_action(CrossCorrelateAction())
+Window.register_action(DivideAction())
+Window.register_action(FourierFilterAction())
+Window.register_action(FFTAction())
+Window.register_action(GaussianFilterAction())
+Window.register_action(HistogramAction())
+Window.register_action(InverseFFTAction())
+Window.register_action(LaplaceFilterAction())
+Window.register_action(LineProfileAction())
+Window.register_action(MappedSumAction())
+Window.register_action(MappedAverageAction())
+Window.register_action(MaskAction())
+Window.register_action(MaskedAction())
+Window.register_action(MedianFilterAction())
+Window.register_action(MultiplyAction())
+Window.register_action(NegateAction())
+Window.register_action(PickAction())
+Window.register_action(PickAverageAction())
+Window.register_action(PickSumAction())
+Window.register_action(ProjectionSumAction())
+Window.register_action(ResampleAction())
+Window.register_action(ResizeAction())
+Window.register_action(ScalarAction())
+Window.register_action(SliceSumAction())
+Window.register_action(SequenceAlignFourierAction())
+Window.register_action(SequenceAlignSplineAction())
+Window.register_action(SequenceExtractAction())
+Window.register_action(SequenceIntegrateAction())
+Window.register_action(SequenceMeasureShiftsAction())
+Window.register_action(SequenceTrimAction())
+Window.register_action(SobelFilterAction())
+Window.register_action(SubtractAction())
+Window.register_action(SubtractAverageAction())
+Window.register_action(TransformAction())
+Window.register_action(UniformFilterAction())
+
+
+def component_changed(component, component_types):
+    # when a processing component is registered, create a ProcessingComponentAction for the
+    # processing component.
+    if "processing-component" in component_types:
+        processing_component = typing.cast(Processing.ProcessingBase, component)
+        Window.register_action(ProcessingComponentAction(processing_component.processing_id, processing_component.title))
+
+
+component_registered_event_listener = Registry.listen_component_registered_event(component_changed)
+Registry.fire_existing_component_registered_events("processing-component")
+
+
+action_shortcuts_dict = {
+    "display.fit_view": {"display_panel": "0"},
+    "display.fill_view": {"display_panel": "Shift+0"},
+    "display.1_view": {"display_panel": "1"},
+    "display.2_view": {"display_panel": "2"},
+    "item.assign_variable_reference": {"window": "Ctrl+Shift+K"},
+    "item.copy_uuid": {"window": "Ctrl+Shift+U"},
+    "item.snapshot": {"window": "Ctrl+S"},
+    "item.duplicate": {"window": "Ctrl+D"},
+    "processing.pick": {"display_panel": "P"},
+    "processing.pick_sum": {"display_panel": "p"},
+    "processing.fft": {"window": "Ctrl+F"},
+    "processing.inverse_fft": {"window": "Ctrl+Shift+F"},
+    "processing.line_profile": {"display_panel": "l"},
+    "window.toggle_filter": {"window": "Ctrl+\\"},
+    "window.data_item_recorder": {"window": "Ctrl+Shift+R"},
+    "window.close": {"window": "close"},
+    "window.edit_data_item_script": {"window": "Ctrl+E"},
+    "window.open_run_scripts": {"window": "Ctrl+R"},
+    "window.open_console": {"window": "Ctrl+K"},
+    "workspace.previous": {"window": "Ctrl+["},
+    "workspace.next": {"window": "Ctrl+]"},
+    "workspace.new": {"window": "Ctrl+Alt+L"},
+}
+
+Window.register_action_shortcuts(action_shortcuts_dict)

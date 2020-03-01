@@ -276,7 +276,7 @@ class TestComputationPanelClass(unittest.TestCase):
                 display_item2 = document_model.get_display_item_for_data_item(data_item2)
                 display_item3 = document_model.get_display_item_for_data_item(data_item3)
                 document_controller.select_display_items_in_data_panel([display_item1, display_item2])
-                document_controller.processing_cross_correlate_new()
+                document_controller.perform_action("processing.cross_correlate")
                 computation = document_model.computations[-1]
                 document_model.recompute_all()
                 self.assertIsNone(document_model.computations[0].error_text)
