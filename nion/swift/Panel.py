@@ -103,7 +103,7 @@ class OutputPanel(Panel):
             if threading.current_thread().getName() == "MainThread":
                 safe_emit()
             else:
-                document_controller.queue_task(safe_emit)
+                self.document_controller.queue_task(safe_emit)
 
         class OutputPanelHandler(logging.Handler):
 
