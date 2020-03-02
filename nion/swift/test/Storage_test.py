@@ -541,6 +541,7 @@ class TestStorageClass(unittest.TestCase):
                 thread = threading.Thread(target=update_data, args=[document_controller.event_loop, data_item])
                 thread.start()
                 thread.join()
+                document_controller.periodic()
             # read it back
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
