@@ -6,6 +6,7 @@ import functools
 import gettext
 import itertools
 import logging
+import json
 import math
 import operator
 import os.path
@@ -218,197 +219,21 @@ class DocumentController(Window.Window):
             for processing_component in sorted(processing_components, key=operator.attrgetter("title")):
                 processing_component_menu_items.append({"type": "item", "action_id": "processing." + processing_component.processing_id})
 
-        menu_descriptions = [
-            {"type": "menu", "menu_id": "file", "title": _("File"), "items":
-                [
-                    {"type": "item", "action_id": "window.new"},
-                    {"type": "item", "action_id": "window.close"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "project.new_project"},
-                    {"type": "item", "action_id": "project.open_project"},
-                    {"type": "item", "action_id": "project.ugprade_project"},
-                    {"type": "item", "action_id": "project.remove_project"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "project.set_target_project"},
-                    {"type": "item", "action_id": "project.clear_target_project"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "project.set_work_project"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "file.import_folder"},
-                    {"type": "item", "action_id": "file.import_data"},
-                    {"type": "item", "action_id": "file.export"},
-                    {"type": "item", "action_id": "file.export_svg"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "window.open_run_scripts"},
-                    {"type": "item", "action_id": "window.open_console"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "project.add_group"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "window.page_setup"},
-                    {"type": "item", "action_id": "window.print"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "application.exit"},
-                ]
-            },
-            {"type": "menu", "menu_id": "edit", "title": _("Edit"), "items":
-                [
-                    {"type": "item", "action_id": "window.undo"},
-                    {"type": "item", "action_id": "window.redo"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "window.cut"},
-                    {"type": "item", "action_id": "window.copy"},
-                    {"type": "item", "action_id": "window.paste"},
-                    {"type": "item", "action_id": "window.delete"},
-                    {"type": "item", "action_id": "window.select_all"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "item.assign_variable_reference"},
-                    {"type": "item", "action_id": "item.copy_uuid"},
-                    {"type": "item", "action_id": "item.create_data_item"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "application.preferences"},
-                ]
-            },
-            {"type": "menu", "menu_id": "processing", "title": _("Processing"), "items":
-                [
-                    {"type": "sub_menu", "menu_id": "processing_transform", "title": _("Graphics"), "items":
-                        [
-                            {"type": "item", "action_id": "graphics.add_line_graphic"},
-                            {"type": "item", "action_id": "graphics.add_ellipse_graphic"},
-                            {"type": "item", "action_id": "graphics.add_rectangle_graphic"},
-                            {"type": "item", "action_id": "graphics.add_point_graphic"},
-                            {"type": "item", "action_id": "graphics.add_interval_graphic"},
-                            {"type": "item", "action_id": "graphics.add_channel_graphic"},
-                            {"type": "separator"},
-                            {"type": "item", "action_id": "graphics.add_graphic_mask"},
-                            {"type": "item", "action_id": "graphics.remove_graphic_mask"},
-                        ]
-                    },
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "item.snapshot"},
-                    {"type": "item", "action_id": "item.duplicate"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "window.edit_data_item_script"},
-                    {"type": "item", "action_id": "window.edit_display_script"},
-                    {"type": "separator"},
-                    {"type": "sub_menu", "menu_id": "processing_transform", "title": _("Transform"), "items":
-                        [
-                            {"type": "item", "action_id": "processing.transform"},
-                            {"type": "item", "action_id": "processing.resample"},
-                            {"type": "item", "action_id": "processing.crop"},
-                            {"type": "item", "action_id": "processing.resize"},
-                            {"type": "item", "action_id": "processing.scalar"},
-                        ]
-                    },
-                    {"type": "sub_menu", "menu_id": "processing_arithmetic", "title": _("Arithmetic"), "items":
-                        [
-                            {"type": "item", "action_id": "processing.add"},
-                            {"type": "item", "action_id": "processing.subtract"},
-                            {"type": "item", "action_id": "processing.multiply"},
-                            {"type": "item", "action_id": "processing.divide"},
-                            {"type": "item", "action_id": "processing.negate"},
-                            {"type": "separator"},
-                            {"type": "item", "action_id": "processing.mask"},
-                            {"type": "item", "action_id": "processing.masked"},
-                            {"type": "separator"},
-                            {"type": "item", "action_id": "processing.subtract_average"},
-                        ]
-                    },
-                    {"type": "sub_menu", "menu_id": "processing_reduce", "title": _("Reduce"), "items":
-                        [
-                            {"type": "item", "action_id": "processing.slice_sum"},
-                            {"type": "item", "action_id": "processing.pick"},
-                            {"type": "item", "action_id": "processing.pick_sum"},
-                            {"type": "item", "action_id": "processing.pick_average"},
-                            {"type": "item", "action_id": "processing.projection_sum"},
-                            {"type": "item", "action_id": "processing.mapped_sum"},
-                            {"type": "item", "action_id": "processing.mapped_average"},
-                        ]
-                    },
-                    {"type": "sub_menu", "menu_id": "processing_fourier", "title": _("Fourier"), "items":
-                        [
-                            {"type": "item", "action_id": "processing.fft"},
-                            {"type": "item", "action_id": "processing.inverse_fft"},
-                            {"type": "item", "action_id": "processing.auto_correlate"},
-                            {"type": "item", "action_id": "processing.cross_correlate"},
-                            {"type": "item", "action_id": "processing.fourier_filter"},
-                            *processing_component_menu_items,
-                            {"type": "separator"},
-                            {"type": "item", "action_id": "graphics.add_spot_graphic"},
-                            {"type": "item", "action_id": "graphics.add_angle_graphic"},
-                            {"type": "item", "action_id": "graphics.add_band_pass_graphic"},
-                            {"type": "item", "action_id": "graphics.add_lattice_graphic"},
-                        ]
-                    },
-                    {"type": "sub_menu", "menu_id": "processing_filter", "title": _("Filter"), "items":
-                        [
-                            {"type": "item", "action_id": "processing.sobel_filter"},
-                            {"type": "item", "action_id": "processing.laplace_filter"},
-                            {"type": "item", "action_id": "processing.gaussian_filter"},
-                            {"type": "item", "action_id": "processing.median_filter"},
-                            {"type": "item", "action_id": "processing.uniform_filter"},
-                        ]
-                    },
-                    {"type": "sub_menu", "menu_id": "processing_redimension", "title": _("Redimension Data"), "items":
-                        [
-                        ]
-                    },
-                    {"type": "sub_menu", "menu_id": "processing_sequence", "title": _("Sequence"), "items":
-                        [
-                            {"type": "item", "action_id": "processing.sequence_measure_shifts"},
-                            {"type": "item", "action_id": "processing.sequence_align_spline_1"},
-                            {"type": "item", "action_id": "processing.sequence_align_fourier"},
-                            {"type": "item", "action_id": "processing.sequence_integrate"},
-                            {"type": "item", "action_id": "processing.sequence_trim"},
-                            {"type": "item", "action_id": "processing.sequence_extract"},
-                        ]
-                    },
-                    {"type": "item", "action_id": "processing.line_profile"},
-                    {"type": "item", "action_id": "processing.histogram"},
-                    {"type": "separator"},
-                ]
-             },
-            {"type": "menu", "menu_id": "view", "title": _("View"), "items":
-                [
-                    {"type": "sub_menu", "menu_id": "display_panel_type", "title": _("Display Panel Type"), "items":
-                        [
-                        ]
-                    },
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "display.copy_display"},
-                    {"type": "item", "action_id": "display.remove_display"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "display.fit_view"},
-                    {"type": "item", "action_id": "display.fill_view"},
-                    {"type": "item", "action_id": "display.1_view"},
-                    {"type": "item", "action_id": "display.2_view"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "window.toggle_filter"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "workspace.previous"},
-                    {"type": "item", "action_id": "workspace.next"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "workspace.new"},
-                    {"type": "item", "action_id": "workspace.rename"},
-                    {"type": "item", "action_id": "workspace.remove"},
-                    {"type": "item", "action_id": "workspace.clone"},
-                    {"type": "separator"},
-                    {"type": "item", "action_id": "window.data_item_recorder"},
-                ]
-            },
-            {"type": "menu", "menu_id": "window", "title": _("Window"), "items":
-                [
-                    {"type": "item", "action_id": "window.minimize"},
-                    {"type": "item", "action_id": "window.zoom"},
-                    {"type": "item", "action_id": "window.bring_to_front"},
-                    {"type": "separator"},
-                ]
-            },
-            {"type": "menu", "menu_id": "help", "title": _("Help"), "items":
-                [
-                    {"type": "item", "action_id": "application.about"},
-                ]
-            },
-        ]
+        try:
+            menu_descriptions = json.loads(pkgutil.get_data(__name__, "resources/menu_config.json").decode("utf8"))
+        except Exception as e:
+            logging.error("Could not read menu configuration.")
+
+        # hack to build the dynamic filter section until nionui supplies a better way to do this
+        for m in menu_descriptions:
+            if m["menu_id"] == "processing":
+                for sm in m["items"]:
+                    if sm.get("menu_id") == "processing_fourier":
+                        for i, mi in enumerate(sm["items"]):
+                            if mi.get("action_id") == "processing.fourier_filter":
+                                for processing_component_menu_item in reversed(processing_component_menu_items):
+                                    sm["items"].insert(i + 1, processing_component_menu_item)
+                                break
 
         self.build_menu(None, menu_descriptions)
 
@@ -3520,30 +3345,9 @@ def component_changed(component, component_types):
 component_registered_event_listener = Registry.listen_component_registered_event(component_changed)
 Registry.fire_existing_component_registered_events("processing-component")
 
-
-action_shortcuts_dict = {
-    "display.fit_view": {"display_panel": "0"},
-    "display.fill_view": {"display_panel": "Shift+0"},
-    "display.1_view": {"display_panel": "1"},
-    "display.2_view": {"display_panel": "2"},
-    "item.assign_variable_reference": {"window": "Ctrl+Shift+K"},
-    "item.copy_uuid": {"window": "Ctrl+Shift+U"},
-    "item.snapshot": {"window": "Ctrl+S"},
-    "item.duplicate": {"window": "Ctrl+D"},
-    "processing.pick": {"display_panel": "P"},
-    "processing.pick_sum": {"display_panel": "p"},
-    "processing.fft": {"window": "Ctrl+F"},
-    "processing.inverse_fft": {"window": "Ctrl+Shift+F"},
-    "processing.line_profile": {"display_panel": "l"},
-    "window.toggle_filter": {"window": "Ctrl+\\"},
-    "window.data_item_recorder": {"window": "Ctrl+Shift+R"},
-    "window.close": {"window": "close"},
-    "window.edit_data_item_script": {"window": "Ctrl+E"},
-    "window.open_run_scripts": {"window": "Ctrl+R"},
-    "window.open_console": {"window": "Ctrl+K"},
-    "workspace.previous": {"window": "Ctrl+["},
-    "workspace.next": {"window": "Ctrl+]"},
-    "workspace.new": {"window": "Ctrl+Alt+L"},
-}
+try:
+    action_shortcuts_dict = json.loads(pkgutil.get_data(__name__, "resources/key_config.json").decode("utf8"))
+except Exception as e:
+    logging.error("Could not read key configuration.")
 
 Window.register_action_shortcuts(action_shortcuts_dict)

@@ -1,0 +1,68 @@
+{
+    "display.fit_view": {
+        "display_panel": "0"
+    },
+    "display.fill_view": {
+        "display_panel": "Shift+0"
+    },
+    "display.1_view": {
+        "display_panel": "1"
+    },
+    "display.2_view": {
+        "display_panel": "2"
+    },
+    "item.assign_variable_reference": {
+        "window": "Ctrl+Shift+K"
+    },
+    "item.copy_uuid": {
+        "window": "Ctrl+Shift+U"
+    },
+    "item.snapshot": {
+        "window": "Ctrl+S"
+    },
+    "item.duplicate": {
+        "window": "Ctrl+D"
+    },
+    "processing.pick": {
+        "display_panel": "P"
+    },
+    "processing.pick_sum": {
+        "display_panel": "p"
+    },
+    "processing.fft": {
+        "window": "Ctrl+F"
+    },
+    "processing.inverse_fft": {
+        "window": "Ctrl+Shift+F"
+    },
+    "processing.line_profile": {
+        "display_panel": "l"
+    },
+    "window.toggle_filter": {
+        "window": "Ctrl+\\"
+    },
+    "window.data_item_recorder": {
+        "window": "Ctrl+Shift+R"
+    },
+    "window.close": {
+        "window": "close"
+    },
+    "window.edit_data_item_script": {
+        "window": "Ctrl+E"
+    },
+    "window.open_run_scripts": {
+        "window": "Ctrl+R"
+    },
+    "window.open_console": {
+        "window": "Ctrl+K"
+    },
+    "workspace.previous": {
+        "window": "Ctrl+["
+    },
+    "workspace.next": {
+        "window": "Ctrl+]"
+    },
+    "workspace.new": {
+        "window": "Ctrl+Alt+L"
+    }
+}
