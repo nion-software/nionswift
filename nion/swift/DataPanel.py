@@ -356,8 +356,9 @@ class DataListController:
             self.__display_item_adapters.insert(before_index, display_item_adapter)
             self.__display_item_adapter_needs_update_listeners.insert(before_index, display_item_adapter.needs_update_event.listen(self.__display_item_adapter_needs_update))
             # tell the icon view to update.
-            self.__list_canvas_item.refresh_layout()
-            self.__list_canvas_item.update()
+            if self.canvas_item.visible:
+                self.__list_canvas_item.refresh_layout()
+                self.__list_canvas_item.update()
 
     # call this method to remove a display item (by index)
     # not thread safe
@@ -366,8 +367,9 @@ class DataListController:
             self.__display_item_adapter_needs_update_listeners[index].close()
             del self.__display_item_adapter_needs_update_listeners[index]
             del self.__display_item_adapters[index]
-            self.__list_canvas_item.refresh_layout()
-            self.__list_canvas_item.update()
+            if self.canvas_item.visible:
+                self.__list_canvas_item.refresh_layout()
+                self.__list_canvas_item.update()
 
 
 class DataGridController:
@@ -586,8 +588,9 @@ class DataGridController:
             self.__display_item_adapters.insert(before_index, display_item_adapter)
             self.__display_item_adapter_needs_update_listeners.insert(before_index, display_item_adapter.needs_update_event.listen(self.__display_item_adapter_needs_update))
             # tell the icon view to update.
-            self.icon_view_canvas_item.refresh_layout()
-            self.icon_view_canvas_item.update()
+            if self.canvas_item.visible:
+                self.icon_view_canvas_item.refresh_layout()
+                self.icon_view_canvas_item.update()
 
     # call this method to remove a display item (by index)
     # not thread safe
@@ -596,8 +599,9 @@ class DataGridController:
             self.__display_item_adapter_needs_update_listeners[index].close()
             del self.__display_item_adapter_needs_update_listeners[index]
             del self.__display_item_adapters[index]
-            self.icon_view_canvas_item.refresh_layout()
-            self.icon_view_canvas_item.update()
+            if self.canvas_item.visible:
+                self.icon_view_canvas_item.refresh_layout()
+                self.icon_view_canvas_item.update()
 
 
 class DataListWidget(Widgets.CompositeWidgetBase):
