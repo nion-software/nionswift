@@ -87,6 +87,8 @@ class Workspace:
         self.create_panels(visible_panels)
 
         self.__workspace = None
+        self.__change_splitter_command = None
+        self.__change_splitter_splits = None
 
     def close(self):
         for message_box_widget in copy.copy(list(self.__message_boxes.values())):
