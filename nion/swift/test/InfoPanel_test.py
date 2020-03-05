@@ -155,7 +155,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_item.calibration_style_id = "pixels-top-left"
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            info_panel = document_controller.find_dock_widget("info-panel").panel
+            info_panel = document_controller.find_dock_panel("info-panel")
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
@@ -178,7 +178,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_item.calibration_style_id = "pixels-top-left"
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            info_panel = document_controller.find_dock_widget("info-panel").panel
+            info_panel = document_controller.find_dock_panel("info-panel")
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             document_controller.periodic()
@@ -202,7 +202,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_item.display_data_channels[0].collection_index = 20, 30
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            info_panel = document_controller.find_dock_widget("info-panel").panel
+            info_panel = document_controller.find_dock_panel("info-panel")
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(400, 600, Graphics.NullModifiers())

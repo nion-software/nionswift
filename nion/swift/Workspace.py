@@ -21,6 +21,9 @@ from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
 from nion.ui import UserInterface
 
+if typing.TYPE_CHECKING:
+    from nion.swift import Panel
+
 
 _ = gettext.gettext
 
@@ -54,7 +57,7 @@ class Workspace:
 
         self.workspace_id = workspace_id
 
-        self.dock_widgets = []
+        self.dock_panels = []
         self.display_panels = []
 
         self.__canvas_item = None
@@ -94,20 +97,22 @@ class Workspace:
         self.display_panels = []
         self.__canvas_item = None
         self.__workspace = None
-        dock_widgets_copy = copy.copy(self.dock_widgets)
-        self.dock_widgets = None
-        for dock_widget in dock_widgets_copy:
-            dock_widget.panel.close()
-            # dock_widget.close()  # closed by the panel
+        for dock_panel in self.dock_panels:
+            dock_panel.close()
         self.__content_column = None
         self.filter_row = None
         self.image_row = None
         self.document_controller.detach_widget()
 
+    @property
+    def dock_widgets(self) -> typing.Sequence:
+        if self.dock_panels:
+            return list(dock_panel.dock_widget for dock_panel in self.dock_panels)
+        return list()
+
     def periodic(self):
-        for dock_widget in self.dock_widgets if self.dock_widgets else list():
-            dock_widget.panel.periodic()
-            dock_widget.periodic()
+        for dock_panel in self.dock_panels:
+            dock_panel.periodic()
 
     def restore_geometry_state(self):
         geometry = self.ui.get_persistent_string("Workspace/%s/Geometry" % self.workspace_id)
@@ -132,10 +137,10 @@ class Workspace:
     def _canvas_item(self):
         return self.__canvas_item
 
-    def _find_dock_widget(self, dock_widget_id):
-        for dock_widget in self.dock_widgets:
-            if dock_widget.panel.panel_id == dock_widget_id:
-                return dock_widget
+    def _find_dock_panel(self, dock_panel_id):
+        for dock_panel in self.dock_panels:
+            if dock_panel.panel_id == dock_panel_id:
+                return dock_panel
         return None
 
     def create_panels(self, visible_panels=None):
@@ -146,28 +151,20 @@ class Workspace:
         for panel_id in self.workspace_manager.panel_ids:
             title, positions, position, properties = self.workspace_manager.get_panel_info(panel_id)
             if position != "central":
-                dock_widget = self.create_panel(document_controller, panel_id, title, positions, position, properties)
-                if dock_widget:  # could have failed to create due to exception
+                dock_panel = self.create_panel(document_controller, panel_id, title, positions, position, properties)
+                if dock_panel:  # could have failed to create due to exception
                     if visible_panels is None or panel_id in visible_panels:
-                        dock_widget.show()
+                        dock_panel.show()
                     else:
-                        dock_widget.hide()
+                        dock_panel.hide()
 
-    def create_panel(self, document_controller, panel_id, title, positions, position, properties):
+    def create_panel(self, document_controller, panel_id, title, positions, position, properties) -> "Panel.Panel":
         try:
-            panel = self.workspace_manager.create_panel_content(panel_id, document_controller, properties)
+            panel = self.workspace_manager.create_panel_content(document_controller, panel_id, title, positions, position, properties)
             assert panel is not None, "panel is None [%s]" % panel_id
             assert panel.widget is not None, "panel widget is None [%s]" % panel_id
-            dock_widget = document_controller.create_dock_widget(panel.widget, panel_id, title, positions, position)
-            dock_widget.panel = panel
-            dock_widget.on_size_changed = panel.size_changed
-            dock_widget.on_focus_changed = panel.focus_changed
-            dock_widget.does_retain_focus = False
-            def register_ui_activity():
-                self.document_controller._register_ui_activity()
-            dock_widget.on_ui_activity = register_ui_activity
-            self.dock_widgets.append(dock_widget)
-            return dock_widget
+            self.dock_panels.append(panel)
+            return panel
         except Exception as e:
             import traceback
             print("Exception creating panel '" + panel_id + "': " + str(e))
@@ -1028,13 +1025,14 @@ class WorkspaceManager(metaclass=Utility.Singleton):
     def unregister_panel(self, panel_id):
         del self.__panel_tuples[panel_id]
 
-    def create_panel_content(self, panel_id, document_controller, properties=None):
+    def create_panel_content(self, document_controller, panel_id, title, positions, position, properties) -> typing.Optional["Panel.Panel"]:
         if panel_id in self.__panel_tuples:
             tuple = self.__panel_tuples[panel_id]
             cls = tuple[0]
             try:
                 properties = properties if properties else {}
                 panel = cls(document_controller, panel_id, properties)
+                panel.create_dock_widget(title, positions, position)
                 return panel
             except Exception as e:
                 import traceback

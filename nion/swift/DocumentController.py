@@ -309,9 +309,9 @@ class DocumentController(Window.Window):
 
         self.__dialogs.append(weakref.ref(about_dialog))
 
-    def find_dock_widget(self, dock_widget_id):
+    def find_dock_panel(self, dock_panel_id):
         """ Return the dock widget by id. """
-        return self.workspace_controller._find_dock_widget(dock_widget_id)
+        return self.workspace_controller._find_dock_panel(dock_panel_id)
 
     def add_periodic(self, interval: float, listener_fn):
         """Add a listener function and return listener token. Token can be closed or deleted to unlisten."""
@@ -1704,7 +1704,7 @@ class DocumentController(Window.Window):
         self.select_display_items_in_data_panel([display_item])
         if request_focus:
             self.notify_focused_display_changed(display_item)
-            inspector_panel = self.find_dock_widget("inspector-panel").panel
+            inspector_panel = self.find_dock_panel("inspector-panel")
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
 
@@ -1951,7 +1951,7 @@ class DocumentController(Window.Window):
             self.select_data_item_in_data_panel(new_data_item)
             new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
             self.notify_focused_display_changed(new_display_item)
-            inspector_panel = self.find_dock_widget("inspector-panel").panel
+            inspector_panel = self.find_dock_panel("inspector-panel")
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
             display_item = self.document_model.get_display_item_for_data_item(new_data_item)
@@ -2002,7 +2002,7 @@ class DocumentController(Window.Window):
                 # see https://github.com/nion-software/nionswift/issues/145
                 document_controller.select_display_items_in_data_panel([snapshot_display_item])
                 document_controller.notify_focused_display_changed(snapshot_display_item)
-                inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+                inspector_panel = document_controller.find_dock_panel("inspector-panel")
                 if inspector_panel is not None:
                     inspector_panel.request_focus = True
             document_controller.show_display_item(snapshot_display_item, source_display_item=snapshot_display_item, request_focus=request_focus)

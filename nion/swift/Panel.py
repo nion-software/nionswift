@@ -31,16 +31,24 @@ class Panel:
         self.ui = document_controller.ui
         self.panel_id = panel_id
         self.display_name = display_name
-        self.widget = None
+        self.widget = None  # gets closed by the dock widget
+        self.dock_widget = None
         # useful for many panels.
         self.__periodic_task_queue = Process.TaskQueue()
         self.__periodic_task_set = Process.TaskSet()
 
     # subclasses can override to clean up when the panel closes.
     def close(self):
-        if self.widget:
-            self.widget.close()
-            self.widget = None
+        if self.dock_widget:  # sometimes encountered during tests
+            self.dock_widget.close()
+        self.widget = None  # closed by the dock_widget
+
+    def create_dock_widget(self, title, positions, position) -> None:
+        self.dock_widget = self.document_controller.create_dock_widget(self.widget, self.panel_id, title, positions, position)
+        self.dock_widget.on_size_changed = self.size_changed
+        self.dock_widget.on_focus_changed = self.focus_changed
+        self.dock_widget.does_retain_focus = False
+        self.dock_widget.on_ui_activity = self.document_controller._register_ui_activity
 
     @property
     def document_controller(self):
@@ -48,7 +56,13 @@ class Panel:
 
     # not thread safe. always call from main thread.
     def periodic(self):
-        pass
+        self.dock_widget.periodic()
+
+    def show(self) -> None:
+        self.dock_widget.show()
+
+    def hide(self) -> None:
+        self.dock_widget.hide()
 
     # tasks can be added in two ways, queued or added
     # queued tasks are guaranteed to be executed in the order queued.

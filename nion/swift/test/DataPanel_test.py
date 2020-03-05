@@ -37,8 +37,8 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
-            data_panel = document_controller.find_dock_widget("data-panel").panel
-            project_panel = document_controller.find_dock_widget("project-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
+            project_panel = document_controller.find_dock_panel("project-panel")
             document_controller.periodic()
             # data items
             self.assertEqual(1, data_panel.data_list_controller.display_item_adapter_count)
@@ -84,7 +84,7 @@ class TestDataPanelClass(unittest.TestCase):
             display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
             with contextlib.closing(display_panel):
                 display_panel.set_display_panel_display_item(display_item1)
-                data_panel = document_controller.find_dock_widget("data-panel").panel
+                data_panel = document_controller.find_dock_panel("data-panel")
                 document_controller.select_data_item_in_data_panel(data_item=data_item1)
                 document_controller.periodic()
                 document_controller.selected_display_panel = display_panel
@@ -113,7 +113,7 @@ class TestDataPanelClass(unittest.TestCase):
             display_item = document_model.display_items[0]
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             self.assertEqual(3, len(document_model.data_items))
             document_controller.selection.set_multiple([0, 1, 2])
             document_controller.periodic()
@@ -140,8 +140,8 @@ class TestDataPanelClass(unittest.TestCase):
         data_group.append_display_item(document_model.get_display_item_for_data_item(data_item2))
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            data_panel = document_controller.find_dock_widget("data-panel").panel
-            project_panel = document_controller.find_dock_widget("project-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
+            project_panel = document_controller.find_dock_panel("project-panel")
             self.assertSetEqual({0}, project_panel._collection_selection.indexes)
             self.assertSetEqual(set(), document_controller.selection.indexes)
             document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item1)
@@ -179,8 +179,8 @@ class TestDataPanelClass(unittest.TestCase):
         document_model.append_data_group(data_group2)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            data_panel = document_controller.find_dock_widget("data-panel").panel
-            project_panel = document_controller.find_dock_widget("project-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
+            project_panel = document_controller.find_dock_panel("project-panel")
             data_panel.focused = True
             self.assertSetEqual({0}, project_panel._collection_selection.indexes)
             self.assertEqual(document_controller.selection.indexes, set())
@@ -233,7 +233,7 @@ class TestDataPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             data_panel.focused = True
             document_controller.select_data_item_in_data_panel(document_model.data_items[0])
             self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
@@ -246,7 +246,7 @@ class TestDataPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             data_panel.focused = True
             document_controller.select_data_item_in_data_panel(document_model.data_items[0])
             self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
@@ -259,7 +259,7 @@ class TestDataPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             data_panel.focused = True
             document_controller.select_data_item_in_data_panel(document_model.data_items[0])
             self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
@@ -272,7 +272,7 @@ class TestDataPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             data_panel.focused = True
             document_controller.select_data_item_in_data_panel(document_model.data_items[0])
             self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
@@ -298,7 +298,7 @@ class TestDataPanelClass(unittest.TestCase):
             data_item2.title = "data_item2"
             document_model.append_data_item(data_item2)
             # finished setting up
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             data_panel.focused = True
             document_controller.select_data_item_in_data_panel(data_item=data_item1)
             # make sure our preconditions are right
@@ -334,7 +334,7 @@ class TestDataPanelClass(unittest.TestCase):
             filtered_display_items = ListModel.FilteredListModel(items_key="display_items")
             filtered_display_items.container = data_group
             self.assertTrue(display_item1 in filtered_display_items.items)
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item1)
             filtered_display_items.close()
             filtered_display_items = None
@@ -406,7 +406,7 @@ class TestDataPanelClass(unittest.TestCase):
             display_item3 = document_model.get_display_item_for_data_item(data_item3)
             data_item3.title = "data_item3"
             data_group.append_display_item(document_model.get_display_item_for_data_item(data_item3))
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item2)
             document_controller.periodic()
             data_panel.periodic()
@@ -439,7 +439,7 @@ class TestDataPanelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item.title = "data_item"
             document_model.append_data_item(data_item)
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             data_panel.focused = True
             self.assertIsNone(document_controller.selected_display_item)
             document_controller.receive_project_files([pathlib.Path(":/app/scroll_gem.png")], project=document_model._project, index=0, threaded=False)
@@ -463,7 +463,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             data_panel.data_list_controller.on_display_item_adapter_selection_changed(data_panel.data_list_controller.display_item_adapters[1:])
             self.assertEqual(document_controller.selection.indexes, {1, 2})  # items are ordered newest to oldest
 
@@ -483,7 +483,7 @@ class TestDataPanelClass(unittest.TestCase):
             green_group.append_display_item(document_model.get_display_item_for_data_item(data_item1))
             document_controller.document_model.insert_data_group(0, green_group)
             self.assertEqual(len(green_group.display_items), 1)
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             document_controller.remove_data_group_from_container(document_controller.document_model.data_groups[0], document_controller.document_model)
 
     def test_data_panel_remove_item_by_key(self):
@@ -502,7 +502,7 @@ class TestDataPanelClass(unittest.TestCase):
             green_group.append_display_item(display_item1)
             document_controller.document_model.insert_data_group(0, green_group)
             document_controller.document_model.append_data_group(data_group1)
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
             self.assertTrue(display_item1 in data_group1.display_items)
             document_controller.selection.set(0)
@@ -519,7 +519,7 @@ class TestDataPanelClass(unittest.TestCase):
             data_item1a = DataItem.DataItem()
             data_item1a.title = "data_item1a"
             document_model.append_data_item(data_item1a)
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             document_controller.periodic()
             document_controller.selection.set_multiple([0, 1])
             data_panel.data_list_controller._delete_pressed()
@@ -535,8 +535,8 @@ class TestDataPanelClass(unittest.TestCase):
             for i in range(3):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
-            data_panel = document_controller.find_dock_widget("data-panel").panel
-            project_panel = document_controller.find_dock_widget("project-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
+            project_panel = document_controller.find_dock_panel("project-panel")
             project_panel._collection_selection.set(2)
             project_panel._collection_selection.set(1)
 
@@ -548,7 +548,7 @@ class TestDataPanelClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 data_item.title = "X" if i != 1 else "Y"
                 document_model.append_data_item(data_item)
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             document_controller.periodic()  # changes to filter will be queued. update that here.
             self.assertEqual(len(document_controller.filtered_display_items_model.items), 3)
             document_controller.display_filter = ListModel.TextFilter("title", "Y")
@@ -591,7 +591,7 @@ class TestDataPanelClass(unittest.TestCase):
             data_group1.append_display_item(document_model.get_display_item_for_data_item(data_item1b))
             # now select the first group in the data panel
             document_controller.select_data_group_in_data_panel(data_group=data_group1)
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             document_controller.selection.set_multiple([0, 1])
             document_controller.select_data_group_in_data_panel(data_group=data_group2)
 
@@ -636,7 +636,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             width = 320
             data_panel._data_list_widget.content_widget.children[0].canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
             self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.canvas_bounds.width, width - 16)
@@ -653,7 +653,7 @@ class TestDataPanelClass(unittest.TestCase):
             for _ in range(10):
                 document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
             document_controller.periodic()
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             data_panel._data_list_widget.content_widget.children[0].canvas_item.layout_immediate(Geometry.IntSize(width=320, height=160))
             self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.content.canvas_rect, Geometry.IntRect((0, 0), (800, 304)))
             data_panel.data_list_controller.scroll_bar_canvas_item.simulate_drag((8, 8), (24, 8))
@@ -663,7 +663,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             width = 320
             data_panel._data_grid_widget.content_widget.children[0].canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
             self.assertEqual(data_panel.data_grid_controller.scroll_area_canvas_item.canvas_bounds.width, width - 16)
@@ -682,8 +682,8 @@ class TestDataPanelClass(unittest.TestCase):
             data_item2.category = "temporary"
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
-            data_panel = document_controller.find_dock_widget("data-panel").panel
-            project_panel = document_controller.find_dock_widget("project-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
+            project_panel = document_controller.find_dock_panel("project-panel")
             project_panel._collection_selection.set(1)  # persistent
             document_controller.periodic()
             self.assertEqual(1, data_panel.data_list_controller.display_item_adapter_count)
@@ -703,8 +703,8 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
-            data_panel = document_controller.find_dock_widget("data-panel").panel
-            project_panel = document_controller.find_dock_widget("project-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
+            project_panel = document_controller.find_dock_panel("project-panel")
             # index, parent_row, parent_id
             project_panel._collection_selection.set(2)
             document_controller.periodic()
@@ -731,8 +731,8 @@ class TestDataPanelClass(unittest.TestCase):
             data_item1.session_id = document_model.session_id
             data_item2.session_id = "20170101-120000"
             data_item3.session_id = "20170101-120000"
-            data_panel = document_controller.find_dock_widget("data-panel").panel
-            project_panel = document_controller.find_dock_widget("project-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
+            project_panel = document_controller.find_dock_panel("project-panel")
             # index, parent_row, parent_id
             project_panel._collection_selection.set(1)
             document_controller.periodic()
@@ -758,8 +758,8 @@ class TestDataPanelClass(unittest.TestCase):
             data_item1.session_id = document_model.session_id
             data_item2.session_id = "20170101-120000"
             data_item3.session_id = "20170101-120000"
-            data_panel = document_controller.find_dock_widget("data-panel").panel
-            project_panel = document_controller.find_dock_widget("project-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
+            project_panel = document_controller.find_dock_panel("project-panel")
             # index, parent_row, parent_id
             project_panel._collection_selection.set(1)
             document_controller.periodic()
@@ -777,8 +777,8 @@ class TestDataPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
-            data_panel = document_controller.find_dock_widget("data-panel").panel
-            project_panel = document_controller.find_dock_widget("project-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
+            project_panel = document_controller.find_dock_panel("project-panel")
             document_controller.periodic()
             # select temporary items
             project_panel._collection_selection.set(2)
@@ -787,7 +787,7 @@ class TestDataPanelClass(unittest.TestCase):
             self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 0)
             self.assertSetEqual({2}, project_panel._collection_selection.indexes)
             # create display panel
-            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
             display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
             with contextlib.closing(display_panel):
                 document_controller.selected_display_panel = display_panel
@@ -808,8 +808,8 @@ class TestDataPanelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((4, 4)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            data_panel = document_controller.find_dock_widget("data-panel").panel
-            project_panel = document_controller.find_dock_widget("project-panel").panel
+            data_panel = document_controller.find_dock_panel("data-panel")
+            project_panel = document_controller.find_dock_panel("project-panel")
             # index, parent_row, parent_id
             project_panel._collection_selection.set(1)
             document_controller.periodic()

@@ -1078,7 +1078,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(profile=profile)
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             with contextlib.closing(document_controller):
-                project_panel = document_controller.find_dock_widget("project-panel").panel
+                project_panel = document_controller.find_dock_panel("project-panel")
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item, project=profile.projects[0])
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
@@ -1101,7 +1101,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(profile=profile)
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             with contextlib.closing(document_controller):
-                project_panel = document_controller.find_dock_widget("project-panel").panel
+                project_panel = document_controller.find_dock_panel("project-panel")
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item, project=profile.projects[0])
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
