@@ -366,6 +366,23 @@ class TestConnectionClass(unittest.TestCase):
             with document_model.item_transaction(data_item2):
                 pass
 
+    def test_line_profile_graphic_is_part_transaction_for_line_plot_intervals(self):
+        # this is essential for good performance while dragging intervals on a line plot
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            line_profile_display_item = document_controller.processing_line_profile()
+            interval_region = Graphics.IntervalGraphic()
+            line_profile_display_item.add_graphic(interval_region)
+            self.assertFalse(document_model.is_in_transaction_state(display_item))
+            with document_model.item_transaction(interval_region):
+                self.assertTrue(document_model.is_in_transaction_state(display_item))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

@@ -212,27 +212,27 @@ class IntervalListConnection(Connection):
         def reattach():
             detach()
             interval_descriptors = list()
-            if self.__source:
-                for region in self.__source.graphics:
+            if self._source:
+                for region in self._source.graphics:
                     if isinstance(region, Graphics.IntervalGraphic):
                         interval_descriptor = {"interval": region.interval, "color": "#F00"}
                         interval_descriptors.append(interval_descriptor)
                         self.__interval_mutated_listeners.append(region.property_changed_event.listen(lambda k: reattach()))
-            if self.__target:
-                if self.__target.interval_descriptors != interval_descriptors:
-                    self.__target.interval_descriptors = interval_descriptors
+            if self._target:
+                if self._target.interval_descriptors != interval_descriptors:
+                    self._target.interval_descriptors = interval_descriptors
 
         def item_inserted(key, value, before_index):
-            if key == "graphics" and self.__target:
+            if key == "graphics" and self._target:
                 reattach()
 
         def item_removed(key, value, index):
-            if key == "graphics" and self.__target:
+            if key == "graphics" and self._target:
                 reattach()
 
         def source_registered(source):
-            self.__item_inserted_event_listener = self.__source.item_inserted_event.listen(item_inserted)
-            self.__item_removed_event_listener = self.__source.item_removed_event.listen(item_removed)
+            self.__item_inserted_event_listener = self._source.item_inserted_event.listen(item_inserted)
+            self.__item_removed_event_listener = self._source.item_removed_event.listen(item_removed)
             reattach()
 
         def target_registered(target):
@@ -269,14 +269,14 @@ class IntervalListConnection(Connection):
 
     @property
     def connected_items(self) -> typing.List:
-        return [self.__source, self.__target]
+        return [self._source, self._target]
 
     @property
-    def __source(self):
+    def _source(self):
         return self.__source_proxy.item
 
     @property
-    def __target(self):
+    def _target(self):
         return self.__target_proxy.item
 
     def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:

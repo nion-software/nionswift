@@ -236,6 +236,8 @@ class TransactionManager:
                     self.__get_deep_transaction_item_set(connection._target, items)
                 if isinstance(connection, Connection.PropertyConnection) and connection._target in items:
                     self.__get_deep_transaction_item_set(connection._source, items)
+                if isinstance(connection, Connection.IntervalListConnection) and connection._source in items:
+                    self.__get_deep_transaction_item_set(connection._target, items)
             for item in items - old_items:
                 if isinstance(item, Graphics.Graphic):
                     self.__get_deep_transaction_item_set(item.container, items)
