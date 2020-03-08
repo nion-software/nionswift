@@ -30,7 +30,7 @@ class PersistentProperty:
     """
 
     def __init__(self, name, value=None, make=None, read_only=False, hidden=False, recordable=True, validate=None, converter=None, changed=None, key=None, reader=None, writer=None):
-        super(PersistentProperty, self).__init__()
+        super().__init__()
         self.name = name
         self.key = key if key else name
         self.value = value
@@ -338,7 +338,7 @@ class PersistentObjectProxy:
         self.__persistent_object_context_changed()
 
     def __change_registration(self, registered_object: typing.Optional["PersistentObject"], unregistered_object: typing.Optional["PersistentObject"]) -> None:
-        if registered_object and not self.__item and self.__item_specifier and self.__persistent_object._matches_related_item(registered_object, self.__item_specifier):
+        if registered_object and not self.__item and self.__item_specifier and registered_object.uuid == self.__item_specifier.item_uuid:
             item = self.__persistent_object._get_related_item(self.__item_specifier)
             if item:
                 self.__item = item
@@ -578,8 +578,11 @@ class PersistentObject:
 
     def _get_relationship_persistent_dict_by_uuid(self, item, key: str) -> typing.Optional[typing.Dict]:
         if self.persistent_dict:
+            item_uuid = str(item.uuid)
             for item_d in self.persistent_dict.get(key, list()):
-                if uuid.UUID(item_d.get("uuid")) == item.uuid:
+                # if uuid.UUID(item_d.get("uuid")) == item.uuid:
+                #     return item_d
+                if item_d.get("uuid") == item_uuid:  # a little dangerous, comparing the uuid str's, significantly faster
                     return item_d
         return None
 
@@ -589,9 +592,6 @@ class PersistentObject:
         if self.persistent_object_context:
             return self.persistent_object_context.get_registered_object(item_specifier)
         return None
-
-    def _matches_related_item(self, item: "PersistentObject", item_specifier: PersistentObjectSpecifier) -> bool:
-        return item.uuid == item_specifier.item_uuid
 
     def define_type(self, type):
         self.__type = type
@@ -767,13 +767,12 @@ class PersistentObject:
             Subclasses can override this to provide custom writing behavior, such
             as delaying write until an appropriate time for performance reasons.
         """
-        property = self.__properties[name]
         if self.persistent_object_context:
             properties = dict()
-            property.write_to_dict(properties)
+            self.__properties[name].write_to_dict(properties)
             if properties:
-                for property_key in properties:
-                    self.property_changed(property_key, properties[property_key])
+                for property_key, property_value in properties.items():
+                    self.property_changed(property_key, property_value)
             else:
                 self.clear_property(name)
 
