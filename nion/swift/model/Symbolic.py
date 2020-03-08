@@ -879,9 +879,13 @@ class BoundGraphic(BoundItemBase):
         self.__changed_listener = None
 
         def property_changed(property_name):
-            self.changed_event.fire()
-            if property_name == self.__property_name:
-                self.property_changed_event.fire(property_name)
+            # temporary hack to improve performance of line profile. long term solution will be to
+            # have the computation decide what is a valid reason for recomputing.
+            # see the test test_adjusting_interval_on_line_profile_does_not_trigger_recompute
+            if not property_name in ("interval_descriptors",):
+                self.changed_event.fire()
+                if property_name == self.__property_name:
+                    self.property_changed_event.fire(property_name)
 
         def item_registered(item):
             self.__changed_listener = item.property_changed_event.listen(property_changed)

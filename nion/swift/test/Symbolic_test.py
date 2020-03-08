@@ -1624,6 +1624,26 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.remove_data_item(data_item)
             self.assertTrue(computation._closed)
 
+    def test_adjusting_interval_on_line_profile_does_not_trigger_recompute(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            line_profile_display_item = document_controller.processing_line_profile()
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+            interval_region = Graphics.IntervalGraphic()
+            line_profile_display_item.add_graphic(interval_region)
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+            interval_region.interval = 0.2, 0.3
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+
     def disabled_test_reshape_rgb(self):
         assert False
 
