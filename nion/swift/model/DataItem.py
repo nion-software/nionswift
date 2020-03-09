@@ -173,16 +173,20 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     storage_version = 13
     writer_version = 13
 
+    sync_time = None
+    sync_perf_counter = None
+
     def __init__(self, data=None, item_uuid=None, large_format=False):
         super().__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
         self.large_format = large_format
         self._document_model = None  # used only for Facade
         self.define_type("data-item")
-        self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
-        # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
-        # this is not my favorite solution since it limits library item creation to 1000/s but until I find a better solution, this is my compromise.
-        time.sleep(0.001)
+        # windows utcnow has a resolution of 1ms, so use some trickery with perf_counter to get a more accurate time.
+        if not DataItem.sync_perf_counter:
+            DataItem.sync_time, DataItem.sync_perf_counter = time.time(), time.perf_counter()
+        utcnow = datetime.datetime(1970, 1, 1) + datetime.timedelta(seconds=DataItem.sync_time + time.perf_counter() - DataItem.sync_perf_counter)
+        self.define_property("created", utcnow, converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
         data_shape = data.shape if data is not None else None
         data_dtype = data.dtype if data is not None else None
         dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
