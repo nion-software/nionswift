@@ -353,7 +353,6 @@ class TestGraphicsClass(unittest.TestCase):
                     else:
                         raise Exception("Unknown value type %s", type(actual_value))
             display_item.remove_graphic(region)
-            region.is_bounds_constrained = False
 
         def rotate(p, o, angle):
             origin = Geometry.FloatPoint.make(o)

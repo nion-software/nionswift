@@ -634,6 +634,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__profile.prune()
 
     def close(self):
+        with self.__call_soon_queue_lock:
+            self.__call_soon_queue = list()
+
         # notify listeners
         self.about_to_close_event.fire()
 
@@ -1800,6 +1803,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 self.__call_soon(append_data_item)
 
             def update_session():
+                # since this is a delayed call, the data item might have disappeared. check it.
+                if data_item._closed:
+                    return
                 # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
                 if data_item.session_id != session_id:
                     data_item.session_id = session_id

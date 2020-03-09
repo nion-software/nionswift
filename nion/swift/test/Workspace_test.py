@@ -672,17 +672,21 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace_controller = document_controller.workspace_controller
             display_panel = workspace_controller.display_panels[0]
             workspace_controller.insert_display_panel(display_panel, "bottom").close()
-            # save info
-            self.assertEqual(1, len(document_model.workspaces))
-            old_workspace_layout = workspace_controller._workspace_layout
             # perform create command
+            command = Workspace.Workspace.CreateWorkspaceCommand(workspace_controller, "NEW")
+            command.perform()
+            document_controller.push_undo_command(command)
+            # save info
+            self.assertEqual(2, len(document_model.workspaces))
+            old_workspace_layout = workspace_controller._workspace_layout
+            # perform remove command
             command = Workspace.Workspace.RemoveWorkspaceCommand(workspace_controller)
             command.perform()
             document_controller.push_undo_command(command)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # check things
-            self.assertEqual(0, len(document_model.workspaces))
+            self.assertEqual(1, len(document_model.workspaces))
             # undo
             document_controller.handle_undo()
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -690,7 +694,7 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
             # redo
             document_controller.handle_redo()
-            self.assertEqual(0, len(document_model.workspaces))
+            self.assertEqual(1, len(document_model.workspaces))
 
     def test_clone_workspace_undo_and_redo_works_cleanly(self):
         document_model = DocumentModel.DocumentModel()

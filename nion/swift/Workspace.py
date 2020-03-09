@@ -435,6 +435,7 @@ class Workspace:
             self.__workspace_controller.document_model.modified_state = modified_state
 
         def perform(self) -> None:
+            assert len(self.__workspace_controller.document_model.workspaces) > 1
             old_workspace = self.__workspace_controller._workspace
             self.__workspace_controller.change_to_previous_workspace()
             self.__workspace_controller.document_model.remove_workspace(old_workspace)
