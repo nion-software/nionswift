@@ -992,6 +992,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def __init__(self, document_controller, d, new_uuid: uuid.UUID=None):
         super().__init__()
+        self.is_root_opaque = True  # mark it as an opaque item at the top level for drawing efficiency.
         self.__weak_document_controller = weakref.ref(document_controller)
         document_controller.register_display_panel(self)
         self.wants_mouse_events = True

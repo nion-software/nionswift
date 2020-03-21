@@ -298,7 +298,7 @@ class Workspace:
             self.image_row.remove(child)
         # create new layout and canvas item
         self.__canvas_item = CanvasItem.CanvasItemComposition()
-        canvas_widget = self.ui.create_canvas_widget()
+        canvas_widget = self.ui.create_canvas_widget(layout_render=CanvasItem.RootLayoutRender)
         canvas_widget.canvas_item.add_canvas_item(self.__canvas_item)
         self._canvas_widget = canvas_widget  # only for testing
         # root canvas item should NOT be focusable or else it will grab focus in cases where no children have it.
