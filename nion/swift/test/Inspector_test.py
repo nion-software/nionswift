@@ -44,11 +44,16 @@ class TestInspectorClass(unittest.TestCase):
             data_item.title = "Title1"
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inspector_section = Inspector.InfoInspectorSection(document_controller, display_item)
-            with contextlib.closing(inspector_section):
-                self.assertEqual(inspector_section.info_title_label.text, "Title1")
-                data_item.title = "Title2"
-                self.assertEqual(inspector_section.info_title_label.text, "Title2")
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            inspector_section = inspector_panel.widget.find_widget_by_id("info_inspector_section")
+            self.assertEqual(inspector_section.info_title_label.text, "Title1")
+            data_item.title = "Title2"
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(inspector_section.info_title_label.text, "Title2")
 
     def test_display_item_title_follows_title_change_in_inspector(self):
         document_model = DocumentModel.DocumentModel()
@@ -113,20 +118,23 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_item.set_dimensional_calibration(0, Calibration.Calibration(offset=5.1, scale=1.2, units="mm"))
-            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
-            with contextlib.closing(inspector_section):
-                calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-                calibration_row = calibration_list_widget.find_widget_by_id("content_section").children[0]
-                offset_field = calibration_row.find_widget_by_id("offset")
-                scale_field = calibration_row.find_widget_by_id("scale")
-                units_field = calibration_row.find_widget_by_id("units")
-                self.assertEqual(offset_field.text, "5.1000")
-                self.assertEqual(scale_field.text, "1.2000")
-                self.assertEqual(units_field.text, u"mm")
-                data_item.set_dimensional_calibration(0, Calibration.Calibration(offset=1.5, scale=2.1, units="mmm"))
-                self.assertEqual(offset_field.text, "1.5000")
-                self.assertEqual(scale_field.text, "2.1000")
-                self.assertEqual(units_field.text, u"mmm")
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            calibration_list_widget = inspector_panel.widget.find_widget_by_id("calibration_list_widget")
+            calibration_row = calibration_list_widget.find_widget_by_id("content_section").children[0]
+            offset_field = calibration_row.find_widget_by_id("offset")
+            scale_field = calibration_row.find_widget_by_id("scale")
+            units_field = calibration_row.find_widget_by_id("units")
+            self.assertEqual(offset_field.text, "5.1000")
+            self.assertEqual(scale_field.text, "1.2000")
+            self.assertEqual(units_field.text, u"mm")
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(offset=1.5, scale=2.1, units="mmm"))
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(offset_field.text, "1.5000")
+            self.assertEqual(scale_field.text, "2.1000")
+            self.assertEqual(units_field.text, u"mmm")
 
     def test_calibration_inspector_section_follows_spatial_calibration_change(self):
         document_model = DocumentModel.DocumentModel()
@@ -137,14 +145,17 @@ class TestInspectorClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
             data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
-            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
-            with contextlib.closing(inspector_section):
-                calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-                calibration_row = calibration_list_widget.find_widget_by_id("content_section").children[0]
-                units_field = calibration_row.find_widget_by_id("units")
-                self.assertEqual(units_field.text, "mm")
-                data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mmm"))
-                self.assertEqual(units_field.text, "mmm")
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            calibration_list_widget = inspector_panel.widget.find_widget_by_id("calibration_list_widget")
+            calibration_row = calibration_list_widget.find_widget_by_id("content_section").children[0]
+            units_field = calibration_row.find_widget_by_id("units")
+            self.assertEqual(units_field.text, "mm")
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mmm"))
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(units_field.text, "mmm")
 
     def test_calibration_inspector_handles_deleted_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -172,12 +183,16 @@ class TestInspectorClass(unittest.TestCase):
             display_item.add_graphic(Graphics.PointGraphic())
             display_item.calibration_style_id = "calibrated"
             display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
-            graphic_widget = Inspector.make_point_type_inspector(document_controller, display_item, display_item.graphics[0])
-            with contextlib.closing(graphic_widget):
-                x_widget = graphic_widget.find_widget_by_id("x")
-                self.assertEqual(x_widget.text, "128.0 mm")
-                display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mmm"))
-                self.assertEqual(x_widget.text, "128.0 mmm")
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            x_widget = inspector_panel.widget.find_widget_by_id("x")
+            self.assertEqual(x_widget.text, "128.0 mm")
+            display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mmm"))
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(x_widget.text, "128.0 mmm")
 
     def test_changing_calibration_style_to_calibrated_displays_correct_values(self):
         document_model = DocumentModel.DocumentModel()
@@ -191,17 +206,20 @@ class TestInspectorClass(unittest.TestCase):
             display_item.calibration_style_id = "calibrated"
             display_item.data_item.set_dimensional_calibration(0, Calibration.Calibration(offset=-100, scale=2, units="mm"))
             display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(offset=-100, scale=2, units="mm"))
-            graphic_widget = Inspector.make_point_type_inspector(document_controller, display_item, display_item.graphics[0])
-            with contextlib.closing(graphic_widget):
-                x_widget = graphic_widget.find_widget_by_id("x")
-                y_widget = graphic_widget.find_widget_by_id("y")
-                self.assertEqual(x_widget.text, "0.0 mm")
-                self.assertEqual(y_widget.text, "0.0 mm")
-                x_widget.text = "-10"
-                x_widget.on_editing_finished(x_widget.text)
-                y_widget.text = "20"
-                y_widget.on_editing_finished(y_widget.text)
-                self.assertEqual(point_graphic.position, (0.6, 0.45))
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            # check the values
+            x_widget = inspector_panel.widget.find_widget_by_id("x")
+            y_widget = inspector_panel.widget.find_widget_by_id("y")
+            self.assertEqual(x_widget.text, "0.0 mm")
+            self.assertEqual(y_widget.text, "0.0 mm")
+            x_widget.editing_finished("-10")
+            y_widget.editing_finished("20")
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(point_graphic.position, (0.6, 0.45))
 
     def test_graphic_inspector_section_displays_sensible_units(self):
         document_model = DocumentModel.DocumentModel()
@@ -212,19 +230,28 @@ class TestInspectorClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(Graphics.PointGraphic())
             display_item.calibration_style_id = "calibrated"
-            graphic_widget = Inspector.make_point_type_inspector(document_controller, display_item, display_item.graphics[0])
-            with contextlib.closing(graphic_widget):
-                display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0), units="mm"))
-                x_widget = graphic_widget.find_widget_by_id("x")
-                self.assertEqual(x_widget.text, "181.0 mm")
-                display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0), offset=5.55555, units="mm"))
-                self.assertEqual(x_widget.text, "186.6 mm")
-                display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0)/10, units="mm"))
-                self.assertEqual(x_widget.text, "18.10 mm")
-                display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0)/10, offset=0.55555, units="mm"))
-                self.assertEqual(x_widget.text, "18.66 mm")
-                display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=-math.sqrt(2.0)/10, units="mm"))
-                self.assertEqual(x_widget.text, "-18.10 mm")
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            # check the values
+            x_widget = inspector_panel.widget.find_widget_by_id("x")
+            display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0), units="mm"))
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(x_widget.text, "181.0 mm")
+            display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0), offset=5.55555, units="mm"))
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(x_widget.text, "186.6 mm")
+            display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0)/10, units="mm"))
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(x_widget.text, "18.10 mm")
+            display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0)/10, offset=0.55555, units="mm"))
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(x_widget.text, "18.66 mm")
+            display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=-math.sqrt(2.0)/10, units="mm"))
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(x_widget.text, "-18.10 mm")
 
     def test_graphic_inspector_display_calibrated_length_units(self):
         document_model = DocumentModel.DocumentModel()
@@ -238,11 +265,15 @@ class TestInspectorClass(unittest.TestCase):
             line_region.end = (1, 1)
             display_item.add_graphic(line_region)
             display_item.calibration_style_id = "calibrated"
-            graphic_widget = Inspector.make_line_type_inspector(document_controller, display_item, display_item.graphics[0])
-            with contextlib.closing(graphic_widget):
-                data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
-                data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
-                self.assertEqual(graphic_widget.find_widget_by_id("length").text, "223.607 mm")  # sqrt(100*100 + 200*200)
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
+            data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(inspector_panel.widget.find_widget_by_id("length").text, "223.607 mm")  # sqrt(100*100 + 200*200)
 
     def test_graphic_inspector_sets_calibrated_length_units(self):
         document_model = DocumentModel.DocumentModel()
@@ -256,16 +287,20 @@ class TestInspectorClass(unittest.TestCase):
             line_region.end = (0.5, 0.5)
             display_item.add_graphic(line_region)
             display_item.calibration_style_id = "calibrated"
-            graphic_widget = Inspector.make_line_type_inspector(document_controller, display_item, display_item.graphics[0])
-            with contextlib.closing(graphic_widget):
-                data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
-                data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
-                length_str = "{0:g}".format(math.sqrt(100 * 100 + 200 * 200))
-                length_widget = graphic_widget.find_widget_by_id("length")
-                length_widget.text = length_str
-                length_widget.on_editing_finished(length_str)
-                self.assertAlmostEqual(line_region.end[0], 1.0, 3)
-                self.assertAlmostEqual(line_region.end[1], 1.0, 3)
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            # check the values
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
+            data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
+            document_controller.periodic()  # needed to update the inspector
+            length_str = "{0:g}".format(math.sqrt(100 * 100 + 200 * 200))
+            length_widget = inspector_panel.widget.find_widget_by_id("length")
+            length_widget.editing_finished(length_str)
+            self.assertAlmostEqual(line_region.end[0], 1.0, 3)
+            self.assertAlmostEqual(line_region.end[1], 1.0, 3)
 
     def test_line_profile_inspector_display_calibrated_width_units(self):
         document_model = DocumentModel.DocumentModel()
@@ -280,11 +315,15 @@ class TestInspectorClass(unittest.TestCase):
             line_profile.width = 10
             display_item.add_graphic(line_profile)
             display_item.calibration_style_id = "calibrated"
-            graphic_widget = Inspector.make_line_profile_inspector(document_controller, display_item, display_item.graphics[0])
-            with contextlib.closing(graphic_widget):
-                data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
-                data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
-                self.assertEqual(graphic_widget.find_widget_by_id("width").text, "10.0 mm")
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
+            data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(inspector_panel.widget.find_widget_by_id("width").text, "10.0 mm")
 
     def test_float_to_string_converter_strips_units(self):
         document_model = DocumentModel.DocumentModel()
@@ -416,23 +455,32 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            inspector_section = Inspector.ImageDataInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
-            with contextlib.closing(inspector_section):
-                display_data_channel.display_limits = None
-                self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-                self.assertEqual(inspector_section.display_limits_limit_high.text, None)
-                display_data_channel.display_limits = (None, None)
-                self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-                self.assertEqual(inspector_section.display_limits_limit_high.text, None)
-                display_data_channel.display_limits = (1, None)
-                self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0000")
-                self.assertEqual(inspector_section.display_limits_limit_high.text, None)
-                display_data_channel.display_limits = (None, 2)
-                self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-                self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0000")
-                display_data_channel.display_limits = (1, 2)
-                self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0000")
-                self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0000")
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            inspector_section = inspector_panel.widget.find_widget_by_id("image_data_inspector_section")
+            display_data_channel.display_limits = None
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
+            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+            display_data_channel.display_limits = (None, None)
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
+            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+            display_data_channel.display_limits = (1, None)
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0000")
+            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+            display_data_channel.display_limits = (None, 2)
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
+            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0000")
+            display_data_channel.display_limits = (1, 2)
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0000")
+            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0000")
 
     def test_image_display_inspector_sets_display_limits_when_text_is_changed(self):
         document_model = DocumentModel.DocumentModel()
@@ -442,21 +490,21 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            inspector_section = Inspector.ImageDataInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
-            with contextlib.closing(inspector_section):
-                self.assertEqual(display_data_channel.display_limits, None)
-                inspector_section.display_limits_limit_low.text = "1"
-                inspector_section.display_limits_limit_low.editing_finished("1")
-                self.assertEqual(display_data_channel.display_limits, (1.0, None))
-                inspector_section.display_limits_limit_high.text = "2"
-                inspector_section.display_limits_limit_high.editing_finished("2")
-                self.assertEqual(display_data_channel.display_limits, (1.0, 2.0))
-                inspector_section.display_limits_limit_low.text = ""
-                inspector_section.display_limits_limit_low.editing_finished("")
-                self.assertEqual(display_data_channel.display_limits, (None, 2.0))
-                inspector_section.display_limits_limit_high.text = ""
-                inspector_section.display_limits_limit_high.editing_finished("")
-                self.assertEqual(display_data_channel.display_limits, None)
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            inspector_section = inspector_panel.widget.find_widget_by_id("image_data_inspector_section")
+            self.assertEqual(display_data_channel.display_limits, None)
+            inspector_section.display_limits_limit_low.editing_finished("1")
+            self.assertEqual(display_data_channel.display_limits, (1.0, None))
+            inspector_section.display_limits_limit_high.editing_finished("2")
+            self.assertEqual(display_data_channel.display_limits, (1.0, 2.0))
+            inspector_section.display_limits_limit_low.editing_finished("")
+            self.assertEqual(display_data_channel.display_limits, (None, 2.0))
+            inspector_section.display_limits_limit_high.editing_finished("")
+            self.assertEqual(display_data_channel.display_limits, None)
 
     def test_inspector_handles_deleted_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -670,11 +718,16 @@ class TestInspectorClass(unittest.TestCase):
             point_graphic = Graphics.PointGraphic()
             point_graphic.position = 0.5, 0.5
             display_item.add_graphic(point_graphic)
-            graphic_widget = Inspector.make_point_type_inspector(document_controller, display_item, display_item.graphics[0])
-            with contextlib.closing(graphic_widget):
-                display_item.calibration_style_id = "pixels-center"
-                self.assertEqual(graphic_widget.find_widget_by_id("x").text, "0.0")  # x
-                self.assertEqual(graphic_widget.find_widget_by_id("y").text, "0.0")  # y
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            # check the values
+            display_item.calibration_style_id = "pixels-center"
+            document_controller.periodic()  # needed to build the inspector
+            self.assertEqual(inspector_panel.widget.find_widget_by_id("x").text, "0.0")  # x
+            self.assertEqual(inspector_panel.widget.find_widget_by_id("y").text, "0.0")  # y
 
     def test_editing_pixel_width_on_rectangle_adjusts_rectangle_properly(self):
         document_model = DocumentModel.DocumentModel()
@@ -685,19 +738,23 @@ class TestInspectorClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             point_graphic = Graphics.RectangleGraphic()
             display_item.add_graphic(point_graphic)
-            graphic_widget = Inspector.make_rectangle_type_inspector(document_controller, display_item, display_item.graphics[0], str())
-            with contextlib.closing(graphic_widget):
-                display_item.calibration_style_id = "pixels-center"
-                self.assertEqual(graphic_widget.find_widget_by_id("x").text, "0.0")  # x
-                self.assertEqual(graphic_widget.find_widget_by_id("y").text, "0.0")  # y
-                self.assertEqual(graphic_widget.find_widget_by_id("width").text, "50.0")  # width
-                self.assertEqual(graphic_widget.find_widget_by_id("height").text, "100.0")  # height
-                graphic_widget.find_widget_by_id("width").text = "40"
-                graphic_widget.find_widget_by_id("width").editing_finished("40")
-                self.assertEqual(graphic_widget.find_widget_by_id("x").text, "0.0")  # x
-                self.assertEqual(graphic_widget.find_widget_by_id("y").text, "0.0")  # y
-                self.assertEqual(graphic_widget.find_widget_by_id("width").text, "40.0")  # width
-                self.assertEqual(graphic_widget.find_widget_by_id("height").text, "100.0")  # height
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            display_item.calibration_style_id = "pixels-center"
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(inspector_panel.widget.find_widget_by_id("x").text, "0.0")  # x
+            self.assertEqual(inspector_panel.widget.find_widget_by_id("y").text, "0.0")  # y
+            self.assertEqual(inspector_panel.widget.find_widget_by_id("width").text, "50.0")  # width
+            self.assertEqual(inspector_panel.widget.find_widget_by_id("height").text, "100.0")  # height
+            inspector_panel.widget.find_widget_by_id("width").editing_finished("40")
+            document_controller.periodic()  # needed to update the inspector
+            self.assertEqual(inspector_panel.widget.find_widget_by_id("x").text, "0.0")  # x
+            self.assertEqual(inspector_panel.widget.find_widget_by_id("y").text, "0.0")  # y
+            self.assertEqual(inspector_panel.widget.find_widget_by_id("width").text, "40.0")  # width
+            self.assertEqual(inspector_panel.widget.find_widget_by_id("height").text, "100.0")  # height
 
     def test_interval_dimensions_show_calibrated_units_on_single_spectrum(self):
         document_model = DocumentModel.DocumentModel()
@@ -784,14 +841,14 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
             inspector_panel = document_controller.find_dock_panel("inspector-panel")
-            document_controller.periodic()
             expected_inspector_section_count = len(inspector_panel._get_inspector_sections())
             # process to add new data item
             new_data_item = document_controller.processing_invert().data_item
             # print("new_data_item {}".format(new_data_item))
             document_model.recompute_all()
-            document_controller.periodic()
+            document_controller.periodic()  # update the inspector
             new_display_panel = document_controller.selected_display_panel
             self.assertNotEqual(new_display_panel, display_panel)
             self.assertEqual(new_display_panel.data_item, new_data_item)

@@ -501,6 +501,7 @@ class InfoInspectorSection(InspectorSection):
     def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
         super().__init__(document_controller.ui, "info", _("Info"))
         ui = document_controller.ui
+        self.widget_id = "info_inspector_section"
         # title
         self.info_section_title_row = self.ui.create_row_widget()
         self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width": 60}))
@@ -792,6 +793,8 @@ class ImageDataInspectorSection(InspectorSection):
     def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem):
         super().__init__(document_controller.ui, "display-limits", _("Image Data"))
         ui = document_controller.ui
+
+        self.widget_id = "image_data_inspector_section"
 
         # color map
         color_map_row, self.__color_map_changed_listener = make_color_map_chooser(document_controller, display_data_channel)

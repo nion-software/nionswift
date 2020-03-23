@@ -309,7 +309,7 @@ class DocumentController(Window.Window):
 
         self.__dialogs.append(weakref.ref(about_dialog))
 
-    def find_dock_panel(self, dock_panel_id):
+    def find_dock_panel(self, dock_panel_id) -> typing.Optional[UserInterface.DockWidget]:
         """ Return the dock widget by id. """
         return self.workspace_controller._find_dock_panel(dock_panel_id)
 

@@ -139,7 +139,7 @@ class Workspace:
     def _canvas_item(self):
         return self.__canvas_item
 
-    def _find_dock_panel(self, dock_panel_id):
+    def _find_dock_panel(self, dock_panel_id) -> typing.Optional[UserInterface.DockWidget]:
         for dock_panel in self.dock_panels:
             if dock_panel.panel_id == dock_panel_id:
                 return dock_panel

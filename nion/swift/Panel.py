@@ -4,6 +4,7 @@ import gettext
 import logging
 import sys
 import threading
+import typing
 import weakref
 
 # third party libraries
@@ -43,7 +44,7 @@ class Panel:
             self.dock_widget.close()
         self.widget = None  # closed by the dock_widget
 
-    def create_dock_widget(self, title, positions, position) -> None:
+    def create_dock_widget(self, title: str, positions: typing.Sequence[str], position: str) -> None:
         self.dock_widget = self.document_controller.create_dock_widget(self.widget, self.panel_id, title, positions, position)
         self.dock_widget.on_size_changed = self.size_changed
         self.dock_widget.on_focus_changed = self.focus_changed

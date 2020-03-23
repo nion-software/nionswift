@@ -87,7 +87,7 @@ class TestComputationPanelClass(unittest.TestCase):
             document_controller.periodic()  # let the inspector see the computation
             document_controller.periodic()  # and update the computation
             expression = panel._text_edit_for_testing.text
-            self.assertIsNone(panel._error_label_for_testing.text)
+            self.assertFalse(panel._error_label_for_testing.text.strip())
             panel._text_edit_for_testing.text = "target.xdata = xyz(a.xdata)"
             panel._update_button.on_clicked()
             # the sequence of periodic/recompute_all is intentional, to test various computation states
@@ -123,7 +123,7 @@ class TestComputationPanelClass(unittest.TestCase):
             document_controller.periodic()  # let the inspector see the computation
             document_controller.periodic()  # and update the computation
             expression = panel._text_edit_for_testing.text
-            self.assertIsNone(panel._error_label_for_testing.text)
+            self.assertFalse(panel._error_label_for_testing.text.strip())
             panel._text_edit_for_testing.text = "target.xdata = xyz(a.xdata)"
             panel._update_button.on_clicked()
             # the sequence of periodic/recompute_all is intentional, to test various computation states
