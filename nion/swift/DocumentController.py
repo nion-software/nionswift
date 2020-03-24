@@ -110,7 +110,14 @@ class DocumentController(Window.Window):
         self.filter_changed_event = Event.Event()
         self.active_projects_changed_event = Event.Event()
 
-        self.__update_display_items_model(self.__display_items_model, None, None)
+        # see set_filter
+        with self.__display_items_model.changes():  # change filter and sort together
+            project_filter = self.document_model.profile.project_filter
+            self.__display_items_model.container = self.document_model
+            self.__display_items_model.filter = ListModel.AndFilter((project_filter, self.get_filter_predicate(None)))
+            self.__display_items_model.sort_key = DataItem.sort_by_date_key
+            self.__display_items_model.sort_reverse = True
+            self.__display_items_model.filter_id = None
 
         def call_soon():
             # call the function (this is guaranteed to be called on the main thread)
@@ -409,7 +416,7 @@ class DocumentController(Window.Window):
     def filtered_display_items_model(self):
         return self.__filtered_display_items_model
 
-    def get_filter_predicate(self, filter_id: str) -> ListModel.Filter:
+    def get_filter_predicate(self, filter_id: typing.Optional[str]) -> ListModel.Filter:
         if filter_id == "latest-session":
             return ListModel.EqFilter("session_id", self.document_model.session_id)
         elif filter_id == "temporary":
@@ -421,42 +428,28 @@ class DocumentController(Window.Window):
         else:  # "all"
             return ListModel.Filter(True)
 
-    def __update_display_items_model(self, display_items_model: ListModel.FilteredListModel, data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str]) -> None:
-        """Update the data item model with a new container, filter, and sorting.
-
-        This is called when the data item model is created or when the user changes
-        the data group or sorting settings.
-        """
-        with display_items_model.changes():  # change filter and sort together
-            project_filter = self.document_model.profile.project_filter
-            if data_group is not None:
-                display_items_model.container = data_group
-                display_items_model.filter = ListModel.AndFilter((project_filter, ListModel.Filter(True)))
-                display_items_model.sort_key = None
-                display_items_model.filter_id = None
-            else:
-                display_items_model.container = self.document_model
-                display_items_model.filter = ListModel.AndFilter((project_filter, self.get_filter_predicate(filter_id)))
-                display_items_model.sort_key = DataItem.sort_by_date_key
-                display_items_model.sort_reverse = True
-                display_items_model.filter_id = filter_id
-
-    def create_display_items_model(self, data_group, filter_id):
-        display_items_model = ListModel.FilteredListModel(items_key="display_items")
-        self.__update_display_items_model(display_items_model, data_group, filter_id)
-        return display_items_model
-
-    def set_data_group(self, data_group):
+    def set_data_group(self, data_group: DataGroup.DataGroup) -> None:
         if self.__display_items_model is not None:
             container = data_group if data_group else self.document_model
             if container != self.__display_items_model.container:
-                self.__update_display_items_model(self.__display_items_model, data_group, self.__display_items_model.filter_id)
+                with self.__display_items_model.changes():  # change filter and sort together
+                    project_filter = self.document_model.profile.project_filter
+                    self.__display_items_model.container = data_group
+                    self.__display_items_model.filter = ListModel.AndFilter((project_filter, ListModel.Filter(True)))
+                    self.__display_items_model.sort_key = None
+                    self.__display_items_model.filter_id = None
                 self.filter_changed_event.fire(data_group, self.__display_items_model.filter_id)
 
-    def set_filter(self, filter_id):
+    def set_filter(self, filter_id: typing.Optional[str]) -> None:
         if self.__display_items_model is not None:
             if filter_id != self.__display_items_model.filter_id:
-                self.__update_display_items_model(self.__display_items_model, None, filter_id)
+                with self.__display_items_model.changes():  # change filter and sort together
+                    project_filter = self.document_model.profile.project_filter
+                    self.__display_items_model.container = self.document_model
+                    self.__display_items_model.filter = ListModel.AndFilter((project_filter, self.get_filter_predicate(filter_id)))
+                    self.__display_items_model.sort_key = DataItem.sort_by_date_key
+                    self.__display_items_model.sort_reverse = True
+                    self.__display_items_model.filter_id = filter_id
                 self.filter_changed_event.fire(None, filter_id)
 
     def get_data_group_and_filter_id(self):
