@@ -906,9 +906,9 @@ class DocumentController(Window.Window):
         return False
 
     def register_dialog(self, dialog: Window.Window) -> None:
-        def close_preferences():
+        def close_dialog():
             self.__dialogs.remove(weakref.ref(dialog))
-        dialog.on_close = close_preferences
+        dialog.on_close = close_dialog
         self.__dialogs.append(weakref.ref(dialog))
 
     def open_preferences(self):

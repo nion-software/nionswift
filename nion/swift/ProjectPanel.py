@@ -50,13 +50,11 @@ class DisplayItemController:
         self.document_controller = document_controller
         self.document_model = document_controller.document_model
 
-        # not thread safe. must be called on ui thread.
         def display_item_inserted(key, display_item, before_index):
             self.__count += 1
             if self.on_title_changed:
                 document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
 
-        # not thread safe. must be called on ui thread.
         def display_item_removed(key, display_item, index):
             self.__count -= 1
             if self.on_title_changed:
@@ -236,12 +234,11 @@ class TreeModel:
                 project_key = "/".join(key_path + [project.project_reference_parts[-1]])
                 encountered_items.add(project_key)
                 if not folder_closed:
+                    # configure a filtered list for the project.
+                    # the list does not need to be sorted since we're only interested in the count.
                     display_items_model = ListModel.FilteredListModel(items_key="display_items")
                     display_items_model.container = self.document_controller.document_model
                     display_items_model.filter = project.project_filter
-                    display_items_model.sort_key = DataItem.sort_by_date_key
-                    display_items_model.sort_reverse = True
-                    display_items_model.filter_id = None
                     items_controller = DisplayItemController(project.project_title, display_items_model, self.document_controller)
 
                     def handle_item_controller_title_changed(t: str) -> None:
@@ -324,7 +321,7 @@ class TreeModel:
         self.document_controller.toggle_project_active(project)
 
 
-class ProjectListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
+class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
     def __init__(self, document_controller, tree_model: TreeModel):
         super().__init__()
@@ -413,6 +410,78 @@ class ProjectListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         return 4 + display_item_indent * self.__folder_indent + extra_indent
 
 
+class ProjectTreeWidget(Widgets.CompositeWidgetBase):
+
+    def __init__(self, ui, document_controller):
+        super().__init__(ui.create_column_widget(properties={"stylesheet": "border: #F00"}))
+
+        column = self.content_widget
+
+        document_model = document_controller.document_model
+        projects_model = document_model.projects_model
+
+        self._tree_model = TreeModel(document_controller, set(document_model.profile.closed_items))
+
+        def projects_model_changed(property_name: str) -> None:
+            if property_name == "value":
+                # update the tree model.
+                self._tree_model.update_projects(projects_model.value)
+                # validate the selection
+                indexes = set()
+                for index in self._tree_selection.indexes:
+                    if index < len(self._tree_model.value):
+                        indexes.add(index)
+                self._tree_selection.set_multiple(indexes)
+                # update project list
+                tree_selection_changed()
+
+        # listen for changes to the project model and report them to the tree model.
+        self.__projects_model_listener = projects_model.property_changed_event.listen(projects_model_changed)
+        self._tree_model.update_projects(projects_model.value)  # initial sync
+
+        def closed_items_changed(closed_items: typing.Set[str]):
+            document_model.profile.closed_items = list(closed_items)
+
+        self._tree_model.on_closed_items_changed = closed_items_changed
+
+        self._tree_selection = Selection.IndexedSelection(Selection.Style.multiple)
+
+        projects_list_widget = Widgets.ListWidget(ui, ProjectTreeCanvasItemDelegate(document_controller, self._tree_model), selection=self._tree_selection, v_scroll_enabled=False, v_auto_resize=True)
+        projects_list_widget.wants_drag_events = True
+        projects_list_widget.bind_items(Binding.PropertyBinding(self._tree_model, "value"))
+
+        projects_section = Widgets.SectionWidget(ui, _("Projects"), projects_list_widget)
+        projects_section.expanded = True
+
+        column.add(projects_section)
+
+        # configure the selection objects to track each other
+
+        def tree_selection_changed() -> None:
+            selected_projects = list()
+            for index in self._tree_selection.indexes:
+                tree_item = self._tree_model.value[index]
+                if hasattr(tree_item, "project") and tree_item.project:
+                    selected_projects.append(tree_item.project)
+            document_controller.selected_projects_model.value = selected_projects
+
+        self.__tree_selection_changed_event_listener = self._tree_selection.changed_event.listen(tree_selection_changed)
+
+        self.__active_projects_changed_event_listener = document_controller.active_projects_changed_event.listen(projects_list_widget.update)
+
+        tree_selection_changed()
+
+    def close(self):
+        self.__tree_selection_changed_event_listener.close()
+        self.__tree_selection_changed_event_listener = None
+        self.__active_projects_changed_event_listener.close()
+        self.__active_projects_changed_event_listener = None
+        self._tree_model.on_closed_items_changed = None
+        self.__projects_model_listener.close()
+        self.__projects_model_listener = None
+        super().close()
+
+
 class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
     def __init__(self, collection_selection: Selection.IndexedSelection):
@@ -469,48 +538,14 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             list_display_item.document_controller.remove_data_group_from_container(data_group, list_display_item.document_controller.document_model)
 
 
-class ProjectPanel(Panel.Panel):
+class CollectionsWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, document_controller, panel_id, properties):
-        super().__init__(document_controller, panel_id, _("Data Items"))
+    def __init__(self, ui, document_controller):
+        super().__init__(ui.create_column_widget(properties={"stylesheet": "border: #F00"}))
 
-        ui = document_controller.ui
+        column = self.content_widget
 
         document_model = document_controller.document_model
-        projects_model = document_model.projects_model
-
-        self._tree_model = TreeModel(document_controller, set(document_model.profile.closed_items))
-
-        def projects_model_changed(property_name: str) -> None:
-            if property_name == "value":
-                # update the tree model.
-                self._tree_model.update_projects(projects_model.value)
-                # validate the selection
-                indexes = set()
-                for index in self._tree_selection.indexes:
-                    if index < len(self._tree_model.value):
-                        indexes.add(index)
-                self._tree_selection.set_multiple(indexes)
-                # update project list
-                tree_selection_changed()
-
-        # listen for changes to the project model and report them to the tree model.
-        self.__projects_model_listener = projects_model.property_changed_event.listen(projects_model_changed)
-        self._tree_model.update_projects(projects_model.value)  # initial sync
-
-        def closed_items_changed(closed_items: typing.Set[str]):
-            document_model.profile.closed_items = list(closed_items)
-
-        self._tree_model.on_closed_items_changed = closed_items_changed
-
-        self._tree_selection = Selection.IndexedSelection(Selection.Style.multiple)
-
-        projects_list_widget = Widgets.ListWidget(ui, ProjectListCanvasItemDelegate(document_controller, self._tree_model), selection=self._tree_selection, v_scroll_enabled=False, v_auto_resize=True)
-        projects_list_widget.wants_drag_events = True
-        projects_list_widget.bind_items(Binding.PropertyBinding(self._tree_model, "value"))
-
-        projects_section = Widgets.SectionWidget(ui, _("Projects"), projects_list_widget)
-        projects_section.expanded = True
 
         all_items_controller = DisplayItemController(_("All"), document_controller.create_display_items_model(None, "all"), document_controller)
         persistent_items_controller = DisplayItemController(_("Persistent"), document_controller.create_display_items_model(None, "persistent"), document_controller)
@@ -600,33 +635,8 @@ class ProjectPanel(Panel.Panel):
         collections_section = Widgets.SectionWidget(ui, _("Collections"), collections_column)
         collections_section.expanded = True
 
-        column = ui.create_column_widget(properties={"stylesheet": "border: #F00"})
-
-        column.add(projects_section)
         column.add(collections_section)
         column.add_stretch()
-
-        scroll_area = self.ui.create_scroll_area_widget(properties=properties)
-        scroll_area.set_scrollbar_policies("off", "needed")
-        scroll_area.content = column
-
-        self.widget = scroll_area
-
-        # configure the selection objects to track each other
-
-        def tree_selection_changed() -> None:
-            selected_projects = list()
-            for index in self._tree_selection.indexes:
-                tree_item = self._tree_model.value[index]
-                if hasattr(tree_item, "project") and tree_item.project:
-                    selected_projects.append(tree_item.project)
-            document_controller.selected_projects_model.value = selected_projects
-
-        self.__tree_selection_changed_event_listener = self._tree_selection.changed_event.listen(tree_selection_changed)
-
-        self.__active_projects_changed_event_listener = document_controller.active_projects_changed_event.listen(projects_list_widget.update)
-
-        tree_selection_changed()
 
         # for testing
         self._collection_selection = collection_selection
@@ -635,17 +645,40 @@ class ProjectPanel(Panel.Panel):
         for controller in self.__data_group_controllers:
             controller.close()
         self.__data_group_controllers.clear()
-        self.__tree_selection_changed_event_listener.close()
-        self.__tree_selection_changed_event_listener = None
-        self.__active_projects_changed_event_listener.close()
-        self.__active_projects_changed_event_listener = None
         self.__filter_changed_event_listener.close()
         self.__filter_changed_event_listener = None
-        self._tree_model.on_closed_items_changed = None
-        self.__projects_model_listener.close()
-        self.__projects_model_listener = None
         self.__document_model_item_inserted_listener.close()
         self.__document_model_item_inserted_listener = None
         self.__document_model_item_removed_listener.close()
         self.__document_model_item_removed_listener = None
         super().close()
+
+
+class ProjectPanel(Panel.Panel):
+
+    def __init__(self, document_controller, panel_id, properties):
+        super().__init__(document_controller, panel_id, _("Data Items"))
+
+        ui = document_controller.ui
+
+        self._projects_section = ProjectTreeWidget(ui, document_controller)
+        self._collections_section = CollectionsWidget(ui, document_controller)
+
+        column = ui.create_column_widget(properties={"stylesheet": "border: #F00"})
+        column.add(self._projects_section)
+        column.add(self._collections_section)
+        column.add_stretch()
+
+        scroll_area = ui.create_scroll_area_widget(properties=properties)
+        scroll_area.set_scrollbar_policies("off", "needed")
+        scroll_area.content = column
+
+        self.widget = scroll_area
+
+    @property
+    def _collection_selection(self):
+        return self._collections_section._collection_selection
+
+    @property
+    def _tree_selection(self):
+        return self._projects_section._tree_selection
