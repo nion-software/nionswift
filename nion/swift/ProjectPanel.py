@@ -12,6 +12,7 @@ from nion.swift import Panel
 from nion.swift.model import DataGroup
 from nion.swift.model import Profile
 from nion.swift.model import Observer
+from nion.ui import Dialog
 from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Event
@@ -703,3 +704,26 @@ class ProjectPanel(Panel.Panel):
     @property
     def _tree_selection(self):
         return self._projects_section._tree_selection
+
+
+class ProjectDialog(Dialog.ActionDialog):
+
+    def __init__(self, document_controller):
+        ui = document_controller.ui
+        super().__init__(ui, _("Project Manager"), app=document_controller.app, parent_window=document_controller, persistent_id="ProjectsDialog")
+
+        self._create_menus()
+
+        projects_section = ProjectTreeWidget(ui, document_controller)
+
+        column = ui.create_column_widget()
+        column.add(projects_section)
+        column.add_stretch()
+
+        scroll_area = ui.create_scroll_area_widget()
+        scroll_area.set_scrollbar_policies("off", "needed")
+        scroll_area.content = column
+
+        column = self.content
+        column.add_spacing(6)
+        column.add(scroll_area)

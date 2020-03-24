@@ -574,6 +574,13 @@
             },
             {
                 "type": "separator"
+            },
+            {
+                "type": "item",
+                "action_id": "window.open_project_dialog"
+            },
+            {
+                "type": "separator"
             }
         ]
     },

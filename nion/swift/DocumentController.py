@@ -28,6 +28,7 @@ from nion.swift import DisplayPanel
 from nion.swift import ExportDialog
 from nion.swift import FilterPanel
 from nion.swift import MimeTypes
+from nion.swift import ProjectPanel
 from nion.swift import RecorderPanel
 from nion.swift import ScriptsDialog
 from nion.swift import Task
@@ -884,6 +885,12 @@ class DocumentController(Window.Window):
     def new_console_dialog(self):
         console_dialog = ConsoleDialog.ConsoleDialog(self)
         console_dialog.show()
+
+    def new_project_dialog(self, data_item=None):
+        if not self.is_dialog_type_open(ProjectPanel.ProjectDialog):
+            project_dialog = ProjectPanel.ProjectDialog(self)
+            project_dialog.show()
+            self.register_dialog(project_dialog)
 
     def new_edit_computation_dialog(self, data_item=None):
         if not data_item:
@@ -2552,6 +2559,14 @@ class OpenConsoleAction(Window.Action):
         context.window.new_console_dialog()
 
 
+class OpenProjectDialogAction(Window.Action):
+    action_id = "window.open_project_dialog"
+    action_name = _("Open Project Manager")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context.window.new_project_dialog()
+
+
 class OpenRunScriptsAction(Window.Action):
     action_id = "window.open_run_scripts"
     action_name = _("Scripts...")
@@ -2573,6 +2588,7 @@ Window.register_action(EditDataItemScriptAction())
 Window.register_action(EditDisplayScriptAction())
 Window.register_action(NewWindowAction())
 Window.register_action(OpenConsoleAction())
+Window.register_action(OpenProjectDialogAction())
 Window.register_action(OpenRunScriptsAction())
 Window.register_action(ToggleFilterAction())
 
