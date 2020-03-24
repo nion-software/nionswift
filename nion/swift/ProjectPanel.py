@@ -15,7 +15,12 @@ from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import ListModel
 from nion.utils import Selection
+
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
+    from nion.swift.model import DisplayItem
 
 _ = gettext.gettext
 
@@ -71,58 +76,71 @@ class ProjectDisplayItemCounter:
         return f"{self.__project.project_title} ({self.__count})"
 
 
-class DisplayItemController:
+class CollectionDisplayItemCounter:
 
-    def __init__(self, base_title, display_items_model, document_controller):
+    def __init__(self, base_title: str, data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str], document_controller: "DocumentController.DocumentController"):
         self.__base_title = base_title
-        self.__count = 0
-        self.__display_items_model = display_items_model
+        self.__data_group = data_group
+        self.__filter_id = filter_id
+        self.__filter_predicate = document_controller.get_filter_predicate(filter_id) if self.__filter_id else ListModel.Filter(True)
         self.on_title_changed = None
-        self.document_controller = document_controller
-        self.document_model = document_controller.document_model
+        self.__display_item_set = set()
+        self.__active_project_uuids = set()
 
-        def display_item_inserted(key, display_item, before_index):
-            self.__count += 1
-            if self.on_title_changed:
-                document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
+        def display_item_in_collection(display_item: "DisplayItem.DisplayItem") -> bool:
+            return self.__filter_predicate.matches(display_item) and str(display_item.project.uuid) in self.__active_project_uuids
 
-        def display_item_removed(key, display_item, index):
-            self.__count -= 1
-            if self.on_title_changed:
-                document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
+        def item_inserted(key: str, value, index: int) -> None:
+            if key == "display_items" and display_item_in_collection(value):
+                self.__display_item_set.add(value)
+                if callable(self.on_title_changed):
+                    self.on_title_changed(self.title)
 
-        self.__display_item_inserted_listener = self.__display_items_model.item_inserted_event.listen(display_item_inserted)
-        self.__display_item_removed_listener = self.__display_items_model.item_removed_event.listen(display_item_removed)
+        def item_removed(key: str, value, index: int) -> None:
+            if key == "display_items" and value in self.__display_item_set:
+                self.__display_item_set.remove(value)
+                if callable(self.on_title_changed):
+                    self.on_title_changed(self.title)
 
-        self.__count = len(self.__display_items_model.display_items)
+        container = self.__data_group or document_controller.document_model
 
-        self.__active_projects_changed_event_listener = document_controller.active_projects_changed_event.listen(display_items_model.mark_changed)
+        self.__item_inserted_event_listener = container.item_inserted_event.listen(item_inserted)
+        self.__item_removed_event_listener = container.item_removed_event.listen(item_removed)
 
-    def close(self):
-        self.__display_item_inserted_listener.close()
-        self.__display_item_inserted_listener = None
-        self.__display_item_removed_listener.close()
-        self.__display_item_removed_listener = None
-        self.__display_items_model.close()
+        def update_count():
+            self.__active_project_uuids = set(document_controller.document_model.profile.active_project_uuids)
+            self.__display_item_set = {display_item for display_item in container.display_items if display_item_in_collection(display_item)}
+            if callable(self.on_title_changed):
+                self.on_title_changed(self.title)
+
+        self.__active_projects_changed_event_listener = document_controller.active_projects_changed_event.listen(update_count)
+
+        update_count()
+
+    def close(self) -> None:
+        self.__item_inserted_event_listener.close()
+        self.__item_inserted_event_listener = None
+        self.__item_removed_event_listener.close()
+        self.__item_removed_event_listener = None
         self.__active_projects_changed_event_listener.close()
         self.__active_projects_changed_event_listener = None
         self.on_title_changed = None
 
     @property
-    def title(self):
-        return self.__base_title + (" (%i)" % self.__count)
+    def title(self) -> str:
+        return f"{self.__base_title} ({len(self.__display_item_set)})"
 
     @property
     def is_smart_collection(self) -> bool:
-        return not isinstance(self.__display_items_model.container, DataGroup.DataGroup)
+        return not isinstance(self.__data_group, DataGroup.DataGroup)
 
     @property
     def filter_id(self) -> typing.Optional[str]:
-        return self.__display_items_model.filter_id if self.is_smart_collection else None
+        return self.__filter_id
 
     @property
     def data_group(self) -> typing.Optional[DataGroup.DataGroup]:
-        return self.__display_items_model.container if not self.is_smart_collection else None
+        return self.__data_group
 
 
 class ProjectPanelProjectItem:
@@ -572,10 +590,10 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
 
         document_model = document_controller.document_model
 
-        all_items_controller = DisplayItemController(_("All"), document_controller.create_display_items_model(None, "all"), document_controller)
-        persistent_items_controller = DisplayItemController(_("Persistent"), document_controller.create_display_items_model(None, "persistent"), document_controller)
-        live_items_controller = DisplayItemController(_("Live"), document_controller.create_display_items_model(None, "temporary"), document_controller)
-        latest_items_controller = DisplayItemController(_("Latest Session"), document_controller.create_display_items_model(None, "latest-session"), document_controller)
+        all_items_controller = CollectionDisplayItemCounter(_("All"), None, "all", document_controller)
+        persistent_items_controller = CollectionDisplayItemCounter(_("Persistent"), None, "persistent", document_controller)
+        live_items_controller = CollectionDisplayItemCounter(_("Live"), None, "temporary", document_controller)
+        latest_items_controller = CollectionDisplayItemCounter(_("Latest Session"), None, "latest-session", document_controller)
 
         self.__data_group_controllers = list()
 
@@ -618,7 +636,7 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         def document_model_item_inserted(key: str, value, before_index: int) -> None:
             if key == "data_groups":
                 data_group = value
-                controller = DisplayItemController(data_group.title, document_controller.create_display_items_model(data_group, None), document_controller)
+                controller = CollectionDisplayItemCounter(data_group.title, data_group, None, document_controller)
                 self.__data_group_controllers.insert(before_index, controller)
                 controller.on_title_changed = collections_changed
                 collections_changed(str())
