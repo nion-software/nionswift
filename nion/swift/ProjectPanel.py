@@ -10,13 +10,11 @@ import typing
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift.model import DataGroup
-from nion.swift.model import DataItem
 from nion.swift.model import Project
 from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Event
 from nion.utils import Geometry
-from nion.utils import ListModel
 from nion.utils import Selection
 
 _ = gettext.gettext
@@ -30,6 +28,7 @@ def reveal_project(project_path: pathlib.Path) -> None:
     elif sys.platform == 'linux':
         subprocess.check_call(['xdg-open', '--', str(project_path.parent)])
 
+
 def open_location(location: pathlib.Path) -> None:
     if sys.platform == "darwin":
         subprocess.Popen(["open", str(location)])
@@ -38,6 +37,38 @@ def open_location(location: pathlib.Path) -> None:
     elif sys.platform == 'linux':
         subprocess.check_call(['xdg-open', '--', str(location)])
 
+
+class ProjectDisplayItemCounter:
+
+    def __init__(self, project: Project.Project):
+        self.__project = project
+        self.__count = len(project.display_items)
+        self.on_title_changed = None
+
+        def item_inserted(key: str, value, index: int) -> None:
+            if key == "display_items":
+                self.__count += 1
+                if callable(self.on_title_changed):
+                    self.on_title_changed(self.title)
+
+        def item_removed(key: str, value, index: int) -> None:
+            if key == "display_items":
+                self.__count -= 1
+                if callable(self.on_title_changed):
+                    self.on_title_changed(self.title)
+
+        self.__item_inserted_event_listener = project.item_inserted_event.listen(item_inserted)
+        self.__item_removed_event_listener = project.item_removed_event.listen(item_removed)
+
+    def close(self) -> None:
+        self.__item_inserted_event_listener.close()
+        self.__item_inserted_event_listener = None
+        self.__item_removed_event_listener.close()
+        self.__item_removed_event_listener = None
+
+    @property
+    def title(self) -> str:
+        return f"{self.__project.project_title} ({self.__count})"
 
 
 class DisplayItemController:
@@ -96,7 +127,7 @@ class DisplayItemController:
 
 class ProjectPanelProjectItem:
 
-    def __init__(self, indent: int, project: Project.Project, display_item_controller: DisplayItemController):
+    def __init__(self, indent: int, project: Project.Project, display_item_controller: ProjectDisplayItemCounter):
         self.is_folder = False
         self.indent = indent
         self.project = project
@@ -234,19 +265,13 @@ class TreeModel:
                 project_key = "/".join(key_path + [project.project_reference_parts[-1]])
                 encountered_items.add(project_key)
                 if not folder_closed:
-                    # configure a filtered list for the project.
-                    # the list does not need to be sorted since we're only interested in the count.
-                    display_items_model = ListModel.FilteredListModel(items_key="display_items")
-                    display_items_model.container = self.document_controller.document_model
-                    display_items_model.filter = project.project_filter
-                    items_controller = DisplayItemController(project.project_title, display_items_model, self.document_controller)
 
                     def handle_item_controller_title_changed(t: str) -> None:
                         self.property_changed_event.fire("value")
 
-                    items_controller.on_title_changed = handle_item_controller_title_changed
-
-                    project_panel_items.append(ProjectPanelProjectItem(len(key_path) + 1, project, items_controller))
+                    display_item_counter = ProjectDisplayItemCounter(project)
+                    display_item_counter.on_title_changed = handle_item_controller_title_changed
+                    project_panel_items.append(ProjectPanelProjectItem(len(key_path) + 1, project, display_item_counter))
 
     # define a function to determine the check state of a node.
     def __get_node_check_state(self, folder_node: TreeNode) -> str:
