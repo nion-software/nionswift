@@ -218,6 +218,7 @@ class DataListController:
         self.__display_item_adapters_model = display_item_adapters_model
         self.__display_item_adapter_inserted_event_listener = self.__display_item_adapters_model.item_inserted_event.listen(self.__display_item_adapter_inserted)
         self.__display_item_adapter_removed_event_listener = self.__display_item_adapters_model.item_removed_event.listen(self.__display_item_adapter_removed)
+        self.__display_item_adapter_end_changes_event_listener = self.__display_item_adapters_model.end_changes_event.listen(self.__display_item_adapter_end_changes)
 
         class ListCanvasItemDelegate:
             def __init__(self, data_list_controller):
@@ -294,6 +295,8 @@ class DataListController:
         self.__display_item_adapter_inserted_event_listener = None
         self.__display_item_adapter_removed_event_listener.close()
         self.__display_item_adapter_removed_event_listener = None
+        self.__display_item_adapter_end_changes_event_listener.close()
+        self.__display_item_adapter_end_changes_event_listener = None
         self.__display_item_adapters = None
         self.on_display_item_adapter_selection_changed = None
         self.on_context_menu_event = None
@@ -360,10 +363,6 @@ class DataListController:
         if key == "display_item_adapters":
             self.__display_item_adapters.insert(before_index, display_item_adapter)
             self.__display_item_adapter_needs_update_listeners.insert(before_index, display_item_adapter.needs_update_event.listen(self.__display_item_adapter_needs_update))
-            # tell the icon view to update.
-            if self.canvas_item.visible:
-                self.__list_canvas_item.refresh_layout()
-                self.__list_canvas_item.update()
 
     # call this method to remove a display item (by index)
     # not thread safe
@@ -372,6 +371,9 @@ class DataListController:
             self.__display_item_adapter_needs_update_listeners[index].close()
             del self.__display_item_adapter_needs_update_listeners[index]
             del self.__display_item_adapters[index]
+
+    def __display_item_adapter_end_changes(self, key):
+        if key == "display_item_adapters":
             if self.canvas_item.visible:
                 self.__list_canvas_item.refresh_layout()
                 self.__list_canvas_item.update()
@@ -426,6 +428,7 @@ class DataGridController:
         self.__display_item_adapters_model = display_item_adapters_model
         self.__display_item_adapter_inserted_event_listener = self.__display_item_adapters_model.item_inserted_event.listen(self.__display_item_adapter_inserted)
         self.__display_item_adapter_removed_event_listener = self.__display_item_adapters_model.item_removed_event.listen(self.__display_item_adapter_removed)
+        self.__display_item_adapter_end_changes_event_listener = self.__display_item_adapters_model.end_changes_event.listen(self.__display_item_adapter_end_changes)
 
         class GridCanvasItemDelegate:
             def __init__(self, data_grid_controller):
@@ -518,6 +521,8 @@ class DataGridController:
         self.__display_item_adapter_inserted_event_listener = None
         self.__display_item_adapter_removed_event_listener.close()
         self.__display_item_adapter_removed_event_listener = None
+        self.__display_item_adapter_end_changes_event_listener.close()
+        self.__display_item_adapter_end_changes_event_listener = None
         for display_item_adapter_needs_update_listener in self.__display_item_adapter_needs_update_listeners:
             display_item_adapter_needs_update_listener.close()
         self.__display_item_adapter_needs_update_listeners = None
@@ -595,10 +600,6 @@ class DataGridController:
         if key == "display_item_adapters":
             self.__display_item_adapters.insert(before_index, display_item_adapter)
             self.__display_item_adapter_needs_update_listeners.insert(before_index, display_item_adapter.needs_update_event.listen(self.__display_item_adapter_needs_update))
-            # tell the icon view to update.
-            if self.canvas_item.visible:
-                self.icon_view_canvas_item.refresh_layout()
-                self.icon_view_canvas_item.update()
 
     # call this method to remove a display item (by index)
     # not thread safe
@@ -607,6 +608,9 @@ class DataGridController:
             self.__display_item_adapter_needs_update_listeners[index].close()
             del self.__display_item_adapter_needs_update_listeners[index]
             del self.__display_item_adapters[index]
+
+    def __display_item_adapter_end_changes(self, key):
+        if key == "display_item_adapters":
             if self.canvas_item.visible:
                 self.icon_view_canvas_item.refresh_layout()
                 self.icon_view_canvas_item.update()

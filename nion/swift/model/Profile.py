@@ -42,6 +42,8 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             project_uuid_str = str(uuid.uuid4())
             active_project_uuids = [project_uuid_str]
 
+        self.__active_projects = set()
+
         self.define_root_context()
         self.define_type("profile")
         self.define_relationship("workspaces", WorkspaceLayout.factory)
@@ -53,7 +55,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_property("target_project_reference_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("closed_items", list())
-        self.define_property("active_project_uuids", active_project_uuids, changed=self.__property_changed)
+        self.define_property("active_project_uuids", active_project_uuids, changed=self.__active_projects_changed)
 
         self.project_inserted_event = Event.Event()
         self.project_removed_event = Event.Event()
@@ -88,8 +90,20 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         # the projects model is a property model where the value is the current list of projects.
         self.projects_model = Model.PropertyModel(copy.copy(self.__projects))
 
+        self.__update_active_projects()
+
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
+
+    def __active_projects_changed(self, name: str, active_project_uuids: typing.Sequence[str]) -> None:
+        self.__update_active_projects()
+        self.__property_changed(name, active_project_uuids)
+
+    def __update_active_projects(self) -> None:
+        self.__active_projects = set()
+        for project in self.__projects:
+            if project.project_reference.get("uuid", None) in self.active_project_uuids:
+                self.__active_projects.add(project)
 
     @property
     def projects(self) -> typing.List[Project.Project]:
@@ -273,6 +287,9 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         for project_reference in self.project_references:
             self.read_project(project_reference)
 
+        # update the active projects
+        self.__update_active_projects()
+
         # attempt to establish existing target project
         if self.target_project_reference_uuid:
             for project in self.__projects:
@@ -403,22 +420,13 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def active_projects(self) -> typing.Set[Project.Project]:
-        active_project_uuids = self.active_project_uuids
-        active_projects = set()
-        for project in self.__projects:
-            if project.project_reference.get("uuid", None) in active_project_uuids:
-                active_projects.add(project)
-        return active_projects
+        return self.__active_projects
 
     @property
     def project_filter(self) -> ListModel.Filter:
 
         def is_display_item_active(profile_weak_ref, display_item: DisplayItem.DisplayItem) -> bool:
-            active_projects = profile_weak_ref().active_projects
-            for project in active_projects:
-                if display_item in project.display_items:
-                    return True
-            return False
+            return display_item.project in profile_weak_ref().active_projects
 
         # use a weak reference to avoid circular references loops that prevent garbage collection
         return ListModel.PredicateFilter(functools.partial(is_display_item_active, weakref.ref(self)))
