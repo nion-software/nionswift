@@ -3,6 +3,10 @@
 Release Notes
 =============
 
+Version 0.15.0 (UNRELEASED)
+---------------------------
+* (2020-3-26) Allow pick computations for sequences of spectrum images.
+
 Version 0.14.8, November 27, 2019
 ---------------------------------
 * (2019-11-25) Improve display of sequence measurements.

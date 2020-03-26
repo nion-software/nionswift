@@ -2123,6 +2123,43 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def make_data_item_with_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
         return self.__make_computation(processing_id, inputs, region_list_map)
 
+    def __digest_requirement(self, requirement: typing.Mapping[str, typing.Any], data_item: DataItem.DataItem) -> bool:
+        requirement_type = requirement["type"]
+        if requirement_type == "datum_rank":
+            values = requirement.get("values")
+            if not data_item.datum_dimension_count in values:
+                return False
+        if requirement_type == "datum_calibrations":
+            if requirement.get("units") == "equal":
+                if len(set([calibration.units for calibration in data_item.xdata.datum_dimensional_calibrations])) != 1:
+                    return False
+        if requirement_type == "dimensionality":
+            min_dimension = requirement.get("min")
+            max_dimension = requirement.get("max")
+            dimensionality = len(data_item.dimensional_shape)
+            if min_dimension is not None and dimensionality < min_dimension:
+                return False
+            if max_dimension is not None and dimensionality > max_dimension:
+                return False
+        if requirement_type == "is_sequence":
+            if not data_item.is_sequence:
+                return False
+
+        if requirement_type == "bool":
+            operator = requirement["operator"]
+            for operand in requirement["operands"]:
+                requirement_satisfied = self.__digest_requirement(operand, data_item)
+                if operator == "not":
+                    return not requirement_satisfied
+                if operator == "and" and not requirement_satisfied:
+                    return False
+                if operator == "or" and requirement_satisfied:
+                    return True
+            else:
+                if operator == "or":
+                    return False
+        return True
+
     def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None, parameters: typing.Mapping[str, typing.Any]=None) -> typing.Optional[DataItem.DataItem]:
         """Create a new data item with computation specified by processing_id, inputs, and region_list_map.
 
@@ -2152,28 +2189,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 return None
 
             # each source can have a list of requirements, check through them
+            # implicit "and" connection between the requirements in the list. Could be changed to use the new
+            # boolean options, but leave it like this for backwards compatibility for now.
             requirements = src_dict.get("requirements", list())
             for requirement in requirements:
-                requirement_type = requirement["type"]
-                if requirement_type == "datum_rank":
-                    values = requirement.get("values")
-                    if not data_item.datum_dimension_count in values:
-                        return None
-                if requirement_type == "datum_calibrations":
-                    if requirement.get("units") == "equal":
-                        if len(set([calibration.units for calibration in data_item.xdata.datum_dimensional_calibrations])) != 1:
-                            return None
-                if requirement_type == "dimensionality":
-                    min_dimension = requirement.get("min")
-                    max_dimension = requirement.get("max")
-                    dimensionality = len(data_item.dimensional_shape)
-                    if min_dimension is not None and dimensionality < min_dimension:
-                        return None
-                    if max_dimension is not None and dimensionality > max_dimension:
-                        return None
-                if requirement_type == "is_sequence":
-                    if not data_item.is_sequence:
-                        return None
+                if not self.__digest_requirement(requirement, data_item):
+                    return None
 
             src_name = src_dict["name"]
             src_label = src_dict["label"]
@@ -2363,8 +2384,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     # TODO: how to refer to the data_items? hardcode to data_item0 for now.
                     display_item0 = self.get_display_item_for_data_item(data_item0)
                     display_data_channel0 = display_item0.display_data_channel if display_item0 else None
-                    connection = Connection.PropertyConnection(display_data_channel0, connection_src_prop, new_regions[connection_dst], connection_dst_prop, parent=new_data_item)
-                    self.append_connection(connection, project=project)
+                    connection = None
+                    if connection_dst == "display_data_channel":
+                        dst_display_data_channel = new_display_item.display_data_channel
+                        connection = Connection.PropertyConnection(display_data_channel0, connection_src_prop, dst_display_data_channel, connection_dst_prop, parent=new_data_item)
+                    else:
+                        connection = Connection.PropertyConnection(display_data_channel0, connection_src_prop, new_regions[connection_dst], connection_dst_prop, parent=new_data_item)
+                    if connection:
+                        self.append_connection(connection, project=project)
             elif connection_type == "interval_list":
                 connection = Connection.IntervalListConnection(new_display_item, region_map[connection_dst], parent=new_data_item)
                 self.append_connection(connection, project=project)
@@ -2408,6 +2435,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             requirement_4d = {"type": "dimensionality", "min": 4, "max": 4}
             requirement_2d_to_3d = {"type": "dimensionality", "min": 2, "max": 3}
             requirement_2d_to_4d = {"type": "dimensionality", "min": 2, "max": 4}
+            requirement_is_sequence = {"type": "is_sequence"}
+            requirement_is_not_sequence = {"type": "bool", "operator": "not", "operands": [requirement_is_sequence]}
+            requirement_4d_if_sequence_else_3d = {"type": "bool", "operator": "or",
+                                                  "operands": [{"type": "bool", "operator": "and",
+                                                                "operands": [requirement_is_not_sequence, requirement_3d]},
+                                                               {"type": "bool", "operator": "and",
+                                                                "operands": [requirement_is_sequence, requirement_4d]}]}
 
             for processing_component in typing.cast(typing.Sequence[Processing.ProcessingBase], Registry.get_components_by_type("processing-component")):
                 processing_component.register_computation()
@@ -2495,18 +2529,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             pick_in_region = {"name": "pick_region", "type": "point", "params": {"label": _("Pick Point")}}
             pick_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice")}}
             pick_connection = {"type": "property", "src": "display_data_channel", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
+            sequence_connection = {"type": "property", "src": "display_data_channel", "src_prop": "sequence_index", "dst": "display_data_channel", "dst_prop": "sequence_index"}
             vs["pick-point"] = {"title": _("Pick"), "expression": "xd.pick({src}.xdata, pick_region.position)",
-                "sources": [{"name": "src", "label": _("Source"), "regions": [pick_in_region], "requirements": [requirement_3d]}],
-                "out_regions": [pick_out_region], "connections": [pick_connection]}
+                "sources": [{"name": "src", "label": _("Source"), "regions": [pick_in_region], "requirements": [requirement_4d_if_sequence_else_3d]}],
+                "out_regions": [pick_out_region], "connections": [pick_connection, sequence_connection]}
             pick_sum_in_region = {"name": "region", "type": "rectangle", "params": {"label": _("Pick Region")}}
             pick_sum_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice")}}
             pick_sum_connection = {"type": "property", "src": "display_data_channel", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
-            vs["pick-mask-sum"] = {"title": _("Pick Sum"), "expression": "xd.sum_region({src}.xdata, region.mask_xdata_with_shape({src}.xdata.data_shape[0:2]))",
-                "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
-                "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}
-            vs["pick-mask-average"] = {"title": _("Pick Average"), "expression": "xd.average_region({src}.xdata, region.mask_xdata_with_shape({src}.xdata.data_shape[0:2]))",
-                "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
-                "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}
+            vs["pick-mask-sum"] = {"title": _("Pick Sum"), "expression": "xd.sum_region({src}.xdata, region.mask_xdata_with_shape({src}.xdata.data_shape[-3:-1]))",
+                "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_4d_if_sequence_else_3d]}],
+                "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection, sequence_connection]}
+            vs["pick-mask-average"] = {"title": _("Pick Average"), "expression": "xd.average_region({src}.xdata, region.mask_xdata_with_shape({src}.xdata.data_shape[-3:-1]))",
+                "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_4d_if_sequence_else_3d]}],
+                "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection, sequence_connection]}
             vs["subtract-mask-average"] = {"title": _("Subtract Average"), "expression": "{src}.xdata - xd.average_region({src}.xdata, region.mask_xdata_with_shape({src}.xdata.data_shape[0:2]))",
                 "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
                 "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}
@@ -2516,7 +2551,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}], "connections": [line_profile_connection]}
             vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft({src}.filtered_xdata))",
                 "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d]}]}
-            requirement_is_sequence = {"type": "is_sequence"}
             vs["sequence-register"] = {"title": _("Shifts"), "expression": "xd.sequence_squeeze_measurement(xd.sequence_measure_relative_translation({src}.xdata, {src}.xdata[numpy.unravel_index(0, {src}.xdata.navigation_dimension_shape)], 100))",
                 "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d]}]}
             vs["sequence-align"] = {"title": _("Alignment"), "expression": "xd.sequence_align({src}.xdata, 100)",

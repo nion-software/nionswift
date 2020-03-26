@@ -1977,7 +1977,7 @@ class TestDocumentModelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             pick_data_item = document_model.get_pick_new(display_item)
             pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
-            self.assertEqual(1, len(document_model.connections))
+            self.assertEqual(2, len(document_model.connections))
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
             display_data_channel = display_item.display_data_channels[0]
@@ -1994,7 +1994,7 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.undelete_all(undelete_log)
             pick_data_item = document_model.data_items[1]
             pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
-            self.assertEqual(1, len(document_model.connections))
+            self.assertEqual(2, len(document_model.connections))
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
             # ensure connection works
