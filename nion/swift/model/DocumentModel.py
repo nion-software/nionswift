@@ -1470,20 +1470,25 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 return data_group
         return None
 
-    def get_display_items_for_data_item(self, data_item: DataItem.DataItem) -> typing.Sequence[DisplayItem.DisplayItem]:
-        display_items = list()
-        for display_item in self.display_items:
-            if data_item in display_item.data_items:
-                display_items.append(display_item)
+    def get_display_items_for_data_item(self, data_item: typing.Optional[DataItem.DataItem]) -> typing.Set[DisplayItem.DisplayItem]:
+        # return the set of display items for the data item
+        display_items = set()
+        if data_item:
+            for display_data_channel in data_item.display_data_channels:
+                display_items.add(display_data_channel.container)
         return display_items
 
-    def get_any_display_item_for_data_item(self, data_item: DataItem.DataItem) -> typing.Optional[DisplayItem.DisplayItem]:
-        display_items = self.get_display_items_for_data_item(data_item)
-        return display_items[0] if len(display_items) > 0 else None
+    def get_any_display_item_for_data_item(self, data_item: typing.Optional[DataItem.DataItem]) -> typing.Optional[DisplayItem.DisplayItem]:
+        # return the first display item containing the data item.
+        # ordering is preserved (useful, at least for tests).
+        for display_item in self.display_items:
+            if data_item in display_item.data_items:
+                return display_item
+        return None
 
     def get_display_item_for_data_item(self, data_item: DataItem.DataItem) -> typing.Optional[DisplayItem.DisplayItem]:
         display_items = self.get_display_items_for_data_item(data_item)
-        return display_items[0] if len(display_items) == 1 else None
+        return next(iter(display_items)) if len(display_items) == 1 else None
 
     def are_display_items_equal(self, display_item1: DisplayItem.DisplayItem, display_item2: DisplayItem.DisplayItem) -> bool:
         return display_item1 == display_item2
@@ -1873,7 +1878,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id))
             data_item = data_item_reference.data_item
             if data_item:
-                hardware_source.clean_display_items(self, self.get_display_items_for_data_item(data_item))
+                hardware_source.clean_display_items(self, list(self.get_display_items_for_data_item(data_item)))
 
     def __hardware_source_removed(self, hardware_source):
         self.__hardware_source_call_soon_event_listeners[hardware_source.hardware_source_id].close()

@@ -11,7 +11,6 @@ import threading
 import time
 import typing
 import uuid
-import weakref
 
 # local libraries
 from nion.data import Calibration
@@ -412,29 +411,44 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
         self.__last_data_item = None
 
-        def connect_data_item(data_item):
+        def connect_data_item(data_item: DataItem.DataItem) -> None:
             self.__disconnect_data_item_events()
             if self.__last_data_item:
                 for _ in range(self.__display_ref_count):
                     self.__last_data_item.decrement_data_ref_count()
             self.__connect_data_item_events()
             self.__validate_slice_indexes()
+            # tell the data item that this display data channel is referencing it
+            if data_item:
+                data_item.add_display_data_channel(self)
             if self.__data_item:
                 for _ in range(self.__display_ref_count):
                     self.__data_item.increment_data_ref_count()
             self.__last_data_item = self.__data_item
             self.data_item_proxy_changed_event.fire()
 
-        self.__data_item_proxy.on_item_registered = connect_data_item
+        def disconnect_data_item(data_item: DataItem.DataItem) -> None:
+            # tell the data item that this display data channel is no longer referencing it
+            if data_item:
+                data_item.remove_display_data_channel(self)
 
-        if data_item:
-            connect_data_item(data_item)
+        self.__data_item_proxy.on_item_registered = connect_data_item
+        self.__data_item_proxy.on_item_unregistered = disconnect_data_item
+
+        if self.__data_item_proxy.item:
+            connect_data_item(typing.cast(DataItem.DataItem, self.__data_item_proxy.item))
 
     def close(self) -> None:
         self.__data_item_proxy.close()
         self.__data_item_proxy = None
         self.__disconnect_data_item_events()
         super().close()
+
+    def about_to_be_removed(self, container):
+        # tell the data item that this display data channel is no longer referencing it
+        if self.__data_item:
+            self.__data_item.remove_display_data_channel(self)
+        super().about_to_be_removed(container)
 
     def __deepcopy__(self, memo):
         display_data_channel = self.__class__()
@@ -447,7 +461,13 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         display_data_channel._set_persistent_property_value("slice_width", self._get_persistent_property_value("slice_width"))
         display_data_channel._set_persistent_property_value("data_item_reference", self._get_persistent_property_value("data_item_reference"))
         if self.__data_item.uuid == uuid.UUID(self._get_persistent_property_value("data_item_reference")):
+            # setting the item here allows it to be used to determine the project
+            # so that the new item can be added to the same project. however, it
+            # also prevents the item_registered call from happening; so do it
+            # explicitly here.
             display_data_channel.__data_item_proxy.item = self.__data_item
+            if callable(display_data_channel.__data_item_proxy.on_item_registered):
+                display_data_channel.__data_item_proxy.on_item_registered(self.__data_item)
         memo[id(self)] = display_data_channel
         return display_data_channel
 

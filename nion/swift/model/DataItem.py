@@ -10,6 +10,7 @@ import time
 import typing
 import uuid
 import warnings
+import weakref
 
 # third party libraries
 import numpy
@@ -244,6 +245,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__pending_queue = list()
         self.__content_changed = False
         self.__suspendable_storage_cache = None
+        self.__display_data_channel_refs = set()  # display data channels referencing this data item
         self.r_var = None
         self.about_to_cascade_delete_event = Event.Event()
         if data is not None:
@@ -350,6 +352,19 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     @property
     def _suspendable_storage_cache(self):
         return self.__suspendable_storage_cache
+
+    def add_display_data_channel(self, display_data_channel: "DisplayItem.DisplayDataChannel") -> None:
+        """Add a display data channel referencing this data item."""
+        self.__display_data_channel_refs.add(weakref.ref(display_data_channel))
+
+    def remove_display_data_channel(self, display_data_channel: "DisplayItem.DisplayDataChannel") -> None:
+        """Remove a display data channel referencing this data item."""
+        self.__display_data_channel_refs.remove(weakref.ref(display_data_channel))
+
+    @property
+    def display_data_channels(self) -> typing.Set["DisplayItem.DisplayDataChannel"]:
+        """Return the list of display data channels referencing this data item."""
+        return {display_data_channel_ref() for display_data_channel_ref in self.__display_data_channel_refs}
 
     @property
     def in_transaction_state(self) -> bool:

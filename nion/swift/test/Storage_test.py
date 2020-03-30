@@ -2989,7 +2989,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual("temporary", data_item_properties["category"])
                 self.assertNotIn("data_item_uuids", data_item_properties)
                 self.assertNotIn("connections", data_item_properties)
-                self.assertEqual(document_model.get_display_items_for_data_item(data_item), [display_item])
+                self.assertEqual(document_model.get_display_items_for_data_item(data_item), {display_item})
                 self.assertEqual(display_item.data_item, data_item)
                 self.assertEqual(display_item.session_id, data_item.session_id)
                 self.assertEqual(display_item.calibration_style_id, "pixels-center")
