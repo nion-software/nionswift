@@ -217,12 +217,21 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         self.content.add(self.__stack)
 
+        self.__sync_events = set()
+
         self.__lock = threading.RLock()
 
         self.__q = collections.deque()
         self.__output_queue = collections.deque()
 
+        self.__is_closed = False
+
     def close(self):
+        self.__is_closed = True
+        for sync_event in self.__sync_events:
+            sync_event.set()
+        if self.__thread:
+            self.__thread.join()
         self.document_controller.clear_task("ui_" + str(id(self)))
         self.document_controller.clear_task("run_" + str(id(self)))
         self.document_controller.clear_task("show_" + str(id(self)))
@@ -348,14 +357,15 @@ class RunScriptDialog(Dialog.ActionDialog):
             except Exception:
                 pass
 
-            result = self.confirm(_("Finished"), _("Run Again"), _("Close"))
+            if not self.__is_closed:
+                result = self.confirm(_("Finished"), _("Run Again"), _("Close"))
 
-            with self.__lock:
-                if result:
-                    self.__q.append(functools.partial(self.run_script, script_path))
-                else:
-                    self.__q.append(self.request_close)
-                self.document_controller.add_task("run_" + str(id(self)), self.__handle_output_and_q)
+                with self.__lock:
+                    if result:
+                        self.__q.append(functools.partial(self.run_script, script_path))
+                    else:
+                        self.__q.append(self.request_close)
+                    self.document_controller.add_task("run_" + str(id(self)), self.__handle_output_and_q)
 
         self.__thread = threading.Thread(target=func_run, args=(func,))
         self.__thread.start()
@@ -385,34 +395,37 @@ class RunScriptDialog(Dialog.ActionDialog):
     def print_warn(self, text):
         self.print(text)
 
-    def get_string(self, prompt, default_str=None) -> str:
+    def get_string(self, prompt, default_str=None) -> typing.Optional[str]:
         """Return a string value that the user enters. Raises exception for cancel."""
-        accept_event = threading.Event()
-        value_ref = [None]
+        with self.sync_event() as accept_event:
+            result = None
 
-        def perform():
-            def accepted(text):
-                value_ref[0] = text
-                accept_event.set()
+            def perform():
+                def accepted(text):
+                    nonlocal result
+                    result = text
+                    accept_event.set()
 
-            def rejected():
-                accept_event.set()
+                def rejected():
+                    accept_event.set()
 
-            self.__message_column.remove_all()
-            pose_get_string_message_box(self.ui, self.__message_column, prompt, str(default_str), accepted, rejected)
-            #self.__message_column.add(self.__make_cancel_row())
+                self.__message_column.remove_all()
+                pose_get_string_message_box(self.ui, self.__message_column, prompt, str(default_str), accepted, rejected)
 
-        with self.__lock:
-            self.__q.append(perform)
-            self.document_controller.add_task("ui_" + str(id(self)), self.__handle_output_and_q)
-        accept_event.wait()
+            with self.__lock:
+                self.__q.append(perform)
+                self.document_controller.add_task("ui_" + str(id(self)), self.__handle_output_and_q)
+            accept_event.wait()
+            if self.__is_closed:
+                raise Exception("Cancel")
+
         def update_message_column():
             self.__message_column.remove_all()
             self.__message_column.add(self.__make_cancel_row())
         self.document_controller.add_task("ui_" + str(id(self)), update_message_column)
-        if value_ref[0] is None:
+        if result is None:
             raise Exception("Cancel")
-        return value_ref[0]
+        return result
 
     def get_integer(self, prompt: str, default_value: int=0) -> int:
         converter = Converter.IntegerToStringConverter()
@@ -425,49 +438,69 @@ class RunScriptDialog(Dialog.ActionDialog):
         return converter.convert_back(result)
 
     def show_ndarray(self, data: numpy.ndarray, title:str = None) -> None:
-        accept_event = threading.Event()
+        with self.sync_event() as accept_event:
 
-        def perform():
-            result_display_panel = self.document_controller.next_result_display_panel()
-            if result_display_panel:
-                data_item = self.document_controller.add_data(data, title)
-                display_item = self.document_controller.document_model.get_display_item_for_data_item(data_item)
-                result_display_panel.set_display_panel_display_item(display_item)
-                result_display_panel.request_focus()
-            accept_event.set()
+            def perform():
+                result_display_panel = self.document_controller.next_result_display_panel()
+                if result_display_panel:
+                    data_item = self.document_controller.add_data(data, title)
+                    display_item = self.document_controller.document_model.get_display_item_for_data_item(data_item)
+                    result_display_panel.set_display_panel_display_item(display_item)
+                    result_display_panel.request_focus()
+                accept_event.set()
 
-        with self.__lock:
-            self.__q.append(perform)
-            self.document_controller.add_task("show_" + str(id(self)), self.__handle_output_and_q)
-        accept_event.wait()
+            with self.__lock:
+                self.__q.append(perform)
+                self.document_controller.add_task("show_" + str(id(self)), self.__handle_output_and_q)
+            accept_event.wait()
+            if self.__is_closed:
+                raise Exception("Cancel")
+
+    def __register_sync_event(self, sync_event: threading.Event) -> None:
+        self.__sync_events.add(sync_event)
+
+    def __unregister_sync_event(self, sync_event: threading.Event) -> None:
+        self.__sync_events.remove(sync_event)
+
+    @contextlib.contextmanager
+    def sync_event(self):
+        sync_event = threading.Event()
+        self.__register_sync_event(sync_event)
+        yield sync_event
+        self.__unregister_sync_event(sync_event)
 
     def __accept_reject(self, prompt, accepted_text, rejected_text, display_rejected):
         """Return a boolean value for accept/reject."""
-        accept_event = threading.Event()
-        result_ref = [False]
+        with self.sync_event() as accept_event:
+            result = False
 
-        def perform():
-            def accepted():
-                result_ref[0] = True
-                accept_event.set()
+            def perform():
+                def accepted():
+                    nonlocal result
+                    result = True
+                    accept_event.set()
 
-            def rejected():
-                result_ref[0] = False
-                accept_event.set()
+                def rejected():
+                    nonlocal result
+                    result = False
+                    accept_event.set()
 
-            self.__message_column.remove_all()
-            pose_confirmation_message_box(self.ui, self.__message_column, prompt, accepted, rejected, accepted_text, rejected_text, display_rejected)
-            #self.__message_column.add(self.__make_cancel_row())
+                self.__message_column.remove_all()
+                pose_confirmation_message_box(self.ui, self.__message_column, prompt, accepted, rejected, accepted_text, rejected_text, display_rejected)
+                #self.__message_column.add(self.__make_cancel_row())
 
-        with self.__lock:
-            self.__q.append(perform)
-            self.document_controller.add_task("ui_" + str(id(self)), self.__handle_output_and_q)
-        accept_event.wait()
+            with self.__lock:
+                self.__q.append(perform)
+                self.document_controller.add_task("ui_" + str(id(self)), self.__handle_output_and_q)
+            accept_event.wait()
+            if self.__is_closed:
+                raise Exception("Cancel")
+
         def update_message_column():
             self.__message_column.remove_all()
             self.__message_column.add(self.__make_cancel_row())
         self.document_controller.add_task("ui_" + str(id(self)), update_message_column)
-        return result_ref[0]
+        return result
 
     def confirm_ok_cancel(self, prompt: str) -> bool:
         return self.__accept_reject(prompt, _("OK"), _("Cancel"), True)
