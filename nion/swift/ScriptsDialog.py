@@ -8,6 +8,7 @@ import gettext
 import os
 import threading
 import traceback
+import typing
 
 # typing
 from typing import AbstractSet
