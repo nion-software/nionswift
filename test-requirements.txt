@@ -8,7 +8,7 @@
 -e git://github.com/nion-software/niondata.git#egg=niondata
 
 scipy
-numpy
+numpy==1.18.1
 h5py
 pytz
 tzlocal
