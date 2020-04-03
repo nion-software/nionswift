@@ -341,7 +341,10 @@ class DictStorageCache:
 
 
 class DbStorageCache:
+    count = 0  # useful for detecting leaks in tests
+
     def __init__(self, cache_filename):
+        DbStorageCache.count += 1
         self.__queue = queue.Queue()
         self.__queue_lock = threading.RLock()
         self.__started_event = threading.Event()
@@ -357,6 +360,7 @@ class DbStorageCache:
             self.__queue = None
         self.__thread.join()
         self.__thread = None
+        DbStorageCache.count -= 1
 
     def suspend_cache(self):
         pass

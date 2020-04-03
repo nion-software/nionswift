@@ -124,6 +124,7 @@ class TestStorageClass(unittest.TestCase):
     def setUp(self):
         NDataHandler.NDataHandler.count = 0
         HDF5Handler.HDF5Handler.count = 0
+        Cache.DbStorageCache.count = 0
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
         # self.__memory_start = memory_usage_resource()
 
@@ -132,6 +133,7 @@ class TestStorageClass(unittest.TestCase):
         # memory_usage = memory_usage_resource() - self.__memory_start
         # if memory_usage > 0.5:
         #     logging.debug("{} {}".format(self.id(), memory_usage))
+        self.assertEqual(0, Cache.DbStorageCache.count)
         self.assertEqual(0, NDataHandler.NDataHandler.count)
         self.assertEqual(0, HDF5Handler.HDF5Handler.count)
 
