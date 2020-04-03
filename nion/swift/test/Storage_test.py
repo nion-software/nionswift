@@ -32,6 +32,8 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import FileStorageSystem
 from nion.swift.model import Graphics
+from nion.swift.model import HDF5Handler
+from nion.swift.model import NDataHandler
 from nion.swift.model import Persistence
 from nion.swift.model import Profile
 from nion.swift.model import Symbolic
@@ -120,6 +122,8 @@ def create_memory_profile_context() -> Profile.MemoryProfileContext:
 class TestStorageClass(unittest.TestCase):
 
     def setUp(self):
+        NDataHandler.NDataHandler.count = 0
+        HDF5Handler.HDF5Handler.count = 0
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
         # self.__memory_start = memory_usage_resource()
 
@@ -128,7 +132,8 @@ class TestStorageClass(unittest.TestCase):
         # memory_usage = memory_usage_resource() - self.__memory_start
         # if memory_usage > 0.5:
         #     logging.debug("{} {}".format(self.id(), memory_usage))
-        pass
+        self.assertEqual(0, NDataHandler.NDataHandler.count)
+        self.assertEqual(0, HDF5Handler.HDF5Handler.count)
 
     """
     document
@@ -3261,15 +3266,18 @@ class TestStorageClass(unittest.TestCase):
             profile = profile_context.create_profile()
             profile.read_profile()
             with contextlib.closing(profile):
-                handler = profile.projects[0].project_storage_system._make_storage_handler(data_item)
-                handler.write_properties(data_item.write_to_dict(), datetime.datetime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+                with contextlib.closing(profile.projects[0].project_storage_system._make_storage_handler(data_item)) as handler:
+                    handler.write_properties(data_item.write_to_dict(), datetime.datetime.utcnow())
+                    handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # read the document and migrate
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             document_model.profile.projects[0].migrate_to_latest()
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
-                self.assertEqual(len(document_model.profile.projects[0].project_storage_system.find_data_items()), 1)
+                data_items = document_model.profile.projects[0].project_storage_system.find_data_items()
+                self.assertEqual(len(data_items), 1)
+                for data_item in data_items:
+                    data_item.close()
                 self.assertEqual("Title", document_model.data_items[0].title)
 
     # there is no defined migration for data item references

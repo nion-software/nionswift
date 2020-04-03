@@ -56,6 +56,11 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
         self.set_storage_system(self.__storage_system)
 
+    def close(self) -> None:
+        self.__storage_system.close()
+        self.__storage_system = None
+        super().close()
+
     def open(self) -> None:
         self.__storage_system.reset()  # this makes storage reusable during tests
 

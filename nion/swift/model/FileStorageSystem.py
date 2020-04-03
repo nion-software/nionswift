@@ -1,5 +1,6 @@
 import abc
 import collections
+import contextlib
 import copy
 import datetime
 import json
@@ -88,6 +89,7 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem",
 
         # find all data items for the given migration stage and return a list of storage handlers.
         # examples of storage handlers are NDataHandler and HDF5Handler. these give low level access to the file.
+        # every storage handle must be closed.
         storage_handlers = source_project_storage_system._find_data_items(migration_stage)
 
         # next, construct a list of ReaderInfo objects. ReaderInfo stores the properties portion of the data item,
@@ -101,6 +103,7 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem",
                 reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
                 preliminary_reader_info_list.append(reader_info)
             except Exception as e:
+                storage_handler.close()
                 logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
@@ -150,6 +153,9 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem",
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
+
+        for storage_handler in storage_handlers:
+            storage_handler.close()
 
     assert len(reader_info_list) == len(data_item_uuids)
 
@@ -202,6 +208,9 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         self.__properties_lock = threading.RLock()
         self.__write_delay_counts = dict()
         self.__write_delay_count = 0
+
+    def close(self) -> None:
+        pass
 
     @abc.abstractmethod
     def _write_properties(self) -> None:
@@ -410,6 +419,11 @@ class ProjectStorageSystem(PersistentStorageSystem):
         super().__init__()
         self.__storage_adapter_map = dict()
 
+    def close(self) -> None:
+        for storage_adapter in self.__storage_adapter_map.values():
+            storage_adapter.close()
+        self.__storage_adapter_map.clear()
+
     @abc.abstractmethod
     def _get_identifier(self) -> str: ...
 
@@ -490,6 +504,9 @@ class ProjectStorageSystem(PersistentStorageSystem):
             properties = reader_info.properties
             data_item_uuid = uuid.UUID(properties["uuid"])
             storage_adapter = DataItemStorageAdapter(storage_handler, properties)
+            old_storage_adapter = self.__storage_adapter_map.pop(data_item_uuid, None)
+            if old_storage_adapter:
+                old_storage_adapter.close()
             self.__storage_adapter_map[data_item_uuid] = storage_adapter
 
         properties_copy = self._read_properties()
@@ -694,7 +711,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         file_name = file_path.parts[-1]
         trash_dir = self.__project_data_path / "trash"
         new_file_path = trash_dir / file_name
-        storage_handler.close()  # moving files in the storage handler requires it to be closed.
+        storage_handler.prepare_move()  # moving files in the storage handler requires it to be closed.
         # TODO: move this functionality to the storage handler.
         if safe and not os.path.exists(new_file_path):
             trash_dir.mkdir(exist_ok=True)
@@ -705,21 +722,25 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         data_item_uuid_str = str(data_item_uuid)
         trash_dir = self.__project_data_path / "trash"
         storage_handlers = self.__find_storage_handlers(trash_dir, skip_trash=False)
-        for storage_handler in storage_handlers:
-            properties = Migration.transform_to_latest(storage_handler.read_properties())
-            if properties.get("uuid", None) == data_item_uuid_str:
-                data_item = DataItem.DataItem(item_uuid=data_item_uuid)
-                data_item.begin_reading()
-                data_item.read_from_dict(properties)
-                data_item.finish_reading()
-                old_file_path = storage_handler.reference
-                new_file_path = storage_handler.make_path(self.__project_data_path / self.__get_base_path(data_item))
-                if not os.path.exists(new_file_path):
-                    os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
-                    shutil.move(old_file_path, new_file_path)
-                self._make_storage_handler(data_item, file_handler=None)
-                properties["__large_format"] = isinstance(storage_handler, HDF5Handler.HDF5Handler)
-                return properties
+        try:
+            for storage_handler in storage_handlers:
+                properties = Migration.transform_to_latest(storage_handler.read_properties())
+                if properties.get("uuid", None) == data_item_uuid_str:
+                    data_item = DataItem.DataItem(item_uuid=data_item_uuid)
+                    data_item.begin_reading()
+                    data_item.read_from_dict(properties)
+                    data_item.finish_reading()
+                    old_file_path = storage_handler.reference
+                    new_file_path = storage_handler.make_path(self.__project_data_path / self.__get_base_path(data_item))
+                    if not os.path.exists(new_file_path):
+                        os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
+                        shutil.move(old_file_path, new_file_path)
+                    self._make_storage_handler(data_item, file_handler=None).close()  # what's this line for?
+                    properties["__large_format"] = isinstance(storage_handler, HDF5Handler.HDF5Handler)
+                    return properties
+        finally:
+            for storage_handler in storage_handlers:
+                storage_handler.close()
         return None
 
     def _prune(self) -> None:
@@ -750,13 +771,13 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         file_handler = self.__get_file_handler_for_file(str(old_data_item_path))
         # ask the storage system to make a storage handler (an instance of a file handler) for the data item
         # this ensures that the storage handler (file format) is the same as before.
-        target_storage_handler = self._make_storage_handler(old_data_item, file_handler)
-        if target_storage_handler and storage_handler.reference != target_storage_handler.reference:
-            os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
-            shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
-            target_storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
-            logging.getLogger("migration").info(f"Copying data item ({index + 1}/{count}) {data_item_uuid} to new library.")
-            return ReaderInfo(properties, [False], self._is_storage_handler_large_format(target_storage_handler), target_storage_handler, target_storage_handler.reference)
+        with contextlib.closing(self._make_storage_handler(old_data_item, file_handler)) as target_storage_handler:
+            if target_storage_handler and storage_handler.reference != target_storage_handler.reference:
+                os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
+                shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
+                target_storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
+                logging.getLogger("migration").info(f"Copying data item ({index + 1}/{count}) {data_item_uuid} to new library.")
+                return ReaderInfo(properties, [False], self._is_storage_handler_large_format(target_storage_handler), target_storage_handler, target_storage_handler.reference)
         logging.getLogger("migration").warning(f"Unable to copy data item {data_item_uuid} to new library.")
         return None
 

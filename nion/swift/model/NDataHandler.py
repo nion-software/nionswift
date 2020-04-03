@@ -374,12 +374,18 @@ class NDataHandler:
 
         TODO: Move NDataHandler into a plug-in
     """
+    count = 0  # useful for detecting leaks in tests
 
     def __init__(self, file_path):
         self.__file_path = str(file_path)
         self.__lock = threading.RLock()
+        NDataHandler.count += 1
 
     def close(self):
+        NDataHandler.count -= 1
+
+    # called before the file is moved; close but don't count.
+    def prepare_move(self) -> None:
         pass
 
     @property

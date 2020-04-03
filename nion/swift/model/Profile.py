@@ -371,9 +371,9 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             target_project_uuid = uuid.uuid4()
             target_project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(target_project_uuid), "project_data_folders": [str(target_data_path.stem)]})
             target_project_path.write_text(target_project_data_json, "utf-8")
-            new_storage_system = FileStorageSystem.FileProjectStorageSystem(target_project_path)
-            new_storage_system.load_properties()
-            FileStorageSystem.migrate_to_latest(project.project_storage_system, new_storage_system)
+            with contextlib.closing(FileStorageSystem.FileProjectStorageSystem(target_project_path)) as new_storage_system:
+                new_storage_system.load_properties()
+                FileStorageSystem.migrate_to_latest(project.project_storage_system, new_storage_system)
             self.remove_project(project)
             self.read_project(self.add_project_index(target_project_path))
 

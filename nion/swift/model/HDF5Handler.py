@@ -28,14 +28,23 @@ def make_directory_if_needed(directory_path):
 
 
 class HDF5Handler:
+    count = 0  # useful for detecting leaks in tests
 
     def __init__(self, file_path):
         self.__file_path = str(file_path)
         self.__lock = threading.RLock()
         self.__fp = None
         self.__dataset = None
+        HDF5Handler.count += 1
 
     def close(self):
+        HDF5Handler.count -= 1
+        if self.__fp:
+            self.__fp.close()
+            self.__fp = None
+
+    # called before the file is moved; close but don't count.
+    def prepare_move(self) -> None:
         if self.__fp:
             self.__fp.close()
             self.__fp = None
