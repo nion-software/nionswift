@@ -10,6 +10,7 @@ import os.path
 import pathlib
 import shutil
 import threading
+import time
 import typing
 import uuid
 
@@ -526,7 +527,8 @@ class ProjectStorageSystem(PersistentStorageSystem):
                 properties_copy.setdefault("data_items", list()).append(data_item_properties)
 
         def data_item_created(data_item_properties: typing.Mapping) -> str:
-            return data_item_properties.get("created", "1900-01-01T00:00:00.000000")
+            earliest_datetime = datetime.datetime.fromtimestamp(time.mktime(time.gmtime(0))).isoformat()
+            return data_item_properties.get("created", earliest_datetime)
 
         data_items_copy = sorted(properties_copy.get("data_items", list()), key=data_item_created)
         if len(data_items_copy) > 0:
@@ -786,7 +788,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         for reader_info in reader_info_list:
             data_item_properties = Utility.clean_dict(reader_info.properties if reader_info.properties else dict())
             if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
-                file_datetime = DataItem.DatetimeToStringConverter().convert_back(data_item_properties.get("created", "1900-01-01T00:00:00.000000"))
+                earliest_datetime = datetime.datetime.fromtimestamp(time.mktime(time.gmtime(0))).isoformat()
+                file_datetime = DataItem.DatetimeToStringConverter().convert_back(data_item_properties.get("created", earliest_datetime))
                 reader_info.storage_handler.write_properties(reader_info.properties, file_datetime)
 
     @staticmethod
@@ -977,7 +980,8 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
                 data_properties_map[reader_info.identifier] = data_item_properties
 
         def data_item_created(data_item_properties: typing.Mapping) -> str:
-            return data_item_properties[1].get("created", "1900-01-01T00:00:00.000000")
+            earliest_datetime = datetime.datetime.fromtimestamp(time.mktime(time.gmtime(0))).isoformat()
+            return data_item_properties[1].get("created", earliest_datetime)
 
         data_properties_map = {k: v for k, v in sorted(data_properties_map.items(), key=data_item_created)}
 
