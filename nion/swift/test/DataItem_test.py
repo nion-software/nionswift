@@ -1083,6 +1083,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             data_item._set_modified(datetime.datetime(2000, 1, 1))
             modified = data_item.modified
+            time.sleep(0.001)  # windows has a time resolution of 1ms. sleep to avoid duplicate.
             data_item.category = "category"
             self.assertGreater(data_item.modified, modified)
 
@@ -1096,6 +1097,7 @@ class TestDataItemClass(unittest.TestCase):
             display_item._set_modified(datetime.datetime(2000, 1, 1))
             data_item_modified = data_item.modified
             display_item_modified = display_item.modified
+            time.sleep(0.001)  # windows has a time resolution of 1ms. sleep to avoid duplicate.
             display_item.calibration_style_id = "relative-top-left"
             self.assertEqual(data_item.modified, data_item_modified)
             self.assertGreater(display_item.modified, display_item_modified)
@@ -1107,6 +1109,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             data_item._set_modified(datetime.datetime(2000, 1, 1))
             modified = data_item.modified
+            time.sleep(0.001)  # windows has a time resolution of 1ms. sleep to avoid duplicate.
             data_item.set_data(numpy.zeros((2, 2)))
             self.assertGreater(data_item.modified, modified)
 
@@ -1114,6 +1117,7 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             timestamp = datetime.datetime(2000, 1, 1)
+            time.sleep(0.001)  # windows has a time resolution of 1ms. sleep to avoid duplicate.
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((2, 2)), timestamp=timestamp)
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)

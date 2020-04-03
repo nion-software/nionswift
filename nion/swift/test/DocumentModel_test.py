@@ -3,6 +3,7 @@ import contextlib
 import copy
 import gc
 import random
+import time
 import unittest
 import uuid
 
@@ -2234,6 +2235,7 @@ class TestDocumentModelClass(unittest.TestCase):
             graphic = Graphics.PointGraphic()
             display_item.add_graphic(graphic)
             modified = display_item.modified
+            time.sleep(0.001)  # windows has a time resolution of 1ms. sleep to avoid duplicate.
             graphic.label = "Fred"
             self.assertGreater(display_item.modified, modified)
 
