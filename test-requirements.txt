@@ -3,9 +3,8 @@
 # Use it like this:
 #   pip install -r test-requirements.txt
 
--e git://github.com/nion-software/nionutils.git#egg=nionutils
--e git://github.com/nion-software/niondata.git#egg=niondata
-
+nionutils==0.3.20
+niondata==0.13.9
 nionui==0.3.27
 
 scipy
