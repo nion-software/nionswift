@@ -677,7 +677,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__data_channel_stop_listeners = None
 
         self.__computation_thread_pool.close()
-        self.storage_cache.close()
         self.__transaction_manager.close()
         self.__transaction_manager = None
 

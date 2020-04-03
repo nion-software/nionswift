@@ -384,6 +384,9 @@ class MemoryPersistentStorageSystem(PersistentStorageSystem):
         self.__library_properties = library_properties if library_properties is not None else dict()
         super().__init__()
 
+    def close(self) -> None:
+        pass
+
     def _read_properties(self) -> typing.Dict:
         return copy.deepcopy(self.__library_properties)
 

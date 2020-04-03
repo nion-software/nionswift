@@ -346,7 +346,6 @@ class DbStorageCache:
         self.__queue_lock = threading.RLock()
         self.__started_event = threading.Event()
         self.__thread = threading.Thread(target=self.__run, args=[cache_filename])
-        self.__thread.daemon = True
         self.__thread.start()
         self.__started_event.wait()
 
@@ -356,6 +355,8 @@ class DbStorageCache:
             self.__queue.put((None, None, None, None))
             self.__queue.join()
             self.__queue = None
+        self.__thread.join()
+        self.__thread = None
 
     def suspend_cache(self):
         pass

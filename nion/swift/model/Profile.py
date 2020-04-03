@@ -60,7 +60,13 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.project_inserted_event = Event.Event()
         self.project_removed_event = Event.Event()
 
-        self.storage_system = storage_system if storage_system else FileStorageSystem.MemoryPersistentStorageSystem()
+        if storage_system:
+            self.__internal_storage_system = None  # nothing to deallocate
+            self.storage_system = storage_system
+        else:
+            self.__internal_storage_system = FileStorageSystem.MemoryPersistentStorageSystem()  # need to deallocate
+            self.storage_system = self.__internal_storage_system
+
         self.storage_system.load_properties()
 
         if auto_project:
@@ -76,7 +82,12 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             self.__work_project = None
             self.__target_project = None
 
-        self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
+        if storage_cache:
+            self.__internal_storage_cache = None  # nothing to deallocate
+            self.storage_cache = storage_cache
+        else:
+            self.__internal_storage_cache = Cache.DictStorageCache()  # need to deallocate
+            self.storage_cache = self.__internal_storage_cache
 
         self.set_storage_system(self.storage_system)
 
@@ -91,6 +102,17 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.projects_model = Model.PropertyModel(copy.copy(self.__projects))
 
         self.__update_active_projects()
+
+    def close(self) -> None:
+        if self.__internal_storage_cache:
+            self.__internal_storage_cache.close()
+            self.__internal_storage_cache = None
+        if self.__internal_storage_system:
+            self.__internal_storage_system.close()
+            self.__internal_storage_system = None
+        self.projects_model.close()
+        self.projects_model = None
+        super().close()
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
