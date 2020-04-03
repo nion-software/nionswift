@@ -4,8 +4,9 @@
 #   pip install -r test-requirements.txt
 
 -e git://github.com/nion-software/nionutils.git#egg=nionutils
--e git://github.com/nion-software/nionui.git#egg=nionui
 -e git://github.com/nion-software/niondata.git#egg=niondata
+
+nionui==0.3.27
 
 scipy
 numpy
