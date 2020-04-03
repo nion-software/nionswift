@@ -63,7 +63,6 @@ class TempProfileContext:
         Cache.db_make_directory_if_needed(self.workspace_dir)
         Cache.db_make_directory_if_needed(self.profiles_dir)
         Cache.db_make_directory_if_needed(self.projects_dir)
-        self.__storage_cache = Cache.DbStorageCache(self.profiles_dir / "ProfileCache.cache")
         self.__profile = None
         self.__no_remove = no_remove
 
@@ -77,7 +76,8 @@ class TempProfileContext:
             project_path.write_text(project_data_json, "utf-8")
             storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
             storage_system.load_properties()
-            profile = Profile.Profile(storage_system=storage_system, storage_cache=self.__storage_cache, auto_project=False)
+            storage_cache = Cache.DbStorageCache(self.profiles_dir / "ProfileCache.cache")
+            profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
             profile.add_project_index(project_path)
             project_uuid = uuid.UUID(profile.project_references[0].get("uuid"))
             profile.work_project_reference_uuid = project_uuid
@@ -87,7 +87,8 @@ class TempProfileContext:
             profile_path = self.profiles_dir / pathlib.Path(profile_name or "Profile").with_suffix(".nsprof")
             storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
             storage_system.load_properties()
-            profile = Profile.Profile(storage_system=storage_system, storage_cache=self.__storage_cache, auto_project=False)
+            storage_cache = Cache.DbStorageCache(self.profiles_dir / "ProfileCache.cache")
+            profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
             return profile
 
     def reset_profile(self):
@@ -101,8 +102,6 @@ class TempProfileContext:
         return self
 
     def __exit__(self, type_, value, traceback):
-        self.__storage_cache.close()
-        self.__storage_cache = None
         if self.__no_remove:
             import logging
             logging.debug("rmtree %s", self.workspace_dir)

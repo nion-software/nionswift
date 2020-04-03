@@ -353,6 +353,9 @@ class FilePersistentStorageSystem(PersistentStorageSystem):
         self.__path = path
         super().__init__()
 
+    def close(self) -> None:
+        pass
+
     @property
     def path(self) -> pathlib.Path:
         return self.__path
