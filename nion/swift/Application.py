@@ -1,5 +1,4 @@
 # standard libraries
-import asyncio
 import copy
 import gettext
 import json
@@ -38,7 +37,6 @@ from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
 from nion.ui import Application as UIApplication
 from nion.utils import Event
-from nion.utils import Process
 from nion.utils import Registry
 
 _ = gettext.gettext
@@ -64,8 +62,6 @@ class Application(UIApplication.Application):
         self.version_str = "0.14.8"
 
         self.document_model_available_event = Event.Event()
-
-        self.__event_loop = None
 
         if True or set_global:
             app = self  # hack to get the single instance set. hmm. better way?
@@ -100,12 +96,7 @@ class Application(UIApplication.Application):
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 
     def initialize(self, *, load_plug_ins=True, use_root_dir=True):
-        # configure the event loop object
-        logger = logging.getLogger()
-        old_level = logger.level
-        logger.setLevel(logging.INFO)
-        self.__event_loop = asyncio.new_event_loop()  # outputs a debugger message!
-        logger.setLevel(old_level)
+        super().initialize()
         # configure app data
         if load_plug_ins:
             logging.info("Python version " + str(sys.version.replace('\n', '')))
@@ -125,11 +116,7 @@ class Application(UIApplication.Application):
         # shut down hardware source manager, unload plug-ins, and really exit ui
         HardwareSource.HardwareSourceManager().close()
         PlugInManager.unload_plug_ins()
-        with open(os.path.join(self.ui.get_data_location(), "PythonConfig.ini"), 'w') as f:
-            f.write(sys.prefix + '\n')
-        Process.close_event_loop(self.__event_loop)
-        self.__event_loop = None
-        self.ui.close()
+        super().deinitialize()
 
     def run(self):
         """Alternate start which allows ui to control event loop."""
@@ -144,15 +131,6 @@ class Application(UIApplication.Application):
             document_controller.request_close()
         # document model is reference counted; when the no document controller holds a reference to the
         # document model, it will be closed.
-
-    def periodic(self) -> None:
-        if self.__event_loop:  # special for shutdown
-            self.__event_loop.stop()
-            self.__event_loop.run_forever()
-
-    @property
-    def event_loop(self) -> asyncio.AbstractEventLoop:
-        return self.__event_loop
 
     @property
     def document_model(self):
