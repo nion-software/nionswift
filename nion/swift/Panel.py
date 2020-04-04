@@ -26,8 +26,10 @@ class Panel:
         the panel and will invoke close and periodic on it. The dock
         widget expects the widget property to contain the ui content.
     """
+    count = 0  # useful for detecting leaks in tests
 
     def __init__(self, document_controller, panel_id, display_name):
+        Panel.count += 1
         self.__document_controller_weakref = weakref.ref(document_controller)
         self.ui = document_controller.ui
         self.panel_id = panel_id
@@ -43,6 +45,7 @@ class Panel:
         if self.dock_widget:  # sometimes encountered during tests
             self.dock_widget.close()
         self.widget = None  # closed by the dock_widget
+        Panel.count -= 1
 
     def create_dock_widget(self, title: str, positions: typing.Sequence[str], position: str) -> None:
         self.dock_widget = self.document_controller.create_dock_widget(self.widget, self.panel_id, title, positions, position)
@@ -95,6 +98,45 @@ class Panel:
 
 class OutputPanel(Panel):
 
+    __count = 0
+    __old_stdout = None
+    __old_stderr = None
+    __stdout_listeners = dict()
+    __stderr_listeners = dict()
+
+    @classmethod
+    def initialize(cls) -> None:
+        """Configure standard output."""
+        cls.__old_stdout = sys.stdout
+        cls.__old_stderr = sys.stderr
+
+        stdout_listeners = cls.__stdout_listeners
+
+        class StdoutCatcher:
+            def __init__(self, out):
+                self.__out = out
+            def write(self, stuff):
+                for stdout_listener in stdout_listeners.values():
+                    stdout_listener(stuff)
+                self.__out.write(stuff)
+            def flush(self):
+                self.__out.flush()
+            def getvalue(self):
+                return self.__out.getvalue()
+            @property
+            def delegate(self):
+                return self.__out.delegate
+
+        sys.stdout = StdoutCatcher(cls.__old_stdout)
+        sys.stderr = StdoutCatcher(cls.__old_stderr)
+
+    @classmethod
+    def deinitialize(cls) -> None:
+        __stdout_listeners = dict()
+        __stderr_listeners = dict()
+        sys.stdout = cls.__old_stdout
+        sys.stderr = cls.__old_stderr
+
     def __init__(self, document_controller, panel_id, properties):
         super().__init__(document_controller, panel_id, "Output")
         properties["min-height"] = 180
@@ -136,29 +178,22 @@ class OutputPanel(Panel):
 
         logging.getLogger().addHandler(self.__output_panel_handler)
 
-        self.__old_stdout = sys.stdout
-        self.__old_stderr = sys.stderr
+        if OutputPanel.__count == 0:
+            OutputPanel.initialize()
 
-        class StdoutCatcher:
-            def __init__(self, out):
-                self.__out = out
-            def write(self, stuff):
-                queue_message(stuff)
-                self.__out.write(stuff)
-            def flush(self):
-                self.__out.flush()
-            def getvalue(self):
-                return self.__out.getvalue()
-            @property
-            def delegate(self):
-                return self.__out.delegate
+        OutputPanel.__stdout_listeners[self] = queue_message
+        OutputPanel.__stderr_listeners[self] = queue_message
 
-        sys.stdout = StdoutCatcher(self.__old_stdout)
-        sys.stderr = StdoutCatcher(self.__old_stderr)
+        OutputPanel.__count += 1
 
     def close(self):
-        sys.stdout = self.__old_stdout
-        sys.stderr = self.__old_stderr
+        OutputPanel.__count -= 1
+        OutputPanel.__stdout_listeners.pop(self)
+        OutputPanel.__stderr_listeners.pop(self)
+
+        if OutputPanel.__count == 0:
+            OutputPanel.deinitialize()
+
         logging.getLogger().removeHandler(self.__output_panel_handler)
         super().close()
 
