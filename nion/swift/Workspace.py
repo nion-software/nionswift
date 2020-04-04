@@ -1055,6 +1055,6 @@ class WorkspaceManager(metaclass=Utility.Singleton):
         tuple = self.__panel_tuples[panel_id]
         return tuple[2], tuple[3], tuple[4], tuple[5]
 
-    def __get_panel_ids(self):
+    @property
+    def panel_ids(self):
         return list(self.__panel_tuples.keys())
-    panel_ids = property(__get_panel_ids)

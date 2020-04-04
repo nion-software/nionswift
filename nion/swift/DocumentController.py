@@ -55,13 +55,17 @@ from nion.utils import Model
 from nion.utils import Registry
 from nion.utils import Selection
 
+if typing.TYPE_CHECKING:
+    from nion.swift import Application
+
+
 _ = gettext.gettext
 
 
 class DocumentController(Window.Window):
     """Manage a document window."""
 
-    def __init__(self, ui, document_model, workspace_id=None, app=None):
+    def __init__(self, ui, document_model, workspace_id=None, app: "Application.Application" = None):
         super().__init__(ui, app)
 
         self.__undo_stack = Undo.UndoStack()
@@ -75,7 +79,6 @@ class DocumentController(Window.Window):
 
         self.task_created_event = Event.Event()
         self.cursor_changed_event = Event.Event()
-        self.did_close_event = Event.Event()
         self.create_new_document_controller_event = Event.Event()
         self.tool_mode_changed_event = Event.Event()
 
@@ -145,6 +148,10 @@ class DocumentController(Window.Window):
             self.__workspace_controller = Workspace.Workspace(self, workspace_id)
             self.__workspace_controller.restore(self.document_model.workspace_uuid)
 
+        if app:
+            for menu_handler in app.menu_handlers:  # use 'handler' to avoid name collision
+                menu_handler(self)
+
     def close(self):
         """Close the document controller.
 
@@ -190,8 +197,6 @@ class DocumentController(Window.Window):
         # to determine when to close it.
         self.document_model.remove_ref()
         self.document_model = None
-        self.did_close_event.fire(self)
-        self.did_close_event = None
         super().close()
 
     def _register_ui_activity(self):

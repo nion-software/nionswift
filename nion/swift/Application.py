@@ -36,6 +36,7 @@ from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
 from nion.ui import Application as UIApplication
+from nion.ui import Window as UIWindow
 from nion.utils import Event
 from nion.utils import Registry
 
@@ -45,7 +46,7 @@ app = None
 
 
 # facilitate bootstrapping the application
-class Application(UIApplication.Application):
+class Application(UIApplication.BaseApplication):
 
     def __init__(self, ui, set_global=True, resources_path=None):
         super().__init__(ui)
@@ -68,16 +69,11 @@ class Application(UIApplication.Application):
 
         self.__document_model = None
 
-        # a list of document controllers in the application.
-        self.__document_controllers = []
         self.__menu_handlers = []
 
         # map these document controller events to listener tokens.
-        # when the document controller closes, remove its listeners and
-        # then remove it from the list of document controllers.
         # when the document controller requests a new document controller,
         # respond in this class by creating a new document controller.
-        self.__did_close_event_listeners = dict()
         self.__create_new_event_listeners = dict()
 
         Registry.register_component(Inspector.DeclarativeImageChooserConstructor(self), {"declarative_constructor"})
@@ -121,16 +117,6 @@ class Application(UIApplication.Application):
     def run(self):
         """Alternate start which allows ui to control event loop."""
         self.ui.run(self)
-
-    def exit(self):
-        # close all document windows
-        for document_controller in copy.copy(self.__document_controllers):
-            # closing the document window will trigger the about_to_close event to be called which
-            # will then call document controller close which will fire its did_close_event which will
-            # remove the document controller from the list of document controllers.
-            document_controller.request_close()
-        # document model is reference counted; when the no document controller holds a reference to the
-        # document model, it will be closed.
 
     @property
     def document_model(self):
@@ -192,10 +178,6 @@ class Application(UIApplication.Application):
 
         return True
 
-    def stop(self):
-        # program is really stopping, clean up.
-        self.deinitialize()
-
     def get_recent_library_paths(self):
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
         return [file_path for file_path in workspace_history if os.path.exists(file_path)]
@@ -203,9 +185,7 @@ class Application(UIApplication.Application):
     def create_document_controller(self, document_model, workspace_id, display_item=None):
         self._set_document_model(document_model)  # required to allow API to find document model
         document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id, app=self)
-        self.__did_close_event_listeners[document_controller] = document_controller.did_close_event.listen(self.__document_controller_did_close)
         self.__create_new_event_listeners[document_controller] = document_controller.create_new_document_controller_event.listen(self.create_document_controller)
-        self.__register_document_controller(document_controller)
         self.document_model_available_event.fire(document_model)
         # attempt to set data item / group
         if display_item:
@@ -230,29 +210,20 @@ class Application(UIApplication.Application):
         storage_cache = Cache.DbStorageCache(cache_path)
         return Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False), create_new_profile
 
-    def __document_controller_did_close(self, document_controller):
-        self.__did_close_event_listeners[document_controller].close()
-        del self.__did_close_event_listeners[document_controller]
-        self.__create_new_event_listeners[document_controller].close()
-        del self.__create_new_event_listeners[document_controller]
-        self.__document_controllers.remove(document_controller)
-
-    def __register_document_controller(self, document_controller: DocumentController.DocumentController) -> None:
-        assert document_controller not in self.__document_controllers
-        self.__document_controllers.append(document_controller)
-        # when a document window is registered, tell the menu handlers
-        for menu_handler in self.__menu_handlers:  # use 'handler' to avoid name collision
-            menu_handler(document_controller)
+    def _window_did_close(self, window: UIWindow.Window) -> None:
+        self.__create_new_event_listeners[window].close()
+        del self.__create_new_event_listeners[window]
+        super()._window_did_close(window)
 
     @property
     def document_controllers(self) -> typing.List[DocumentController.DocumentController]:
-        return copy.copy(self.__document_controllers)
+        return typing.cast(typing.List[DocumentController.DocumentController], self.windows)
 
     def register_menu_handler(self, new_menu_handler):
         assert new_menu_handler not in self.__menu_handlers
         self.__menu_handlers.append(new_menu_handler)
         # when a menu handler is registered, let it immediately know about existing menu handlers
-        for document_controller in self.__document_controllers:
+        for document_controller in self.windows:
             new_menu_handler(document_controller)
         # return the menu handler so that it can be used to unregister (think: lambda)
         return new_menu_handler
