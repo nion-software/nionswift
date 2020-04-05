@@ -13,6 +13,7 @@ import numpy
 # local libraries
 from nion.swift import Application
 from nion.swift import Facade
+from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
@@ -1973,34 +1974,38 @@ class TestDocumentModelClass(unittest.TestCase):
         self.app._set_document_model(document_model)  # required to allow API to find document model
         with contextlib.closing(document_model):
             # create the data items
-            data_item = DataItem.DataItem(numpy.ones((4, 4, 100)))
-            document_model.append_data_item(data_item)
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            pick_data_item = document_model.get_pick_new(display_item)
-            pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
-            self.assertEqual(2, len(document_model.connections))
-            self.assertEqual(1, len(document_model.computations))
-            self.assertEqual(2, len(document_model.data_items))
-            display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual(pick_display_item.graphics[0].interval, display_data_channel.slice_interval)
-            # only even width intervals aligned to pixels are represented exactly by slices
-            pick_display_item.graphics[0].interval = (12 / 100, 16 / 100)
-            self.assertEqual(pick_display_item.graphics[0].interval, display_data_channel.slice_interval)
-            # delete the pick and verify
-            with contextlib.closing(document_model.remove_data_item_with_log(pick_data_item, safe=True)) as undelete_log:
+            data_item1 = DataItem.DataItem(numpy.ones((4, 4)))
+            document_model.append_data_item(data_item1)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item1.title = "a"
+            data_item2 = DataItem.DataItem(numpy.ones((4, 4)))
+            document_model.append_data_item(data_item2)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            display_item2.title = "b"
+            connection = Connection.PropertyConnection(display_item1, "title", display_item2, "title", parent=data_item1)
+            document_model.append_connection(connection)
+            # check assumptions
+            self.assertEqual(display_item1.title, display_item2.title)
+            display_item1.title = "aa"
+            self.assertEqual(display_item1.title, display_item2.title)
+            display_item2.title = "bb"
+            self.assertEqual(display_item1.title, display_item2.title)
+            self.assertEqual(1, len(document_model.connections))
+            with contextlib.closing(document_model.remove_data_item_with_log(data_item1, safe=True)) as undelete_log:
                 self.assertEqual(0, len(document_model.connections))
-                self.assertEqual(0, len(document_model.computations))
                 self.assertEqual(1, len(document_model.data_items))
+                self.assertEqual(1, len(document_model.display_items))
                 # undelete and verify
                 document_model.undelete_all(undelete_log)
-            pick_data_item = document_model.data_items[1]
-            pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
-            self.assertEqual(2, len(document_model.connections))
-            self.assertEqual(1, len(document_model.computations))
-            self.assertEqual(2, len(document_model.data_items))
-            # ensure connection works
-            pick_display_item.graphics[0].interval = (56/100, 64/100)
-            self.assertEqual(pick_display_item.graphics[0].interval, display_data_channel.slice_interval)
+            # verify
+            self.assertEqual(1, len(document_model.connections))
+            display_item1 = document_model.display_items[0]
+            display_item2 = document_model.display_items[1]
+            self.assertEqual(display_item1.title, display_item2.title)
+            display_item1.title = "aaa"
+            self.assertEqual(display_item1.title, display_item2.title)
+            display_item2.title = "bbb"
+            self.assertEqual(display_item1.title, display_item2.title)
 
     def test_undeleted_connection_is_properly_restored_into_persistent_object_context(self):
         document_model = DocumentModel.DocumentModel()
@@ -2033,7 +2038,6 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             line_profile_data_item = document_model.get_line_profile_new(display_item)
-            self.assertEqual(1, len(document_model.connections))
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
             self.assertEqual(1, len(document_model.display_items[0].graphics))
@@ -2041,14 +2045,12 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(numpy.ones((5, )), line_profile_data_item.data))
             # delete the line profile and verify
             undelete_log = display_item.remove_graphic(display_item.graphics[0], safe=True)
-            self.assertEqual(0, len(document_model.connections))
             self.assertEqual(0, len(document_model.computations))
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(0, len(document_model.display_items[0].graphics))
             # undelete and verify
             document_model.undelete_all(undelete_log)
             line_profile_data_item = document_model.data_items[1]
-            self.assertEqual(1, len(document_model.connections))
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
             self.assertEqual(1, len(document_model.display_items[0].graphics))
@@ -2090,7 +2092,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.data_items))
             self.assertTrue(numpy.array_equal(numpy.ones((8, 8)), document_model.data_items[0].data))
 
-    def test_undelete_data_item_with_connection_and_graphic(self):
+    def test_undelete_data_item_with_graphic(self):
         document_model = DocumentModel.DocumentModel()
         self.app._set_document_model(document_model)  # required to allow API to find document model
         with contextlib.closing(document_model):
@@ -2099,21 +2101,18 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             line_profile_data_item = document_model.get_line_profile_new(display_item)
-            self.assertEqual(1, len(document_model.connections))
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(numpy.ones((5, )), line_profile_data_item.data))
             # delete the line profile and verify
             with contextlib.closing(document_model.remove_data_item_with_log(line_profile_data_item, safe=True)) as undelete_log:
-                self.assertEqual(0, len(document_model.connections))
                 self.assertEqual(0, len(document_model.computations))
                 self.assertEqual(1, len(document_model.data_items))
                 self.assertEqual(0, len(document_model.display_items[0].graphics))
                 # undelete and verify
                 document_model.undelete_all(undelete_log)
             line_profile_data_item = document_model.data_items[1]
-            self.assertEqual(1, len(document_model.connections))
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
             self.assertEqual(1, len(document_model.display_items[0].graphics))
@@ -2124,7 +2123,6 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(numpy.zeros((5, )), line_profile_data_item.data))
             # delete the line profile again and verify
             document_model.remove_data_item(line_profile_data_item, safe=True)
-            self.assertEqual(0, len(document_model.connections))
             self.assertEqual(0, len(document_model.computations))
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(0, len(document_model.display_items[0].graphics))

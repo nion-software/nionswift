@@ -11,6 +11,7 @@ import numpy
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import Facade
+from nion.swift.model import Connection
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
@@ -111,12 +112,25 @@ class TestProjectClass(unittest.TestCase):
             profile.add_project_memory()
             document_model = DocumentModel.DocumentModel(profile=profile)
             with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
-                document_model.append_data_item(data_item, project=profile.projects[0])
-                document_model.get_line_profile_new(document_model.get_display_item_for_data_item(data_item))
-                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
-                document_model.append_data_item(data_item, project=profile.projects[1])
-                document_model.get_line_profile_new(document_model.get_display_item_for_data_item(data_item))
+                # make 1st connection between two data items
+                data_item1 = DataItem.DataItem(numpy.ones((4, 4)))
+                document_model.append_data_item(data_item1, project=profile.projects[0])
+                display_item1 = document_model.get_display_item_for_data_item(data_item1)
+                data_item2 = DataItem.DataItem(numpy.ones((4, 4)))
+                document_model.append_data_item(data_item2, project=profile.projects[0])
+                display_item2 = document_model.get_display_item_for_data_item(data_item2)
+                connection = Connection.PropertyConnection(display_item1, "title", display_item2, "title", parent=data_item1)
+                document_model.append_connection(connection)
+                # make 2nd connection between two data items
+                data_item1 = DataItem.DataItem(numpy.ones((4, 4)))
+                document_model.append_data_item(data_item1, project=profile.projects[1])
+                display_item1 = document_model.get_display_item_for_data_item(data_item1)
+                data_item2 = DataItem.DataItem(numpy.ones((4, 4)))
+                document_model.append_data_item(data_item2, project=profile.projects[1])
+                display_item2 = document_model.get_display_item_for_data_item(data_item2)
+                connection = Connection.PropertyConnection(display_item1, "title", display_item2, "title", parent=data_item1)
+                document_model.append_connection(connection)
+                # check assumptions
                 self.assertEqual(4, len(document_model.data_items))
                 self.assertEqual(2, len(document_model.connections))
                 self.assertEqual(1, len(document_model.profile.projects[0].connections))
@@ -126,6 +140,7 @@ class TestProjectClass(unittest.TestCase):
                 self.assertEqual(2, len(document_model.profile.projects[1].display_items))
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
+                # check after reload
                 self.assertEqual(4, len(document_model.data_items))
                 self.assertEqual(2, len(document_model.connections))
                 self.assertEqual(1, len(document_model.profile.projects[0].connections))
@@ -211,9 +226,14 @@ class TestProjectClass(unittest.TestCase):
             profile.add_project_memory()
             document_model = DocumentModel.DocumentModel(profile=profile)
             with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
-                document_model.append_data_item(data_item, project=profile.projects[0])
-                document_model.get_line_profile_new(document_model.get_display_item_for_data_item(data_item))
+                data_item1 = DataItem.DataItem(numpy.ones((4, 4)))
+                document_model.append_data_item(data_item1, project=profile.projects[0])
+                display_item1 = document_model.get_display_item_for_data_item(data_item1)
+                data_item2 = DataItem.DataItem(numpy.ones((4, 4)))
+                document_model.append_data_item(data_item2, project=profile.projects[0])
+                display_item2 = document_model.get_display_item_for_data_item(data_item2)
+                connection = Connection.PropertyConnection(display_item1, "title", display_item2, "title", parent=data_item1)
+                document_model.append_connection(connection)
             project_keys = list(profile_context.x_data_properties_map.keys())
             profile_context.x_data_properties_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_properties_map[project_keys[0]])
             profile_context.x_data_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_map[project_keys[0]])

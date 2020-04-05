@@ -149,8 +149,10 @@ class TestConnectionClass(unittest.TestCase):
             line_profile_display_item.add_graphic(interval_region)
             line_profile_graphic = display_item.graphics[0]
             interval_descriptors = line_profile_graphic.interval_descriptors
-            self.assertEqual(len(interval_descriptors), 1)
-            self.assertEqual(interval_descriptors[0]["interval"], interval)
+            self.assertEqual(1, len(interval_descriptors))
+            self.assertEqual(interval, interval_descriptors[0]["interval"])
+            line_profile_display_item.remove_graphic(interval_region)
+            self.assertEqual(0, len(line_profile_graphic.interval_descriptors))
 
     def test_connection_updates_interval_descriptors_when_interval_mutates(self):
         document_model = DocumentModel.DocumentModel()
