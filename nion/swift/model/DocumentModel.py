@@ -2,7 +2,6 @@
 import abc
 import asyncio
 import collections
-import contextlib
 import copy
 import datetime
 import functools
@@ -19,12 +18,14 @@ from nion.data import DataAndMetadata
 from nion.swift.model import ApplicationData
 from nion.swift.model import Changes
 from nion.swift.model import Connection
+from nion.swift.model import Connector
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
+from nion.swift.model import Observer
 from nion.swift.model import PlugInManager
 from nion.swift.model import Persistence
 from nion.swift.model import Processing
@@ -38,7 +39,6 @@ from nion.utils import Observable
 from nion.utils import Recorder
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
-from nion.utils import Selection
 from nion.utils import ThreadPool
 
 _ = gettext.gettext
@@ -238,6 +238,9 @@ class TransactionManager:
                     self.__get_deep_transaction_item_set(connection._source, items)
                 if isinstance(connection, Connection.IntervalListConnection) and connection._source in items:
                     self.__get_deep_transaction_item_set(connection._target, items)
+            for implicit_dependency in self.__document_model.implicit_dependencies:
+                for implicit_item in implicit_dependency.get_dependents(item):
+                    self.__get_deep_transaction_item_set(implicit_item, items)
             for item in items - old_items:
                 if isinstance(item, Graphics.Graphic):
                     self.__get_deep_transaction_item_set(item.container, items)
@@ -517,6 +520,16 @@ class UndeleteItem(Changes.UndeleteBase):
         self.__items_controller.restore_from_dict(self.item_dict, self.index, project, container, container_properties, self.order)
 
 
+class ImplicitDependency:
+
+    def __init__(self, items: typing.Sequence, item):
+        self.__item = item
+        self.__items = items
+
+    def get_dependents(self, item) -> typing.Sequence:
+        return [self.__item] if item in self.__items else list()
+
+
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, DataItem.SessionManager):
     """Manages storage and dependencies between data items and other objects.
 
@@ -630,6 +643,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for hardware_source in HardwareSource.HardwareSourceManager().hardware_sources:
             self.__hardware_source_added(hardware_source)
 
+        # the implicit connections watch for computations matching specific criteria and then set up
+        # connections between inputs/outputs of the computation. for instance, when the user changes
+        # the display interval on a line profile resulting from a pick-style operation, it can be
+        # linked to the slice interval on the collection of 1D data from which the pick was computed.
+        # in addition, the implicit connections track implicit dependencies - this is helpful so that
+        # when dragging the interval on the line plot, the source data is treated as under transaction
+        # which dramatically improves performance during dragging.
+        self.__implicit_dependencies = list()
+        self.__implicit_map_connection = ImplicitMapConnection(self)
+        self.__implicit_pick_connection = ImplicitPickConnection(self)
+        self.__implicit_line_profile_intervals_connection = ImplicitLineProfileIntervalsConnection(self)
+
     def __prune(self):
         self.__profile.prune()
 
@@ -646,6 +671,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             if self.__computation_active_item:
                 self.__computation_active_item.valid = False
                 self.__computation_active_item = None
+
+        # close implicit connections
+        self.__implicit_map_connection.close()
+        self.__implicit_map_connection = None
+        self.__implicit_pick_connection.close()
+        self.__implicit_pick_connection = None
+        self.__implicit_line_profile_intervals_connection.close()
+        self.__implicit_line_profile_intervals_connection = None
 
         # close hardware source related stuff
         self.__hardware_source_added_event_listener.close()
@@ -809,6 +842,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     @property
     def projects_model(self):
         return self.__profile.projects_model
+
+    @property
+    def implicit_dependencies(self):
+        return self.__implicit_dependencies
+
+    def register_implicit_dependency(self, implicit_dependency: ImplicitDependency):
+        self.__implicit_dependencies.append(implicit_dependency)
+
+    def unregister_implicit_dependency(self, implicit_dependency: ImplicitDependency):
+        self.__implicit_dependencies.remove(implicit_dependency)
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -2376,30 +2419,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 new_display_item.add_graphic(point_graphic)
                 new_regions[region_name] = point_graphic
 
-        # now come the connections between the source and target
-        for connection_dict in processing_description.get("connections", list()):
-            connection_type = connection_dict["type"]
-            connection_src = connection_dict["src"]
-            connection_src_prop = connection_dict.get("src_prop")
-            connection_dst = connection_dict["dst"]
-            connection_dst_prop = connection_dict.get("dst_prop")
-            if connection_type == "property":
-                if connection_src == "display_data_channel":
-                    # TODO: how to refer to the data_items? hardcode to data_item0 for now.
-                    display_item0 = self.get_display_item_for_data_item(data_item0)
-                    display_data_channel0 = display_item0.display_data_channel if display_item0 else None
-                    connection = None
-                    if connection_dst == "display_data_channel":
-                        dst_display_data_channel = new_display_item.display_data_channel
-                        connection = Connection.PropertyConnection(display_data_channel0, connection_src_prop, dst_display_data_channel, connection_dst_prop, parent=new_data_item)
-                    else:
-                        connection = Connection.PropertyConnection(display_data_channel0, connection_src_prop, new_regions[connection_dst], connection_dst_prop, parent=new_data_item)
-                    if connection:
-                        self.append_connection(connection, project=project)
-            elif connection_type == "interval_list":
-                connection = Connection.IntervalListConnection(new_display_item, region_map[connection_dst], parent=new_data_item)
-                self.append_connection(connection, project=project)
-
         # save setting the computation until last to work around threaded clone/merge operation bug.
         # the bug is that setting the computation triggers the recompute to occur on a thread.
         # the recompute clones the data item and runs the operation. meanwhile this thread
@@ -2459,9 +2478,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     vs[processing_component.processing_id].setdefault("parameters", list()).insert(0, mapping_param)
                 if processing_component.is_mappable and processing_component.is_scalar:
                     map_out_region = {"name": "pick_point", "type": "point", "params": {"label": _("Pick")}}
-                    map_connection = {"type": "property", "src": "display_data_channel", "src_prop": "collection_point", "dst": "pick_point", "dst_prop": "position"}
                     vs[processing_component.processing_id]["out_regions"] = [map_out_region]
-                    vs[processing_component.processing_id]["connections"] = [map_connection]
                     # TODO: generalize this so that other sequence/collections can be accepted by making a coordinate system monitor or similar
                     # TODO: processing should declare its relationship to input coordinate system and swift should automatically connect pickers
                     # TODO: in appropriate places.
@@ -2531,28 +2548,24 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True, "requirements": [requirement_3d]}],
                 "parameters": [slice_center_param, slice_width_param]}
             pick_in_region = {"name": "pick_region", "type": "point", "params": {"label": _("Pick Point")}}
-            pick_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice")}}
-            pick_connection = {"type": "property", "src": "display_data_channel", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
-            sequence_connection = {"type": "property", "src": "display_data_channel", "src_prop": "sequence_index", "dst": "display_data_channel", "dst_prop": "sequence_index"}
+            pick_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice"), "role": "slice"}}
             vs["pick-point"] = {"title": _("Pick"), "expression": "xd.pick({src}.xdata, pick_region.position)",
                 "sources": [{"name": "src", "label": _("Source"), "regions": [pick_in_region], "requirements": [requirement_4d_if_sequence_else_3d]}],
-                "out_regions": [pick_out_region], "connections": [pick_connection, sequence_connection]}
+                "out_regions": [pick_out_region]}
             pick_sum_in_region = {"name": "region", "type": "rectangle", "params": {"label": _("Pick Region")}}
-            pick_sum_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice")}}
-            pick_sum_connection = {"type": "property", "src": "display_data_channel", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
+            pick_sum_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice"), "role": "slice"}}
             vs["pick-mask-sum"] = {"title": _("Pick Sum"), "expression": "xd.sum_region({src}.xdata, region.mask_xdata_with_shape({src}.xdata.data_shape[-3:-1]))",
                 "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_4d_if_sequence_else_3d]}],
-                "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection, sequence_connection]}
+                "out_regions": [pick_sum_out_region]}
             vs["pick-mask-average"] = {"title": _("Pick Average"), "expression": "xd.average_region({src}.xdata, region.mask_xdata_with_shape({src}.xdata.data_shape[-3:-1]))",
                 "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_4d_if_sequence_else_3d]}],
-                "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection, sequence_connection]}
+                "out_regions": [pick_sum_out_region]}
             vs["subtract-mask-average"] = {"title": _("Subtract Average"), "expression": "{src}.xdata - xd.average_region({src}.xdata, region.mask_xdata_with_shape({src}.xdata.data_shape[0:2]))",
                 "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
-                "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}
+                "out_regions": [pick_sum_out_region]}
             line_profile_in_region = {"name": "line_region", "type": "line", "params": {"label": _("Line Profile")}}
-            line_profile_connection = {"type": "interval_list", "src": "data_source", "dst": "line_region"}
             vs["line-profile"] = {"title": _("Line Profile"), "expression": "xd.line_profile({src}.display_xdata, line_region.vector, line_region.line_width)",
-                "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}], "connections": [line_profile_connection]}
+                "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}]}
             vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft({src}.filtered_xdata))",
                 "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d]}]}
             vs["sequence-register"] = {"title": _("Shifts"), "expression": "xd.sequence_squeeze_measurement(xd.sequence_measure_relative_translation({src}.xdata, {src}.xdata[numpy.unravel_index(0, {src}.xdata.navigation_dimension_shape)], 100))",
@@ -2731,6 +2744,237 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def get_sequence_extract_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("sequence-extract", [(display_item, crop_region)])
+
+
+class ConnectPickDisplay(Observer.AbstractAction):
+
+    def __init__(self, document_model: DocumentModel, item_value: Observer.ItemValue):
+        self.__document_model = document_model
+        self.__implicit_dependency = None
+        self.__sequence_index_property_connector = None
+        self.__slice_interval_property_connector = None
+
+        if item_value and isinstance(item_value, tuple):
+            item_value = typing.cast(typing.Tuple[DisplayItem.DisplayDataChannel, typing.Sequence[Graphics.IntervalGraphic]], item_value)
+            if len(item_value) == 2 and item_value[0] and item_value[1]:
+                display_data_channel = item_value[0]
+                interval_graphics = item_value[1]
+
+                sequence_index_property_connector_items = list()
+                slice_interval_property_connector_items = list()
+
+                sequence_index_property_connector_items.append(Connector.PropertyConnectorItem(display_data_channel, "sequence_index"))
+                slice_interval_property_connector_items.append(Connector.PropertyConnectorItem(display_data_channel, "slice_interval"))
+
+                for interval_graphic in interval_graphics:
+                    slice_interval_property_connector_items.append(Connector.PropertyConnectorItem(interval_graphic, "interval"))
+                    for interval_display_data_channel in typing.cast(typing.Sequence[DisplayItem.DisplayDataChannel], interval_graphic.container.display_data_channels):
+                        sequence_index_property_connector_items.append(Connector.PropertyConnectorItem(interval_display_data_channel, "sequence_index"))
+
+                self.__sequence_index_property_connector = Connector.PropertyConnector(sequence_index_property_connector_items)
+                self.__slice_interval_property_connector = Connector.PropertyConnector(slice_interval_property_connector_items)
+
+                self.__implicit_dependency = ImplicitDependency(interval_graphics, display_data_channel)
+                document_model.register_implicit_dependency(self.__implicit_dependency)
+
+    def close(self) -> None:
+        if self.__sequence_index_property_connector:
+            self.__sequence_index_property_connector.close()
+            self.__sequence_index_property_connector = None
+        if self.__slice_interval_property_connector:
+            self.__slice_interval_property_connector.close()
+            self.__slice_interval_property_connector = None
+        if self.__implicit_dependency:
+            self.__document_model.unregister_implicit_dependency(self.__implicit_dependency)
+
+
+class ImplicitPickConnection:
+    """Facilitate connections between a sequence/collection of 1D data and a line plot from a pick-style computation.
+
+    When the sequence/collection slice interval changes, update the line plot display slice interval (if present).
+
+    When the line plot display slice interval changes, update the sequence/collection slice interval.
+
+    When the sequence/collection sequence index changes, update the line plot sequence index.
+
+    When the line plot sequence index changes, update the sequence/collection sequence index.
+    """
+
+    def __init__(self, document_model: DocumentModel):
+
+        def match_pick(computation: Symbolic.Computation) -> bool:
+            return computation.processing_id in ("pick-point", "pick-mask-sum", "pick-mask-average", "subtract-mask-average")
+
+        def match_graphic(graphic: Graphics.Graphic) -> bool:
+            return graphic.role == "slice"
+
+        # use an observer builder to construct the observer
+        oo = Observer.ObserverBuilder()
+
+        # match the pick-style computation
+        matched_computations = oo.source(document_model).sequence_from_array("computations", predicate=match_pick)
+
+        # select the _display_data_channel of the bound_item of the first computation input variable this observer is
+        # created as a sub-observer (x) and will be applied to each item from the container (computations).
+        computation_display_data_channel = oo.x.sequence_from_array("variables").index(0).prop("bound_item").get("_display_data_channel")
+
+        # select the _data_item of the bound_item of the first computation output variable this observer is created as a
+        # sub-observer (x) and will serve as the base for the further selection of the display items
+        computation_result_data_item = oo.x.sequence_from_array("results").index(0).prop("bound_item").get("_data_item")
+
+        # select the display_items from each of the display data channels from each of the data items. this serves as
+        # the base for further selection of the interval graphics.
+        computation_result_display_items = computation_result_data_item.sequence_from_set("display_data_channels").map(oo.x.prop("display_item"))
+
+        # select the graphics items of the container object (display items) and collect them into a list this observer
+        # is created as a sub-observer (x) and will be applied to each item from the container (display items).
+        slice_interval_graphic = oo.x.sequence_from_array("graphics", predicate=match_graphic).collect_list()
+
+        # select the graphics as a list from each display item and then further collect into a list and flatten that
+        # list.
+        computation_result_graphics = computation_result_display_items.map(slice_interval_graphic).collect_list().flatten()
+
+        # create the action to connect the various properties. this will be recreated whenever its inputs change.
+        connect_action = typing.cast(typing.Callable[[Observer.ItemValue], Observer.AbstractAction], functools.partial(ConnectPickDisplay, document_model))
+
+        # configure the action (connecting the properties) as each tuple is produced from the matching computations.
+        matched_computations.for_each(oo.x.tuple(computation_display_data_channel, computation_result_graphics).action(connect_action))
+
+        # finally, construct the observer and save it.
+        self.__observer = oo.make_observable()
+
+    def close(self) -> None:
+        self.__observer.close()
+
+
+class ConnectMapDisplay(Observer.AbstractAction):
+
+    def __init__(self, document_model: DocumentModel, item_value: Observer.ItemValue):
+        self.__document_model = document_model
+        self.__implicit_dependency = None
+        self.__sequence_index_property_connector = None
+        self.__slice_interval_property_connector = None
+
+        if item_value and isinstance(item_value, tuple):
+            item_value = typing.cast(typing.Tuple[DisplayItem.DisplayDataChannel, typing.Sequence[Graphics.PointGraphic]], item_value)
+            if len(item_value) == 2 and item_value[0] and item_value[1]:
+                display_data_channel = item_value[0]
+                point_graphics = item_value[1]
+
+                sequence_index_property_connector_items = list()
+                collection_point_property_connector_items = list()
+
+                sequence_index_property_connector_items.append(Connector.PropertyConnectorItem(display_data_channel, "sequence_index"))
+                collection_point_property_connector_items.append(Connector.PropertyConnectorItem(display_data_channel, "collection_point"))
+
+                for point_graphic in point_graphics:
+                    collection_point_property_connector_items.append(Connector.PropertyConnectorItem(point_graphic, "position"))
+                    for interval_display_data_channel in typing.cast(typing.Sequence[DisplayItem.DisplayDataChannel], point_graphic.container.display_data_channels):
+                        sequence_index_property_connector_items.append(Connector.PropertyConnectorItem(interval_display_data_channel, "sequence_index"))
+
+                self.__sequence_index_property_connector = Connector.PropertyConnector(sequence_index_property_connector_items)
+                self.__slice_interval_property_connector = Connector.PropertyConnector(collection_point_property_connector_items)
+
+                self.__implicit_dependency = ImplicitDependency(point_graphics, display_data_channel)
+                document_model.register_implicit_dependency(self.__implicit_dependency)
+
+    def close(self) -> None:
+        if self.__sequence_index_property_connector:
+            self.__sequence_index_property_connector.close()
+            self.__sequence_index_property_connector = None
+        if self.__slice_interval_property_connector:
+            self.__slice_interval_property_connector.close()
+            self.__slice_interval_property_connector = None
+        if self.__implicit_dependency:
+            self.__document_model.unregister_implicit_dependency(self.__implicit_dependency)
+
+
+class ImplicitMapConnection:
+    def __init__(self, document_model: DocumentModel):
+
+        def match_pick(computation: Symbolic.Computation) -> bool:
+            return computation.processing_id in ("mapped_sum", "mapped_average")
+
+        def match_graphic(graphic: Graphics.Graphic) -> bool:
+            return graphic.role == "collection_index"
+
+        oo = Observer.ObserverBuilder()
+
+        matched_computations = oo.source(document_model).sequence_from_array("computations", predicate=match_pick)
+        computation_display_data_channel = oo.x.sequence_from_array("variables").index(0).prop("bound_item").get("_display_data_channel")
+        computation_result_data_item = oo.x.sequence_from_array("results").index(0).prop("bound_item").get("_data_item")
+        computation_result_display_items = computation_result_data_item.sequence_from_set("display_data_channels").map(oo.x.prop("display_item"))
+        slice_interval_graphic = oo.x.sequence_from_array("graphics", predicate=match_graphic).collect_list()
+        computation_result_graphics = computation_result_display_items.map(slice_interval_graphic).collect_list().flatten()
+        connect_action = typing.cast(typing.Callable[[Observer.ItemValue], Observer.AbstractAction], functools.partial(ConnectMapDisplay, document_model))
+        matched_computations.for_each(oo.x.tuple(computation_display_data_channel, computation_result_graphics).action(connect_action))
+
+        self.__observer = oo.make_observable()
+
+    def close(self) -> None:
+        self.__observer.close()
+
+
+class IntervalListConnector(Observer.AbstractAction):
+
+    def __init__(self, document_model: DocumentModel, item_value: Observer.ItemValue):
+        self.__document_model = document_model
+        self.__listeners = list()
+        self.__implicit_dependency = None
+
+        if item_value and isinstance(item_value, tuple):
+            item_value = typing.cast(typing.Tuple[Graphics.LineProfileGraphic, typing.Sequence[Graphics.IntervalGraphic]], item_value)
+            if len(item_value) == 2 and item_value[0] and item_value[1] is not None:
+                line_profile_graphic = item_value[0]
+                interval_graphics = item_value[1]
+
+                def property_changed(key):
+                    if key == "interval":
+                        interval_descriptors = list()
+                        for interval_graphic in interval_graphics:
+                            interval_descriptor = {"interval": interval_graphic.interval, "color": "#F00"}
+                            interval_descriptors.append(interval_descriptor)
+                        line_profile_graphic.interval_descriptors = interval_descriptors
+
+                for interval_graphic in interval_graphics:
+                    self.__listeners.append(interval_graphic.property_changed_event.listen(property_changed))
+
+                property_changed("interval")
+
+                self.__implicit_dependency = ImplicitDependency(interval_graphics, line_profile_graphic)
+                document_model.register_implicit_dependency(self.__implicit_dependency)
+
+    def close(self) -> None:
+        for listener in self.__listeners:
+            listener.close()
+        if self.__implicit_dependency:
+            self.__document_model.unregister_implicit_dependency(self.__implicit_dependency)
+        self.__listeners = None
+
+
+class ImplicitLineProfileIntervalsConnection:
+
+    def __init__(self, document_model: DocumentModel):
+
+        def match_line_profile(computation: Symbolic.Computation) -> bool:
+            return computation.processing_id in ("line-profile",)
+
+        def match_graphic(graphic: Graphics.Graphic) -> bool:
+            return isinstance(graphic, Graphics.IntervalGraphic)
+
+        oo = Observer.ObserverBuilder()
+        matched_computations = oo.source(document_model).sequence_from_array("computations", predicate=match_line_profile)
+        computation_display_data_channel = oo.x.sequence_from_array("variables").index(1).prop("bound_item").get("_graphic")
+        interval_graphics = oo.x.sequence_from_array("graphics", predicate=match_graphic).collect_list()
+        computation_result_data_item = oo.x.sequence_from_array("results").index(0).prop("bound_item").get("_data_item")
+        computation_result_display_items = computation_result_data_item.sequence_from_set("display_data_channels").map(oo.x.prop("display_item"))
+        computation_result_graphics = computation_result_display_items.map(interval_graphics).collect_list().flatten()
+        connect_action = typing.cast(typing.Callable[[Observer.ItemValue], Observer.AbstractAction], functools.partial(IntervalListConnector, document_model))
+        matched_computations.for_each(oo.x.tuple(computation_display_data_channel, computation_result_graphics).action(connect_action))
+        self.__observer = oo.make_observable()
+
+    def close(self) -> None:
+        self.__observer.close()
 
 
 DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_processing_descriptions())
