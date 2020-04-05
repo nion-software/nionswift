@@ -89,6 +89,7 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
     def __unbind(self):
         # self.specifier = None
         self.bound_item = None
+        self.notify_property_changed("bound_item")
 
     def bind(self, resolve_object_specifier_fn):
         if self.specifier:
@@ -103,6 +104,7 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
             self.bound_item = bound_items
         else:
             self.bound_item = None
+        self.notify_property_changed("bound_item")
 
     @property
     def output_items(self) -> typing.Set:
@@ -331,6 +333,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         if self.__bound_item:
             self.__bound_item.close()
         self.__bound_item = bound_item
+        self.notify_property_changed("bound_item")
         if self.__bound_item:
             self.__bound_item_changed_event_listener = self.__bound_item.changed_event.listen(self.changed_event.fire)
             self.__bound_item_removed_event_listener = self.__bound_item.needs_rebind_event.listen(self.needs_rebind_event.fire)
@@ -370,7 +373,8 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         # whenever a property changed event is fired, also fire the changed_event
         # is there a test for this? not that I can find.
         super().notify_property_changed(key)
-        self.changed_event.fire()
+        if key not in ("bound_item",):
+            self.changed_event.fire()
 
     def control_type_default(self, value_type: str) -> None:
         mapping = {"boolean": "checkbox", "integral": "slider", "real": "field", "complex": "field", "string": "field"}
@@ -678,6 +682,14 @@ class BoundDataSource(BoundItemBase):
             objects.add(self.__data_source.graphic)
         return objects
 
+    @property
+    def _display_data_channel(self) -> typing.Optional[DisplayItem.DisplayDataChannel]:
+        return self.__item_proxy.item
+
+    @property
+    def _graphic(self) -> typing.Optional[Graphics.Graphic]:
+        return self.__graphic_proxy.item
+
 
 class BoundDataItem(BoundItemBase):
 
@@ -719,6 +731,10 @@ class BoundDataItem(BoundItemBase):
     @property
     def base_objects(self):
         return {self.value}
+
+    @property
+    def _data_item(self) -> typing.Optional[DataItem.DataItem]:
+        return self.__item_proxy.item
 
 
 class BoundDisplayData(BoundDisplayDataChannelBase):
@@ -924,6 +940,10 @@ class BoundGraphic(BoundItemBase):
 
     @property
     def __object(self):
+        return self.__item_proxy.item
+
+    @property
+    def _graphic(self) -> typing.Optional[Graphics.Graphic]:
         return self.__item_proxy.item
 
 

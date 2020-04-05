@@ -6,8 +6,6 @@
 import copy
 import functools
 import typing
-import uuid
-import weakref
 
 # third party libraries
 # None
@@ -16,7 +14,6 @@ import weakref
 from nion.swift.model import Graphics
 from nion.swift.model import Persistence
 from nion.utils import Binding
-from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Observable
 

@@ -444,11 +444,20 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.__disconnect_data_item_events()
         super().close()
 
+    def about_to_be_inserted(self, container):
+        super().about_to_be_inserted(container)
+        self.notify_property_changed("display_item")
+
     def about_to_be_removed(self, container):
         # tell the data item that this display data channel is no longer referencing it
         if self.__data_item:
             self.__data_item.remove_display_data_channel(self)
+        self.notify_property_changed("display_item")
         super().about_to_be_removed(container)
+
+    @property
+    def display_item(self) -> "DisplayItem":
+        return self.container
 
     def __deepcopy__(self, memo):
         display_data_channel = self.__class__()

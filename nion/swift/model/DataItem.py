@@ -233,6 +233,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.data_changed_event = Event.Event()  # data has changed
         self.will_change_event = Event.Event()
         self.did_change_event = Event.Event()
+        self.item_added_event = Event.Event()
+        self.item_removed_event = Event.Event()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
         self.__change_thread = None
@@ -356,10 +358,12 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def add_display_data_channel(self, display_data_channel: "DisplayItem.DisplayDataChannel") -> None:
         """Add a display data channel referencing this data item."""
         self.__display_data_channel_refs.add(weakref.ref(display_data_channel))
+        self.item_added_event.fire("display_data_channels", display_data_channel)
 
     def remove_display_data_channel(self, display_data_channel: "DisplayItem.DisplayDataChannel") -> None:
         """Remove a display data channel referencing this data item."""
         self.__display_data_channel_refs.remove(weakref.ref(display_data_channel))
+        self.item_removed_event.fire("display_data_channels", display_data_channel)
 
     @property
     def display_data_channels(self) -> typing.Set["DisplayItem.DisplayDataChannel"]:
