@@ -2693,12 +2693,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def get_subtract_region_average_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
         return self.__make_computation("subtract-mask-average", [(display_item, crop_region)], {"src": [pick_region]})
 
-    def get_mapped_sum_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("mapped-sum", [(display_item, crop_region)])
-
-    def get_mapped_average_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("mapped-average", [(display_item, crop_region)])
-
     def get_line_profile_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, line_region: Graphics.LineTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("line-profile", [(display_item, crop_region)], {"src": [line_region]})
 

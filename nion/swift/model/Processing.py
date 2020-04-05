@@ -269,8 +269,8 @@ class ProcessingMappedAverage(ProcessingBase):
 Registry.register_component(ProcessingGaussianWindow(), {"processing-component"})
 Registry.register_component(ProcessingHammingWindow(), {"processing-component"})
 Registry.register_component(ProcessingHannWindow(), {"processing-component"})
-# Registry.register_component(ProcessingMappedSum(), {"processing-component"})
-# Registry.register_component(ProcessingMappedAverage(), {"processing-component"})
+Registry.register_component(ProcessingMappedSum(), {"processing-component"})
+Registry.register_component(ProcessingMappedAverage(), {"processing-component"})
 
 
 def init(): pass

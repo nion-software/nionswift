@@ -1070,6 +1070,21 @@ class TestProcessingClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             document_controller._perform_processing(display_item, None, document_model.get_pick_new)
 
+    def test_mapped_sum_is_registered_and_functional(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = numpy.zeros((8, 8, 4, 4))
+            data[0:4, 0:4, ...] = 1
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.center = (0.25, 0.25)
+            crop_region.size = (0.5, 0.5)
+            display_item.add_graphic(crop_region)
+            document_model.get_processing_new("mapped_sum", display_item, crop_region)
+            document_model.recompute_all()
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

@@ -3060,22 +3060,6 @@ class LineProfileAction(ProcessingAction):
         self.invoke_processing(context, context.window.document_model.get_line_profile_new)
 
 
-class MappedSumAction(ProcessingAction):
-    action_id = "processing.mapped_sum"
-    action_name = _("Mapped Sum")
-
-    def invoke(self, context: Window.ActionContext) -> None:
-        self.invoke_processing(context, context.window.document_model.get_mapped_sum_new)
-
-
-class MappedAverageAction(ProcessingAction):
-    action_id = "processing.mapped_average"
-    action_name = _("Mapped Average")
-
-    def invoke(self, context: Window.ActionContext) -> None:
-        self.invoke_processing(context, context.window.document_model.get_mapped_average_new)
-
-
 class MaskAction(ProcessingAction):
     action_id = "processing.mask"
     action_name = _("Mask")
@@ -3276,7 +3260,7 @@ class ProcessingComponentAction(ProcessingAction):
 
     def invoke(self, context: Window.ActionContext) -> None:
         if context.data_item:
-            context.window._perform_processing(context.display_item, None, functools.partial(context.model.get_processing_new, self.__processing_id))
+            context.window._perform_processing(context.display_item, context.crop_graphic, functools.partial(context.model.get_processing_new, self.__processing_id))
 
 
 Window.register_action(AddAction())
@@ -3291,8 +3275,6 @@ Window.register_action(HistogramAction())
 Window.register_action(InverseFFTAction())
 Window.register_action(LaplaceFilterAction())
 Window.register_action(LineProfileAction())
-Window.register_action(MappedSumAction())
-Window.register_action(MappedAverageAction())
 Window.register_action(MaskAction())
 Window.register_action(MaskedAction())
 Window.register_action(MedianFilterAction())
