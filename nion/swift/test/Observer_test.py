@@ -194,6 +194,24 @@ class TestObserver(unittest.TestCase):
             del model.a[0]
             self.assertEqual(["B", "C", "A-B"], o.item)
 
+    def test_observer_item_ordered_sequence_collect(self):
+        # configure the model
+        array_field = StructuredModel.define_array(StructuredModel.STRING)
+        str_field = StructuredModel.define_field("a", array_field, default=["a", "b", "c"])
+        schema = StructuredModel.define_record("R", [str_field])
+        model = StructuredModel.build_model(schema)
+        # build the observer
+        oo = Observer.ObserverBuilder()
+        oo.source(model).ordered_sequence_from_array("a").map(oo.x.transform(lambda x: x.upper())).collect_list()
+        with contextlib.closing(oo.make_observable()) as o:
+            # check the observer functionality
+            # items will be ordered
+            self.assertEqual(["A", "B", "C"], o.item)
+            model.a.insert(1, "a-b")
+            self.assertEqual(["A", "A-B", "B", "C"], o.item)
+            del model.a[0]
+            self.assertEqual(["A-B", "B", "C"], o.item)
+
     def test_observer_item_sequence_index(self):
         # configure the model
         array_field = StructuredModel.define_array(StructuredModel.STRING)
@@ -202,12 +220,12 @@ class TestObserver(unittest.TestCase):
         model = StructuredModel.build_model(schema)
         # build the observer
         oo = Observer.ObserverBuilder()
-        oo.source(model).sequence_from_array("a").map(oo.x.transform(lambda x: x.upper())).index(0)
+        oo.source(model).ordered_sequence_from_array("a").map(oo.x.transform(lambda x: x.upper())).index(0)
         with contextlib.closing(oo.make_observable()) as o:
             # check the observer functionality
-            # items will be unordered
+            # items will be ordered
             self.assertEqual("A", o.item)
             model.a.insert(1, "a-b")
             self.assertEqual("A", o.item)
             del model.a[0]
-            self.assertEqual("B", o.item)  # unordered... probably wrong way to do it
+            self.assertEqual("A-B", o.item)

@@ -2816,11 +2816,11 @@ class ImplicitPickConnection:
 
         # select the _display_data_channel of the bound_item of the first computation input variable this observer is
         # created as a sub-observer (x) and will be applied to each item from the container (computations).
-        computation_display_data_channel = oo.x.sequence_from_array("variables").index(0).prop("bound_item").get("_display_data_channel")
+        computation_display_data_channel = oo.x.ordered_sequence_from_array("variables").index(0).prop("bound_item").get("_display_data_channel")
 
         # select the _data_item of the bound_item of the first computation output variable this observer is created as a
         # sub-observer (x) and will serve as the base for the further selection of the display items
-        computation_result_data_item = oo.x.sequence_from_array("results").index(0).prop("bound_item").get("_data_item")
+        computation_result_data_item = oo.x.ordered_sequence_from_array("results").index(0).prop("bound_item").get("_data_item")
 
         # select the display_items from each of the display data channels from each of the data items. this serves as
         # the base for further selection of the interval graphics.
@@ -2901,8 +2901,8 @@ class ImplicitMapConnection:
         oo = Observer.ObserverBuilder()
 
         matched_computations = oo.source(document_model).sequence_from_array("computations", predicate=match_pick)
-        computation_display_data_channel = oo.x.sequence_from_array("variables").index(0).prop("bound_item").get("_display_data_channel")
-        computation_result_data_item = oo.x.sequence_from_array("results").index(0).prop("bound_item").get("_data_item")
+        computation_display_data_channel = oo.x.ordered_sequence_from_array("variables").index(0).prop("bound_item").get("_display_data_channel")
+        computation_result_data_item = oo.x.ordered_sequence_from_array("results").index(0).prop("bound_item").get("_data_item")
         computation_result_display_items = computation_result_data_item.sequence_from_set("display_data_channels").map(oo.x.prop("display_item"))
         slice_interval_graphic = oo.x.sequence_from_array("graphics", predicate=match_graphic).collect_list()
         computation_result_graphics = computation_result_display_items.map(slice_interval_graphic).collect_list().flatten()
@@ -2964,9 +2964,9 @@ class ImplicitLineProfileIntervalsConnection:
 
         oo = Observer.ObserverBuilder()
         matched_computations = oo.source(document_model).sequence_from_array("computations", predicate=match_line_profile)
-        computation_display_data_channel = oo.x.sequence_from_array("variables").index(1).prop("bound_item").get("_graphic")
+        computation_display_data_channel = oo.x.ordered_sequence_from_array("variables").index(1).prop("bound_item").get("_graphic")
         interval_graphics = oo.x.sequence_from_array("graphics", predicate=match_graphic).collect_list()
-        computation_result_data_item = oo.x.sequence_from_array("results").index(0).prop("bound_item").get("_data_item")
+        computation_result_data_item = oo.x.ordered_sequence_from_array("results").index(0).prop("bound_item").get("_data_item")
         computation_result_display_items = computation_result_data_item.sequence_from_set("display_data_channels").map(oo.x.prop("display_item"))
         computation_result_graphics = computation_result_display_items.map(interval_graphics).collect_list().flatten()
         connect_action = typing.cast(typing.Callable[[Observer.ItemValue], Observer.AbstractAction], functools.partial(IntervalListConnector, document_model))

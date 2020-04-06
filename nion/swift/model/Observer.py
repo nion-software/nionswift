@@ -6,13 +6,13 @@ import functools
 import itertools
 import operator
 import typing
-import weakref
 
 # third party libraries
 # None
 
 # local libraries
 from nion.utils import Event
+from nion.utils import ListModel
 from nion.utils import Observable
 
 
@@ -249,6 +249,48 @@ class ArrayArraySourceAdapter(AbstractArraySourceAdapter):
     @property
     def items(self) -> typing.Sequence:
         return list(self.__items.values())
+
+
+class OrderedArrayArraySourceAdapter(AbstractArraySourceAdapter):
+
+    @classmethod
+    def factory(cls, key: str, *, predicate: typing.Callable = None) -> AdapterFactory:
+        def make_adapter(s, insert: AdapterInsertedFn, remove: AdapterRemovedFn) -> AbstractArraySourceAdapter:
+            return OrderedArrayArraySourceAdapter(s, insert, remove, key, predicate=predicate)
+        return make_adapter
+
+    def __init__(self, source: Observable.Observable, inserted: AdapterInsertedFn, removed: AdapterRemovedFn, key: str, *, predicate: typing.Callable = None):
+        self.__list_model = ListModel.FilteredListModel(container=source, items_key=key)
+        self.__items = list()
+
+        if predicate:
+            self.__list_model.filter = ListModel.PredicateFilter(predicate)
+
+        def item_inserted(key: str, item: ItemValue, index: int) -> None:
+            self.__items.insert(index, item)
+            inserted(item, index)
+
+        def item_removed(key: str, item: ItemValue, index: int) -> None:
+            self.__items.pop(index)
+            removed(item, index)
+
+        self.__item_inserted_listener = self.__list_model.item_inserted_event.listen(item_inserted)
+        self.__item_removed_listener = self.__list_model.item_removed_event.listen(item_removed)
+
+        for index, item in enumerate(self.__list_model.items):
+            item_inserted(key, item, index)
+
+    def close(self) -> None:
+        self.__item_inserted_listener.close()
+        self.__item_inserted_listener = None
+        self.__item_removed_listener.close()
+        self.__item_removed_listener = None
+        self.__list_model.close()
+        self.__list_model = None
+
+    @property
+    def items(self) -> typing.Sequence:
+        return copy.copy(self.__items)
 
 
 class SetArraySourceAdapter(AbstractArraySourceAdapter):
@@ -876,6 +918,11 @@ class ObserverBuilderItemSource:
     def sequence_from_array(self, key: str, *, predicate: typing.Callable = None) -> "ObserverBuilderItemSequenceSource":
         """Builds an unordered item sequence from the observable array specified by key and filtered by predicate."""
         self._build(lambda node: ItemSequenceSource(typing.cast(AbstractItemSource, node), ArrayArraySourceAdapter.factory(key, predicate=predicate)))
+        return ObserverBuilderItemSequenceSource(self.base)
+
+    def ordered_sequence_from_array(self, key: str, *, predicate: typing.Callable = None) -> "ObserverBuilderItemSequenceSource":
+        """Builds an ordered item sequence from the observable array specified by key and filtered by predicate. Slower."""
+        self._build(lambda node: ItemSequenceSource(typing.cast(AbstractItemSource, node), OrderedArrayArraySourceAdapter.factory(key, predicate=predicate)))
         return ObserverBuilderItemSequenceSource(self.base)
 
     def sequence_from_set(self, key: str, *, predicate: typing.Callable = None) -> "ObserverBuilderItemSequenceSource":
