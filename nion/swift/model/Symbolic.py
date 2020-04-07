@@ -1070,8 +1070,10 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self._inputs = set()  # used by document model for tracking dependencies
         self._outputs = set()
         self.pending_project = None  # used for new computations to tell them where they'll end up
+        self.__is_bound = False
 
     def close(self) -> None:
+        self.unbind()
         self.__source_proxy.close()
         self.__source_proxy = None
         super().close()
@@ -1519,8 +1521,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         for result in self.results:
             self.__bind_result(result)
 
+        self.__is_bound = True
+
     def unbind(self):
         """Unlisten and close each bound item."""
+        assert self.__is_bound
+
         for variable in self.variables:
             self.__unbind_variable(variable)
         for result in self.results:

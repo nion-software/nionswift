@@ -10,7 +10,8 @@ import typing
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift.model import DataGroup
-from nion.swift.model import Project
+from nion.swift.model import Profile
+from nion.swift.model import Observer
 from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Event
@@ -20,7 +21,6 @@ from nion.utils import Selection
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
-    from nion.swift.model import DisplayItem
 
 _ = gettext.gettext
 
@@ -45,35 +45,30 @@ def open_location(location: pathlib.Path) -> None:
 
 class ProjectDisplayItemCounter:
 
-    def __init__(self, project: Project.Project):
-        self.__project = project
-        self.__count = len(project.display_items)
+    def __init__(self, project_reference: Profile.ProjectReference):
+        self.__project_reference = project_reference
+
+        self.__count = 0
         self.on_title_changed = None
 
-        def item_inserted(key: str, value, index: int) -> None:
-            if key == "display_items":
-                self.__count += 1
-                if callable(self.on_title_changed):
-                    self.on_title_changed(self.title)
+        def count_changed(count: Observer.ItemValue) -> None:
+            self.__count = count
+            if callable(self.on_title_changed):
+                self.on_title_changed(self.title)
 
-        def item_removed(key: str, value, index: int) -> None:
-            if key == "display_items":
-                self.__count -= 1
-                if callable(self.on_title_changed):
-                    self.on_title_changed(self.title)
-
-        self.__item_inserted_event_listener = project.item_inserted_event.listen(item_inserted)
-        self.__item_removed_event_listener = project.item_removed_event.listen(item_removed)
+        oo = Observer.ObserverBuilder()
+        oo.source(self.__project_reference).prop("project").sequence_from_array("display_items").len().action_fn(count_changed)
+        self.__count_observer = oo.make_observable()
 
     def close(self) -> None:
-        self.__item_inserted_event_listener.close()
-        self.__item_inserted_event_listener = None
-        self.__item_removed_event_listener.close()
-        self.__item_removed_event_listener = None
+        self.__count_observer.close()
+        self.__count_observer = None
+        self.__project_reference = None
+        self.on_title_changed = None
 
     @property
     def title(self) -> str:
-        return f"{self.__project.project_title} ({self.__count})"
+        return f"{self.__project_reference.title} ({self.__count})"
 
 
 class CollectionDisplayItemCounter:
@@ -84,51 +79,28 @@ class CollectionDisplayItemCounter:
         self.__filter_id = filter_id
         self.__filter_predicate = document_controller.get_filter_predicate(filter_id) if self.__filter_id else ListModel.Filter(True)
         self.on_title_changed = None
-        self.__display_item_set = set()
-        self.__active_project_uuids = set()
-
-        def display_item_in_collection(display_item: "DisplayItem.DisplayItem") -> bool:
-            return self.__filter_predicate.matches(display_item) and str(display_item.project.uuid) in self.__active_project_uuids
-
-        def item_inserted(key: str, value, index: int) -> None:
-            if key == "display_items" and display_item_in_collection(value):
-                self.__display_item_set.add(value)
-                if callable(self.on_title_changed):
-                    self.on_title_changed(self.title)
-
-        def item_removed(key: str, value, index: int) -> None:
-            if key == "display_items" and value in self.__display_item_set:
-                self.__display_item_set.remove(value)
-                if callable(self.on_title_changed):
-                    self.on_title_changed(self.title)
+        self.__count = 0
 
         container = self.__data_group or document_controller.document_model
 
-        self.__item_inserted_event_listener = container.item_inserted_event.listen(item_inserted)
-        self.__item_removed_event_listener = container.item_removed_event.listen(item_removed)
-
-        def update_count():
-            self.__active_project_uuids = set(document_controller.document_model.profile.active_project_uuids)
-            self.__display_item_set = {display_item for display_item in container.display_items if display_item_in_collection(display_item)}
+        def count_changed(count: Observer.ItemValue) -> None:
+            self.__count = count
             if callable(self.on_title_changed):
                 self.on_title_changed(self.title)
 
-        self.__active_projects_changed_event_listener = document_controller.active_projects_changed_event.listen(update_count)
-
-        update_count()
+        oo = Observer.ObserverBuilder()
+        oo.source(container).sequence_from_array("display_items", predicate=self.__filter_predicate.matches).len().action_fn(count_changed)
+        self.__count_observer = oo.make_observable()
 
     def close(self) -> None:
-        self.__item_inserted_event_listener.close()
-        self.__item_inserted_event_listener = None
-        self.__item_removed_event_listener.close()
-        self.__item_removed_event_listener = None
-        self.__active_projects_changed_event_listener.close()
-        self.__active_projects_changed_event_listener = None
         self.on_title_changed = None
+        self.__count_observer.close()
+        self.__count_observer = None
+        self.__data_group = None
 
     @property
     def title(self) -> str:
-        return f"{self.__base_title} ({len(self.__display_item_set)})"
+        return f"{self.__base_title} ({self.__count})"
 
     @property
     def is_smart_collection(self) -> bool:
@@ -145,10 +117,10 @@ class CollectionDisplayItemCounter:
 
 class ProjectPanelProjectItem:
 
-    def __init__(self, indent: int, project: Project.Project, display_item_controller: ProjectDisplayItemCounter):
+    def __init__(self, indent: int, project_reference: Profile.ProjectReference, display_item_controller: ProjectDisplayItemCounter):
         self.is_folder = False
         self.indent = indent
-        self.project = project
+        self.project_reference = project_reference
         self.display_item_controller = display_item_controller
         self.is_target = False
         self.is_work = False
@@ -156,13 +128,14 @@ class ProjectPanelProjectItem:
 
     @property
     def __state_str(self) -> str:
-        if self.project.project_state == "loaded":
-            return f"(loaded [v{self.project.project_version}]) ({len(self.project.data_items)}/{len(self.project.display_items)})"
-        elif self.project.project_state == "unloaded":
-            return f"(unloaded) [v{self.project.project_version}] ({len(self.project.data_items)}/{len(self.project.display_items)})"
-        elif self.project.project_state == "needs_upgrade":
-            return f"(needs upgrade [v{self.project.project_version}]) ({len(self.project.data_items)}/{len(self.project.display_items)})"
-        elif self.project.project_state == "missing":
+        project = self.project_reference.project
+        if not project:
+            return f"(unloaded)"
+        elif project.project_state == "loaded":
+            return f"(loaded [v{project.project_version}]) ({len(project.data_items)}/{len(project.display_items)})"
+        elif project.project_state == "needs_upgrade":
+            return f"(needs upgrade [v{project.project_version}]) ({len(project.data_items)}/{len(project.display_items)})"
+        elif project.project_state == "missing":
             return f"(missing)"
         return str()
 
@@ -173,7 +146,7 @@ class ProjectPanelProjectItem:
 
     @property
     def is_enabled(self) -> bool:
-        return self.project.project_state == "loaded"
+        return self.project_reference.project and self.project_reference.project.project_state == "loaded"
 
 
 class ProjectPanelFolderItem:
@@ -187,7 +160,7 @@ class ProjectPanelFolderItem:
         self.folder_key = folder_key
         self.check_state = "unchecked"
         self.is_enabled = True
-        self.project = None
+        self.project_reference = None
 
     def __str__(self) -> str:
         if sys.platform == "win32":
@@ -211,7 +184,7 @@ class TreeNode:
 
 class TreeModel:
 
-    def __init__(self, document_controller, closed_items: typing.Set[str]):
+    def __init__(self, document_controller: "DocumentController.DocumentController", closed_items: typing.Set[str]):
         self.document_controller = document_controller
 
         # cache
@@ -227,30 +200,38 @@ class TreeModel:
         self.__closed_items = closed_items
         self.on_closed_items_changed = None
 
-        def profile_property_changed(key: str) -> None:
-            if key in ("work_project", "target_project", "active_project_uuids"):
+        def update_items(item: Observer.ItemValue) -> None:
+            if self.__project_panel_items is not None:
                 self.__update_project_panel_items(self.__project_panel_items)
                 self.property_changed_event.fire("value")
 
-        self.__profile_property_changed_event_listener = self.document_controller.document_model.profile.property_changed_event.listen(profile_property_changed)
+        # build an observer that will call update_items whenever any of the project_references
+        # or work or target project changes.
+        oo = Observer.ObserverBuilder()
+        oo.source(self.document_controller.document_model).prop("profile").tuple(
+            oo.x.ordered_sequence_from_array("project_references").map(oo.x.prop("is_active")).collect_list(),
+            oo.x.prop("work_project"),
+            oo.x.prop("target_project")).action_fn(update_items)
+
+        self.__profile_observer = oo.make_observable()
 
     def close(self) -> None:
-        self.__profile_property_changed_event_listener.close()
-        self.__profile_property_changed_event_listener = None
+        self.__profile_observer.close()
+        self.__profile_observer = None
         self.__project_panel_items = None
         self.document_controller = None
 
-    def update_projects(self, projects: typing.Sequence[Project.Project]):
+    def update_project_references(self, project_references: typing.Sequence[Profile.ProjectReference]):
         # build hierarchy of nodes reflecting the project reference parts (strings).
         # this is called when the projects model changes.
         self.__project_panel_items = None
         root_node = TreeNode()
-        for project in projects:
-            parts = project.project_reference_parts
+        for project_reference in project_references:
+            parts = project_reference.project_reference_parts
             node = root_node
             for part in parts[:-1]:
                 node = node.children.setdefault(part, TreeNode())
-            node.data.append(project)
+            node.data.append(project_reference)
         self.__root_node = root_node
         self.property_changed_event.fire("value")
 
@@ -279,23 +260,23 @@ class TreeModel:
                     project_panel_items.append(ProjectPanelFolderItem(node, len(key_path), key_path[-1], folder_closed, folder_key))
             for key, child in node.children.items():
                 self.__construct_project_panel_items(key_path + [key], child, folder_closed, project_panel_items, closed_items, encountered_items)
-            for project in node.data:  # node.data is a list of projects
-                project_key = "/".join(key_path + [project.project_reference_parts[-1]])
+            for project_reference in typing.cast(typing.Sequence[Profile.ProjectReference], node.data):
+                project_key = "/".join(key_path + [project_reference.project_reference_parts[-1]])
                 encountered_items.add(project_key)
                 if not folder_closed:
 
                     def handle_item_controller_title_changed(t: str) -> None:
                         self.property_changed_event.fire("value")
 
-                    display_item_counter = ProjectDisplayItemCounter(project)
+                    display_item_counter = ProjectDisplayItemCounter(project_reference)
                     display_item_counter.on_title_changed = handle_item_controller_title_changed
-                    project_panel_items.append(ProjectPanelProjectItem(len(key_path) + 1, project, display_item_counter))
+                    project_panel_items.append(ProjectPanelProjectItem(len(key_path) + 1, project_reference, display_item_counter))
 
     # define a function to determine the check state of a node.
     def __get_node_check_state(self, folder_node: TreeNode) -> str:
         check_state = None
-        for project in folder_node.data:
-            project_check_state = "checked" if project in project.container.active_projects else "unchecked"
+        for project_reference in typing.cast(typing.Sequence[Profile.ProjectReference], folder_node.data):
+            project_check_state = "checked" if project_reference.is_active else "unchecked"
             if not check_state:
                 check_state = project_check_state
             elif project_check_state != check_state:
@@ -316,9 +297,9 @@ class TreeModel:
             if isinstance(project_panel_item, ProjectPanelFolderItem):
                 project_panel_item.check_state = self.__get_node_check_state(project_panel_item.node)
             elif isinstance(project_panel_item, ProjectPanelProjectItem):
-                project_panel_item.is_target = project_panel_item.project == self.document_controller.document_model.profile.target_project
-                project_panel_item.is_work = project_panel_item.project == self.document_controller.document_model.profile.work_project
-                project_panel_item.check_state = "checked" if project_panel_item.project in project_panel_item.project.container.active_projects else "unchecked"
+                project_panel_item.is_target = project_panel_item.project_reference.project == self.document_controller.profile.target_project
+                project_panel_item.is_work = project_panel_item.project_reference.project == self.document_controller.profile.work_project
+                project_panel_item.check_state = "checked" if project_panel_item.project_reference.is_active else "unchecked"
 
     @property
     def value(self) -> typing.List:
@@ -350,8 +331,8 @@ class TreeModel:
 
         # define a function to recursive set projects/folders to active
         def set_folder_node_active(folder_node: TreeNode, active: bool) -> None:
-            for project in folder_node.data:
-                self.document_controller.set_project_active(project, active)
+            for project_reference in typing.cast(typing.Sequence[Profile.ProjectReference], folder_node.data):
+                self.document_controller.profile.set_project_reference_active(project_reference, active)
             for key, child_node in folder_node.children.items():
                 set_folder_node_active(child_node, active)
 
@@ -360,8 +341,8 @@ class TreeModel:
         else:
             set_folder_node_active(folder_node, False)
 
-    def toggle_project_active(self, project: Project.Project) -> None:
-        self.document_controller.toggle_project_active(project)
+    def toggle_project_reference_active(self, project_reference: Profile.ProjectReference) -> None:
+        self.document_controller.profile.toggle_project_reference_active(project_reference)
 
 
 class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
@@ -385,7 +366,7 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             if isinstance(display_item, ProjectPanelFolderItem):
                 self.__tree_model.toggle_folder_active(display_item.node)
             elif isinstance(display_item, ProjectPanelProjectItem):
-                self.__tree_model.toggle_project_active(display_item.project)
+                self.__tree_model.toggle_project_reference_active(display_item.project_reference)
             return True
         return False
 
@@ -436,14 +417,14 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
     def item_tool_tip(self, index: int) -> typing.Optional[str]:
         display_item = self.__tree_model.value[index]
         if isinstance(display_item, ProjectPanelProjectItem):
-            return display_item.project.project_reference_str
+            return str(display_item.project_reference.project.storage_system_path if display_item.project_reference.project else _("Missing"))
         return None
 
     def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
         display_item = self.__tree_model.value[index]
         menu = self.__document_controller.create_context_menu()
-        if isinstance(display_item, ProjectPanelProjectItem):
-            menu.add_menu_item(_(f"Open Project Location"), functools.partial(reveal_project, pathlib.Path(display_item.project.project_reference_str)))
+        if isinstance(display_item, ProjectPanelProjectItem) and display_item.project_reference.project:
+            menu.add_menu_item(_(f"Open Project Location"), functools.partial(reveal_project, display_item.project_reference.project.storage_system_path))
         elif isinstance(display_item, ProjectPanelFolderItem):
             menu.add_menu_item(_(f"Open Folder Location"), functools.partial(open_location, pathlib.Path(display_item.folder_key)))
         menu.popup(gx, gy)
@@ -461,26 +442,8 @@ class ProjectTreeWidget(Widgets.CompositeWidgetBase):
         column = self.content_widget
 
         document_model = document_controller.document_model
-        projects_model = document_model.projects_model
 
         self._tree_model = TreeModel(document_controller, set(document_model.profile.closed_items))
-
-        def projects_model_changed(property_name: str) -> None:
-            if property_name == "value":
-                # update the tree model.
-                self._tree_model.update_projects(projects_model.value)
-                # validate the selection
-                indexes = set()
-                for index in self._tree_selection.indexes:
-                    if index < len(self._tree_model.value):
-                        indexes.add(index)
-                self._tree_selection.set_multiple(indexes)
-                # update project list
-                tree_selection_changed()
-
-        # listen for changes to the project model and report them to the tree model.
-        self.__projects_model_listener = projects_model.property_changed_event.listen(projects_model_changed)
-        self._tree_model.update_projects(projects_model.value)  # initial sync
 
         def closed_items_changed(closed_items: typing.Set[str]):
             document_model.profile.closed_items = list(closed_items)
@@ -501,27 +464,42 @@ class ProjectTreeWidget(Widgets.CompositeWidgetBase):
         # configure the selection objects to track each other
 
         def tree_selection_changed() -> None:
-            selected_projects = list()
+            selected_project_references = list()
             for index in self._tree_selection.indexes:
                 tree_item = self._tree_model.value[index]
-                if hasattr(tree_item, "project") and tree_item.project:
-                    selected_projects.append(tree_item.project)
-            document_controller.selected_projects_model.value = selected_projects
+                if hasattr(tree_item, "project_reference") and tree_item.project_reference:
+                    selected_project_references.append(tree_item.project_reference)
+            document_controller.selected_project_references_model.value = selected_project_references
 
         self.__tree_selection_changed_event_listener = self._tree_selection.changed_event.listen(tree_selection_changed)
 
-        self.__active_projects_changed_event_listener = document_controller.active_projects_changed_event.listen(projects_list_widget.update)
+        # configure an observer for watching for project references changes
+
+        def project_references_changed(item: Observer.ItemValue) -> None:
+            project_references = typing.cast(typing.Sequence[Profile.ProjectReference], item)
+            # update the tree model.
+            self._tree_model.update_project_references(project_references)
+            # validate the selection
+            indexes = set()
+            for index in self._tree_selection.indexes:
+                if index < len(self._tree_model.value):
+                    indexes.add(index)
+            self._tree_selection.set_multiple(indexes)
+            # update project list
+            tree_selection_changed()
+
+        oo = Observer.ObserverBuilder()
+        oo.source(document_controller.document_model).prop("profile").ordered_sequence_from_array("project_references").collect_list().action_fn(project_references_changed)
+        self.__projects_model_observer = oo.make_observable()
 
         tree_selection_changed()
 
     def close(self):
         self.__tree_selection_changed_event_listener.close()
         self.__tree_selection_changed_event_listener = None
-        self.__active_projects_changed_event_listener.close()
-        self.__active_projects_changed_event_listener = None
         self._tree_model.on_closed_items_changed = None
-        self.__projects_model_listener.close()
-        self.__projects_model_listener = None
+        self.__projects_model_observer.close()
+        self.__projects_model_observer = None
         super().close()
 
 

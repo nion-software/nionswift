@@ -100,7 +100,7 @@ class DocumentController(Window.Window):
 
         self.selection = Selection.IndexedSelection()
 
-        self.selected_projects_model = Model.PropertyModel(set())
+        self.selected_project_references_model = Model.PropertyModel(set())
 
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
@@ -111,13 +111,11 @@ class DocumentController(Window.Window):
         self.__filtered_display_items_model = ListModel.FilteredListModel(items_key="display_items", container=self.__display_items_model)
         self.__last_display_filter = ListModel.Filter(True)
         self.filter_changed_event = Event.Event()
-        self.active_projects_changed_event = Event.Event()
 
         # see set_filter
         with self.__display_items_model.changes():  # change filter and sort together
-            project_filter = self.document_model.profile.project_filter
             self.__display_items_model.container = self.document_model
-            self.__display_items_model.filter = ListModel.AndFilter((project_filter, self.get_filter_predicate(None)))
+            self.__display_items_model.filter = self.get_filter_predicate(None)
             self.__display_items_model.sort_key = DataItem.sort_by_date_key
             self.__display_items_model.sort_reverse = True
             self.__display_items_model.filter_id = None
@@ -414,6 +412,10 @@ class DocumentController(Window.Window):
             display_panel.request_focus()
 
     @property
+    def profile(self) -> Profile.Profile:
+        return self.document_model.profile
+
+    @property
     def display_items_model(self):
         return self.__display_items_model
 
@@ -438,9 +440,8 @@ class DocumentController(Window.Window):
             container = data_group if data_group else self.document_model
             if container != self.__display_items_model.container:
                 with self.__display_items_model.changes():  # change filter and sort together
-                    project_filter = self.document_model.profile.project_filter
                     self.__display_items_model.container = data_group
-                    self.__display_items_model.filter = ListModel.AndFilter((project_filter, ListModel.Filter(True)))
+                    self.__display_items_model.filter = ListModel.Filter(True)
                     self.__display_items_model.sort_key = None
                     self.__display_items_model.filter_id = None
                 self.filter_changed_event.fire(data_group, self.__display_items_model.filter_id)
@@ -449,9 +450,8 @@ class DocumentController(Window.Window):
         if self.__display_items_model is not None:
             if filter_id != self.__display_items_model.filter_id:
                 with self.__display_items_model.changes():  # change filter and sort together
-                    project_filter = self.document_model.profile.project_filter
                     self.__display_items_model.container = self.document_model
-                    self.__display_items_model.filter = ListModel.AndFilter((project_filter, self.get_filter_predicate(filter_id)))
+                    self.__display_items_model.filter = self.get_filter_predicate(filter_id)
                     self.__display_items_model.sort_key = DataItem.sort_by_date_key
                     self.__display_items_model.sort_reverse = True
                     self.__display_items_model.filter_id = filter_id
@@ -473,8 +473,8 @@ class DocumentController(Window.Window):
             self.__filtered_display_items_model.filter = display_filter
 
     @property
-    def selected_projects(self) -> typing.List[Project.Project]:
-        return self.selected_projects_model.value
+    def selected_project_references(self) -> typing.List[Profile.ProjectReference]:
+        return self.selected_project_references_model.value
 
     @property
     def selected_display_items(self) -> typing.List[DisplayItem.DisplayItem]:
@@ -734,44 +734,36 @@ class DocumentController(Window.Window):
         if len(paths) == 1:
             self.document_model.profile.open_project(pathlib.Path(paths[0]))
 
-    def _handle_upgrade_project(self) -> None:
-        for project in self.selected_projects:
-            self.document_model.profile.upgrade_project(project)
+    def _handle_upgrade_project_reference(self) -> None:
+        for project_reference in self.selected_project_references:
+            self.document_model.profile.upgrade_project_reference(project_reference)
 
-    def _handle_remove_project(self) -> None:
-        for project in self.selected_projects:
-            self.document_model.profile.remove_project(project)
+    def _handle_remove_project_reference(self) -> None:
+        for project_reference in self.selected_project_references:
+            self.document_model.profile.remove_project_reference(project_reference)
 
     def _set_target_project(self) -> None:
-        projects = self.selected_projects
-        if not projects:
-            raise Exception("Select a project in the project panel.")
-        if len(projects) > 1:
-            raise Exception("Select a single project in the project panel.")
-        self.document_model.profile.set_target_project(projects[0])
+        project_references = self.selected_project_references
+        if not project_references:
+            raise Exception(_("Select a project in the project panel."))
+        if len(project_references) > 1:
+            raise Exception(_("Select a single project in the project panel."))
+        if not project_references[0].project:
+            raise Exception(_("Select a loaded project in the project panel."))
+        self.document_model.profile.set_target_project_reference(project_references[0])
 
     def _clear_target_project(self) -> None:
-        self.document_model.profile.set_target_project(None)
+        self.document_model.profile.set_target_project_reference(None)
 
     def _set_work_project(self) -> None:
-        projects = self.selected_projects
-        if not projects:
-            raise Exception("Select a project in the project panel.")
-        if len(projects) > 1:
-            raise Exception("Select a single project in the project panel.")
-        self.document_model.profile.set_work_project(projects[0])
-
-    def set_project_active(self, project: Project.Project, active: bool) -> bool:
-        changed = self.document_model.profile.set_project_active(project, active)
-        if changed:
-            self.__display_items_model.mark_changed()
-            self.active_projects_changed_event.fire()
-        return changed
-
-    def toggle_project_active(self, project: Project.Project) -> None:
-        self.document_model.profile.toggle_project_active(project)
-        self.__display_items_model.mark_changed()
-        self.active_projects_changed_event.fire()
+        project_references = self.selected_project_references
+        if not project_references:
+            raise Exception(_("Select a project in the project panel."))
+        if len(project_references) > 1:
+            raise Exception(_("Select a single project in the project panel."))
+        if not project_references[0].project:
+            raise Exception(_("Select a loaded project in the project panel."))
+        self.document_model.profile.set_work_project_reference(project_references[0])
 
     def _import_folder(self):
         documents_dir = self.ui.get_document_location()
@@ -2696,7 +2688,7 @@ class RemoveProjectAction(Window.Action):
     action_name = _("Remove Project")
 
     def invoke(self, context: Window.ActionContext) -> None:
-        context.window._handle_remove_project()
+        context.window._handle_remove_project_reference()
 
 
 class SetTargetProjectAction(Window.Action):
@@ -2720,7 +2712,7 @@ class UpgradeProjectAction(Window.Action):
     action_name = _("Upgrade Project")
 
     def invoke(self, context: Window.ActionContext) -> None:
-        context.window._handle_upgrade_project()
+        context.window._handle_upgrade_project_reference()
 
 
 Window.register_action(AddGroupAction())

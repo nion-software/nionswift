@@ -1,13 +1,11 @@
 # standard libraries
-import copy
+import contextlib
 import datetime
-import functools
 import json
 import logging
 import pathlib
 import typing
 import uuid
-import weakref
 
 # local libraries
 from nion.swift.model import Cache
@@ -18,16 +16,200 @@ from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import FileStorageSystem
+from nion.swift.model import Observer
 from nion.swift.model import Persistence
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
 from nion.utils import Converter
 from nion.utils import Event
-from nion.utils import ListModel
-from nion.utils import Model
 from nion.utils import Observable
-from nion.utils import Selection
+
+if typing.TYPE_CHECKING:
+    from nion.swift.model import DocumentModel
+
+
+class ProjectReference(Observable.Observable, Persistence.PersistentObject):
+
+    def __init__(self, type: str):
+        super().__init__()
+        self.define_type(type)
+        self.define_property("project_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("is_active", False, changed=self.__property_changed)
+        self.__project: typing.Optional[Project.Project] = None
+
+    def open(self) -> None:
+        if self.__project:
+            self.__project.open()
+
+    def read_from_dict(self, properties: typing.Mapping) -> None:
+        super().read_from_dict(properties)
+        # copy this uuid to the project uuid for backwards compatibility.
+        # this is only needed for the beta version.
+        if self.project_uuid is None:
+            self.project_uuid = self.uuid
+
+    def about_to_be_removed(self, container):
+        self.__unmount_project()
+        super().about_to_be_removed(container)
+
+    def close_relationships(self) -> None:
+        self.__unmount_project()
+        super().close_relationships()
+
+    def insert_model_item(self, container, name, before_index, item):
+        """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
+
+        Passing responsibility to this item's container allows the library to easily track dependencies.
+        However, if this item isn't yet in the library hierarchy, then do the operation directly.
+        """
+        if self.container:
+            self.container.insert_model_item(container, name, before_index, item)
+        else:
+            container.insert_item(name, before_index, item)
+
+    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
+        """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
+
+        Passing responsibility to this item's container allows the library to easily track dependencies.
+        However, if this item isn't yet in the library hierarchy, then do the operation directly.
+        """
+        if self.container:
+            return self.container.remove_model_item(container, name, item, safe=safe)
+        else:
+            container.remove_item(name, item)
+            return Changes.UndeleteLog()
+
+    def __property_changed(self, name, value):
+        self.notify_property_changed(name)
+
+    @property
+    def project(self) -> typing.Optional[Project.Project]:
+        return self.__project
+
+    @property
+    def title(self) -> str:
+        return self.__project.title if self.__project and self.__project.title else pathlib.Path(self.project_reference_parts[-1]).stem
+
+    @property
+    def project_reference_parts(self) -> typing.Tuple[str]:
+        raise NotImplementedError()
+
+    def make_storage(self, profile_context: typing.Optional["MemoryProfileContext"]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+        raise NotImplementedError()
+
+    def load_project(self, existing_projects: typing.Sequence[Project.Project], profile_context: typing.Optional["MemoryProfileContext"]) -> None:
+        """Make this project active and read it if it isn't already active."""
+        if not self.is_active:
+            self.is_active = True
+            self.read_project(existing_projects, profile_context)
+
+    def unload_project(self) -> None:
+        """Make this project inactive."""
+        if self.is_active and self.__project:
+            self.is_active = False
+            self.__unmount_project()
+            self.notify_property_changed("project")
+
+    def __unmount_project(self):
+        if self.__project:
+            self.__project.unmount()
+            self.__project.about_to_be_removed(self)
+            self.__project.persistent_object_context = None
+            self.__project.close()
+            self.__project = None
+
+    def read_project(self, existing_projects: typing.Sequence[Project.Project], profile_context: typing.Optional["MemoryProfileContext"] = None) -> None:
+        """Read the project if it is active.
+
+        The profile context is used during testing.
+        """
+        assert not self.__project
+        if self.is_active:
+            project_storage_system = self.make_storage(profile_context)
+            if project_storage_system:
+                project_storage_system.load_properties()
+                self.__project = Project.Project(project_storage_system)
+            else:
+                logging.getLogger("loader").warning(f"Project could not be loaded {self}.")
+            # do not allow multiple projects to load with same uuid
+            existing_project_uuids = {project.uuid for project in existing_projects}
+            if self.__project:
+                self.__project.prepare_read_project()  # sets up the uuid, used next.
+                if not self.__project.uuid in existing_project_uuids and self.__project.uuid == self.project_uuid:
+                    self.update_item_context(self.__project)
+                    self.__project.about_to_be_inserted(self)
+                    self.notify_property_changed("project")  # before reading, so document model has a chance to set up
+                    self.__project.read_project()
+                else:
+                    self.__project.close()
+                    self.__project = None
+
+    def read_project_uuid(self, profile_context: typing.Optional["MemoryProfileContext"] = None) -> typing.Optional[uuid.UUID]:
+        project_storage_system = self.make_storage(profile_context)
+        if project_storage_system:
+            project_storage_system.load_properties()
+            with contextlib.closing(Project.Project(project_storage_system)) as project:
+                project.prepare_read_project()  # sets up the uuid, used next.
+                return project.uuid
+        return None
+
+
+
+class IndexProjectReference(ProjectReference):
+    type = "project_index"
+
+    def __init__(self):
+        super().__init__(self.__class__.type)
+        self.define_property("project_path", converter=Converter.PathToStringConverter())
+
+    @property
+    def project_reference_parts(self) -> typing.Tuple[str]:
+        return self.project_path.parts
+
+    def make_storage(self, profile_context: typing.Optional["MemoryProfileContext"]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+        return FileStorageSystem.make_index_project_storage_system(self.project_path)
+
+
+class FolderProjectReference(ProjectReference):
+    type = "project_folder"
+
+    def __init__(self):
+        super().__init__(self.__class__.type)
+        self.define_property("project_folder_path", converter=Converter.PathToStringConverter())
+
+    @property
+    def project_reference_parts(self) -> typing.Tuple[str]:
+        return self.project_folder_path.parts
+
+    def make_storage(self, profile_context: typing.Optional["MemoryProfileContext"]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+        return FileStorageSystem.make_folder_project_storage_system(self.project_folder_path)
+
+
+class MemoryProjectReference(ProjectReference):
+    type = "project_memory"
+
+    def __init__(self, d: typing.Dict = None):
+        super().__init__(self.__class__.type)
+        self.__d = d or dict()
+
+    @property
+    def project_reference_parts(self) -> typing.Tuple[str]:
+        return ("memory",)
+
+    def make_storage(self, profile_context: typing.Optional["MemoryProfileContext"]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+        return FileStorageSystem.make_memory_project_storage_system(profile_context, self.project_uuid, self.__d)
+
+
+def project_reference_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[ProjectReference]:
+    type = lookup_id("type")
+    if type == IndexProjectReference.type:
+        return IndexProjectReference()
+    if type == FolderProjectReference.type:
+        return FolderProjectReference()
+    if type == MemoryProjectReference.type:
+        return MemoryProjectReference()
+    return None
 
 
 class Profile(Observable.Observable, Persistence.PersistentObject):
@@ -35,87 +217,66 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, storage_system=None, storage_cache=None, *, auto_project: bool = True):
         super().__init__()
 
-        # handle special case of auto project - make the auto project active
-        project_uuid_str = None
-        active_project_uuids = list()
-        if auto_project:
-            project_uuid_str = str(uuid.uuid4())
-            active_project_uuids = [project_uuid_str]
-
-        self.__active_projects = set()
-
         self.define_root_context()
         self.define_type("profile")
         self.define_relationship("workspaces", WorkspaceLayout.factory)
         self.define_relationship("data_groups", DataGroup.data_group_factory)
+        self.define_relationship("project_references", project_reference_factory, insert=self.__insert_project_reference, remove=self.__remove_project_reference)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
         self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
-        self.define_property("project_references", list())
-        self.define_property("target_project_reference_uuid", converter=Converter.UuidToStringConverter())
-        self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("target_project_reference_uuid", converter=Converter.UuidToStringConverter(), changed=self.__property_changed)
+        self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter(), changed=self.__property_changed)
         self.define_property("closed_items", list())
-        self.define_property("active_project_uuids", active_project_uuids, changed=self.__active_projects_changed)
-
-        self.project_inserted_event = Event.Event()
-        self.project_removed_event = Event.Event()
 
         self.storage_system = storage_system or FileStorageSystem.MemoryPersistentStorageSystem()
         self.storage_system.load_properties()
 
-        if auto_project:
-            project_storage_system = FileStorageSystem.MemoryProjectStorageSystem()
-            project_storage_system.load_properties()
-            project = Project.Project(project_storage_system, {"type": "memory", "uuid": project_uuid_str})
-            self.__projects = [project]
-            project.project_uuid_str = project_uuid_str
-            self.__work_project = self.__projects[0]
-            self.__target_project = self.__projects[0]
-        else:
-            self.__projects = list()
-            self.__work_project = None
-            self.__target_project = None
+        self.__work_project_reference : typing.Optional[ProjectReference] = None
+        self.__target_project_reference : typing.Optional[ProjectReference] = None
 
         self.storage_cache = storage_cache or Cache.DictStorageCache()  # need to deallocate
         self.set_storage_system(self.storage_system)
 
-        for project in self.__projects:
-            self.update_item_context(project)
-            project.about_to_be_inserted(self)
-
         self.__document_model = None
         self.profile_context = None
 
-        # the projects model is a property model where the value is the current list of projects.
-        self.projects_model = Model.PropertyModel(copy.copy(self.__projects))
+        # helper object to produce the projects sequence
+        oo = Observer.ObserverBuilder()
+        oo.source(self).ordered_sequence_from_array("project_references").map(oo.x.prop("project")).filter(lambda x: x is not None).trampoline(self, "projects")
+        self.__projects_observer = oo.make_observable()
 
-        self.__update_active_projects()
+        self.__is_read = False
+
+        if auto_project:
+            self.profile_context = MemoryProfileContext()
+            project_reference = self.add_project_memory()
+            self.work_project_reference_uuid = project_reference.uuid
+            self.target_project_reference_uuid = project_reference.uuid
 
     def close(self) -> None:
         self.storage_cache.close()
         self.storage_cache = None
         self.storage_system.close()
         self.storage_system = None
-        self.projects_model.close()
-        self.projects_model = None
+        self.__projects_observer.close()
+        self.__projects_observer = None
+        self.__document_model = None
+        self.profile_context = None
         super().close()
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
 
-    def __active_projects_changed(self, name: str, active_project_uuids: typing.Sequence[str]) -> None:
-        self.__update_active_projects()
-        self.__property_changed(name, active_project_uuids)
+    def __insert_project_reference(self, name: str, before_index: int, project_reference: ProjectReference) -> None:
+        self.notify_insert_item("project_references", project_reference, before_index)
 
-    def __update_active_projects(self) -> None:
-        self.__active_projects = set()
-        for project in self.__projects:
-            if project.project_reference.get("uuid", None) in self.active_project_uuids:
-                self.__active_projects.add(project)
+    def __remove_project_reference(self, name: str, index: int, project_reference: ProjectReference) -> None:
+        self.notify_remove_item("project_references", project_reference, index)
 
     @property
     def projects(self) -> typing.List[Project.Project]:
-        return self.__projects
+        return typing.cast(typing.List[Project.Project], self.__projects_observer.item)
 
     @property
     def _profile_storage_system(self) -> FileStorageSystem.PersistentStorageSystem:
@@ -123,27 +284,35 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def target_project(self) -> typing.Optional[Project.Project]:
-        return self.__target_project
+        return self.__target_project_reference.project if self.__target_project_reference else None
+
+    @property
+    def target_project_reference(self) -> typing.Optional[ProjectReference]:
+        return self.__target_project_reference
 
     @property
     def work_project(self) -> typing.Optional[Project.Project]:
-        return self.__work_project
+        return self.__work_project_reference.project
 
-    def set_target_project(self, project: Project.Project) -> None:
-        if project != self.__target_project:
-            self.target_project_reference_uuid = project.project_uuid_str if project else None
-            self.__target_project = project
+    @property
+    def work_project_reference(self) -> typing.Optional[ProjectReference]:
+        return self.__work_project_reference
+
+    def set_target_project_reference(self, project_reference: typing.Optional[ProjectReference]) -> None:
+        if project_reference != self.__target_project_reference:
+            self.target_project_reference_uuid = project_reference.uuid if project_reference else None
+            self.__target_project_reference = project_reference
             self.property_changed_event.fire("target_project")
 
-    def set_work_project(self, project: Project.Project) -> None:
-        if project != self.__work_project:
-            if any(data_item.is_live for data_item in self.__work_project.data_items):
+    def set_work_project_reference(self, project_reference: ProjectReference) -> None:
+        if project_reference != self.__work_project_reference:
+            work_project = self.__work_project_reference.project
+            if any(data_item.is_live for data_item in work_project.data_items):
                 raise Exception("Work project contains live items.")
-            if any(display_item.is_live for display_item in self.__work_project.display_items):
+            if any(display_item.is_live for display_item in work_project.display_items):
                 raise Exception("Work project contains live items.")
-            assert project.project_uuid_str is not None
-            self.work_project_reference_uuid = project.project_uuid_str
-            self.__work_project = project
+            self.work_project_reference_uuid = project_reference.uuid
+            self.__work_project_reference = project_reference
             self.property_changed_event.fire("work_project")
 
     def target_project_for_item(self, item) -> typing.Optional[Project.Project]:
@@ -184,21 +353,11 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         return self.target_project or self.work_project
 
-    def open(self, document_model):
-        for project in self.__projects:
-            project.open()
+    def open(self, document_model: "DocumentModel.DocumentModel"):
+        # this makes storage reusable during tests
+        for project_reference in self.project_references:
+            project_reference.open()
         self.__document_model = document_model
-
-    def about_to_be_removed(self, container):
-        for project in self.__projects:
-            project.about_to_be_removed(self)
-        super().about_to_be_removed(container)
-
-    def close_relationships(self) -> None:
-        for project in self.__projects:
-            project.persistent_object_context = None
-            project.close()
-        super().close_relationships()
 
     def insert_model_item(self, container, name, before_index, item):
         """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
@@ -245,6 +404,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def transaction_context(self):
         """Return a context object for a document-wide transaction."""
+
         class Transaction:
             def __init__(self, profile):
                 self.__profile = profile
@@ -267,25 +427,35 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         data_item = project.restore_data_item(data_item_uuid)
         if data_item:
             return data_item
-        for project in self.__projects:
+        for project in self.projects:
             data_item = project.restore_data_item(data_item_uuid)
             if data_item:
                 return data_item
         return None
 
     def prune(self):
-        for project in self.__projects:
+        for project in self.projects:
             project.prune()
 
+    def read_from_dict(self, properties: typing.Mapping) -> None:
+        super().read_from_dict(properties)
+        # activate the project uuids. needed for backwards compatibility during beta only.
+        for project_reference_uuid_str in typing.cast(typing.MutableMapping, properties).pop("active_project_uuids", list()):
+            project_reference_uuid = uuid.UUID(project_reference_uuid_str)
+            for project_reference in self.project_references:
+                if project_reference.uuid == project_reference_uuid:
+                    project_reference.is_active = True
+
     def read_profile(self) -> None:
-        # read the properties from the storage system
+        # read the properties from the storage system. called after open.
         properties = self.storage_system.read_properties()
 
         # if the properties match the current version, read the properties.
         if properties.get("version", 0) == FileStorageSystem.PROFILE_VERSION:
             self.begin_reading()
             try:
-                self.read_from_dict(properties)
+                if not self.project_references:  # hack for testing. tests will have already set up profile.
+                    self.read_from_dict(properties)
             finally:
                 self.finish_reading()
             self.storage_system.set_property(self, "uuid", str(self.uuid))
@@ -293,51 +463,45 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         # create project objects for each project reference
         for project_reference in self.project_references:
-            self.read_project(project_reference)
-
-        # update the active projects
-        self.__update_active_projects()
+            project_reference.read_project(self.projects, self.profile_context)
 
         # attempt to establish existing target project
         if self.target_project_reference_uuid:
-            for project in self.__projects:
-                if str(self.target_project_reference_uuid) == project.project_reference.get("uuid", None):
-                    self.__target_project = project
+            for project_reference in self.project_references:
+                if project_reference.uuid == self.target_project_reference_uuid:
+                    self.__target_project_reference = project_reference
                     break
 
         # attempt to establish existing work project
         if self.work_project_reference_uuid:
-            for project in self.__projects:
-                if str(self.work_project_reference_uuid) == project.project_reference.get("uuid", None):
-                    self.__work_project = project
+            for project_reference in self.project_references:
+                if project_reference.uuid == self.work_project_reference_uuid:
+                    self.__work_project_reference = project_reference
                     break
 
         # if existing one cannot be found, attempt to create one
-        if not self.__work_project:
-
-            def create_work_project_files(project_path: pathlib.Path) -> typing.Dict:
-                project_path = project_path.parent / "Work.nsproj"
-                suffix = str()
-                if project_path.exists():
-                    suffix = f" {datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                    project_path =  project_path.parent / f"Work{suffix}.nsproj"
-                logging.getLogger("loader").warning(f"Created work project {project_path.parent / project_path.stem}")
-                project_uuid = uuid.uuid4()
-                project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": [f"Work Data{suffix}"]})
-                project_path.write_text(project_data_json, "utf-8")
-                return {"type": "project_index", "uuid": str(project_uuid), "project_path": str(project_path)}
-
+        if not self.__work_project_reference:
             project_path = self.storage_system.path
-            work_project_reference = create_work_project_files(project_path)
+            project_path = project_path.parent / "Work.nsproj"
+            suffix = str()
+            if project_path.exists():
+                suffix = f" {datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                project_path = project_path.parent / f"Work{suffix}.nsproj"
+            logging.getLogger("loader").warning(f"Created work project {project_path.parent / project_path.stem}")
+            project_uuid = uuid.uuid4()
+            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": [f"Work Data{suffix}"]})
+            project_path.write_text(project_data_json, "utf-8")
+            project_reference = IndexProjectReference()
+            project_reference.project_path = project_path
+            project_reference.project_uuid = project_uuid
+            self.append_project_reference(project_reference)
+            project_reference.load_project(self.projects, self.profile_context)
+            self.work_project_reference_uuid = project_reference.uuid
+            self.__work_project_reference = project_reference
 
-            if work_project_reference:
-                project = self.read_project(work_project_reference)
-                if project:
-                    self.add_project_reference(work_project_reference)
-                    self.work_project_reference_uuid = uuid.UUID(work_project_reference["uuid"])
-                    self.__work_project = project
+        self.__is_read = True
 
-        if not self.__work_project:
+        if not self.__work_project_reference:
             logging.getLogger("loader").warning(f"Work project could not be loaded or created.")
 
     def create_project(self, project_dir: pathlib.Path, library_name: str) -> None:
@@ -348,23 +512,23 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         project_uuid = uuid.uuid4()
         project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": [str(project_data_path)]})
         project_path.write_text(project_data_json, "utf-8")
-        project_reference = {"type": "project_index", "uuid": str(project_uuid), "project_path": str(project_path)}
-        project = self.read_project(project_reference)
-        if project:
-            self.add_project_reference(project_reference)
+        project_reference = IndexProjectReference()
+        project_reference.project_path = project_path
+        project_reference.project_uuid = project_uuid
+        self.append_project_reference(project_reference)
+        project_reference.load_project(self.projects, self.profile_context)
 
     def open_project(self, path: pathlib.Path) -> None:
-        project_reference = None
         if path.suffix == ".nslib":
-            project_reference = self.add_project_folder(pathlib.Path(path.parent))
+            self.add_project_folder(pathlib.Path(path.parent))
         elif path.suffix == ".nsproj":
-            project_reference = self.add_project_index(path)
-        self.read_project(project_reference)
+            self.add_project_index(path)
 
     def upgrade_project(self, project: Project) -> None:
-        assert project in self.__projects
+        assert False
+        assert project in self.projects
         if project.needs_upgrade:
-            legacy_path = project.legacy_path
+            legacy_path = project.storage_system_path.parent
             target_project_path = legacy_path.with_suffix(".nsproj")
             target_data_path = legacy_path.parent / (str(legacy_path.stem) + " Data")
             logging.getLogger("loader").info(f"Created new project {target_project_path} {target_data_path}")
@@ -374,70 +538,17 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             with contextlib.closing(FileStorageSystem.FileProjectStorageSystem(target_project_path)) as new_storage_system:
                 new_storage_system.load_properties()
                 FileStorageSystem.migrate_to_latest(project.project_storage_system, new_storage_system)
-            self.remove_project(project)
+            self.remove_project_reference(project)
             self.read_project(self.add_project_index(target_project_path))
 
-    def read_project(self, project_reference: typing.Dict) -> typing.Optional[Project.Project]:
-        if project_reference:
-            # note: project context is passed for use during testing
-            project = Project.make_project(self.profile_context, project_reference)
-            project_uuids = {project.uuid for project in self.projects}
-            # do not allow multiple projects to load with same uuid
-            if project and not project.uuid in project_uuids:
-                project.prepare_read_project()
-                self.__append_project(project)
-                project.read_project()
-            return project
-        return None
-
-    def remove_project(self, project: Project) -> None:
-        if project in self.__projects and project != self.work_project:
-            if project == self.__target_project:
-                self.__target_project = None
-                self.property_changed_event.fire("target_project")
-            project.unmount()
-            project_index = self.__projects.index(project)
-            project_references = self.project_references
-            project_references.pop(project_index)
-            self._set_persistent_property_value("project_references", project_references)
-            self.__projects.remove(project)
-            project.project_uuid_str = None
-            self.projects_model.value = copy.copy(self.__projects)
-            self.project_removed_event.fire(project, project_index)
-
-    def set_project_active(self, project: Project.Project, active: bool) -> bool:
-        changed = False
-        active_projects = self.active_projects
-        if project in active_projects and not active:
-            active_projects.remove(project)
-            changed = True
-        elif active:
-            active_projects.add(project)
-            changed = True
-        if changed:
-            self.active_project_uuids = list(project.project_uuid_str for project in active_projects)
-        return changed
-
-    def toggle_project_active(self, project: Project.Project) -> None:
-        active_projects = self.active_projects
-        if project in active_projects:
-            active_projects.remove(project)
+    def set_project_reference_active(self, project_reference: ProjectReference, active: bool) -> None:
+        if active:
+            project_reference.load_project(self.projects, self.profile_context)
         else:
-            active_projects.add(project)
-        self.active_project_uuids = list(project.project_uuid_str for project in active_projects)
+            project_reference.unload_project()
 
-    @property
-    def active_projects(self) -> typing.Set[Project.Project]:
-        return self.__active_projects
-
-    @property
-    def project_filter(self) -> ListModel.Filter:
-
-        def is_display_item_active(profile_weak_ref, display_item: DisplayItem.DisplayItem) -> bool:
-            return display_item.project in profile_weak_ref().active_projects
-
-        # use a weak reference to avoid circular references loops that prevent garbage collection
-        return ListModel.PredicateFilter(functools.partial(is_display_item_active, weakref.ref(self)))
+    def toggle_project_reference_active(self, project_reference: ProjectReference) -> None:
+        self.set_project_reference_active(project_reference, not project_reference.is_active)
 
     @property
     def data_item_variables(self):
@@ -461,49 +572,51 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         del data_item_references[key]
         self._set_persistent_property_value("data_item_references", {k: v for k, v in data_item_references.items()})
 
-    def add_project_reference(self, project_reference: typing.Dict) -> None:
-        assert "type" in project_reference
-        assert "uuid" in project_reference
-        project_references = self.project_references
-        project_references.append(project_reference)
-        self._set_persistent_property_value("project_references", project_references)
-        active_project_uuid_strs = set(self.active_project_uuids)
-        active_project_uuid_strs.add(project_reference["uuid"])
-        self.active_project_uuids = list(active_project_uuid_strs)
+    def append_project_reference(self, project_reference: ProjectReference) -> None:
+        assert not self.get_item_by_uuid("project_references", project_reference.uuid)
+        self.append_item("project_references", project_reference)
 
-    def add_project_index(self, project_path: pathlib.Path) -> typing.Dict:
-        # add a project reference for the project index. does not create or add project.
-        # must be called before read_projects, where project will be created.
-        # note: this is an extra "read" of the project that might be avoid through revision of flow in the future
-        storage_system = FileStorageSystem.FilePersistentStorageSystem(project_path)
-        storage_system.load_properties()
-        project_uuid_str = storage_system.get_storage_properties()["uuid"]
-        project_reference = {"type": "project_index", "uuid": project_uuid_str, "project_path": str(project_path)}
-        self.add_project_reference(project_reference)
+    def remove_project_reference(self, project_reference: ProjectReference) -> None:
+        if project_reference.project != self.work_project:
+            if project_reference == self.__target_project_reference:
+                self.__target_project_reference = None
+                self.property_changed_event.fire("target_project")
+            project_reference.unload_project()
+            self.remove_item("project_references", project_reference)
+
+    def add_project_index(self, project_path: pathlib.Path, load: bool = True) -> ProjectReference:
+        project_reference = IndexProjectReference()
+        project_reference.project_path = project_path
+        project_reference.project_uuid = project_reference.read_project_uuid(self.profile_context)
+        self.append_project_reference(project_reference)
+        if load:
+            if self.__is_read:
+                self.set_project_reference_active(project_reference, True)
+            else:
+                project_reference.is_active = True
         return project_reference
 
-    def add_project_folder(self, project_path: pathlib.Path) -> typing.Dict:
-        # add a project reference for the project folder. does not create or add project.
-        # must be called before read_projects, where project will be created.
-        project_reference = {"type": "project_folder", "uuid": str(uuid.uuid4()), "project_folder_path": str(project_path)}
-        self.add_project_reference(project_reference)
+    def add_project_folder(self, project_folder_path: pathlib.Path, load: bool = True) -> ProjectReference:
+        project_reference = FolderProjectReference()
+        project_reference.project_path = project_folder_path
+        self.append_project_reference(project_reference)
+        if load:
+            if self.__is_read:
+                self.set_project_reference_active(project_reference, True)
+            else:
+                project_reference.is_active = True
         return project_reference
 
-    def add_project_memory(self, project_uuid: uuid.UUID = None) -> typing.Dict:
-        # add a project reference for a memory based project. does not create or add project.
-        # must be called before read_projects, where project will be created.
-        project_reference = {"type": "memory", "uuid": str(project_uuid or uuid.uuid4())}
-        self.add_project_reference(project_reference)
+    def add_project_memory(self, _uuid: uuid.UUID = None, load: bool = True) -> ProjectReference:
+        project_reference = MemoryProjectReference()
+        project_reference.project_uuid = _uuid or uuid.uuid4()
+        self.append_project_reference(project_reference)
+        if load:
+            if self.__is_read:
+                self.set_project_reference_active(project_reference, True)
+            else:
+                project_reference.is_active = True
         return project_reference
-
-    def __append_project(self, project: Project.Project) -> None:
-        self.update_item_context(project)
-        project.about_to_be_inserted(self)
-        project_index = len(self.__projects)
-        self.__projects.append(project)
-        self.projects_model.value = copy.copy(self.__projects)
-        self.project_inserted_event.fire(project, project_index)
-
 
 
 class MemoryProfileContext:
@@ -557,9 +670,9 @@ class MemoryProfileContext:
             profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
             profile.storage_system = storage_system
             profile.profile_context = self
-            self.project_uuid = uuid.UUID(profile.add_project_memory(self.project_uuid)["uuid"])
-            profile.target_project_reference_uuid = self.project_uuid
-            profile.work_project_reference_uuid = self.project_uuid
+            project_reference = profile.add_project_memory(self.project_uuid)
+            profile.target_project_reference_uuid = project_reference.uuid
+            profile.work_project_reference_uuid = project_reference.uuid
             self.__profile = profile
             return profile
         else:

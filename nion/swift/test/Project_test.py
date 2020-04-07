@@ -454,7 +454,7 @@ class TestProjectClass(unittest.TestCase):
             profile_context.reset_profile()
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
-                document_model.profile.read_project(document_model.profile.add_project_memory(project_uuid))
+                document_model.profile.add_project_memory(project_uuid)
                 self.assertEqual(project_uuid, document_model.profile.projects[1].uuid)
                 self.assertEqual(document_model.profile.projects[1], document_model.profile.persistent_object_context.get_registered_object(project_specifier))
 
@@ -470,9 +470,9 @@ class TestProjectClass(unittest.TestCase):
             profile_context.reset_profile()
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
-                document_model.profile.read_project(document_model.profile.add_project_memory(project_uuid))
-                self.assertEqual(2, len(document_model.profile.projects))
-                self.assertEqual(0, len(document_model.profile.projects[1].data_items))
+                document_model.profile.add_project_memory(project_uuid)
+                self.assertEqual(2, len(document_model.profile.project_references))
+                self.assertEqual(1, len(document_model.profile.projects))
 
     def test_partial_uuid_is_not_bound_to_items_in_another_project(self):
         with create_memory_profile_context() as profile_context:

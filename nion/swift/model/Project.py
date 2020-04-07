@@ -34,19 +34,17 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
     PROJECT_VERSION = 3
 
-    def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystem, project_reference: typing.Dict):
+    def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystem):
         super().__init__()
 
-        self.uuid = uuid.UUID(project_reference["uuid"])
-
         self.define_type("project")
+        self.define_property("title", str())
         self.define_relationship("data_items", data_item_factory, insert=self.__data_item_inserted, remove=self.__data_item_removed)
         self.define_relationship("display_items", display_item_factory, insert=self.__display_item_inserted, remove=self.__display_item_removed)
         self.define_relationship("computations", computation_factory, insert=self.__computation_inserted, remove=self.__computation_removed)
         self.define_relationship("data_structures", data_structure_factory, insert=self.__data_structure_inserted, remove=self.__data_structure_removed)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__connection_inserted, remove=self.__connection_removed)
 
-        self.__project_reference = copy.deepcopy(project_reference)
         self.__project_state = None
         self.__project_version = 0
 
@@ -128,27 +126,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         return super()._get_related_item(item_specifier)
 
     @property
-    def needs_upgrade(self) -> bool:
-        return self.__project_reference.get("type") == "project_folder"
-
-    @property
-    def project_reference(self) -> typing.Dict:
-        return copy.deepcopy(self.__project_reference)
-
-    @property
-    def project_reference_parts(self) -> typing.Tuple[str]:
-        if self.__project_reference.get("type") == "project_folder":
-            return pathlib.Path(self.__storage_system.get_identifier()).parent.parts
-        else:
-            return pathlib.Path(self.__storage_system.get_identifier()).parts
-
-    @property
-    def legacy_path(self) -> pathlib.Path:
-        return pathlib.Path(self.__storage_system.get_identifier()).parent
-
-    @property
-    def project_reference_str(self) -> str:
-        return str(pathlib.Path(self.__storage_system.get_identifier()))
+    def storage_system_path(self) -> pathlib.Path:
+        return pathlib.Path(self.__storage_system.get_identifier())
 
     @property
     def project_state(self) -> str:
@@ -157,19 +136,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     @property
     def project_version(self) -> int:
         return self.__project_version
-
-    @property
-    def project_title(self) -> str:
-        return pathlib.Path(self.project_reference_parts[-1]).stem
-
-    @property
-    def project_filter(self) -> ListModel.Filter:
-
-        def is_display_item_active(project_weak_ref, display_item: DisplayItem.DisplayItem) -> bool:
-            return display_item.project == project_weak_ref()
-
-        # use a weak reference to avoid circular references loops that prevent garbage collection
-        return ListModel.PredicateFilter(functools.partial(is_display_item_active, weakref.ref(self)))
 
     @property
     def project_storage_system(self) -> FileStorageSystem.ProjectStorageSystem:
@@ -220,16 +186,13 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def prepare_read_project(self) -> None:
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")
         self._raw_properties = self.__storage_system.read_project_properties()  # combines library and data item properties
-        self.project_uuid_str = self._raw_properties.get("uuid", str(uuid.uuid4()))
-        self.uuid = uuid.UUID(self.project_uuid_str)
+        self.uuid = uuid.UUID(self._raw_properties.get("uuid", str(uuid.uuid4())))
 
     def read_project(self) -> None:
         properties = self._raw_properties
         self.__project_version = properties.get("version", None)
         if not self._raw_properties:
             self.__project_state = "missing"
-        elif self.project_reference["uuid"] != self.project_uuid_str:
-            self.__project_state = "uuid_mismatch"
         elif self.__project_version is not None and self.__project_version in (FileStorageSystem.PROJECT_VERSION, 2):
             for item_d in properties.get("data_items", list()):
                 data_item = DataItem.DataItem()
@@ -260,7 +223,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 if not self.get_item_by_uuid("computations", computation.uuid):
                     self.load_item("computations", len(self.computations), computation)
                     # TODO: handle update script and bind after reload in document model
-                    computation.update_script(self.container.container._processing_descriptions)
+                    computation.update_script(self.container.container.container._processing_descriptions)
             for item_d in properties.get("connections", list()):
                 connection = Connection.connection_factory(item_d.get)
                 connection.begin_reading()
@@ -366,16 +329,6 @@ def computation_factory(lookup_id):
 
 def data_structure_factory(lookup_id):
     return DataStructure.DataStructure()
-
-
-def make_project(profile_context, project_reference: typing.Dict) -> typing.Optional[Project]:
-    project_storage_system = FileStorageSystem.make_storage_system(profile_context, project_reference)
-    if project_storage_system:
-        project_storage_system.load_properties()
-        return Project(project_storage_system, project_reference)
-    else:
-        logging.getLogger("loader").warning(f"Project could not be loaded {project_reference}.")
-    return None
 
 
 def get_project_for_item(item) -> typing.Optional[Project]:

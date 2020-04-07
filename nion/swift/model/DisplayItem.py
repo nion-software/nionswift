@@ -1662,7 +1662,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def project_str(self) -> str:
         display_item = self.display_data_channel.container if self.display_data_channel else None
         if display_item:
-            return display_item.container.project_title if display_item.container else str()
+            return display_item.container.title if display_item.container else str()
         return str()
 
     @property

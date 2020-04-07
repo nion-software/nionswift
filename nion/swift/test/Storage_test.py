@@ -74,15 +74,16 @@ class TempProfileContext:
             profile_json = json.dumps({"version": FileStorageSystem.PROFILE_VERSION, "uuid": str(uuid.uuid4())})
             profile_path.write_text(profile_json, "utf-8")
             project_path = self.projects_dir / pathlib.Path(project_name or "Project").with_suffix(".nsproj")
-            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": [project_data_name or "Data"]})
+            project_uuid = uuid.uuid4()
+            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": [project_data_name or "Data"]})
             project_path.write_text(project_data_json, "utf-8")
             storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
             storage_system.load_properties()
             storage_cache = Cache.DbStorageCache(self.profiles_dir / "ProfileCache.cache")
             profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
-            profile.add_project_index(project_path)
-            project_uuid = uuid.UUID(profile.project_references[0].get("uuid"))
-            profile.work_project_reference_uuid = project_uuid
+            project_reference = profile.add_project_index(project_path)
+            profile.work_project_reference_uuid = project_reference.uuid
+            profile.target_project_reference_uuid = project_reference.uuid
             self.__profile = profile
             return profile
         else:
@@ -3339,7 +3340,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(profile=profile)
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             with contextlib.closing(document_controller):
-                profile.set_work_project(profile.projects[1])
+                profile.set_work_project_reference(profile.project_references[1])
                 self.assertEqual(len(document_model.data_items), 0)
                 data_item = DataItem.DataItem(numpy.zeros((256, 256)))
                 document_model.append_data_item(data_item, project=profile.projects[0])
@@ -4148,7 +4149,7 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
-            self.assertTrue(all(project.project_state == "loaded" for project in profile.projects))
+                self.assertTrue(all(project.project_state == "loaded" for project in profile.projects))
 
     def test_work_project_is_created_if_not_valid(self):
         with create_temp_profile_context() as profile_context:
@@ -4159,8 +4160,8 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
+                work_project_path = profile.work_project_reference.project_path
             # corrupt it (old version)
-            work_project_path = pathlib.Path(profile.work_project.project_reference["project_path"])
             work_project_data_json = json.dumps({"version": 2, "uuid": str(uuid.uuid4())})
             work_project_path.write_text(work_project_data_json, "utf-8")
             # load normal profile
@@ -4170,8 +4171,8 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
-            # confirm a new work project was created
-            self.assertNotEqual(work_project_path, pathlib.Path(profile.work_project.project_reference["project_path"]))
+                # confirm a new work project was created
+                self.assertNotEqual(work_project_path, profile.work_project_reference.project_path)
 
     def test_file_project_opens_with_same_uuid(self):
         with create_temp_profile_context() as profile_context:
@@ -4182,11 +4183,11 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
                 project_uuid = document_model.profile.projects[0].uuid
                 project_specifier = document_model.profile.projects[0].item_specifier
-                project_path = pathlib.Path(document_model.profile.projects[0].project_reference["project_path"])
+                project_path = document_model.profile.project_references[0].project_path
             profile_context.reset_profile()
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
-                document_model.profile.read_project(document_model.profile.add_project_index(project_path))
+                document_model.profile.add_project_index(project_path)
                 self.assertEqual(project_uuid, document_model.profile.projects[1].uuid)
                 self.assertEqual(document_model.profile.projects[1], document_model.profile.persistent_object_context.get_registered_object(project_specifier))
 
@@ -4208,9 +4209,9 @@ class TestStorageClass(unittest.TestCase):
             project_path.unlink()
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
-                self.assertEqual(2, len(document_model.profile.projects))
+                self.assertEqual(1, len(document_model.profile.projects))
                 self.assertEqual("loaded", document_model.profile.projects[0].project_state)
-                self.assertEqual("missing", document_model.profile.projects[1].project_state)
+                self.assertIsNone(document_model.profile.project_references[1].project)
 
     def test_data_item_variable_reloads(self):
         with create_memory_profile_context() as profile_context:

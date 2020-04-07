@@ -63,5 +63,5 @@ class TestProfileClass(unittest.TestCase):
                 document_model.append_data_item(data_item, project=profile.projects[1])
                 self.assertEqual(profile.work_project, profile.projects[0])
                 self.assertEqual(2, len(profile.projects))
-                profile.remove_project(profile.projects[0])  # work profile
+                profile.remove_project_reference(profile.project_references[0])  # work profile
                 self.assertEqual(2, len(profile.projects))

@@ -158,7 +158,7 @@ class Application(UIApplication.BaseApplication):
         if is_created:
             for library_path in self.get_recent_library_paths():
                 logging.getLogger("loader").info(f"Adding legacy project {library_path}")
-                profile.add_project_folder(pathlib.Path(library_path))
+                profile.add_project_folder(pathlib.Path(library_path), load=False)
 
         # configure the document model object.
         DocumentModel.DocumentModel.computation_min_period = 0.1

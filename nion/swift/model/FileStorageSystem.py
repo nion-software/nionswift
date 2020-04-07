@@ -998,34 +998,34 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
         return self._find_storage_handlers()
 
 
-def make_storage_system(profile_context, d: typing.Dict) -> typing.Optional[ProjectStorageSystem]:
-    if d.get("type") == "project_index":
-        project_path = pathlib.Path(d.get("project_path"))
-        return FileProjectStorageSystem(project_path)
-    elif d.get("type") == "project_folder":
-        project_folder_path = pathlib.Path(d.get("project_folder_path"))
-        for project_file, project_dir in FileProjectStorageSystem._get_migration_paths(project_folder_path):
-            if project_file.exists():
-                return FileProjectStorageSystem(project_file, project_dir)
-        return None
-    elif d.get("type") == "memory":
-        storage_system_uuid = uuid.UUID(d.get("uuid"))
-        # the profile context must be valid here.
-        new_project_properties = profile_context.x_project_properties.setdefault(storage_system_uuid, {"version": PROJECT_VERSION, "uuid": str(storage_system_uuid)})
-        new_data_properties_map = profile_context.x_data_properties_map.setdefault(storage_system_uuid, dict())
-        new_data_map = profile_context.x_data_map.setdefault(storage_system_uuid, dict())
-        new_trash_map = profile_context.x_trash_map.setdefault(storage_system_uuid, dict())
-        library_properties = d.get("project_properties", new_project_properties)
-        data_properties_map = d.get("data_properties_map", new_data_properties_map)
-        data_map = d.get("data_map", new_data_map)
-        trash_map = d.get("trash_map", new_trash_map)
-        if profile_context.project_properties is None:
-            profile_context.project_properties = library_properties
-        if profile_context.data_properties_map is None:
-            profile_context.data_properties_map = data_properties_map
-        if profile_context.data_map is None:
-            profile_context.data_map = data_map
-        if profile_context.trash_map is None:
-            profile_context.trash_map = trash_map
-        return MemoryProjectStorageSystem(library_properties=library_properties, data_properties_map=data_properties_map, data_map=data_map, trash_map=trash_map)
+def make_index_project_storage_system(project_path: pathlib.Path) -> typing.Optional[ProjectStorageSystem]:
+    return FileProjectStorageSystem(project_path)
+
+
+def make_folder_project_storage_system(project_folder_path: pathlib.Path) -> typing.Optional[ProjectStorageSystem]:
+    for project_file, project_dir in FileProjectStorageSystem._get_migration_paths(project_folder_path):
+        if project_file.exists():
+            return FileProjectStorageSystem(project_file, project_dir)
     return None
+
+
+def make_memory_project_storage_system(profile_context, _uuid: uuid.UUID, d: typing.Dict) -> typing.Optional[ProjectStorageSystem]:
+    storage_system_uuid = _uuid or uuid.uuid4()
+    # the profile context must be valid here.
+    new_project_properties = profile_context.x_project_properties.setdefault(storage_system_uuid, {"version": PROJECT_VERSION, "uuid": str(storage_system_uuid)})
+    new_data_properties_map = profile_context.x_data_properties_map.setdefault(storage_system_uuid, dict())
+    new_data_map = profile_context.x_data_map.setdefault(storage_system_uuid, dict())
+    new_trash_map = profile_context.x_trash_map.setdefault(storage_system_uuid, dict())
+    library_properties = d.get("project_properties", new_project_properties)
+    data_properties_map = d.get("data_properties_map", new_data_properties_map)
+    data_map = d.get("data_map", new_data_map)
+    trash_map = d.get("trash_map", new_trash_map)
+    if profile_context.project_properties is None:
+        profile_context.project_properties = library_properties
+    if profile_context.data_properties_map is None:
+        profile_context.data_properties_map = data_properties_map
+    if profile_context.data_map is None:
+        profile_context.data_map = data_map
+    if profile_context.trash_map is None:
+        profile_context.trash_map = trash_map
+    return MemoryProjectStorageSystem(library_properties=library_properties, data_properties_map=data_properties_map, data_map=data_map, trash_map=trash_map)

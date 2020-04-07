@@ -563,11 +563,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__project_item_inserted_listeners = list()
         self.__project_item_removed_listeners = list()
 
-        self.__project_inserted_event_listener = self.__profile.project_inserted_event.listen(self.__project_inserted)
-        self.__project_removed_event_listener = self.__profile.project_removed_event.listen(self.__project_removed)
-
-        for project_index, project in enumerate(self.__profile.projects_model.value):
-            self.__project_inserted(project, project_index)
+        self.__project_inserted_event_listener = self.__profile.item_inserted_event.listen(self.__project_inserted)
+        self.__project_removed_event_listener = self.__profile.item_removed_event.listen(self.__project_removed)
 
         self.storage_cache = self.__profile.storage_cache
         self.__transaction_manager = TransactionManager(self)
@@ -612,7 +609,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         def resolve_display_item_specifier(display_item_specifier_d: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:
             display_item_specifier = Persistence.PersistentObjectSpecifier.read(display_item_specifier_d)
-            return self.resolve_item_specifier(display_item_specifier)
+            return typing.cast(typing.Optional[DisplayItem.DisplayItem], self.resolve_item_specifier(display_item_specifier))
 
         for data_group in self.data_groups:
             data_group.connect_display_items(resolve_display_item_specifier)
@@ -783,13 +780,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         elif name == "connections":
             self.__handle_connection_removed(project, item)
 
-    def __project_inserted(self, project: Project.Project, before_index: int) -> None:
-        self.__project_item_inserted_listeners.insert(before_index, project.item_inserted_event.listen(functools.partial(self.__project_item_inserted, project)))
-        self.__project_item_removed_listeners.insert(before_index, project.item_removed_event.listen(functools.partial(self.__project_item_removed, project)))
+    def __project_inserted(self, key: str, project: Project.Project, before_index: int) -> None:
+        if key == "projects":
+            self.__project_item_inserted_listeners.insert(before_index, project.item_inserted_event.listen(functools.partial(self.__project_item_inserted, project)))
+            self.__project_item_removed_listeners.insert(before_index, project.item_removed_event.listen(functools.partial(self.__project_item_removed, project)))
 
-    def __project_removed(self, project: Project.Project, index: int) -> None:
-        self.__project_item_inserted_listeners.pop(index).close()
-        self.__project_item_removed_listeners.pop(index).close()
+    def __project_removed(self, key: str, project: Project.Project, index: int) -> None:
+        if key == "projects":
+            self.__project_item_inserted_listeners.pop(index).close()
+            self.__project_item_removed_listeners.pop(index).close()
 
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
         # returns item proxy in profile. used in data group hierarchy.
@@ -838,10 +837,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     @property
     def profile(self) -> Profile.Profile:
         return self.__profile
-
-    @property
-    def projects_model(self):
-        return self.__profile.projects_model
 
     @property
     def implicit_dependencies(self):
@@ -2128,7 +2123,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if computation_changed_listener: computation_changed_listener.close()
         computation_output_changed_listener = self.__computation_output_changed_listeners.pop(computation, None)
         if computation_output_changed_listener: computation_output_changed_listener.close()
-        computation.unbind()
+        # computation.unbind()  # computation will be unbound when closed
         # notifications
         index = self.__computations.index(computation)
         self.notify_remove_item("computations", computation, index)
