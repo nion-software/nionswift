@@ -345,7 +345,7 @@ class ItemSequenceSource(AbstractItemSequenceSource):
         self.__item_removed_event = Event.Event()
         self.__item_mutated_event = Event.Event()
         self.__item_source_changed_listener = None
-        self.__adapter = None  # type: typing.Optional[AbstractArraySourceAdapter]
+        self.__adapter : typing.Optional[AbstractArraySourceAdapter] = None
 
         def item_changed(source) -> None:
             if self.__adapter:
@@ -574,6 +574,81 @@ class TransformedItemSequence(AbstractItemSequenceSource):
         return [item.item for item in self.__transformers]
 
 
+class FilteredItemSequence(AbstractItemSequenceSource):
+
+    def __init__(self, item_sequence_source: AbstractItemSequenceSource, predicate: typing.Callable[[ItemValue], bool]):
+        self.__item_sequence_source = item_sequence_source
+        self.__list_model = ListModel.ListModel(key="items")
+        self.__filtered_list_model = ListModel.FilteredListModel(container=self.__list_model, items_key="items")
+        self.__filtered_list_model.filter = ListModel.PredicateFilter(lambda x: predicate(x.value))
+        self.__item_inserted_event = Event.Event()
+        self.__item_removed_event = Event.Event()
+        self.__item_mutated_event = Event.Event()
+
+        class Wrapper:  # used to wrap values so that they are all unique
+            def __init__(self, value: ItemValue): self.value = value
+
+        def item_inserted(item: ItemValue, index: int) -> None:
+            self.__list_model.insert_item(index, Wrapper(item))
+
+        def item_removed(item: ItemValue, index: int) -> None:
+            self.__list_model.remove_item(index)
+
+        def item_mutated(item: ItemValue, index: int) -> None:
+            self.__list_model.remove_item(index)
+            self.__list_model.insert_item(index, Wrapper(item))
+
+        self.__item_inserted_listener = self.__item_sequence_source.item_inserted_event.listen(item_inserted)
+        self.__item_removed_listener = self.__item_sequence_source.item_removed_event.listen(item_removed)
+        self.__item_mutated_listener = self.__item_sequence_source.item_mutated_event.listen(item_mutated)
+
+        def filtered_item_inserted(key: str, item: ItemValue, index: int) -> None:
+            self.__item_inserted_event.fire(typing.cast(Wrapper, item).value, index)
+
+        def filtered_item_removed(key: str, item: ItemValue, index: int) -> None:
+            self.__item_removed_event.fire(typing.cast(Wrapper, item).value, index)
+
+        self.__filtered_item_inserted_listener = self.__filtered_list_model.item_inserted_event.listen(filtered_item_inserted)
+        self.__filtered_item_removed_listener = self.__filtered_list_model.item_removed_event.listen(filtered_item_removed)
+
+        for index, item in enumerate(self.__item_sequence_source.items):
+            item_inserted(item, index)
+
+    def close(self) -> None:
+        self.__item_inserted_listener.close()
+        self.__item_inserted_listener = None
+        self.__item_removed_listener.close()
+        self.__item_removed_listener = None
+        self.__item_mutated_listener.close()
+        self.__item_mutated_listener = None
+        self.__filtered_item_inserted_listener.close()
+        self.__filtered_item_inserted_listener = None
+        self.__filtered_item_removed_listener.close()
+        self.__filtered_item_removed_listener = None
+        self.__filtered_list_model.close()
+        self.__filtered_list_model = None
+        self.__list_model.close()
+        self.__list_model = None
+        self.__item_sequence_source.close()
+        self.__item_sequence_source = None
+
+    @property
+    def item_inserted_event(self):
+        return self.__item_inserted_event
+
+    @property
+    def item_removed_event(self):
+        return self.__item_removed_event
+
+    @property
+    def item_mutated_event(self):
+        return self.__item_mutated_event
+
+    @property
+    def items(self) -> typing.Sequence[ItemValue]:
+        return [item.value for item in self.__filtered_list_model.items]
+
+
 class MappedItemSequence(AbstractItemSequenceSource):
 
     def __init__(self, item_sequence_source: AbstractItemSequenceSource, map_fn: typing.Callable[[AbstractItemSource], AbstractItemSource]):
@@ -684,25 +759,128 @@ class ItemSequenceAction:
         self.__item_sequence_source = None
 
 
-class ItemSequenceListCollector(AbstractItemSource):
-    """Monitor an item set source and create an action on each item."""
+class ItemSequenceTrampoline:
+    """Monitor an item set source and send the action to another object."""
 
-    def __init__(self, item_sequence_source: AbstractItemSequenceSource):
+    def __init__(self, item_sequence_source: AbstractItemSequenceSource, target, key: str):
         self.__item_sequence_source = item_sequence_source
         self.__items = list()
-        self.__item_changed_event = Event.Event()
 
         def item_inserted(item, index: int) -> None:
             self.__items.insert(index, item)
-            self.item_changed_event.fire(self.item)
+            target.notify_insert_item(key, item, index)
 
         def item_removed(item, index: int) -> None:
             self.__items.pop(index)
-            self.item_changed_event.fire(self.item)
+            target.notify_remove_item(key, item, index)
+
+        self.__item_inserted_listener = self.__item_sequence_source.item_inserted_event.listen(item_inserted)
+        self.__item_removed_listener = self.__item_sequence_source.item_removed_event.listen(item_removed)
+
+        for index, item in enumerate(self.__item_sequence_source.items):
+            item_inserted(item, index)
+
+    def close(self) -> None:
+        self.__item_inserted_listener.close()
+        self.__item_inserted_listener = None
+        self.__item_removed_listener.close()
+        self.__item_removed_listener = None
+        self.__items = None
+        self.__item_sequence_source.close()
+        self.__item_sequence_source = None
+
+    @property
+    def item(self) -> ItemValue:
+        return self.__items
+
+
+class AbstractItemSequenceReducer(abc.ABC):
+
+    @abc.abstractmethod
+    def close(self) -> None: ...
+
+    @abc.abstractmethod
+    def item_inserted(self, item: ItemValue, index: int) -> bool: ...
+
+    @abc.abstractmethod
+    def item_removed(self, item: ItemValue, index: int) -> bool: ...
+
+    @abc.abstractmethod
+    def item_mutated(self, item: ItemValue, index: int) -> bool: ...
+
+    @property
+    @abc.abstractmethod
+    def item(self) -> ItemValue: ...
+
+
+class ItemSequenceCollector(AbstractItemSequenceReducer):
+
+    def __init__(self):
+        self.__items = list()
+
+    def close(self) -> None:
+        self.__items = None
+
+    def item_inserted(self, item: ItemValue, index: int) -> bool:
+        self.__items.insert(index, item)
+        return True
+
+    def item_removed(self, item: ItemValue, index: int) -> bool:
+        self.__items.pop(index)
+        return True
+
+    def item_mutated(self, item: ItemValue, index: int) -> bool:
+        self.__items[index] = item
+        return True
+
+    @property
+    def item(self) -> ItemValue:
+        return copy.copy(self.__items)
+
+
+class ItemSequenceLength(AbstractItemSequenceReducer):
+
+    def __init__(self):
+        self.__items = list()
+
+    def close(self) -> None:
+        self.__items = None
+
+    def item_inserted(self, item: ItemValue, index: int) -> bool:
+        self.__items.insert(index, item)
+        return True
+
+    def item_removed(self, item: ItemValue, index: int) -> bool:
+        self.__items.pop(index)
+        return True
+
+    def item_mutated(self, item: ItemValue, index: int) -> bool:
+        return False
+
+    @property
+    def item(self) -> ItemValue:
+        return len(self.__items)
+
+
+class ItemSequenceListReducer(AbstractItemSource):
+    """Monitor an item set source and run a reducer on it to produce an item value."""
+
+    def __init__(self, item_sequence_source: AbstractItemSequenceSource, reducer: AbstractItemSequenceReducer):
+        self.__item_sequence_source = item_sequence_source
+        self.__item_reducer = reducer
+        self.__item_changed_event = Event.Event()
+
+        def item_inserted(item, index: int) -> None:
+            if self.__item_reducer.item_inserted(item, index):
+                self.item_changed_event.fire(self.item)
+
+        def item_removed(item, index: int) -> None:
+            if self.__item_reducer.item_removed(item, index):
+                self.item_changed_event.fire(self.item)
 
         def item_mutated(item, index: int) -> None:
-            self.__items[index] = item
-            self.item_changed_event.fire(self.item)
+            if self.__item_reducer.item_mutated(item, index):
+                self.item_changed_event.fire(self.item)
 
         self.__item_inserted_listener = self.__item_sequence_source.item_inserted_event.listen(item_inserted)
         self.__item_removed_listener = self.__item_sequence_source.item_removed_event.listen(item_removed)
@@ -720,14 +898,16 @@ class ItemSequenceListCollector(AbstractItemSource):
         self.__item_mutated_listener = None
         self.__item_sequence_source.close()
         self.__item_sequence_source = None
+        self.__item_reducer.close()
+        self.__item_reducer = None
 
     @property
     def item_changed_event(self):
         return self.__item_changed_event
 
     @property
-    def item(self) -> typing.List[ItemValue]:
-        return copy.copy(self.__items)
+    def item(self) -> ItemValue:
+        return self.__item_reducer.item
 
 
 class ItemSequenceIndex(AbstractItemSource):
@@ -942,6 +1122,11 @@ class ObserverBuilderItemSource:
         self._build(lambda node: ItemAction(typing.cast(AbstractItemSource, node), make_action))
         return ObserverBuilderItemAction(self.base)
 
+    def action_fn(self, item_changed: typing.Callable[[ItemValue], None]) -> "ObserverBuilderItemAction":
+        """Build an action on the item."""
+        self._build(lambda node: ItemMonitor(typing.cast(AbstractItemSource, node), item_changed))
+        return ObserverBuilderItemAction(self.base)
+
     def prop(self, property: str) -> "ObserverBuilderItemSource":
         """Build a property observer on the item. The item will be the property."""
         self._build(lambda node: TransformedItemSource(typing.cast(AbstractItemSource, node), PropertyItemTransformer.factory(property)))
@@ -1011,13 +1196,28 @@ class ObserverBuilderItemSequenceSource:
         self._build(lambda node: MappedItemSequence(typing.cast(AbstractItemSequenceSource, node), action))
         return ObserverBuilderItemSequenceSource(self.base)
 
+    def filter(self, predicate: typing.Callable[[ItemValue], bool]) -> "ObserverBuilderItemSequenceSource":
+        """Perform a filter on each item in the sequence. The items will be a filtered version of the input sequence."""
+        self._build(lambda node: FilteredItemSequence(typing.cast(AbstractItemSequenceSource, node), predicate))
+        return ObserverBuilderItemSequenceSource(self.base)
+
+    def trampoline(self, target, key: str) -> "ObserverBuilderItemAction":
+        """Observe the sequence and pass along changes to the target as a sequence."""
+        self._build(lambda node: ItemSequenceTrampoline(typing.cast(AbstractItemSequenceSource, node), target, key))
+        return ObserverBuilderItemAction(self.base)
+
     def collect_list(self) -> "ObserverBuilderItemSource":
         """Convert the item sequence to a list. The item will be a list of the inputs."""
-        self._build(lambda node: ItemSequenceListCollector(typing.cast(AbstractItemSequenceSource, node)))
+        self._build(lambda node: ItemSequenceListReducer(typing.cast(AbstractItemSequenceSource, node), ItemSequenceCollector()))
+        return ObserverBuilderItemSource(self.base)
+
+    def len(self) -> "ObserverBuilderItemSource":
+        """Return the length of the sequence."""
+        self._build(lambda node: ItemSequenceListReducer(typing.cast(AbstractItemSequenceSource, node), ItemSequenceLength()))
         return ObserverBuilderItemSource(self.base)
 
     def index(self, index: int) -> "ObserverBuilderItemSource":
-        """Return the index item in the unordered sequence."""
+        """Return the index item in the ordered sequence."""
         self._build(lambda node: ItemSequenceIndex(typing.cast(AbstractItemSequenceSource, node), index))
         return ObserverBuilderItemSource(self.base)
 

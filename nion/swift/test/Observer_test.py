@@ -176,6 +176,28 @@ class TestObserver(unittest.TestCase):
             del model.a[0]
             self.assertEqual(["B", "C", "A-B"], o.items)
 
+    def test_observer_item_sequence_filter(self):
+        # configure the model
+        array_field = StructuredModel.define_array(StructuredModel.STRING)
+        str_field = StructuredModel.define_field("a", array_field, default=["a", "b", "c"])
+        schema = StructuredModel.define_record("R", [str_field])
+        model = StructuredModel.build_model(schema)
+        # build the observer
+        oo = Observer.ObserverBuilder()
+        predicate = lambda x: not x.startswith("a")
+        oo.source(model).ordered_sequence_from_array("a").filter(predicate)
+        with contextlib.closing(typing.cast(Observer.AbstractItemSequenceSource, oo.make_observable())) as o:
+            # check the observer functionality
+            self.assertEqual(["b", "c"], o.items)  # a, b, c
+            model.a.insert(1, "a-b")
+            self.assertEqual(["b", "c"], o.items)  # a, a-b, b, c
+            model.a.insert(0, "b-a")
+            self.assertEqual(["b-a", "b", "c"], o.items)  # b-a, a, a-b, b, c
+            del model.a[1]
+            self.assertEqual(["b-a", "b", "c"], o.items)  # b-a, a-b, b, c
+            del model.a[2]
+            self.assertEqual(["b-a", "c"], o.items)  # b-a, a-b, c
+
     def test_observer_item_sequence_collect(self):
         # configure the model
         array_field = StructuredModel.define_array(StructuredModel.STRING)
@@ -211,6 +233,28 @@ class TestObserver(unittest.TestCase):
             self.assertEqual(["A", "A-B", "B", "C"], o.item)
             del model.a[0]
             self.assertEqual(["A-B", "B", "C"], o.item)
+
+    def test_observer_item_ordered_sequence_len(self):
+        # configure the model
+        array_field = StructuredModel.define_array(StructuredModel.STRING)
+        str_field = StructuredModel.define_field("a", array_field, default=["a", "b", "c"])
+        schema = StructuredModel.define_record("R", [str_field])
+        model = StructuredModel.build_model(schema)
+        # build the observer
+        length = 0
+        def len_changed(new_length: Observer.ItemValue) -> None:
+            nonlocal length
+            length = new_length
+        oo = Observer.ObserverBuilder()
+        oo.source(model).ordered_sequence_from_array("a").map(oo.x.transform(lambda x: x.upper())).len().action_fn(len_changed)
+        with contextlib.closing(oo.make_observable()) as o:
+            # check the observer functionality
+            # items will be ordered
+            self.assertEqual(3, length)
+            model.a.insert(1, "a-b")
+            self.assertEqual(4, length)
+            del model.a[0]
+            self.assertEqual(3, length)
 
     def test_observer_item_sequence_index(self):
         # configure the model
