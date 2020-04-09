@@ -2437,9 +2437,23 @@ class DocumentController(Window.Window):
                                        functools.partial(show_dependent_data_item, dependent_data_item))
         return menu
 
-    ActionContext = collections.namedtuple("ActionContext", ["application", "window", "focus_widget", "display_panel", "model", "display_item", "crop_graphic", "data_item"])
+    class ActionContext(Window.ActionContext):
+        def __init__(self, application: "Application.Application",
+                     window: "DocumentController",
+                     focus_widget: typing.Optional[UserInterface.Widget],
+                     display_panel: typing.Optional[DisplayPanel.DisplayPanel],
+                     model: DocumentModel.DocumentModel,
+                     display_item: typing.Optional[DisplayItem.DisplayItem],
+                     crop_graphic: typing.Optional[Graphics.Graphic],
+                     data_item: typing.Optional[DataItem.DataItem]):
+            super().__init__(application, window, focus_widget)
+            self.display_panel = display_panel
+            self.model = model
+            self.display_item = display_item
+            self.crop_graphic = crop_graphic
+            self.data_item = data_item
 
-    def _get_action_context(self) -> typing.NamedTuple:
+    def _get_action_context(self) -> ActionContext:
         focus_widget = self.focus_widget
         display_panel = self.selected_display_panel
         model = self.document_model
