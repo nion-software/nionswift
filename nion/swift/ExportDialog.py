@@ -20,7 +20,7 @@ _ = gettext.gettext
 
 class ExportDialog(Dialog.OkCancelDialog):
     def __init__(self, ui):
-        super(ExportDialog, self).__init__(ui, ok_title=_("Export"))
+        super().__init__(ui, ok_title=_("Export"))
 
         io_handler_id = self.ui.get_persistent_string("export_io_handler_id", "png-io-handler")
 

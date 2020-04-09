@@ -82,8 +82,6 @@ class DocumentController(Window.Window):
         self.create_new_document_controller_event = Event.Event()
         self.tool_mode_changed_event = Event.Event()
 
-        self.__dialogs = list()
-
         self.__last_activity = None
 
         # document_model may be shared between several DocumentControllers, so use reference counting
@@ -170,16 +168,9 @@ class DocumentController(Window.Window):
         """
         assert self.__closed == False
         self.__closed = True
-        self.finish_periodic()  # required to finish periodic operations during tests
+        self._finish_periodic()  # required to finish periodic operations during tests
         # dialogs
-        for weak_dialog in self.__dialogs:
-            dialog = weak_dialog()
-            if dialog:
-                try:
-                    dialog.request_close()
-                except Exception as e:
-                    pass
-        self.__dialogs = list()
+        self._close_dialogs()
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
@@ -276,7 +267,7 @@ class DocumentController(Window.Window):
             root_dir = os.path.dirname(root_dir)
         class AboutDialog(Dialog.OkCancelDialog):
             def __init__(self, ui):
-                super(AboutDialog, self).__init__(ui, include_cancel=False)
+                super().__init__(ui, include_cancel=False)
                 row = self.ui.create_row_widget()
                 logo_column = self.ui.create_column_widget()
                 logo_button = self.ui.create_push_button_widget()
@@ -317,7 +308,7 @@ class DocumentController(Window.Window):
         about_dialog = AboutDialog(self.ui)
         about_dialog.show()
 
-        self.__dialogs.append(weakref.ref(about_dialog))
+        self.register_dialog(about_dialog)
 
     def find_dock_panel(self, dock_panel_id) -> typing.Optional[UserInterface.DockWidget]:
         """ Return the dock widget by id. """
@@ -807,11 +798,6 @@ class DocumentController(Window.Window):
         elif self.selected_display_item:
             self.export_file(self.selected_display_item)
 
-    def export_svg(self):
-        selected_display_item = self.selected_display_item
-        if selected_display_item:
-            self.export_svg(selected_display_item)
-
     def export_file(self, display_item: DisplayItem.DisplayItem) -> None:
         # present a loadfile dialog to the user
         data_item = display_item.data_item
@@ -848,7 +834,7 @@ class DocumentController(Window.Window):
             export_dialog = ExportDialog.ExportDialog(self.ui)
             export_dialog.on_accept = functools.partial(export_dialog.do_export, display_items)
             export_dialog.show()
-            self.__dialogs.append(weakref.ref(export_dialog))
+            self.register_dialog(export_dialog)
         elif len(display_items) == 1:
             self.export_file(display_items[0])
 
@@ -888,18 +874,6 @@ class DocumentController(Window.Window):
         task_context_manager = Task.TaskContextManager(self, task, logging)
         self.task_created_event.fire(task)
         return task_context_manager
-
-    def is_dialog_type_open(self, dialog_class) -> bool:
-        for dialog_weakref in self.__dialogs:
-            if isinstance(dialog_weakref(), dialog_class):
-                return True
-        return False
-
-    def register_dialog(self, dialog: Window.Window) -> None:
-        def close_dialog():
-            self.__dialogs.remove(weakref.ref(dialog))
-        dialog.on_close = close_dialog
-        self.__dialogs.append(weakref.ref(dialog))
 
     def open_preferences(self):
         if not self.is_dialog_type_open(PreferencesDialog.PreferencesDialog):
@@ -2504,7 +2478,10 @@ class ExportSVGAction(Window.Action):
     action_name = _("Export SVG...")
 
     def invoke(self, context: Window.ActionContext) -> None:
-        context.window.export_svg()
+        window = typing.cast(DocumentController, context.window)
+        selected_display_item = window.selected_display_item
+        if selected_display_item:
+            window.export_svg(selected_display_item)
 
 
 class ImportDataAction(Window.Action):
