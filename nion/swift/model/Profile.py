@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import datetime
+import gettext
 import json
 import logging
 import pathlib
@@ -27,6 +28,9 @@ from nion.utils import Observable
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import DocumentModel
+
+
+_ = gettext.gettext
 
 
 class ProjectReference(Observable.Observable, Persistence.PersistentObject):
@@ -89,7 +93,12 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def title(self) -> str:
-        return self.__project.title if self.__project and self.__project.title else pathlib.Path(self.project_reference_parts[-1]).stem
+        if self.__project and self.__project.title:
+            return self.__project.title
+        project_reference_parts = self.project_reference_parts
+        if project_reference_parts:
+            return pathlib.Path(project_reference_parts[-1]).stem
+        return _("Untited")
 
     @property
     def project_reference_parts(self) -> typing.Tuple[str]:
@@ -165,7 +174,7 @@ class IndexProjectReference(ProjectReference):
 
     @property
     def project_reference_parts(self) -> typing.Tuple[str]:
-        return self.project_path.parts
+        return self.project_path.parts if self.project_path else tuple()
 
     def make_storage(self, profile_context: typing.Optional["MemoryProfileContext"]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         return FileStorageSystem.make_index_project_storage_system(self.project_path)
@@ -180,10 +189,12 @@ class FolderProjectReference(ProjectReference):
 
     @property
     def project_reference_parts(self) -> typing.Tuple[str]:
-        return self.project_folder_path.parts
+        return self.project_folder_path.parts if self.project_folder_path else tuple()
 
     def make_storage(self, profile_context: typing.Optional["MemoryProfileContext"]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
-        return FileStorageSystem.make_folder_project_storage_system(self.project_folder_path)
+        if self.project_folder_path:
+            return FileStorageSystem.make_folder_project_storage_system(self.project_folder_path)
+        return None
 
 
 class MemoryProjectReference(ProjectReference):
@@ -576,6 +587,13 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         assert not self.get_item_by_uuid("project_references", project_reference.uuid)
         self.append_item("project_references", project_reference)
 
+    def unload_project_reference(self, project_reference: ProjectReference) -> None:
+        if project_reference.project != self.work_project:
+            if project_reference == self.__target_project_reference:
+                self.__target_project_reference = None
+                self.property_changed_event.fire("target_project")
+            project_reference.unload_project()
+
     def remove_project_reference(self, project_reference: ProjectReference) -> None:
         if project_reference.project != self.work_project:
             if project_reference == self.__target_project_reference:
@@ -598,7 +616,8 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def add_project_folder(self, project_folder_path: pathlib.Path, load: bool = True) -> ProjectReference:
         project_reference = FolderProjectReference()
-        project_reference.project_path = project_folder_path
+        project_reference.project_folder_path = project_folder_path
+        project_reference.project_uuid = project_reference.read_project_uuid(self.profile_context)
         self.append_project_reference(project_reference)
         if load:
             if self.__is_read:

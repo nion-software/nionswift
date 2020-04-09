@@ -25,11 +25,22 @@
             },
             {
                 "type": "item",
-                "action_id": "project.ugprade_project"
+                "action_id": "project.upgrade_project"
+            },
+            {
+                "type": "item",
+                "action_id": "project.unload_project"
             },
             {
                 "type": "item",
                 "action_id": "project.remove_project"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
+                "action_id": "window.open_project_dialog"
             },
             {
                 "type": "separator"
@@ -571,13 +582,6 @@
             {
                 "type": "item",
                 "action_id": "window.bring_to_front"
-            },
-            {
-                "type": "separator"
-            },
-            {
-                "type": "item",
-                "action_id": "window.open_project_dialog"
             },
             {
                 "type": "separator"

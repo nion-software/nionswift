@@ -716,44 +716,9 @@ class DocumentController(Window.Window):
         new_project_dialog = NewProjectDialog(self.ui, self.app, self, self.document_model.profile)
         new_project_dialog.show()
 
-    def _handle_open_project(self) -> None:
-        filter = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
-        import_dir = self.ui.get_persistent_string("open_directory", self.ui.get_document_location())
-        paths, selected_filter, selected_directory = self.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter)
-        self.ui.set_persistent_string("open_directory", selected_directory)
-        if len(paths) == 1:
-            self.document_model.profile.open_project(pathlib.Path(paths[0]))
-
     def _handle_upgrade_project_reference(self) -> None:
         for project_reference in self.selected_project_references:
             self.document_model.profile.upgrade_project_reference(project_reference)
-
-    def _handle_remove_project_reference(self) -> None:
-        for project_reference in self.selected_project_references:
-            self.document_model.profile.remove_project_reference(project_reference)
-
-    def _set_target_project(self) -> None:
-        project_references = self.selected_project_references
-        if not project_references:
-            raise Exception(_("Select a project in the project panel."))
-        if len(project_references) > 1:
-            raise Exception(_("Select a single project in the project panel."))
-        if not project_references[0].project:
-            raise Exception(_("Select a loaded project in the project panel."))
-        self.document_model.profile.set_target_project_reference(project_references[0])
-
-    def _clear_target_project(self) -> None:
-        self.document_model.profile.set_target_project_reference(None)
-
-    def _set_work_project(self) -> None:
-        project_references = self.selected_project_references
-        if not project_references:
-            raise Exception(_("Select a project in the project panel."))
-        if len(project_references) > 1:
-            raise Exception(_("Select a single project in the project panel."))
-        if not project_references[0].project:
-            raise Exception(_("Select a loaded project in the project panel."))
-        self.document_model.profile.set_work_project_reference(project_references[0])
 
     def _import_folder(self):
         documents_dir = self.ui.get_document_location()
@@ -2561,7 +2526,7 @@ class OpenConsoleAction(Window.Action):
 
 class OpenProjectDialogAction(Window.Action):
     action_id = "window.open_project_dialog"
-    action_name = _("Open Project Manager")
+    action_name = _("Project Manager")
 
     def invoke(self, context: Window.ActionContext) -> None:
         context.window.new_project_dialog()
@@ -2654,7 +2619,9 @@ class AddGroupAction(Window.Action):
     action_name = _("Add Group")
 
     def invoke(self, context: Window.ActionContext) -> None:
-        context.project.add_group()
+        if context.window:
+            window = typing.cast(DocumentController, context.window)
+            window.add_group()
 
 
 class ClearTargetProjectAction(Window.Action):
@@ -2662,7 +2629,9 @@ class ClearTargetProjectAction(Window.Action):
     action_name = _("Clear Target Project")
 
     def invoke(self, context: Window.ActionContext) -> None:
-        context.window._clear_target_project()
+        context = typing.cast(DocumentController.ActionContext, context)
+        document_model = context.model
+        document_model.profile.set_target_project_reference(None)
 
 
 class NewProjectAction(Window.Action):
@@ -2670,7 +2639,9 @@ class NewProjectAction(Window.Action):
     action_name = _("New Project...")
 
     def invoke(self, context: Window.ActionContext) -> None:
-        context.window._handle_new_project()
+        if context.window:
+            window = typing.cast(DocumentController, context.window)
+            window._handle_new_project()
 
 
 class OpenProjectAction(Window.Action):
@@ -2678,7 +2649,15 @@ class OpenProjectAction(Window.Action):
     action_name = _("Open Project...")
 
     def invoke(self, context: Window.ActionContext) -> None:
-        context.window._handle_open_project()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        document_model = context.model
+        filter = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
+        import_dir = window.ui.get_persistent_string("open_directory", window.ui.get_document_location())
+        paths, selected_filter, selected_directory = window.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter)
+        window.ui.set_persistent_string("open_directory", selected_directory)
+        if len(paths) == 1:
+            document_model.profile.open_project(pathlib.Path(paths[0]))
 
 
 class RemoveProjectAction(Window.Action):
@@ -2686,7 +2665,12 @@ class RemoveProjectAction(Window.Action):
     action_name = _("Remove Project")
 
     def invoke(self, context: Window.ActionContext) -> None:
-        context.window._handle_remove_project_reference()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        document_model = context.model
+        project_references = window.selected_project_references
+        for project_reference in project_references:
+            document_model.profile.remove_project_reference(project_reference)
 
 
 class SetTargetProjectAction(Window.Action):
@@ -2694,7 +2678,19 @@ class SetTargetProjectAction(Window.Action):
     action_name = _("Set Target Project")
 
     def invoke(self, context: Window.ActionContext) -> None:
-        context.window._set_target_project()
+        if context.window:
+            context = typing.cast(DocumentController.ActionContext, context)
+            window = typing.cast(DocumentController, context.window)
+            document_model = context.model
+            project_references = window.selected_project_references
+            if not project_references:
+                self.report(Window.ReportType.ERROR, _("Select a project in the project panel."))
+            if len(project_references) > 1:
+                self.report(Window.ReportType.ERROR, _("Select a single project in the project panel."))
+            if not project_references[0].project:
+                self.report(Window.ReportType.ERROR, _("Select a loaded project in the project panel."))
+            else:
+                document_model.profile.set_target_project_reference(project_references[0])
 
 
 class SetWorkProjectAction(Window.Action):
@@ -2702,7 +2698,31 @@ class SetWorkProjectAction(Window.Action):
     action_name = _("Set Work Project")
 
     def invoke(self, context: Window.ActionContext) -> None:
-        context.window._set_work_project()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        document_model = context.model
+        project_references = window.selected_project_references
+        if not project_references:
+            self.report(Window.ReportType.ERROR, _("Select a project in the project panel."))
+        elif len(project_references) > 1:
+            self.report(Window.ReportType.ERROR, _("Select a single project in the project panel."))
+        elif not project_references[0].project:
+            self.report(Window.ReportType.ERROR, _("Select a loaded project in the project panel."))
+        else:
+            document_model.profile.set_work_project_reference(project_references[0])
+
+
+class UnloadProjectAction(Window.Action):
+    action_id = "project.unload_project"
+    action_name = _("Unload Project")
+
+    def invoke(self, context: Window.ActionContext) -> None:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        document_model = context.model
+        project_references = window.selected_project_references
+        for project_reference in project_references:
+            document_model.profile.unload_project_reference(project_reference)
 
 
 class UpgradeProjectAction(Window.Action):
@@ -2720,6 +2740,7 @@ Window.register_action(OpenProjectAction())
 Window.register_action(RemoveProjectAction())
 Window.register_action(SetTargetProjectAction())
 Window.register_action(SetWorkProjectAction())
+Window.register_action(UnloadProjectAction())
 Window.register_action(UpgradeProjectAction())
 
 

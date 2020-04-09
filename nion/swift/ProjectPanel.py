@@ -11,6 +11,7 @@ from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift.model import DataGroup
 from nion.swift.model import Profile
+from nion.swift.model import Project
 from nion.swift.model import Observer
 from nion.ui import Dialog
 from nion.ui import Widgets
@@ -44,7 +45,7 @@ def open_location(location: pathlib.Path) -> None:
         subprocess.check_call(['xdg-open', '--', str(location)])
 
 
-class ProjectDisplayItemCounter:
+class ProjectCounterDisplayItem:
 
     def __init__(self, project_reference: Profile.ProjectReference):
         self.__project_reference = project_reference
@@ -66,6 +67,10 @@ class ProjectDisplayItemCounter:
         self.__count_observer = None
         self.__project_reference = None
         self.on_title_changed = None
+
+    @property
+    def project_reference(self) -> Profile.ProjectReference:
+        return self.__project_reference
 
     @property
     def title(self) -> str:
@@ -118,7 +123,7 @@ class CollectionDisplayItemCounter:
 
 class ProjectPanelProjectItem:
 
-    def __init__(self, indent: int, project_reference: Profile.ProjectReference, display_item_controller: ProjectDisplayItemCounter):
+    def __init__(self, indent: int, project_reference: Profile.ProjectReference, display_item_controller: ProjectCounterDisplayItem):
         self.is_folder = False
         self.indent = indent
         self.project_reference = project_reference
@@ -262,14 +267,15 @@ class TreeModel:
             for key, child in node.children.items():
                 self.__construct_project_panel_items(key_path + [key], child, folder_closed, project_panel_items, closed_items, encountered_items)
             for project_reference in typing.cast(typing.Sequence[Profile.ProjectReference], node.data):
-                project_key = "/".join(key_path + [project_reference.project_reference_parts[-1]])
+                project_reference_parts = project_reference.project_reference_parts
+                project_key = "/".join(key_path + [project_reference_parts[-1]]) if project_reference_parts else str(id(project_reference))
                 encountered_items.add(project_key)
                 if not folder_closed:
 
                     def handle_item_controller_title_changed(t: str) -> None:
                         self.property_changed_event.fire("value")
 
-                    display_item_counter = ProjectDisplayItemCounter(project_reference)
+                    display_item_counter = ProjectCounterDisplayItem(project_reference)
                     display_item_counter.on_title_changed = handle_item_controller_title_changed
                     project_panel_items.append(ProjectPanelProjectItem(len(key_path) + 1, project_reference, display_item_counter))
 
@@ -348,7 +354,7 @@ class TreeModel:
 
 class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
-    def __init__(self, document_controller, tree_model: TreeModel):
+    def __init__(self, document_controller: "DocumentController.DocumentController", tree_model: TreeModel):
         super().__init__()
         self.__document_controller = document_controller
         self.__tree_model = tree_model
@@ -501,6 +507,119 @@ class ProjectTreeWidget(Widgets.CompositeWidgetBase):
         self._tree_model.on_closed_items_changed = None
         self.__projects_model_observer.close()
         self.__projects_model_observer = None
+        super().close()
+
+
+class ProjectListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
+
+    def __init__(self, document_controller: "DocumentController.DocumentController", project_selection: Selection.IndexedSelection):
+        super().__init__()
+        self.__document_controller = document_controller
+        self.__profile = document_controller.profile
+        self.__project_selection = project_selection
+
+    def close(self):
+        self.__document_controller = None
+        self.__profile = None
+        self.__project_selection = None
+
+    def paint_item(self, drawing_context, display_item, rect, is_selected):
+        display_item = typing.cast(ProjectCounterDisplayItem, display_item)
+        is_target_project = self.__profile.target_project_reference == display_item.project_reference
+        is_work_project = self.__profile.work_project_reference == display_item.project_reference
+
+        title = "\N{CARD FILE BOX} " + display_item.title
+
+        with drawing_context.saver():
+            drawing_context.fill_style = "#000"
+            font = "12px"
+            if is_target_project:
+                font += " bold"
+            if is_work_project:
+                font += " italic"
+            drawing_context.font = font
+            drawing_context.text_align = 'left'
+            drawing_context.text_baseline = 'bottom'
+            drawing_context.fill_text(title, rect[0][1] + 4, rect[0][0] + 20 - 4)
+
+    def item_tool_tip(self, index: int) -> typing.Optional[str]:
+        display_item = self.items[index]
+        if isinstance(display_item, ProjectCounterDisplayItem):
+            return str(display_item.project_reference.project.storage_system_path if display_item.project_reference.project else _("Missing"))
+        return None
+
+    def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
+        display_item = self.items[index]
+        menu = self.__document_controller.create_context_menu()
+        project_reference = display_item.project_reference
+        if isinstance(project_reference, Profile.IndexProjectReference) and project_reference.project:
+            menu.add_menu_item(_(f"Open Project Location"), functools.partial(reveal_project, project_reference.project.storage_system_path))
+        elif isinstance(project_reference, Profile.FolderProjectReference):
+            menu.add_menu_item(_(f"Open Folder Location"), functools.partial(open_location, project_reference.project_folder_path))
+        menu.popup(gx, gy)
+        return True
+
+
+class ProjectsWidget(Widgets.CompositeWidgetBase):
+
+    def __init__(self, ui, document_controller: "DocumentController.DocumentController"):
+        super().__init__(ui.create_column_widget(properties={"stylesheet": "border: #F00"}))
+
+        column = self.content_widget
+
+        self.__project_counters : typing.List[ProjectCounterDisplayItem] = list()
+
+        project_selection = Selection.IndexedSelection(Selection.Style.single_or_none)
+
+        projects_list_widget = Widgets.ListWidget(ui, ProjectListCanvasItemDelegate(document_controller, project_selection), selection=project_selection, v_scroll_enabled=False, v_auto_resize=True)
+        projects_list_widget.wants_drag_events = True
+
+        def project_counters_changed() -> None:
+            projects_list_widget.items = self.__project_counters
+
+        def projects_changed(item: Observer.ItemValue) -> None:
+            projects = typing.cast(typing.Sequence[Project.Project], item)
+            for project_counter in self.__project_counters:
+                project_counter.close()
+            self.__project_counters.clear()
+            for project in projects:
+                project_counter = ProjectCounterDisplayItem(project.container)
+                project_counter.on_title_changed = lambda t: project_counters_changed()
+                self.__project_counters.append(project_counter)
+            project_counters_changed()
+
+        oo = Observer.ObserverBuilder()
+        oo.source(document_controller.document_model).prop("profile").ordered_sequence_from_array("projects").collect_list().action_fn(projects_changed)
+        self.__projects_observer = oo.make_observable()
+
+        projects_column = ui.create_column_widget()
+        projects_column.add(projects_list_widget)
+
+        projects_section = Widgets.SectionWidget(ui, _("Projects"), projects_column)
+        projects_section.expanded = True
+
+        column.add(projects_section)
+
+        def selection_changed() -> None:
+            selected_project_references = list()
+            for index in project_selection.indexes:
+                project_counter = self.__project_counters[index]
+                selected_project_references.append(project_counter.project_reference)
+            document_controller.selected_project_references_model.value = selected_project_references
+
+        self.__selection_changed_event_listener = project_selection.changed_event.listen(selection_changed)
+
+        # for testing
+        self._project_selection = project_selection
+
+    def close(self):
+        self.__selection_changed_event_listener.close()
+        self.__selection_changed_event_listener = None
+        self.__projects_observer.close()
+        self.__projects_observer = None
+        for project_counter in self.__project_counters:
+            project_counter.close()
+        self.__project_counters.clear()
         super().close()
 
 
@@ -679,11 +798,11 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
 class ProjectPanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
-        super().__init__(document_controller, panel_id, _("Data Items"))
+        super().__init__(document_controller, panel_id, _("Projects"))
 
         ui = document_controller.ui
 
-        self._projects_section = ProjectTreeWidget(ui, document_controller)
+        self._projects_section = ProjectsWidget(ui, document_controller)
         self._collections_section = CollectionsWidget(ui, document_controller)
 
         column = ui.create_column_widget(properties={"stylesheet": "border: #F00"})
@@ -698,19 +817,19 @@ class ProjectPanel(Panel.Panel):
         self.widget = scroll_area
 
     @property
-    def _collection_selection(self):
+    def _collection_selection(self) -> Selection.IndexedSelection:
         return self._collections_section._collection_selection
 
     @property
-    def _tree_selection(self):
-        return self._projects_section._tree_selection
+    def _projects_selection(self) -> Selection.IndexedSelection:
+        return self._projects_section._project_selection
 
 
 class ProjectDialog(Dialog.ActionDialog):
 
     def __init__(self, document_controller):
         ui = document_controller.ui
-        super().__init__(ui, _("Project Manager"), app=document_controller.app, parent_window=document_controller, persistent_id="ProjectsDialog")
+        super().__init__(ui, _("Project Manager"), parent_window=document_controller, persistent_id="ProjectsDialog")
 
         self._create_menus()
 

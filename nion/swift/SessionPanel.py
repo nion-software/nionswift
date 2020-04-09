@@ -93,4 +93,4 @@ class SessionPanel(Panel.Panel):
 
     def close(self):
         self.__controller.close()
-        super(SessionPanel, self).close()
+        super().close()
