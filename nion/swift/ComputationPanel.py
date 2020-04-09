@@ -809,7 +809,7 @@ class EditComputationDialog(Dialog.ActionDialog):
 
     def __init__(self, document_controller, data_item):
         ui = document_controller.ui
-        super().__init__(ui, _("Edit Computation"), app=document_controller.app, parent_window=document_controller, persistent_id="EditComputationDialog" + str(data_item.uuid))
+        super().__init__(ui, _("Edit Computation"), parent_window=document_controller, persistent_id="EditComputationDialog" + str(data_item.uuid))
 
         self.ui = ui
         self.document_controller = document_controller

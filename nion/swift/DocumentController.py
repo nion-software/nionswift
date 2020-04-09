@@ -266,8 +266,8 @@ class DocumentController(Window.Window):
         for i in range(path_ascend_count):
             root_dir = os.path.dirname(root_dir)
         class AboutDialog(Dialog.OkCancelDialog):
-            def __init__(self, ui):
-                super().__init__(ui, include_cancel=False)
+            def __init__(self, ui: UserInterface.UserInterface, parent_window: Window.Window):
+                super().__init__(ui, include_cancel=False, parent_window=parent_window)
                 row = self.ui.create_row_widget()
                 logo_column = self.ui.create_column_widget()
                 logo_button = self.ui.create_push_button_widget()
@@ -305,10 +305,8 @@ class DocumentController(Window.Window):
                 row.add(column)
                 self.content.add(row)
 
-        about_dialog = AboutDialog(self.ui)
+        about_dialog = AboutDialog(self.ui, self)
         about_dialog.show()
-
-        self.register_dialog(about_dialog)
 
     def find_dock_panel(self, dock_panel_id) -> typing.Optional[UserInterface.DockWidget]:
         """ Return the dock widget by id. """
@@ -831,10 +829,9 @@ class DocumentController(Window.Window):
 
     def export_files(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
         if len(display_items) > 1:
-            export_dialog = ExportDialog.ExportDialog(self.ui)
+            export_dialog = ExportDialog.ExportDialog(self.ui, self)
             export_dialog.on_accept = functools.partial(export_dialog.do_export, display_items)
             export_dialog.show()
-            self.register_dialog(export_dialog)
         elif len(display_items) == 1:
             self.export_file(display_items[0])
 
@@ -879,17 +876,14 @@ class DocumentController(Window.Window):
         if not self.is_dialog_type_open(PreferencesDialog.PreferencesDialog):
             preferences_dialog = PreferencesDialog.PreferencesDialog(self.ui, self.app)
             preferences_dialog.show()
-            self.register_dialog(preferences_dialog)
 
     def new_interactive_script_dialog(self):
         interactive_dialog = ScriptsDialog.RunScriptDialog(self)
         interactive_dialog.show()
-        self.register_dialog(interactive_dialog)
 
     def new_console_dialog(self):
         console_dialog = ConsoleDialog.ConsoleDialog(self)
         console_dialog.show()
-        self.register_dialog(console_dialog)
 
     def new_edit_computation_dialog(self, data_item=None):
         if not data_item:
@@ -897,7 +891,6 @@ class DocumentController(Window.Window):
         if data_item:
             edit_computation_dialog = ComputationPanel.EditComputationDialog(self, data_item)
             edit_computation_dialog.show()
-            self.register_dialog(edit_computation_dialog)
 
     def new_display_editor_dialog(self, display_item: DisplayItem.DisplayItem=None):
         if not display_item:
@@ -905,7 +898,6 @@ class DocumentController(Window.Window):
         if display_item:
             edit_display_dialog = DisplayEditorPanel.DisplayEditorDialog(self, display_item)
             edit_display_dialog.show()
-            self.register_dialog(edit_display_dialog)
 
     def new_recorder_dialog(self, data_item=None):
         if not data_item:
@@ -913,7 +905,6 @@ class DocumentController(Window.Window):
         if data_item:
             recorder_dialog = RecorderPanel.RecorderDialog(self, data_item)
             recorder_dialog.show()
-            self.register_dialog(recorder_dialog)
 
     def __deep_copy(self):
         self._dispatch_any_to_focus_widget("handle_deep_copy")

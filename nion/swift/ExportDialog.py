@@ -14,13 +14,15 @@ import unicodedata
 # local libraries
 from nion.swift.model import ImportExportManager
 from nion.ui import Dialog
+from nion.ui import UserInterface
+from nion.ui import Window
 
 _ = gettext.gettext
 
 
 class ExportDialog(Dialog.OkCancelDialog):
-    def __init__(self, ui):
-        super().__init__(ui, ok_title=_("Export"))
+    def __init__(self, ui: UserInterface.UserInterface, parent_window: Window.Window):
+        super().__init__(ui, ok_title=_("Export"), parent_window=parent_window)
 
         io_handler_id = self.ui.get_persistent_string("export_io_handler_id", "png-io-handler")
 

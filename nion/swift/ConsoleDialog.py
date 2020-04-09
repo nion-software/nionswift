@@ -14,6 +14,9 @@ import typing
 from nion.ui import Dialog
 from nion.ui import Widgets
 
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
+
 _ = gettext.gettext
 
 
@@ -312,8 +315,8 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
 class ConsoleDialog(Dialog.ActionDialog):
 
-    def __init__(self, document_controller):
-        super().__init__(document_controller.ui, _("Python Console"), document_controller.app, persistent_id="ConsoleDialog")
+    def __init__(self, document_controller: "DocumentController.DocumentController"):
+        super().__init__(document_controller.ui, _("Python Console"), parent_window=document_controller, persistent_id="ConsoleDialog")
 
         self.__document_controller = document_controller
 

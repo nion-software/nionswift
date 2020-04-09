@@ -32,6 +32,9 @@ from nion.utils import Converter
 from nion.utils import Selection
 from nion.utils import Geometry
 
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
+
 _ = gettext.gettext
 
 
@@ -304,9 +307,9 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
 class RunScriptDialog(Dialog.ActionDialog):
 
-    def __init__(self, document_controller):
+    def __init__(self, document_controller: "DocumentController.DocumentController"):
         ui = document_controller.ui
-        super().__init__(ui, _("Interactive Dialog"), document_controller.app, persistent_id="ScriptsDialog")
+        super().__init__(ui, _("Interactive Dialog"), parent_window=document_controller, persistent_id="ScriptsDialog")
 
         self.ui = ui
         self.document_controller = document_controller

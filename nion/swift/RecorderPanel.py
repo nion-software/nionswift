@@ -239,7 +239,7 @@ class RecorderDialog(Dialog.ActionDialog):
 
     def __init__(self, document_controller, data_item):
         ui = document_controller.ui
-        super().__init__(ui, _("Recorder"), app=document_controller.app, parent_window=document_controller, persistent_id="Recorder" + str(data_item.uuid))
+        super().__init__(ui, _("Recorder"), parent_window=document_controller, persistent_id="Recorder" + str(data_item.uuid))
 
         self.__recorder = Recorder(document_controller, data_item)
 

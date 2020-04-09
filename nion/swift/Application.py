@@ -211,8 +211,10 @@ class Application(UIApplication.BaseApplication):
         return Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False), create_new_profile
 
     def _window_did_close(self, window: UIWindow.Window) -> None:
-        self.__create_new_event_listeners[window].close()
-        del self.__create_new_event_listeners[window]
+        # this will be called for _all_ windows, so check if the window is a document window
+        # and remove the event listener if required.
+        if window in self.__create_new_event_listeners:
+            self.__create_new_event_listeners.pop(window).close()
         super()._window_did_close(window)
 
     @property
