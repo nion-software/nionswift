@@ -2483,35 +2483,39 @@ class ExportAction(Window.Action):
     action_id = "file.export"
     action_name = _("Export...")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.handle_export_files()
+        return Window.ActionResult.FINISHED
 
 
 class ExportSVGAction(Window.Action):
     action_id = "file.export_svg"
     action_name = _("Export SVG...")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         window = typing.cast(DocumentController, context.window)
         selected_display_item = window.selected_display_item
         if selected_display_item:
             window.export_svg(selected_display_item)
+        return Window.ActionResult.FINISHED
 
 
 class ImportDataAction(Window.Action):
     action_id = "file.import_data"
     action_name = _("Import Data...")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.import_file()
+        return Window.ActionResult.FINISHED
 
 
 class ImportFolderAction(Window.Action):
     action_id = "file.import_folder"
     action_name = _("Import Folder...")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window._import_folder()
+        return Window.ActionResult.FINISHED
 
 
 Window.register_action(ExportAction())
@@ -2525,64 +2529,72 @@ class DataItemRecorderAction(Window.Action):
     action_id = "window.data_item_recorder"
     action_name = _("Data Item Recorder...")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.new_recorder_dialog()
+        return Window.ActionResult.FINISHED
 
 
 class EditDataItemScriptAction(Window.Action):
     action_id = "window.edit_data_item_script"
     action_name = _("Edit Data Item Scripts")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.new_edit_computation_dialog()
+        return Window.ActionResult.FINISHED
 
 
 class EditDisplayScriptAction(Window.Action):
     action_id = "window.edit_display_script"
     action_name = _("Edit Display Script")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.new_display_editor_dialog()
+        return Window.ActionResult.FINISHED
 
 
 class NewWindowAction(Window.Action):
     action_id = "window.new"
     action_name = _("New Window")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.new_window_with_data_item("library")
+        return Window.ActionResult.FINISHED
 
 
 class OpenConsoleAction(Window.Action):
     action_id = "window.open_console"
     action_name = _("Python Console...")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.new_console_dialog()
+        return Window.ActionResult.FINISHED
 
 
 class OpenProjectDialogAction(Window.Action):
     action_id = "window.open_project_dialog"
     action_name = _("Project Manager")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.new_project_dialog()
+        return Window.ActionResult.FINISHED
 
 
 class OpenRunScriptsAction(Window.Action):
     action_id = "window.open_run_scripts"
     action_name = _("Scripts...")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.new_interactive_script_dialog()
+        return Window.ActionResult.FINISHED
 
 
 class ToggleFilterAction(Window.Action):
     action_id = "window.toggle_filter"
     action_name = _("Filter")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.toggle_filter()
+        return Window.ActionResult.FINISHED
 
 
 Window.register_action(DataItemRecorderAction())
@@ -2599,48 +2611,54 @@ class WorkspaceCloneAction(Window.Action):
     action_id = "workspace.clone"
     action_name = _("Clone Workspace")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window._clone_workspace()
+        return Window.ActionResult.FINISHED
 
 
 class WorkspaceNewAction(Window.Action):
     action_id = "workspace.new"
     action_name = _("New Workspace")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window._create_workspace()
+        return Window.ActionResult.FINISHED
 
 
 class WorkspaceNextAction(Window.Action):
     action_id = "workspace.next"
     action_name = _("Next Workspace")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window._change_to_next_workspace()
+        return Window.ActionResult.FINISHED
 
 
 class WorkspacePreviousAction(Window.Action):
     action_id = "workspace.previous"
     action_name = _("Previous Workspace")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window._change_to_previous_workspace()
+        return Window.ActionResult.FINISHED
 
 
 class WorkspaceRemoveAction(Window.Action):
     action_id = "workspace.remove"
     action_name = _("Remove Workspace")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window._remove_workspace()
+        return Window.ActionResult.FINISHED
 
 
 class WorkspaceRenameAction(Window.Action):
     action_id = "workspace.rename"
     action_name = _("Rename Workspace")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window._rename_workspace()
+        return Window.ActionResult.FINISHED
 
 
 Window.register_action(WorkspaceCloneAction())
@@ -2655,37 +2673,40 @@ class AddGroupAction(Window.Action):
     action_id = "project.add_group"
     action_name = _("Add Group")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         if context.window:
             window = typing.cast(DocumentController, context.window)
             window.add_group()
+        return Window.ActionResult.FINISHED
 
 
 class ClearTargetProjectAction(Window.Action):
     action_id = "project.clear_target_project"
     action_name = _("Clear Target Project")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         document_model = context.model
         document_model.profile.set_target_project_reference(None)
+        return Window.ActionResult.FINISHED
 
 
 class NewProjectAction(Window.Action):
     action_id = "project.new_project"
     action_name = _("New Project...")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         if context.window:
             window = typing.cast(DocumentController, context.window)
             window._handle_new_project()
+        return Window.ActionResult.FINISHED
 
 
 class OpenProjectAction(Window.Action):
     action_id = "project.open_project"
     action_name = _("Open Project...")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         document_model = context.model
@@ -2695,26 +2716,28 @@ class OpenProjectAction(Window.Action):
         window.ui.set_persistent_string("open_directory", selected_directory)
         if len(paths) == 1:
             document_model.profile.open_project(pathlib.Path(paths[0]))
+        return Window.ActionResult.FINISHED
 
 
 class RemoveProjectAction(Window.Action):
     action_id = "project.remove_project"
     action_name = _("Remove Project")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         document_model = context.model
         project_references = window.selected_project_references
         for project_reference in project_references:
             document_model.profile.remove_project_reference(project_reference)
+        return Window.ActionResult.FINISHED
 
 
 class SetTargetProjectAction(Window.Action):
     action_id = "project.set_target_project"
     action_name = _("Set Target Project")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         if context.window:
             context = typing.cast(DocumentController.ActionContext, context)
             window = typing.cast(DocumentController, context.window)
@@ -2728,13 +2751,14 @@ class SetTargetProjectAction(Window.Action):
                 self.report(Window.ReportType.ERROR, _("Select a loaded project in the project panel."))
             else:
                 document_model.profile.set_target_project_reference(project_references[0])
+        return Window.ActionResult.FINISHED
 
 
 class SetWorkProjectAction(Window.Action):
     action_id = "project.set_work_project"
     action_name = _("Set Work Project")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         document_model = context.model
@@ -2747,27 +2771,30 @@ class SetWorkProjectAction(Window.Action):
             self.report(Window.ReportType.ERROR, _("Select a loaded project in the project panel."))
         else:
             document_model.profile.set_work_project_reference(project_references[0])
+        return Window.ActionResult.FINISHED
 
 
 class UnloadProjectAction(Window.Action):
     action_id = "project.unload_project"
     action_name = _("Unload Project")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         document_model = context.model
         project_references = window.selected_project_references
         for project_reference in project_references:
             document_model.profile.unload_project_reference(project_reference)
+        return Window.ActionResult.FINISHED
 
 
 class UpgradeProjectAction(Window.Action):
     action_id = "project.upgrade_project"
     action_name = _("Upgrade Project")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window._handle_upgrade_project_reference()
+        return Window.ActionResult.FINISHED
 
 
 Window.register_action(AddGroupAction())
@@ -2785,48 +2812,54 @@ class DisplayCopyAction(Window.Action):
     action_id = "display.copy_display"
     action_name = _("Display Copy")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.processing_display_copy()
+        return Window.ActionResult.FINISHED
 
 
 class DisplayFitToViewAction(Window.Action):
     action_id = "display.fit_view"
     action_name = _("Fit to View")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.display_panel.perform_action("set_fit_mode")
+        return Window.ActionResult.FINISHED
 
 
 class DisplayFillViewAction(Window.Action):
     action_id = "display.fill_view"
     action_name = _("Fill View")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.display_panel.perform_action("set_fill_mode")
+        return Window.ActionResult.FINISHED
 
 
 class DisplayOneViewAction(Window.Action):
     action_id = "display.1_view"
     action_name = _("1:1 View")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.display_panel.perform_action("set_one_to_one_mode")
+        return Window.ActionResult.FINISHED
 
 
 class DisplayTwoViewAction(Window.Action):
     action_id = "display.2_view"
     action_name = _("2:1 View")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.display_panel.perform_action("set_two_to_one_mode")
+        return Window.ActionResult.FINISHED
 
 
 class DisplayRemoveAction(Window.Action):
     action_id = "display.remove_display"
     action_name = _("Display Remove")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.processing_display_remove()
+        return Window.ActionResult.FINISHED
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         display_items = context.model.get_display_items_for_data_item(context.data_item) if context.data_item else list()
@@ -2845,40 +2878,45 @@ class AssignVariableReference(Window.Action):
     action_id = "item.assign_variable_reference"
     action_name = _("Assign Variable Reference")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.prepare_data_item_script()
+        return Window.ActionResult.FINISHED
 
 
 class CopyItemUUIDAction(Window.Action):
     action_id = "item.copy_uuid"
     action_name = _("Copy Item UUID")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.copy_uuid()
+        return Window.ActionResult.FINISHED
 
 
 class CreateDataItemAction(Window.Action):
     action_id = "item.create_data_item"
     action_name = _("Create New Data Item")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.create_empty_data_item()
+        return Window.ActionResult.FINISHED
 
 
 class DuplicateAction(Window.Action):
     action_id = "item.duplicate"
     action_name = _("Duplicate")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.processing_duplicate()
+        return Window.ActionResult.FINISHED
 
 
 class SnapshotAction(Window.Action):
     action_id = "item.snapshot"
     action_name = _("Snapshot")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.processing_snapshot()
+        return Window.ActionResult.FINISHED
 
 
 Window.register_action(AssignVariableReference())
@@ -2892,96 +2930,108 @@ class AddLineGraphicAction(Window.Action):
     action_id = "graphics.add_line_graphic"
     action_name = _("Add Line Graphic")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_line_graphic()
+        return Window.ActionResult.FINISHED
 
 
 class AddEllipseGraphicAction(Window.Action):
     action_id = "graphics.add_ellipse_graphic"
     action_name = _("Add Ellipse Graphic")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_ellipse_graphic()
+        return Window.ActionResult.FINISHED
 
 
 class AddRectangleGraphicAction(Window.Action):
     action_id = "graphics.add_rectangle_graphic"
     action_name = _("Add Rectangle Graphic")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_rectangle_graphic()
+        return Window.ActionResult.FINISHED
 
 
 class AddPointGraphicAction(Window.Action):
     action_id = "graphics.add_point_graphic"
     action_name = _("Add Point Graphic")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_point_graphic()
+        return Window.ActionResult.FINISHED
 
 
 class AddIntervalGraphicAction(Window.Action):
     action_id = "graphics.add_interval_graphic"
     action_name = _("Add Interval Graphic")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_interval_graphic()
+        return Window.ActionResult.FINISHED
 
 
 class AddChannelGraphicAction(Window.Action):
     action_id = "graphics.add_channel_graphic"
     action_name = _("Add Channel Graphic")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_channel_graphic()
+        return Window.ActionResult.FINISHED
 
 
 class AddGraphicToMaskAction(Window.Action):
     action_id = "graphics.add_graphic_mask"
     action_name = _("Add to Mask")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_graphic_mask()
+        return Window.ActionResult.FINISHED
 
 
 class AddSpotGraphicAction(Window.Action):
     action_id = "graphics.add_spot_graphic"
     action_name = _("Add Spot Filter")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_spot_graphic()
+        return Window.ActionResult.FINISHED
 
 
 class AddAngleGraphicAction(Window.Action):
     action_id = "graphics.add_angle_graphic"
     action_name = _("Add Angle Filter")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_angle_graphic()
+        return Window.ActionResult.FINISHED
 
 
 class AddBandPassGraphicAction(Window.Action):
     action_id = "graphics.add_band_pass_graphic"
     action_name = _("Add Band Pass Filter")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_band_pass_graphic()
+        return Window.ActionResult.FINISHED
 
 
 class AddLatticeGraphicAction(Window.Action):
     action_id = "graphics.add_lattice_graphic"
     action_name = _("Add Lattice Filter")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_lattice_graphic()
+        return Window.ActionResult.FINISHED
 
 
 class RemoveGraphicFromMaskAction(Window.Action):
     action_id = "graphics.remove_graphic_mask"
     action_name = _("Remove from Mask")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.remove_graphic_mask()
+        return Window.ActionResult.FINISHED
 
 
 Window.register_action(AddLineGraphicAction())
@@ -3015,289 +3065,325 @@ class AddAction(ProcessingAction):
     action_id = "processing.add"
     action_name = _("Add")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing2(context, context.model.get_add_new)
+        return Window.ActionResult.FINISHED
 
 
 class AutoCorrelateAction(ProcessingAction):
     action_id = "processing.auto_correlate"
     action_name = _("Auto Correlate")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_auto_correlate_new)
+        return Window.ActionResult.FINISHED
 
 
 class CropAction(ProcessingAction):
     action_id = "processing.crop"
     action_name = _("Crop")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_crop_new)
+        return Window.ActionResult.FINISHED
 
 
 class CrossCorrelateAction(ProcessingAction):
     action_id = "processing.cross_correlate"
     action_name = _("Cross Correlate")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing2(context, context.model.get_cross_correlate_new)
+        return Window.ActionResult.FINISHED
 
 
 class DivideAction(ProcessingAction):
     action_id = "processing.divide"
     action_name = _("Divide")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing2(context, context.model.get_divide_new)
+        return Window.ActionResult.FINISHED
 
 
 class FourierFilterAction(ProcessingAction):
     action_id = "processing.fourier_filter"
     action_name = _("Fourier Filter")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         if context.data_item:
             context.window._perform_processing(context.window.display_item, None, context.model.get_fourier_filter_new)
+        return Window.ActionResult.FINISHED
 
 
 class FFTAction(ProcessingAction):
     action_id = "processing.fft"
     action_name = _("FFT")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_fft_new)
+        return Window.ActionResult.FINISHED
 
 
 class GaussianFilterAction(ProcessingAction):
     action_id = "processing.gaussian_filter"
     action_name = _("Gaussian Filter")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_gaussian_blur_new)
+        return Window.ActionResult.FINISHED
 
 
 class HistogramAction(ProcessingAction):
     action_id = "processing.histogram"
     action_name = _("Histogram")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_histogram_new)
+        return Window.ActionResult.FINISHED
 
 
 class InverseFFTAction(ProcessingAction):
     action_id = "processing.inverse_fft"
     action_name = _("Inverse FFT")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_ifft_new)
+        return Window.ActionResult.FINISHED
 
 
 class LaplaceFilterAction(ProcessingAction):
     action_id = "processing.laplace_filter"
     action_name = _("Laplace Filter")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_laplace_new)
+        return Window.ActionResult.FINISHED
 
 
 class LineProfileAction(ProcessingAction):
     action_id = "processing.line_profile"
     action_name = _("Line Profile")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_line_profile_new)
+        return Window.ActionResult.FINISHED
 
 
 class MaskAction(ProcessingAction):
     action_id = "processing.mask"
     action_name = _("Mask")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_mask_new)
+        return Window.ActionResult.FINISHED
 
 
 class MaskedAction(ProcessingAction):
     action_id = "processing.masked"
     action_name = _("Masked")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_masked_new)
+        return Window.ActionResult.FINISHED
 
 
 class MedianFilterAction(ProcessingAction):
     action_id = "processing.median_filter"
     action_name = _("Median Filter")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_median_filter_new)
+        return Window.ActionResult.FINISHED
 
 
 class MultiplyAction(ProcessingAction):
     action_id = "processing.multiply"
     action_name = _("Multiply")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing2(context, context.model.get_multiply_new)
+        return Window.ActionResult.FINISHED
 
 
 class NegateAction(ProcessingAction):
     action_id = "processing.negate"
     action_name = _("Negate")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_invert_new)
+        return Window.ActionResult.FINISHED
 
 
 class PickAction(ProcessingAction):
     action_id = "processing.pick"
     action_name = _("Pick")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_pick_new)
+        return Window.ActionResult.FINISHED
 
 
 class PickAverageAction(ProcessingAction):
     action_id = "processing.pick_average"
     action_name = _("Pick (Average)")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_pick_region_average_new)
+        return Window.ActionResult.FINISHED
 
 
 class PickSumAction(ProcessingAction):
     action_id = "processing.pick_sum"
     action_name = _("Pick (Sum)")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_pick_region_new)
+        return Window.ActionResult.FINISHED
 
 
 class ProjectionSumAction(ProcessingAction):
     action_id = "processing.projection_sum"
     action_name = _("Projection (Sum)")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_projection_new)
+        return Window.ActionResult.FINISHED
 
 
 class ResampleAction(ProcessingAction):
     action_id = "processing.resample"
     action_name = _("Resample")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_resample_new)
+        return Window.ActionResult.FINISHED
 
 
 class ResizeAction(ProcessingAction):
     action_id = "processing.resize"
     action_name = _("Resize")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_resize_new)
+        return Window.ActionResult.FINISHED
 
 
 class ScalarAction(ProcessingAction):
     action_id = "processing.scalar"
     action_name = _("Convert to Scalar")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_convert_to_scalar_new)
+        return Window.ActionResult.FINISHED
 
 
 class SequenceAlignFourierAction(ProcessingAction):
     action_id = "processing.sequence_align_fourier"
     action_name = _("Align (Fourier)")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_sequence_fourier_align_new)
+        return Window.ActionResult.FINISHED
 
 
 class SequenceAlignSplineAction(ProcessingAction):
     action_id = "processing.sequence_align_spline_1"
     action_name = _("Align (Spline 1st Order)")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_sequence_align_new)
+        return Window.ActionResult.FINISHED
 
 
 class SequenceExtractAction(ProcessingAction):
     action_id = "processing.sequence_extract"
     action_name = _("Extract")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_sequence_extract_new)
+        return Window.ActionResult.FINISHED
 
 
 class SequenceIntegrateAction(ProcessingAction):
     action_id = "processing.sequence_integrate"
     action_name = _("Integrate")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_sequence_integrate_new)
+        return Window.ActionResult.FINISHED
 
 
 class SequenceMeasureShiftsAction(ProcessingAction):
     action_id = "processing.sequence_measure_shifts"
     action_name = _("Measure Shifts")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_sequence_measure_shifts_new)
+        return Window.ActionResult.FINISHED
 
 
 class SequenceTrimAction(ProcessingAction):
     action_id = "processing.sequence_trim"
     action_name = _("Trim")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_sequence_trim_new)
+        return Window.ActionResult.FINISHED
 
 
 class SliceSumAction(ProcessingAction):
     action_id = "processing.slice_sum"
     action_name = _("Slice Sum")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_slice_sum_new)
+        return Window.ActionResult.FINISHED
 
 
 class SobelFilterAction(ProcessingAction):
     action_id = "processing.sobel_filter"
     action_name = _("Sobel Filter")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_sobel_new)
+        return Window.ActionResult.FINISHED
 
 
 class SubtractAction(ProcessingAction):
     action_id = "processing.subtract"
     action_name = _("Subtract")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing2(context, context.model.get_subtract_new)
+        return Window.ActionResult.FINISHED
 
 
 class SubtractAverageAction(ProcessingAction):
     action_id = "processing.subtract_average"
     action_name = _("Subtract Region Average")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_subtract_region_average_new)
+        return Window.ActionResult.FINISHED
 
 
 class TransformAction(ProcessingAction):
     action_id = "processing.transform"
     action_name = _("Transpose and Flip")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_transpose_flip_new)
+        return Window.ActionResult.FINISHED
 
 
 class UniformFilterAction(ProcessingAction):
     action_id = "processing.uniform_filter"
     action_name = _("Uniform Filter")
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.model.get_uniform_filter_new)
+        return Window.ActionResult.FINISHED
 
 
 class ProcessingComponentAction(ProcessingAction):
@@ -3306,9 +3392,10 @@ class ProcessingComponentAction(ProcessingAction):
         self.action_name = title
         self.__processing_id = processing_id
 
-    def invoke(self, context: Window.ActionContext) -> None:
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         if context.data_item:
             context.window._perform_processing(context.display_item, context.crop_graphic, functools.partial(context.model.get_processing_new, self.__processing_id))
+        return Window.ActionResult.FINISHED
 
 
 Window.register_action(AddAction())
