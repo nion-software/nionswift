@@ -10,6 +10,7 @@ import typing
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift.model import DataGroup
+from nion.swift.model import DocumentModel
 from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Observer
@@ -43,6 +44,35 @@ def open_location(location: pathlib.Path) -> None:
         subprocess.run(['explorer', str(location)])
     elif sys.platform == 'linux':
         subprocess.check_call(['xdg-open', '--', str(location)])
+
+
+class DocumentModelCounterDisplayItem:
+
+    def __init__(self, document_model: DocumentModel.DocumentModel):
+        self.__document_model = document_model
+
+        self.__count = 0
+        self.on_title_changed = None
+
+        def count_changed(count: Observer.ItemValue) -> None:
+            self.__count = count
+            if callable(self.on_title_changed):
+                self.on_title_changed(self.title)
+
+        oo = Observer.ObserverBuilder()
+        oo.source(self.__document_model).sequence_from_array("display_items").len().action_fn(count_changed)
+        self.__count_observer = oo.make_observable()
+
+    def close(self) -> None:
+        self.__count_observer.close()
+        self.__count_observer = None
+        self.__document_model = None
+        self.on_title_changed = None
+
+    @property
+    def title(self) -> str:
+        title = _("All")
+        return f"{title} ({self.__count})"
 
 
 class ProjectCounterDisplayItem:
@@ -470,38 +500,58 @@ class ProjectTreeWidget(Widgets.CompositeWidgetBase):
 
         # configure the selection objects to track each other
 
+        blocked = False
+
         def tree_selection_changed() -> None:
-            selected_project_references = list()
-            for index in self._tree_selection.indexes:
-                tree_item = self._tree_model.value[index]
-                if hasattr(tree_item, "project_reference") and tree_item.project_reference:
-                    selected_project_references.append(tree_item.project_reference)
-            document_controller.selected_project_references_model.value = selected_project_references
+            nonlocal blocked
+            if not blocked:
+                blocked = True
+                try:
+                    selected_project_references = list()
+                    for index in self._tree_selection.indexes:
+                        tree_item = self._tree_model.value[index]
+                        if hasattr(tree_item, "project_reference") and tree_item.project_reference:
+                            selected_project_references.append(tree_item.project_reference)
+                    document_controller.selected_project_references_model.value = selected_project_references
+                finally:
+                    blocked = False
 
         self.__tree_selection_changed_event_listener = self._tree_selection.changed_event.listen(tree_selection_changed)
 
-        # configure an observer for watching for project references changes
+        def selected_project_references_model_changed(key: str) -> None:
+            nonlocal blocked
+            if not blocked:
+                blocked = True
+                try:
+                    selected_project_references = document_controller.selected_project_references
+                    indexes = set()
+                    for index, tree_item in enumerate(self._tree_model.value):
+                        if hasattr(tree_item, "project_reference") and tree_item.project_reference:
+                            if tree_item.project_reference in selected_project_references:
+                                indexes.add(index)
+                    self._tree_selection.set_multiple(indexes)
+                finally:
+                    blocked = False
+
+        self.__selected_project_references_changed_listener = document_controller.selected_project_references_model.property_changed_event.listen(selected_project_references_model_changed)
+
+        # configure an observer for watching for project references changes.
+        # this serves as the master updater for changes. move to document controller?
 
         def project_references_changed(item: Observer.ItemValue) -> None:
-            project_references = typing.cast(typing.Sequence[Profile.ProjectReference], item)
             # update the tree model.
+            project_references = typing.cast(typing.Sequence[Profile.ProjectReference], item)
             self._tree_model.update_project_references(project_references)
-            # validate the selection
-            indexes = set()
-            for index in self._tree_selection.indexes:
-                if index < len(self._tree_model.value):
-                    indexes.add(index)
-            self._tree_selection.set_multiple(indexes)
-            # update project list
-            tree_selection_changed()
 
         oo = Observer.ObserverBuilder()
         oo.source(document_controller.document_model).prop("profile").ordered_sequence_from_array("project_references").collect_list().action_fn(project_references_changed)
         self.__projects_model_observer = oo.make_observable()
 
-        tree_selection_changed()
+        selected_project_references_model_changed(str())
 
     def close(self):
+        self.__selected_project_references_changed_listener.close()
+        self.__selected_project_references_changed_listener = None
         self.__tree_selection_changed_event_listener.close()
         self.__tree_selection_changed_event_listener = None
         self._tree_model.on_closed_items_changed = None
@@ -524,11 +574,14 @@ class ProjectListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         self.__project_selection = None
 
     def paint_item(self, drawing_context, display_item, rect, is_selected):
-        display_item = typing.cast(ProjectCounterDisplayItem, display_item)
-        is_target_project = self.__profile.target_project_reference == display_item.project_reference
-        is_work_project = self.__profile.work_project_reference == display_item.project_reference
-
-        title = "\N{CARD FILE BOX} " + display_item.title
+        if isinstance(display_item, ProjectCounterDisplayItem):
+            is_target_project = self.__profile.target_project_reference == display_item.project_reference
+            is_work_project = self.__profile.work_project_reference == display_item.project_reference
+            title = "\N{CARD FILE BOX} " + display_item.title
+        else:
+            is_target_project = False
+            is_work_project = False
+            title = "\N{CARD FILE BOX} " + display_item.title
 
         with drawing_context.saver():
             drawing_context.fill_style = "#000"
@@ -567,6 +620,8 @@ class ProjectsWidget(Widgets.CompositeWidgetBase):
 
         column = self.content_widget
 
+        self.__document_model_counter = DocumentModelCounterDisplayItem(document_controller.document_model)
+
         self.__project_counters : typing.List[ProjectCounterDisplayItem] = list()
 
         project_selection = Selection.IndexedSelection(Selection.Style.single_or_none)
@@ -575,7 +630,7 @@ class ProjectsWidget(Widgets.CompositeWidgetBase):
         projects_list_widget.wants_drag_events = True
 
         def project_counters_changed() -> None:
-            projects_list_widget.items = self.__project_counters
+            projects_list_widget.items = [self.__document_model_counter] + self.__project_counters
 
         def projects_changed(item: Observer.ItemValue) -> None:
             projects = typing.cast(typing.Sequence[Project.Project], item)
@@ -600,19 +655,55 @@ class ProjectsWidget(Widgets.CompositeWidgetBase):
 
         column.add(projects_section)
 
+        blocked = False
+
         def selection_changed() -> None:
-            selected_project_references = list()
-            for index in project_selection.indexes:
-                project_counter = self.__project_counters[index]
-                selected_project_references.append(project_counter.project_reference)
-            document_controller.selected_project_references_model.value = selected_project_references
+            nonlocal blocked
+            if not blocked:
+                blocked = True
+                try:
+                    selected_project_references = list()
+                    for index in project_selection.indexes:
+                        if index >= 1:
+                            project_counter = self.__project_counters[index - 1]
+                            selected_project_references.append(project_counter.project_reference)
+                        document_controller.selected_project_references_model.value = selected_project_references
+                finally:
+                    blocked = False
 
         self.__selection_changed_event_listener = project_selection.changed_event.listen(selection_changed)
+
+        def selected_project_references_model_changed(key: str) -> None:
+            nonlocal blocked
+            if not blocked:
+                blocked = True
+                try:
+                    selected_project_references = document_controller.selected_project_references
+                    if len(selected_project_references) == 1:
+                        selected_project_reference = selected_project_references[0]
+                        project_index = None
+                        for index, project_counter in enumerate(self.__project_counters):
+                            if project_counter.project_reference == selected_project_reference:
+                                project_index = index + 1
+                        if project_index is not None:
+                            project_selection.set(project_index)
+                        else:
+                            project_selection.set(0)
+                    else:
+                        project_selection.set(0)
+                finally:
+                    blocked = False
+
+        self.__selected_project_references_changed_listener = document_controller.selected_project_references_model.property_changed_event.listen(selected_project_references_model_changed)
+
+        selected_project_references_model_changed(str())
 
         # for testing
         self._project_selection = project_selection
 
     def close(self):
+        self.__selected_project_references_changed_listener.close()
+        self.__selected_project_references_changed_listener = None
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = None
         self.__projects_observer.close()
@@ -620,6 +711,8 @@ class ProjectsWidget(Widgets.CompositeWidgetBase):
         for project_counter in self.__project_counters:
             project_counter.close()
         self.__project_counters.clear()
+        self.__document_model_counter.close()
+        self.__document_model_counter = None
         super().close()
 
 

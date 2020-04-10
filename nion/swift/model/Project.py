@@ -138,6 +138,15 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         return self.__project_version
 
     @property
+    def project_filter(self) -> ListModel.Filter:
+
+        def is_display_item_active(project_weak_ref, display_item: DisplayItem.DisplayItem) -> bool:
+            return display_item.project == project_weak_ref()
+
+        # use a weak reference to avoid circular references loops that prevent garbage collection
+        return ListModel.PredicateFilter(functools.partial(is_display_item_active, weakref.ref(self)))
+
+    @property
     def project_storage_system(self) -> FileStorageSystem.ProjectStorageSystem:
         return self.__storage_system
 

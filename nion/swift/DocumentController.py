@@ -40,6 +40,7 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Observer
 from nion.swift.model import Processing
 from nion.swift.model import Profile
 from nion.swift.model import Project
@@ -99,7 +100,31 @@ class DocumentController(Window.Window):
 
         self.selection = Selection.IndexedSelection()
 
-        self.selected_project_references_model = Model.PropertyModel(set())
+        self.selected_project_references_model = Model.PropertyModel(list())
+        self.__last_filter_project = None
+
+        def selected_project_references_model_changed(key: str) -> None:
+            project = self.selected_project_references[0].project if len(self.selected_project_references) == 1 else None
+            if project != self.__last_filter_project:
+                data_group, filter_id = self.get_data_group_and_filter_id()
+                if data_group:
+                    self.__display_items_model.filter = self.project_filter
+                else:
+                    self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(filter_id)))
+                self.__last_filter_project = project
+
+        self.__selected_project_references_model_listener = self.selected_project_references_model.property_changed_event.listen(selected_project_references_model_changed)
+
+        # configure an observer for watching for project references changes to update the selection.
+
+        def project_references_changed(item: Observer.ItemValue) -> None:
+            selected_project_references = set(self.selected_project_references)
+            project_references = set(typing.cast(typing.Sequence[Profile.ProjectReference], item))
+            self.selected_project_references_model.value = list(selected_project_references.intersection(project_references))
+
+        oo = Observer.ObserverBuilder()
+        oo.source(self.document_model).prop("profile").ordered_sequence_from_array("project_references").collect_list().action_fn(project_references_changed)
+        self.__projects_model_observer = oo.make_observable()
 
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
@@ -114,7 +139,7 @@ class DocumentController(Window.Window):
         # see set_filter
         with self.__display_items_model.changes():  # change filter and sort together
             self.__display_items_model.container = self.document_model
-            self.__display_items_model.filter = self.get_filter_predicate(None)
+            self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(None)))
             self.__display_items_model.sort_key = DataItem.sort_by_date_key
             self.__display_items_model.sort_reverse = True
             self.__display_items_model.filter_id = None
@@ -183,6 +208,13 @@ class DocumentController(Window.Window):
         self.filter_controller = None
         self.__display_items_model.close()
         self.__display_items_model = None
+        self.__last_filter_project = None
+        self.__selected_project_references_model_listener.close()
+        self.__selected_project_references_model_listener = None
+        self.__projects_model_observer.close()
+        self.__projects_model_observer = None
+        self.selected_project_references_model.close()
+        self.selected_project_references_model = None
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
         self.document_model.remove_ref()
@@ -431,7 +463,7 @@ class DocumentController(Window.Window):
             if container != self.__display_items_model.container:
                 with self.__display_items_model.changes():  # change filter and sort together
                     self.__display_items_model.container = data_group
-                    self.__display_items_model.filter = ListModel.Filter(True)
+                    self.__display_items_model.filter = self.project_filter
                     self.__display_items_model.sort_key = None
                     self.__display_items_model.filter_id = None
                 self.filter_changed_event.fire(data_group, self.__display_items_model.filter_id)
@@ -441,15 +473,15 @@ class DocumentController(Window.Window):
             if filter_id != self.__display_items_model.filter_id:
                 with self.__display_items_model.changes():  # change filter and sort together
                     self.__display_items_model.container = self.document_model
-                    self.__display_items_model.filter = self.get_filter_predicate(filter_id)
+                    self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(filter_id)))
                     self.__display_items_model.sort_key = DataItem.sort_by_date_key
                     self.__display_items_model.sort_reverse = True
                     self.__display_items_model.filter_id = filter_id
                 self.filter_changed_event.fire(None, filter_id)
 
-    def get_data_group_and_filter_id(self):
+    def get_data_group_and_filter_id(self) -> typing.Tuple[typing.Optional[DataGroup.DataGroup], typing.Optional[str]]:
         # used for display panel initialization
-        data_group = self.__display_items_model.container if self.__display_items_model.container != self.document_model else None
+        data_group = typing.cast(DataGroup.DataGroup, self.__display_items_model.container) if self.__display_items_model.container != self.document_model else None
         filter_id = self.__display_items_model.filter_id
         return data_group, filter_id
 
@@ -461,6 +493,11 @@ class DocumentController(Window.Window):
     def display_filter(self, display_filter: ListModel.Filter) -> None:
         if self.__filtered_display_items_model is not None:  # during close
             self.__filtered_display_items_model.filter = display_filter
+
+    @property
+    def project_filter(self) -> ListModel.Filter:
+        project = self.selected_project_references[0].project if len(self.selected_project_references) == 1 else None
+        return project.project_filter if project else ListModel.Filter(True)
 
     @property
     def selected_project_references(self) -> typing.List[Profile.ProjectReference]:

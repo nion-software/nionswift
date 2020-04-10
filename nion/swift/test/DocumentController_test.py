@@ -1083,10 +1083,9 @@ class TestDocumentControllerClass(unittest.TestCase):
                 document_model.append_data_item(data_item, project=profile.projects[0])
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item, project=profile.projects[1])
-                project_panel._tree_selection.set_multiple({0, 1})
-                self.assertEqual(2, len(document_controller.selected_project_references))
+                project_panel._projects_selection.set(1)  # 0 is 'all'
+                self.assertEqual(1, len(document_controller.selected_project_references))
                 self.assertIn(profile.project_references[0], document_controller.selected_project_references)
-                self.assertIn(profile.project_references[1], document_controller.selected_project_references)
                 profile.remove_project_reference(profile.project_references[1])  # note: cannot remove project 0, since it is work project
                 self.assertEqual(1, len(document_controller.selected_project_references))
                 self.assertIn(profile.project_references[0], document_controller.selected_project_references)
@@ -1108,13 +1107,11 @@ class TestDocumentControllerClass(unittest.TestCase):
                 document_model.append_data_item(data_item, project=profile.projects[1])
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item, project=profile.projects[2])
-                project_panel._tree_selection.set_multiple({1, 2})
-                self.assertEqual(2, len(document_controller.selected_project_references))
-                self.assertIn(profile.project_references[1], document_controller.selected_project_references)
-                self.assertIn(profile.project_references[2], document_controller.selected_project_references)
-                profile.remove_project_reference(profile.project_references[1])  # note: cannot remove project 0, since it is work project
+                project_panel._projects_selection.set(2)  # 0 is 'all'
                 self.assertEqual(1, len(document_controller.selected_project_references))
                 self.assertIn(profile.project_references[1], document_controller.selected_project_references)
+                profile.remove_project_reference(profile.project_references[1])  # note: cannot remove project 0, since it is work project
+                self.assertEqual(0, len(document_controller.selected_project_references))
 
 
 if __name__ == '__main__':
