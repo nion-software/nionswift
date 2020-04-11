@@ -4213,6 +4213,24 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual("loaded", document_model.profile.projects[0].project_state)
                 self.assertIsNone(document_model.profile.project_references[1].project)
 
+    def test_importing_project_twice_only_enables_existing_version(self):
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            # create a 2nd project
+            project_path = profile_context.projects_dir / pathlib.Path("Project2").with_suffix(".nsproj")
+            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": ["Data2"]})
+            project_path.write_text(project_data_json, "utf-8")
+            profile.add_project_index(project_path)
+            # first load document normally
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            with contextlib.closing(document_model):
+                self.assertEqual(2, len(document_model.profile.projects))
+                document_model.profile.unload_project_reference(document_model.profile.project_references[1])
+                self.assertFalse(document_model.profile.project_references[1].is_active)
+                document_model.profile.add_project_index(document_model.profile.project_references[1].project_path)
+                self.assertEqual(2, len(document_model.profile.projects))
+                self.assertTrue(document_model.profile.project_references[1].is_active)
+
     def test_data_item_variable_reloads(self):
         with create_memory_profile_context() as profile_context:
             profile = profile_context.create_profile()

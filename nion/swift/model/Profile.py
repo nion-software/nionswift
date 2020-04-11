@@ -585,6 +585,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def append_project_reference(self, project_reference: ProjectReference) -> None:
         assert not self.get_item_by_uuid("project_references", project_reference.uuid)
+        assert not project_reference.project_uuid in {project_reference.project_uuid for project_reference in self.project_references}
         self.append_item("project_references", project_reference)
 
     def unload_project_reference(self, project_reference: ProjectReference) -> None:
@@ -602,40 +603,39 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             project_reference.unload_project()
             self.remove_item("project_references", project_reference)
 
+    def __add_project_reference(self, project_reference: ProjectReference, load: bool = True) -> ProjectReference:
+        # add the project reference if a project reference with the same project uuid
+        # is not already present; otherwise activate the existing one.
+        existing_project_reference = next(filter(lambda x: x.project_uuid == project_reference.project_uuid, self.project_references), None)
+        if not existing_project_reference:
+            self.append_project_reference(project_reference)
+            if load:
+                if self.__is_read:
+                    self.set_project_reference_active(project_reference, True)
+                else:
+                    project_reference.is_active = True
+            return project_reference
+        else:
+            if load:
+                existing_project_reference.load_project(self.projects, self.profile_context)
+            return existing_project_reference
+
     def add_project_index(self, project_path: pathlib.Path, load: bool = True) -> ProjectReference:
         project_reference = IndexProjectReference()
         project_reference.project_path = project_path
         project_reference.project_uuid = project_reference.read_project_uuid(self.profile_context)
-        self.append_project_reference(project_reference)
-        if load:
-            if self.__is_read:
-                self.set_project_reference_active(project_reference, True)
-            else:
-                project_reference.is_active = True
-        return project_reference
+        return self.__add_project_reference(project_reference, load)
 
     def add_project_folder(self, project_folder_path: pathlib.Path, load: bool = True) -> ProjectReference:
         project_reference = FolderProjectReference()
         project_reference.project_folder_path = project_folder_path
         project_reference.project_uuid = project_reference.read_project_uuid(self.profile_context)
-        self.append_project_reference(project_reference)
-        if load:
-            if self.__is_read:
-                self.set_project_reference_active(project_reference, True)
-            else:
-                project_reference.is_active = True
-        return project_reference
+        return self.__add_project_reference(project_reference, load)
 
     def add_project_memory(self, _uuid: uuid.UUID = None, load: bool = True) -> ProjectReference:
         project_reference = MemoryProjectReference()
         project_reference.project_uuid = _uuid or uuid.uuid4()
-        self.append_project_reference(project_reference)
-        if load:
-            if self.__is_read:
-                self.set_project_reference_active(project_reference, True)
-            else:
-                project_reference.is_active = True
-        return project_reference
+        return self.__add_project_reference(project_reference, load)
 
 
 class MemoryProfileContext:

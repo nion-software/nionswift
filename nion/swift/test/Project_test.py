@@ -526,4 +526,18 @@ class TestProjectClass(unittest.TestCase):
                 document_model.recompute_all()
                 self.assertIsNone(document_model.computations[0].error_text)
 
+    def test_adding_same_project_raises_error_during_append(self):
+        # create two data items in different projects. select the two items in the data panel
+        # and create a computation from the two inputs. compute and make sure no errors occur.
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.add_project_memory()
+            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                project_reference = Profile.MemoryProjectReference()
+                project_reference.project_uuid = document_model.profile.projects[0].uuid
+                with self.assertRaises(Exception):
+                    document_model.profile.append_project_reference(project_reference)
+
     # do not import same project (by uuid) twice
