@@ -527,7 +527,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
                 properties_copy.setdefault("data_items", list()).append(data_item_properties)
 
         def data_item_created(data_item_properties: typing.Mapping) -> str:
-            earliest_datetime = datetime.datetime.fromtimestamp(time.mktime(time.gmtime(0))).isoformat()
+            earliest_datetime = datetime.datetime.fromtimestamp(time.mktime(time.localtime(0))).isoformat()
             return data_item_properties.get("created", earliest_datetime)
 
         data_items_copy = sorted(properties_copy.get("data_items", list()), key=data_item_created)
@@ -788,7 +788,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         for reader_info in reader_info_list:
             data_item_properties = Utility.clean_dict(reader_info.properties if reader_info.properties else dict())
             if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
-                earliest_datetime = datetime.datetime.fromtimestamp(time.mktime(time.gmtime(0))).isoformat()
+                earliest_datetime = datetime.datetime.fromtimestamp(time.mktime(time.localtime(0))).isoformat()
                 file_datetime = DataItem.DatetimeToStringConverter().convert_back(data_item_properties.get("created", earliest_datetime))
                 reader_info.storage_handler.write_properties(reader_info.properties, file_datetime)
 
@@ -980,7 +980,7 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
                 data_properties_map[reader_info.identifier] = data_item_properties
 
         def data_item_created(data_item_properties: typing.Mapping) -> str:
-            earliest_datetime = datetime.datetime.fromtimestamp(time.mktime(time.gmtime(0))).isoformat()
+            earliest_datetime = datetime.datetime.fromtimestamp(time.mktime(time.localtime(0))).isoformat()
             return data_item_properties[1].get("created", earliest_datetime)
 
         data_properties_map = {k: v for k, v in sorted(data_properties_map.items(), key=data_item_created)}
