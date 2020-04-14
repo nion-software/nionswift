@@ -2570,15 +2570,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             vs["sequence-fourier-align"] = {"title": _("Alignment"), "expression": "xd.sequence_fourier_align({src}.xdata, 100)",
                 "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
             vs["sequence-integrate"] = {"title": _("Integrate"), "expression": "xd.sequence_integrate({src}.xdata)",
-                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
+                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_sequence]}]}
             trim_start_param = {"name": "start", "label": _("Start"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
             trim_end_param = {"name": "end", "label": _("End"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
             vs["sequence-trim"] = {"title": _("Trim"), "expression": "xd.sequence_trim({src}.xdata, start, end)",
-                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d, requirement_is_sequence]}],
+                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_sequence]}],
                 "parameters": [trim_start_param, trim_end_param]}
             index_param = {"name": "index", "label": _("Index"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
             vs["sequence-extract"] = {"title": _("Extract"), "expression": "xd.sequence_extract({src}.xdata, index)",
-                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d, requirement_is_sequence]}],
+                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_sequence]}],
                 "parameters": [index_param]}
             cls._builtin_processing_descriptions = vs
         return cls._builtin_processing_descriptions
