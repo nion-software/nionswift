@@ -2,6 +2,7 @@
 import functools
 import gettext
 import pathlib
+import pkgutil
 import subprocess
 import sys
 import typing
@@ -12,9 +13,10 @@ from nion.swift import Panel
 from nion.swift.model import DataGroup
 from nion.swift.model import DocumentModel
 from nion.swift.model import Profile
-from nion.swift.model import Project
 from nion.swift.model import Observer
+from nion.ui import CanvasItem
 from nion.ui import Dialog
+from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Event
@@ -574,17 +576,34 @@ class ProjectListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         self.__project_selection = None
 
     def paint_item(self, drawing_context, display_item, rect, is_selected):
+        # target project is bold
+        # work project is italic
+        # unloaded projects are dimmed with reason in parenthesis
+        # reasons can be missing, unloaded, or needs upgrade
+
         if isinstance(display_item, ProjectCounterDisplayItem):
+            is_active = display_item.project_reference.is_active
             is_target_project = self.__profile.target_project_reference == display_item.project_reference
             is_work_project = self.__profile.work_project_reference == display_item.project_reference
             title = "\N{CARD FILE BOX} " + display_item.title
+            if display_item.project_reference.project:
+                if display_item.project_reference.project.project_state == "missing":
+                    is_active = False
+                    title += " (" + _("missing").upper() + ")"
+                elif display_item.project_reference.project.project_state == "needs_upgrade":
+                    is_active = False
+                    title += " (" + _("needs upgrade").upper() + ")"
+            else:
+                is_active = False
+                title += " (" + _("unloaded").upper() + ")"
         else:
+            is_active = True
             is_target_project = False
             is_work_project = False
             title = "\N{CARD FILE BOX} " + display_item.title
 
         with drawing_context.saver():
-            drawing_context.fill_style = "#000"
+            drawing_context.fill_style = "#000" if is_active else "#888"
             font = "12px"
             if is_target_project:
                 font += " bold"
@@ -615,7 +634,7 @@ class ProjectListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
 class ProjectsWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, document_controller: "DocumentController.DocumentController"):
+    def __init__(self, ui: UserInterface.UserInterface, document_controller: "DocumentController.DocumentController"):
         super().__init__(ui.create_column_widget(properties={"stylesheet": "border: #F00"}))
 
         column = self.content_widget
@@ -626,32 +645,43 @@ class ProjectsWidget(Widgets.CompositeWidgetBase):
 
         project_selection = Selection.IndexedSelection(Selection.Style.single_or_none)
 
-        projects_list_widget = Widgets.ListWidget(ui, ProjectListCanvasItemDelegate(document_controller, project_selection), selection=project_selection, v_scroll_enabled=False, v_auto_resize=True)
-        projects_list_widget.wants_drag_events = True
+        self.__projects_list_widget = Widgets.ListWidget(ui, ProjectListCanvasItemDelegate(document_controller, project_selection), selection=project_selection, v_scroll_enabled=False, v_auto_resize=True)
+        self.__projects_list_widget.wants_drag_events = True
 
-        def project_counters_changed() -> None:
-            projects_list_widget.items = [self.__document_model_counter] + self.__project_counters
+        self.__projects_observer = None
+        self.__projects_filtered = True
 
-        def projects_changed(item: Observer.ItemValue) -> None:
-            projects = typing.cast(typing.Sequence[Project.Project], item)
-            for project_counter in self.__project_counters:
-                project_counter.close()
-            self.__project_counters.clear()
-            for project in projects:
-                project_counter = ProjectCounterDisplayItem(project.container)
-                project_counter.on_title_changed = lambda t: project_counters_changed()
-                self.__project_counters.append(project_counter)
-            project_counters_changed()
-
-        oo = Observer.ObserverBuilder()
-        oo.source(document_controller.document_model).prop("profile").ordered_sequence_from_array("projects").collect_list().action_fn(projects_changed)
-        self.__projects_observer = oo.make_observable()
+        self.__set_filtering(document_controller, True)
 
         projects_column = ui.create_column_widget()
-        projects_column.add(projects_list_widget)
+        projects_column.add(self.__projects_list_widget)
 
         projects_section = Widgets.SectionWidget(ui, _("Projects"), projects_column)
         projects_section.expanded = True
+
+        filter_dark_icon_data = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/filter2_icon_20.png"))
+        filter_light_icon_data = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/filter3_icon_20.png"))
+
+        def toggle_filtering() -> None:
+            self.__set_filtering(document_controller, not self.__projects_filtered)
+            bitmap_button_canvas_item.set_rgba_bitmap_data(filter_dark_icon_data if self.__projects_filtered else filter_light_icon_data)
+
+        filter_button_widget = ui.create_canvas_widget(properties={"height": 20, "width": 20})
+        bitmap_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(filter_dark_icon_data)
+        filter_button_widget.canvas_item.add_canvas_item(bitmap_button_canvas_item)
+        bitmap_button_canvas_item.on_button_clicked = toggle_filtering
+
+        gear_button_widget = ui.create_canvas_widget(properties={"height": 20, "width": 20})
+        gear_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/gear_icon_20.png")))
+        gear_button_widget.canvas_item.add_canvas_item(gear_button_canvas_item)
+        gear_button_canvas_item.on_button_clicked = lambda: document_controller.perform_action("window.open_project_dialog")
+
+        projects_section.section_title_row.add(filter_button_widget)
+        projects_section.section_title_row.add_spacing(4)
+        projects_section.section_title_row.add(gear_button_widget)
+        projects_section.section_title_row.add_spacing(4)
+
+        # filter_button.on_clicked = lambda: print("CLICKED")
 
         column.add(projects_section)
 
@@ -701,6 +731,15 @@ class ProjectsWidget(Widgets.CompositeWidgetBase):
         # for testing
         self._project_selection = project_selection
 
+    def __set_filtering(self, document_controller: "DocumentController.DocumentController", enabled: bool) -> None:
+        if self.__projects_observer:
+            self.__projects_observer.close()
+        oo = Observer.ObserverBuilder()
+        oo.source(document_controller.document_model).prop("profile").ordered_sequence_from_array(
+            "project_references").filter(lambda pr: pr.project or not enabled).collect_list().action_fn(self.__projects_changed)
+        self.__projects_observer = oo.make_observable()
+        self.__projects_filtered = enabled
+
     def close(self):
         self.__selected_project_references_changed_listener.close()
         self.__selected_project_references_changed_listener = None
@@ -714,6 +753,20 @@ class ProjectsWidget(Widgets.CompositeWidgetBase):
         self.__document_model_counter.close()
         self.__document_model_counter = None
         super().close()
+
+    def __project_counters_changed(self) -> None:
+        self.__projects_list_widget.items = [self.__document_model_counter] + self.__project_counters
+
+    def __projects_changed(self, item: Observer.ItemValue) -> None:
+        project_references = typing.cast(typing.Sequence[Profile.ProjectReference], item)
+        for project_counter in self.__project_counters:
+            project_counter.close()
+        self.__project_counters.clear()
+        for project_reference in project_references:
+            project_counter = ProjectCounterDisplayItem(project_reference)
+            project_counter.on_title_changed = lambda t: self.__project_counters_changed()
+            self.__project_counters.append(project_counter)
+        self.__project_counters_changed()
 
 
 class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
