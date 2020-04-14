@@ -262,7 +262,7 @@ class TransactionManager:
             self.__close_transaction_items(old_items)
 
 
-class UndeleteObjectSpecifiers(Changes.UndeleteBase):
+class UndeleteObjectSpecifier(Changes.UndeleteBase):
 
     def __init__(self, document_model: "DocumentModel", computation: Symbolic.Computation, index: int, variable_index: int, object_specifier: typing.Dict):
         self.computation_proxy = computation.create_proxy()
@@ -280,7 +280,7 @@ class UndeleteObjectSpecifiers(Changes.UndeleteBase):
         computation.undelete_variable_item(variable.name, self.index, self.specifier)
 
 
-class UndeleteDataItems(Changes.UndeleteBase):
+class UndeleteDataItem(Changes.UndeleteBase):
 
     def __init__(self, document_model: "DocumentModel", data_item: DataItem.DataItem):
         project = Project.get_project_for_item(data_item)
@@ -1218,12 +1218,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     t = computation.list_item_removed(item)
                     if t is not None:
                         index, variable_index, object_specifier = t
-                        undelete_log.append(UndeleteObjectSpecifiers(self, computation, index, variable_index, object_specifier))
+                        undelete_log.append(UndeleteObjectSpecifier(self, computation, index, variable_index, object_specifier))
             for item in reversed(items):
                 container = item.container
                 # if container is None, then this object has already been removed
                 if isinstance(container, Project.Project) and isinstance(item, DataItem.DataItem):
-                    undelete_log.append(UndeleteDataItems(self, item))
+                    undelete_log.append(UndeleteDataItem(self, item))
                     # call the version of remove_data_item that doesn't cascade again
                     # NOTE: remove_data_item will notify_remove_item
                     container.remove_data_item(item)
