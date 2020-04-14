@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="20" height="20"
+     viewPort="0 0 20 20" version="1.1"
+     xmlns="http://www.w3.org/2000/svg">
+    <g transform="translate(2, 2) scale(0.8, 0.8)">
+        <circle cx="10" cy="10" r="5.5" stroke="#666" fill="none" stroke-width="4"/>
+        <g transform="translate(10,10) rotate(10) translate(-10,-10)">
+            <path d="M 8,4 L 8.5, 0 L 11.5, 0 L 12, 4 z" fill="#666" stroke-linejoin="round"/>
+        </g>
+        <g transform="translate(10,10) rotate(50) translate(-10,-10)">
+            <path d="M 8,4 L 8.5, 0 L 11.5, 0 L 12, 4 z" fill="#666" stroke-linejoin="round"/>
+        </g>
+        <g transform="translate(10,10) rotate(90) translate(-10,-10)">
+            <path d="M 8,4 L 8.5, 0 L 11.5, 0 L 12, 4 z" fill="#666" stroke-linejoin="round"/>
+        </g>
+        <g transform="translate(10,10) rotate(130) translate(-10,-10)">
+            <path d="M 8,4 L 8.5, 0 L 11.5, 0 L 12, 4 z" fill="#666" stroke-linejoin="round"/>
+        </g>
+        <g transform="translate(10,10) rotate(170) translate(-10,-10)">
+            <path d="M 8,4 L 8.5, 0 L 11.5, 0 L 12, 4 z" fill="#666" stroke-linejoin="round"/>
+        </g>
+        <g transform="translate(10,10) rotate(210) translate(-10,-10)">
+            <path d="M 8,4 L 8.5, 0 L 11.5, 0 L 12, 4 z" fill="#666" stroke-linejoin="round"/>
+        </g>
+        <g transform="translate(10,10) rotate(250) translate(-10,-10)">
+            <path d="M 8,4 L 8.5, 0 L 11.5, 0 L 12, 4 z" fill="#666" stroke-linejoin="round"/>
+        </g>
+        <g transform="translate(10,10) rotate(290) translate(-10,-10)">
+            <path d="M 8,4 L 8.5, 0 L 11.5, 0 L 12, 4 z" fill="#666" stroke-linejoin="round"/>
+        </g>
+        <g transform="translate(10,10) rotate(330) translate(-10,-10)">
+            <path d="M 8,4 L 8.5, 0 L 11.5, 0 L 12, 4 z" fill="#666" stroke-linejoin="round"/>
+        </g>
+    </g>
+</svg>
