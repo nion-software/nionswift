@@ -80,7 +80,7 @@ class ItemSource(AbstractItemSource):
 
 
 class PropertyItemSource(AbstractItemSource):
-    """Provide a hard coded item source."""
+    """Provide an item source from a property of the item."""
 
     def __init__(self, item_source: AbstractItemSource, property: str):
         self.__item_source = item_source
@@ -133,7 +133,7 @@ class PropertyItemSource(AbstractItemSource):
 
 
 class ArrayItemSource(AbstractItemSource):
-    """Provide a hard coded item source."""
+    """Provide an item source from an array of the item."""
 
     def __init__(self, item_source: AbstractItemSource, property: str):
         self.__item_source = item_source
@@ -314,22 +314,22 @@ class SetArraySourceAdapter(AbstractArraySourceAdapter):
                 self.__items[item] = mapped_item
                 inserted(mapped_item, index)
 
-        def item_removed(key: str, item: ItemValue) -> None:
+        def item_discarded(key: str, item: ItemValue) -> None:
             if key == self.__key and item in self.__items:
                 index = list(self.__items.keys()).index(item)
                 mapped_item = self.__items.pop(item)
                 removed(mapped_item, index)
 
         self.__item_added_listener = source.item_added_event.listen(item_added)
-        self.__item_removed_listener = source.item_removed_event.listen(item_removed)
+        self.__item_discarded_listener = source.item_discarded_event.listen(item_discarded)
         for item in getattr(source, self.__key):
             item_added(self.__key, item)
 
     def close(self) -> None:
         self.__item_added_listener.close()
         self.__item_added_listener = None
-        self.__item_removed_listener.close()
-        self.__item_removed_listener = None
+        self.__item_discarded_listener.close()
+        self.__item_discarded_listener = None
 
     @property
     def items(self) -> typing.Sequence:
@@ -401,6 +401,7 @@ class PropertyItemTransformer(AbstractItemTransformer):
 
     @classmethod
     def factory(cls, property: str) -> TransformerFactory:
+        # mutate is a callback to the transformer
         def make_transformer(item: ItemValue, mutate: TransfomerMutatedFn) -> AbstractItemTransformer:
             return cls(item, mutate, property)
         return make_transformer
@@ -428,6 +429,7 @@ class ArrayItemTransformer(AbstractItemTransformer):
 
     @classmethod
     def factory(cls, property: str) -> TransformerFactory:
+        # mutate is a callback to the transformer
         def make_transformer(item: ItemValue, mutate: TransfomerMutatedFn) -> AbstractItemTransformer:
             return cls(item, mutate, property)
         return make_transformer
@@ -455,6 +457,7 @@ class FunctionItemTransformer(AbstractItemTransformer):
 
     @classmethod
     def factory(cls, fn: typing.Callable[[ItemValue], ItemValue]) -> TransformerFactory:
+        # mutate is a callback to the transformer
         def make_transformer(item: ItemValue, mutate: TransfomerMutatedFn) -> AbstractItemTransformer:
             return cls(item, mutate, fn)
         return make_transformer
