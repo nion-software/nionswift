@@ -267,6 +267,20 @@ class TestDataItemClass(unittest.TestCase):
                     data_ref.master_data = numpy.ones((4, 4), numpy.uint32) + 1
                     self.assertFalse(numpy.array_equal(data_ref.master_data, data_copy_accessor.master_data))
 
+    def test_data_item_in_transaction_is_not_unloadable(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
+                with document_model.item_transaction(data_item):
+                    document_model.append_data_item(data_item)
+                    # under transaction, data should not be unloadable
+                    self.assertFalse(data_item.data_and_metadata.unloadable)
+                    self.assertTrue(data_item.data_and_metadata.is_data_valid)
+                # no longer under transaction, data should not be unloadable
+                self.assertTrue(data_item.data_and_metadata.unloadable)
+                self.assertFalse(data_item.data_and_metadata.is_data_valid)
+
     def test_clear_thumbnail_when_data_item_changed(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):

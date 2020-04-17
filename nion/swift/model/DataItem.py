@@ -381,6 +381,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def __exit_write_delay_state(self):
         if self.persistent_object_context:
             self.exit_write_delay()
+            if self.__data_and_metadata:
+                self.__data_and_metadata.unloadable = True
             self._finish_pending_write()
 
     def write_to_dict(self):
@@ -447,11 +449,13 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         # this can occur during acquisition. any other cases?
         super().persistent_object_context_changed()
 
-        if self.__data_and_metadata:
-            self.__data_and_metadata.unloadable = self.persistent_object_context is not None
+        # if self.__data_and_metadata:
+        #     self.__data_and_metadata.unloadable = self.persistent_object_context is not None and not self.is_write_delayed
 
         if self.__in_transaction_state:
             self.__enter_write_delay_state()
+        elif self.__data_and_metadata:
+            self.__data_and_metadata.unloadable = self.persistent_object_context is not None and not self.is_write_delayed
 
     def _test_get_file_path(self):
         return self.persistent_storage.get_storage_property(self, "file_path")
