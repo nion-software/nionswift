@@ -520,7 +520,13 @@ class UndeleteItem(Changes.UndeleteBase):
         self.__items_controller.restore_from_dict(self.item_dict, self.index, project, container, container_properties, self.order)
 
 
-class ImplicitDependency:
+class AbstractImplicitDependency(abc.ABC):
+
+    @abc.abstractmethod
+    def get_dependents(self, item) -> typing.Sequence: ...
+
+
+class ImplicitDependency(AbstractImplicitDependency):
 
     def __init__(self, items: typing.Sequence, item):
         self.__item = item
@@ -842,10 +848,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def implicit_dependencies(self):
         return self.__implicit_dependencies
 
-    def register_implicit_dependency(self, implicit_dependency: ImplicitDependency):
+    def register_implicit_dependency(self, implicit_dependency: AbstractImplicitDependency):
         self.__implicit_dependencies.append(implicit_dependency)
 
-    def unregister_implicit_dependency(self, implicit_dependency: ImplicitDependency):
+    def unregister_implicit_dependency(self, implicit_dependency: AbstractImplicitDependency):
         self.__implicit_dependencies.remove(implicit_dependency)
 
     def start_new_session(self):
