@@ -1644,6 +1644,25 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
 
+    def test_data_source_watches_correct_graphics(self):
+        # this failed at one point due to improper use of local variable
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            display_item.add_graphic(crop_region)
+            graphic = Graphics.PointGraphic()
+            display_item.add_graphic(graphic)
+            document_model.get_fft_new(display_item, crop_region)
+            display_item.remove_graphic(graphic)
+            document_model.recompute_all()
+            graphic = Graphics.PointGraphic()
+            display_item.add_graphic(graphic)
+            # at this stage the data source monitor was corrupt
+            graphic.position = 0.2, 0.2  # this triggered an exception
+
     def disabled_test_reshape_rgb(self):
         assert False
 

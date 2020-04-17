@@ -1347,7 +1347,7 @@ class DataSource:
 
 
 class MonitoredDataSource(DataSource):
-    def __init__(self, display_data_channel, graphic, changed_event):
+    def __init__(self, display_data_channel, graphic: Graphics.Graphic, changed_event):
         super().__init__(display_data_channel.container, graphic)
         self.__display_item = display_data_channel.container
         self.__graphic = graphic
@@ -1358,29 +1358,41 @@ class MonitoredDataSource(DataSource):
         self.__data_item_changed_event_listener = self.__data_item.data_item_changed_event.listen(self.__changed_event.fire) if self.__data_item else None
         self.__display_values_event_listener = display_data_channel.display_data_will_change_event.listen(self.__changed_event.fire) if display_data_channel else None
         self.__property_changed_listener = None
-        def property_changed(key):
+
+        def property_changed(key: str) -> None:
             self.__changed_event.fire()
+
         if self.__graphic:
             self.__property_changed_listener = self.__graphic.property_changed_event.listen(property_changed)
-        def filter_property_changed(graphic, key):
+
+        # when a graphic changes, if it's used in the mask or fourier_mask role, send out the changed event.
+        def filter_property_changed(graphic: Graphics.Graphic, key: str) -> None:
             if key == "role" or graphic.used_role in ("mask", "fourier_mask"):
                 self.__changed_event.fire()
+
         self.__graphic_property_changed_listeners = list()
-        def graphic_inserted(key, value, before_index):
+
+        # when a new graphic is inserted, track it
+        def graphic_inserted(key: str, graphic: Graphics.Graphic, before_index: int) -> None:
             if key == "graphics":
                 property_changed_listener = None
                 if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                    property_changed_listener = value.property_changed_event.listen(functools.partial(filter_property_changed, graphic))
+                    property_changed_listener = graphic.property_changed_event.listen(functools.partial(filter_property_changed, graphic))
                     self.__changed_event.fire()
                 self.__graphic_property_changed_listeners.insert(before_index, property_changed_listener)
-        def graphic_removed(key, value, index):
+
+        # when a graphic is removed, untrack it
+        def graphic_removed(key: str, graphic: Graphics.Graphic, index: int) -> None:
             if key == "graphics":
                 property_changed_listener = self.__graphic_property_changed_listeners.pop(index)
                 if property_changed_listener:
                     property_changed_listener.close()
                     self.__changed_event.fire()
+
         self.__graphic_inserted_event_listener = self.__display_item.item_inserted_event.listen(graphic_inserted) if self.__display_item else None
         self.__graphic_removed_event_listener = self.__display_item.item_removed_event.listen(graphic_removed) if self.__display_item else None
+
+        # set up initial tracking
         for graphic in self.__display_item.graphics if self.__display_item else list():
             property_changed_listener = None
             if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
@@ -1388,6 +1400,7 @@ class MonitoredDataSource(DataSource):
             self.__graphic_property_changed_listeners.append(property_changed_listener)
 
     def close(self):
+        # shut down the trackers
         for graphic_property_changed_listener in self.__graphic_property_changed_listeners:
             if graphic_property_changed_listener:
                 graphic_property_changed_listener.close()
