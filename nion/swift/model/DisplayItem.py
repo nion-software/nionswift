@@ -849,12 +849,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, item_uuid: uuid.UUID = None, *, data_item: DataItem.DataItem = None):
         super().__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
-        # windows utcnow has a resolution of 1ms, so use some trickery with perf_counter to get a more accurate time.
-        if not DataItem.DataItem.sync_perf_counter:
-            DataItem.DataItem.sync_time, DataItem.DataItem.sync_perf_counter = time.time(), time.perf_counter()
-        utcnow = datetime.datetime(1970, 1, 1) + datetime.timedelta(seconds=DataItem.DataItem.sync_time + time.perf_counter() - DataItem.DataItem.sync_perf_counter)
-        self.define_property("created", utcnow, converter=DataItem.DatetimeToStringConverter(), changed=self.__property_changed)
         self.define_type("display_item")
+        self.define_property("created", DataItem.DataItem.utcnow(), converter=DataItem.DatetimeToStringConverter(), changed=self.__property_changed)
         self.define_property("display_type", changed=self.__display_type_changed)
         self.define_property("title", hidden=True, changed=self.__property_changed)
         self.define_property("caption", hidden=True, changed=self.__property_changed)
