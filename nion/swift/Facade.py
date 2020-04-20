@@ -74,6 +74,9 @@ from nion.ui import CanvasItem as CanvasItemModule
 from nion.ui import Declarative
 from nion.utils import Geometry
 
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
+
 __all__ = ["get_api"]
 
 
@@ -2591,11 +2594,11 @@ class DocumentWindow(metaclass=SharedInstance):
         return ObjectSpecifier("document_controller", self.__document_controller.uuid)
 
     @property
-    def _document_controller(self):
+    def _document_controller(self) -> "DocumentController.DocumentController":
         return self.__document_controller
 
     @property
-    def _document_window(self):
+    def _document_window(self) -> "DocumentController.DocumentController":
         return self.__document_controller
 
     @property
