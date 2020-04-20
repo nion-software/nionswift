@@ -892,7 +892,6 @@ class DocumentController(Window.Window):
         if not self.is_dialog_type_open(ProjectPanel.ProjectDialog):
             project_dialog = ProjectPanel.ProjectDialog(self)
             project_dialog.show()
-            self.register_dialog(project_dialog)
 
     def new_edit_computation_dialog(self, data_item=None):
         if not data_item:
