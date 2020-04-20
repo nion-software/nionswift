@@ -5,6 +5,7 @@ import datetime
 import functools
 import gettext
 import pathlib
+import sys
 import threading
 import time
 import typing
@@ -183,11 +184,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.large_format = large_format
         self._document_model = None  # used only for Facade
         self.define_type("data-item")
-        # windows utcnow has a resolution of 1ms, so use some trickery with perf_counter to get a more accurate time.
-        if not DataItem.sync_perf_counter:
-            DataItem.sync_time, DataItem.sync_perf_counter = time.time(), time.perf_counter()
-        utcnow = datetime.datetime(1970, 1, 1) + datetime.timedelta(seconds=DataItem.sync_time + time.perf_counter() - DataItem.sync_perf_counter)
-        self.define_property("created", utcnow, converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
+        self.define_property("created", self.utcnow(), converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
         data_shape = data.shape if data is not None else None
         data_dtype = data.dtype if data is not None else None
         dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
@@ -251,6 +248,22 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         if data is not None:
             data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, timezone=self.timezone, timezone_offset=self.timezone_offset)
             self.__set_data_metadata_direct(data_and_metadata)
+
+    @classmethod
+    def utcnow(cls) -> datetime.datetime:
+        # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
+        if sys.platform == "win32":
+            # see https://www.python.org/dev/peps/pep-0564/#annex-clocks-resolution-in-python
+            if sys.version_info.major == 3 and sys.version_info.minor >= 7:
+                utcnow = datetime.datetime.utcfromtimestamp(time.time_ns() / 1E9)
+                time.sleep(0.0004)
+            else:
+                utcnow = datetime.datetime.utcfromtimestamp(time.time())
+                print(utcnow, datetime.datetime.utcnow())
+                time.sleep(0.0009)
+        else:
+            utcnow = datetime.datetime.utcnow()
+        return utcnow
 
     def __str__(self):
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.date_for_sorting_local_as_string)
