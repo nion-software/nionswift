@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!--
+java -jar batik-rasterizer.jar -h 24 -w 24 -a 0,0,24,24 artwork/sliders.svg -d nion/swift/resources/sliders_icon_24.png
+  -->
+<svg width="24" height="24"
+     viewBox="0 0 24 24" version="1.1"
+     xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#444" fill="#444">
+        <circle cx="11" cy="11" r="8" stroke-width="1.5px" fill="none" />
+        <text x="11" y="16.5" text-anchor="middle" font-family="Helvetica" font-size="15px" font-weight="bold" text-rendering="geometricPrecision" stroke="none">?</text>
+    </g>
+</svg>
