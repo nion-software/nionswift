@@ -876,7 +876,13 @@ class HardwareSource:
     def start_recording(self, sync_timeout=None, finished_callback_fn=None):
         if not self.is_recording:
             record_task = self._create_acquisition_record_task()
-            record_task.finished_callback_fn = finished_callback_fn
+            old_finished_callback_fn = record_task.finished_callback_fn
+            def finished(xdatas: typing.Sequence[DataAndMetadata.DataAndMetadata]) -> None:
+                if callable(old_finished_callback_fn):
+                    old_finished_callback_fn(xdatas)
+                if callable(finished_callback_fn):
+                    finished_callback_fn(xdatas)
+            record_task.finished_callback_fn = finished
             self._record_task_updated(record_task)
             self.start_task('record', record_task)
         if sync_timeout is not None:
