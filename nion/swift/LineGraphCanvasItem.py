@@ -310,9 +310,13 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
     if x_calibration.scale < 0:
         displayed_calibrated_left_channel = min(calibrated_left_channel, xdata_calibration.convert_to_calibrated_value(0))
         displayed_calibrated_right_channel = max(calibrated_right_channel, xdata_calibration.convert_to_calibrated_value(calibrated_xdata.dimensional_shape[-1]))
+        if displayed_calibrated_left_channel <= calibrated_right_channel or displayed_calibrated_right_channel >= calibrated_left_channel:
+            return  # data is outside drawing area
     else:
         displayed_calibrated_left_channel = max(calibrated_left_channel, xdata_calibration.convert_to_calibrated_value(0))
         displayed_calibrated_right_channel = min(calibrated_right_channel, xdata_calibration.convert_to_calibrated_value(calibrated_xdata.dimensional_shape[-1]))
+        if displayed_calibrated_left_channel >= calibrated_right_channel or displayed_calibrated_right_channel <= calibrated_left_channel:
+            return  # data is outside drawing area
     data_left_channel = int(xdata_calibration.convert_from_calibrated_value(displayed_calibrated_left_channel))
     data_right_channel = int(xdata_calibration.convert_from_calibrated_value(displayed_calibrated_right_channel))
     left = int((displayed_calibrated_left_channel - calibrated_left_channel) / (calibrated_right_channel - calibrated_left_channel) * plot_width + plot_origin_x)
