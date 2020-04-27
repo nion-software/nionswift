@@ -152,6 +152,18 @@ class LineGraphAxes:
         return self.__calibrated_data_max
 
     @property
+    def calibrated_value_max(self):
+        if self.data_style == "log":
+            return math.pow(10, self.__calibrated_data_max)
+        return self.__calibrated_data_max
+
+    @property
+    def calibrated_value_min(self):
+        if self.data_style == "log":
+            return math.pow(10, self.__calibrated_data_min)
+        return self.__calibrated_data_min
+
+    @property
     def drawn_left_channel(self):
         assert self.is_valid
         return self.__uncalibrated_left_channel
@@ -896,10 +908,10 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             font = "{0:d}px".format(self.font_size)
 
             max_width = 0
-            y_range = axes.calibrated_data_max - axes.calibrated_data_min
-            label = axes.y_ticker.value_label(axes.calibrated_data_max + y_range * 5)
+            y_range = axes.calibrated_value_max - axes.calibrated_value_min
+            label = axes.y_ticker.value_label(axes.calibrated_value_max + y_range * 5)
             max_width = max(max_width, get_font_metrics_fn(font, label).width)
-            label = axes.y_ticker.value_label(axes.calibrated_data_min - y_range * 5)
+            label = axes.y_ticker.value_label(axes.calibrated_value_min - y_range * 5)
             max_width = max(max_width, get_font_metrics_fn(font, label).width)
 
             new_sizing.minimum_width = max_width
