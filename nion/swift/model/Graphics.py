@@ -1487,13 +1487,13 @@ class IntervalGraphic(Graphic):
         p1 = mapping.map_point_channel_norm_to_widget(self.start)
         p2 = mapping.map_point_channel_norm_to_widget(self.end)
         # start point
-        if abs(p.x - p1) < 4:
+        if abs(p.x - p1) < 8:
             return "start", True
         # end point
-        if abs(p.x - p2) < 4:
+        if abs(p.x - p2) < 8:
             return "end", True
         # along the line
-        if p.x > p1 - 4 and p.x < p2 + 4:
+        if p.x > p1 - 8 and p.x < p2 + 8:
             return "all", False
         # label
         if self.test_label(get_font_metrics_fn, mapping, p):
@@ -1555,7 +1555,7 @@ class ChannelGraphic(Graphic):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         pos = mapping.map_point_channel_norm_to_widget(self.position)
-        if abs(p.x - pos) < 4:
+        if abs(p.x - pos) < 8:
             return "all", True
         # label
         if self.test_label(get_font_metrics_fn, mapping, p):
