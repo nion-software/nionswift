@@ -660,7 +660,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def mouse_position_changed(self, x, y, modifiers):
         if super().mouse_position_changed(x, y, modifiers):
             return True
-        if self.delegate.tool_mode == "pointer":
+        if self.delegate.tool_mode == "pointer" and not self.__graphic_drag_items:
             if self.__axes and self.__axes.is_valid:
                 pos = Geometry.IntPoint(x=x, y=y)
                 if self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
@@ -673,6 +673,20 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                         self.cursor_shape = "split_vertical"
                     else:
                         self.cursor_shape = "hand"
+                elif self.__graphics:
+                    graphics = self.__graphics
+                    for graphic_index, graphic in enumerate(graphics):
+                        if isinstance(graphic, (Graphics.IntervalGraphic, Graphics.ChannelGraphic)):
+                            widget_mapping = self.__get_mouse_mapping()
+                            part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, pos, False)
+                            if part in {"start", "end"}:
+                                self.cursor_shape = "size_horizontal"
+                                break
+                            elif part:
+                                self.cursor_shape = "hand"
+                                break
+                    else:
+                        self.cursor_shape = "arrow"
                 else:
                     self.cursor_shape = "arrow"
         elif self.delegate.tool_mode == "interval":
