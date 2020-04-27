@@ -318,9 +318,9 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
     def set_work_project_reference(self, project_reference: ProjectReference) -> None:
         if project_reference != self.__work_project_reference:
             work_project = self.__work_project_reference.project
-            if any(data_item.is_live for data_item in work_project.data_items):
+            if work_project and any(data_item.is_live for data_item in work_project.data_items):
                 raise Exception("Work project contains live items.")
-            if any(display_item.is_live for display_item in work_project.display_items):
+            if work_project and any(display_item.is_live for display_item in work_project.display_items):
                 raise Exception("Work project contains live items.")
             self.work_project_reference_uuid = project_reference.uuid
             self.__work_project_reference = project_reference
