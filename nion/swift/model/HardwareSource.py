@@ -565,13 +565,13 @@ class DataChannel:
             self.data_channel_stop_event.fire()
 
 
-class HardwareSource:
+class HardwareSource(Observable.Observable):
     """Represents a source of data and metadata frames.
 
     The hardware source generates data on a background thread.
     """
 
-    def __init__(self, hardware_source_id, display_name):
+    def __init__(self, hardware_source_id: str, display_name: str):
         super().__init__()
         self.__hardware_source_id = hardware_source_id
         self.__display_name = display_name
@@ -582,7 +582,6 @@ class HardwareSource:
         self.abort_event = Event.Event()
         self.acquisition_state_changed_event = Event.Event()
         self.data_item_states_changed_event = Event.Event()
-        self.property_changed_event = Event.Event()
         self.call_soon_event = Event.Event()
         self.__break_for_closing = False
         self.__acquire_thread_trigger = threading.Event()
