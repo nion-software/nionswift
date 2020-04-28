@@ -18,6 +18,7 @@ from nion.swift import Undo
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.utils import Geometry
@@ -113,10 +114,10 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     painting = PaintFunction(layout, plot)
     """
 
-    def __init__(self, get_font_metrics_fn, delegate: LinePlotCanvasItemDelegate, event_loop, draw_background: bool=True):
+    def __init__(self, ui_settings: UISettings.UISettings, delegate: LinePlotCanvasItemDelegate, event_loop, draw_background: bool=True):
         super().__init__()
 
-        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__ui_settings = ui_settings
         self.delegate = delegate
 
         self.wants_mouse_events = True
@@ -142,7 +143,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
         self.__line_graph_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem()
-        self.__line_graph_legend_canvas_item = LineGraphCanvasItem.LineGraphLegendCanvasItem(get_font_metrics_fn, delegate)
+        self.__line_graph_legend_canvas_item = LineGraphCanvasItem.LineGraphLegendCanvasItem(ui_settings, delegate)
         self.__line_graph_frame_canvas_item = LineGraphCanvasItem.LineGraphFrameCanvasItem()
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_background_canvas_item)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_stack)
@@ -616,7 +617,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__line_graph_legend_canvas_item.set_legend_entries(legend_entries, display_layers)
         self.__update_legend_origin()
         self.__line_graph_vertical_axis_label_canvas_item.set_axes(axes)
-        self.__line_graph_vertical_axis_scale_canvas_item.set_axes(axes, self.__get_font_metrics_fn)
+        self.__line_graph_vertical_axis_scale_canvas_item.set_axes(axes, self.__ui_settings)
         self.__line_graph_vertical_axis_ticks_canvas_item.set_axes(axes)
         self.__line_graph_horizontal_axis_label_canvas_item.set_axes(axes)
         self.__line_graph_horizontal_axis_scale_canvas_item.set_axes(axes)
@@ -678,7 +679,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                     for graphic_index, graphic in enumerate(graphics):
                         if isinstance(graphic, (Graphics.IntervalGraphic, Graphics.ChannelGraphic)):
                             widget_mapping = self.__get_mouse_mapping()
-                            part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, pos, False)
+                            part, specific = graphic.test(widget_mapping, self.__ui_settings, pos, False)
                             if part in {"start", "end"}:
                                 self.cursor_shape = "size_horizontal"
                                 break
@@ -805,7 +806,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                     multiple_items_selected = len(selection_indexes) > 1
                     move_only = not already_selected or multiple_items_selected
                     widget_mapping = self.__get_mouse_mapping()
-                    part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, self.__graphic_drag_start_pos, move_only)
+                    part, specific = graphic.test(widget_mapping, self.__ui_settings, self.__graphic_drag_start_pos, move_only)
                     if part:
                         # select item and prepare for drag
                         self.graphic_drag_item_was_selected = already_selected
@@ -874,7 +875,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 selection_indexes = self.__graphic_selection.indexes
                 for graphic_index, graphic in enumerate(self.__graphics):
                     if graphic == region:
-                        part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, self.__graphic_drag_start_pos, False)
+                        part, specific = graphic.test(widget_mapping, self.__ui_settings, self.__graphic_drag_start_pos, False)
                         if part:
                             self.graphic_drag_item_was_selected = False
                             self.delegate.set_selection(graphic_index)

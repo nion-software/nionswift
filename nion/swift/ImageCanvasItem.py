@@ -13,6 +13,7 @@ import scipy.ndimage
 from nion.data import Calibration
 from nion.swift import Undo
 from nion.swift.model import Graphics
+from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.utils import Geometry
@@ -125,9 +126,9 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
     Callers should call update_graphics when the graphics changes.
     """
 
-    def __init__(self, get_font_metrics_fn):
+    def __init__(self, ui_settings: UISettings.UISettings):
         super().__init__()
-        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__ui_settings = ui_settings
         self.__displayed_shape = None
         self.__graphics = None
         self.__graphics_for_compare = list()
@@ -163,7 +164,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
                 for graphic_index, graphic in enumerate(self.__graphics):
                     if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                         try:
-                            graphic.draw(drawing_context, self.__get_font_metrics_fn, widget_mapping, self.__graphic_selection.contains(graphic_index))
+                            graphic.draw(drawing_context, self.__ui_settings, widget_mapping, self.__graphic_selection.contains(graphic_index))
                         except Exception as e:
                             import traceback
                             logging.debug("Graphic Repaint Error: %s", e)
@@ -409,10 +410,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         cursor_changed(pos)
     """
 
-    def __init__(self, get_font_metrics_fn, delegate: ImageCanvasItemDelegate, event_loop, draw_background: bool=True):
+    def __init__(self, ui_settings: UISettings.UISettings, delegate: ImageCanvasItemDelegate, event_loop, draw_background: bool=True):
         super().__init__()
 
-        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__ui_settings = ui_settings
         self.delegate = delegate
         self.__event_loop = event_loop
 
@@ -435,7 +436,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         # the background
         # next the zoomable items
         self.__bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#888" if draw_background else "transparent")
-        self.__graphics_canvas_item = GraphicsCanvasItem(get_font_metrics_fn)
+        self.__graphics_canvas_item = GraphicsCanvasItem(ui_settings)
         self.__timestamp_canvas_item = CanvasItem.TimestampCanvasItem()
         # put the zoomable items into a composition
         self.__composite_canvas_item = CanvasItem.CanvasItemComposition()
@@ -700,7 +701,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                     already_selected = graphic_index in selection_indexes
                     move_only = not already_selected or multiple_items_selected
                     try:
-                        part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, start_drag_pos, move_only)
+                        part, specific = graphic.test(widget_mapping, self.__ui_settings, start_drag_pos, move_only)
                     except Exception as e:
                         import traceback
                         logging.debug("Graphic Test Error: %s", e)
@@ -1010,7 +1011,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             def get_pointer_tool_shape():
                 for graphic in self.__graphics:
                     if isinstance(graphic, (Graphics.RectangleTypeGraphic, Graphics.SpotGraphic)):
-                        part, specific = graphic.test(self.__get_mouse_mapping(), self.__get_font_metrics_fn, Geometry.IntPoint(x=x, y=y), False)
+                        part, specific = graphic.test(self.__get_mouse_mapping(), self.__ui_settings, Geometry.IntPoint(x=x, y=y), False)
                         if part and part.endswith("rotate"):
                             return "cross"
                 return "arrow"

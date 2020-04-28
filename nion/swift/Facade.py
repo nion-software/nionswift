@@ -1324,12 +1324,7 @@ class DataItem(metaclass=SharedInstance):
         return DataAndMetadata.DataAndMetadata.from_data(mask)
 
     def data_item_to_svg(self):
-        FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
-
-        def get_font_metrics(font, text):
-            return FontMetrics(width=6.5 * len(text), height=15, ascent=12, descent=3, leading=0)
-
-        drawing_context, shape = DisplayPanelModule.preview(get_font_metrics, self.__display_item, 320, 240)
+        drawing_context, shape = DisplayPanelModule.preview(DisplayPanelModule.FixedUISettings(), self.__display_item, 320, 240)
 
         view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
 

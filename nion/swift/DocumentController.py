@@ -847,17 +847,13 @@ class DocumentController(Window.Window):
             path = path + os.path.extsep + "svg"
         if path:
             self.ui.set_persistent_string("export_directory", selected_directory)
-            FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
-
-            def get_font_metrics(font, text):
-                return FontMetrics(width=6.5 * len(text), height=15, ascent=12, descent=3, leading=0)
 
             if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
                 display_shape = Geometry.IntSize(height=800, width=800)
             else:
                 display_shape = Geometry.IntSize(height=600, width=800)
 
-            drawing_context, shape = DisplayPanel.preview(get_font_metrics, display_item, display_shape.width, display_shape.height)
+            drawing_context, shape = DisplayPanel.preview(DisplayPanel.FixedUISettings(), display_item, display_shape.width, display_shape.height)
 
             view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
 
@@ -1433,17 +1429,13 @@ class DocumentController(Window.Window):
             mime_data = self.ui.create_mime_data()
 
             # copy the data item as an svg
-            FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
-
-            def get_font_metrics(_, text):
-                return FontMetrics(width=6.5 * len(text), height=15, ascent=12, descent=3, leading=0)
 
             if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
                 display_shape = Geometry.IntSize(height=800, width=800)
             else:
                 display_shape = Geometry.IntSize(height=600, width=800)
 
-            drawing_context, shape = DisplayPanel.preview(get_font_metrics, display_item, display_shape.width,
+            drawing_context, shape = DisplayPanel.preview(DisplayPanel.FixedUISettings(), display_item, display_shape.width,
                                                           display_shape.height)
 
             view_box = Geometry.IntRect(Geometry.IntPoint(), shape)

@@ -5,6 +5,7 @@ import threading
 # None
 
 # local libraries
+from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
@@ -36,10 +37,10 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
     Callers are expected to pass in a font metrics function and a delegate.
     """
 
-    def __init__(self, get_font_metrics_fn, delegate, event_loop, draw_background: bool=True):
+    def __init__(self, ui_settings: UISettings.UISettings, delegate, event_loop, draw_background: bool=True):
         super().__init__()
 
-        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__ui_settings = ui_settings
         self.delegate = delegate
 
         self.__drawing_context_lock = threading.RLock()
@@ -115,7 +116,7 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
                     g["drawing_context"] = drawing_context
                     g["display_data_and_metadata"] = data_and_metadata
                     g["bounds"] = rect
-                    g["get_font_metrics_fn"] = self.__get_font_metrics_fn
+                    g["get_font_metrics_fn"] = self.__ui_settings.get_font_metrics
                     l = dict()
                     try:
                         # print(code)

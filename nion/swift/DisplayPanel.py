@@ -26,7 +26,7 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Persistence
-from nion.swift.model import Project
+from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
@@ -321,14 +321,14 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         return False
 
 
-def create_display_canvas_item(display_item: DisplayItem.DisplayItem, get_font_metrics_fn, delegate, event_loop, draw_background: bool=True):
+def create_display_canvas_item(display_item: DisplayItem.DisplayItem, ui_settings: UISettings.UISettings, delegate, event_loop, draw_background: bool=True):
     display_type = display_item.used_display_type
     if display_type == "line_plot":
-        return LinePlotCanvasItem.LinePlotCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
+        return LinePlotCanvasItem.LinePlotCanvasItem(ui_settings, delegate, event_loop, draw_background)
     elif display_type == "image":
-        return ImageCanvasItem.ImageCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
+        return ImageCanvasItem.ImageCanvasItem(ui_settings, delegate, event_loop, draw_background)
     elif display_type == "display_script":
-        return DisplayScriptCanvasItem.DisplayScriptCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
+        return DisplayScriptCanvasItem.DisplayScriptCanvasItem(ui_settings, delegate, event_loop, draw_background)
     else:
         return MissingDataCanvasItem(delegate)
 
@@ -485,9 +485,9 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
 class DisplayTracker:
     """Tracks messages from a display and passes them to associated display canvas item."""
 
-    def __init__(self, display_item, get_font_metrics, delegate, event_loop, draw_background):
+    def __init__(self, display_item, ui_settings: UISettings.UISettings, delegate, event_loop, draw_background):
         self.__display_item = display_item
-        self.__get_font_metrics = get_font_metrics
+        self.__ui_settings = ui_settings
         self.__delegate = delegate
         self.__event_loop = event_loop
         self.__draw_background = draw_background
@@ -518,7 +518,7 @@ class DisplayTracker:
 
         # create a canvas item and add it to the container canvas item.
 
-        self.__display_canvas_item = create_display_canvas_item(display_item, get_font_metrics, delegate, event_loop, draw_background=self.__draw_background)
+        self.__display_canvas_item = create_display_canvas_item(display_item, ui_settings, delegate, event_loop, draw_background=self.__draw_background)
 
         display_data_channel_shapes_ref = [list()]
 
@@ -587,7 +587,7 @@ class DisplayTracker:
         def display_type_changed(display_type):
             # called when the display type of the data item changes.
             old_display_canvas_item = self.__display_canvas_item
-            new_display_canvas_item = create_display_canvas_item(display_item, self.__get_font_metrics, self.__delegate, self.__event_loop, draw_background=self.__draw_background)
+            new_display_canvas_item = create_display_canvas_item(display_item, ui_settings, self.__delegate, self.__event_loop, draw_background=self.__draw_background)
             if callable(self.on_replace_display_canvas_item):
                 self.on_replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item)
             self.__display_canvas_item = new_display_canvas_item
@@ -985,6 +985,30 @@ class ReplaceDisplayPanelCommand(Undo.UndoableCommand):
 
     def _redo(self) -> None:
         self.__workspace_controller.reconstruct(self.__new_workspace_layout)
+
+
+class DisplayPanelUISettings(UISettings.UISettings):
+    def __init__(self, ui: UserInterface.UserInterface):
+        self.__ui = ui
+
+    def get_font_metrics(self, font: str, text: str) -> UISettings.FontMetrics:
+        return self.__ui.get_font_metrics(font, text)
+
+    @property
+    def cursor_tolerance(self) -> float:
+        return self.__ui.get_tolerance(UserInterface.ToleranceType.CURSOR)
+
+
+class FixedUISettings(UISettings.UISettings):
+    def __init__(self):
+        pass
+
+    def get_font_metrics(self, font: str, text: str) -> UISettings.FontMetrics:
+        return UISettings.FontMetrics(width=6.5 * len(text), height=15, ascent=12, descent=3, leading=0)
+
+    @property
+    def cursor_tolerance(self) -> float:
+        return 5
 
 
 class DisplayPanel(CanvasItem.CanvasItemComposition):
@@ -1504,7 +1528,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 def replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item):
                     self.__display_composition_canvas_item.replace_canvas_item(old_display_canvas_item, new_display_canvas_item)
 
-                self.__display_tracker = DisplayTracker(display_item, self.ui.get_font_metrics, self, self.__document_controller.event_loop, True)
+                self.__display_tracker = DisplayTracker(display_item, DisplayPanelUISettings(self.ui), self, self.__document_controller.event_loop, True)
                 self.__display_tracker.on_clear_display = clear_display
                 self.__display_tracker.on_title_changed = handle_title_changed
                 self.__display_tracker.on_replace_display_canvas_item = replace_display_canvas_item
@@ -2062,11 +2086,11 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         return dynamic_live_actions
 
 
-def preview(get_font_metrics_fn, display_item: DisplayItem.DisplayItem, width: int, height: int) -> typing.Tuple[DrawingContext.DrawingContext, Geometry.IntSize]:
+def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.DisplayItem, width: int, height: int) -> typing.Tuple[DrawingContext.DrawingContext, Geometry.IntSize]:
     drawing_context = DrawingContext.DrawingContext()
     shape = Geometry.IntSize()
     display_values_list = [display_data_channel.get_calculated_display_values(True) for display_data_channel in display_item.display_data_channels]
-    display_canvas_item = create_display_canvas_item(display_item, get_font_metrics_fn, None, None, draw_background=False)
+    display_canvas_item = create_display_canvas_item(display_item, ui_settings, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
             display_calibration_info = DisplayItem.DisplayCalibrationInfo(display_item)

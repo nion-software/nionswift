@@ -11,6 +11,7 @@ import typing
 from nion.data import Core
 from nion.swift.model import Changes
 from nion.swift.model import Persistence
+from nion.swift.model import UISettings
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
@@ -439,21 +440,21 @@ def get_closest_point_on_line(start, end, p):
 
 
 # test whether points are close
-def test_point(p1, p2, radius):
+def test_point(p1, p2, radius: float):
     return math.sqrt(pow(p1[0] - p2[0], 2) + pow(p1[1] - p2[1], 2)) < radius
 
 
 # test whether point is close to line
-def test_line(start, end, p, radius):
+def test_line(start, end, p, radius: float):
     cp = get_closest_point_on_line(start, end, p)
     return math.sqrt(pow(p[0] - cp[0], 2) + pow(p[1] - cp[1], 2)) < radius
 
 
-def test_inside_bounds(bounds, p, radius):
+def test_inside_bounds(bounds, p, radius: float):
     return p[0] > bounds[0][0] and p[0] <= bounds[0][0] + bounds[1][0] and p[1] > bounds[0][1] and p[1] <= bounds[0][1] + bounds[1][1]
 
 
-def test_rectangle(p: Geometry.FloatPoint, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float) -> typing.Tuple[typing.Optional[str], typing.Optional[bool]]:
+def test_rectangle(p: Geometry.FloatPoint, radius: float, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float) -> typing.Tuple[typing.Optional[str], typing.Optional[bool]]:
     rect_widget = Geometry.FloatRect.from_center_and_size(center, size)
     origin = rect_widget.origin
     size = rect_widget.size
@@ -467,37 +468,37 @@ def test_rectangle(p: Geometry.FloatPoint, center: Geometry.FloatPoint, size: Ge
         bottom_left = rotate(bottom_left, center, rotation)
         bottom_right = rotate(bottom_right, center, rotation)
     test_point_unrotated = rotate(p, center, -rotation)
-    if test_point(top_left, p, 4):
+    if test_point(top_left, p, radius):
         return "top-left", True
-    if test_point(top_right, p, 4):
+    if test_point(top_right, p, radius):
         return "top-right", True
-    if test_point(bottom_right, p, 4):
+    if test_point(bottom_right, p, radius):
         return "bottom-right", True
-    if test_point(bottom_left, p, 4):
+    if test_point(bottom_left, p, radius):
         return "bottom-left", True
-    if test_point(extend_line(center, top_left, 14), p, 6):
+    if test_point(extend_line(center, top_left, 14), p, radius):
         return "rotate", True
-    if test_point(extend_line(center, top_right, 14), p, 6):
+    if test_point(extend_line(center, top_right, 14), p, radius):
         return "rotate", True
-    if test_point(extend_line(center, bottom_right, 14), p, 6):
+    if test_point(extend_line(center, bottom_right, 14), p, radius):
         return "rotate", True
-    if test_point(extend_line(center, bottom_left, 14), p, 6):
+    if test_point(extend_line(center, bottom_left, 14), p, radius):
         return "rotate", True
 
     # top line
-    if test_line(top_left, top_right, p, 4):
+    if test_line(top_left, top_right, p, radius):
         return "all", True
     # bottom line
-    if test_line(bottom_left, bottom_right, p, 4):
+    if test_line(bottom_left, bottom_right, p, radius):
         return "all", True
     # left line
-    if test_line(top_left, bottom_left, p, 4):
+    if test_line(top_left, bottom_left, p, radius):
         return "all", True
     # right line
-    if test_line(top_right, bottom_right, p, 4):
+    if test_line(top_right, bottom_right, p, radius):
         return "all", True
 
-    if test_inside_bounds((origin, size), test_point_unrotated, 4):
+    if test_inside_bounds((origin, size), test_point_unrotated, radius):
         return "all", False
     return None, None
 
@@ -673,22 +674,22 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
     def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
         return numpy.zeros(data_shape)
 
-    def test_label(self, get_font_metrics_fn, mapping, test_point):
+    def test_label(self, ui_settings: UISettings.UISettings, mapping, test_point):
         if self.label:
             padding = self.label_padding
             font = self.label_font
-            font_metrics = get_font_metrics_fn(font, self.label)
+            font_metrics = ui_settings.get_font_metrics(font, self.label)
             text_pos = self.label_position(mapping, font_metrics, padding)
             if text_pos is not None:
                 bounds = Geometry.FloatRect.from_center_and_size(text_pos, Geometry.FloatSize(width=font_metrics.width + padding * 2, height=font_metrics.height + padding * 2))
-                return test_inside_bounds(bounds, test_point, 2)
+                return test_inside_bounds(bounds, test_point, ui_settings.cursor_tolerance)
         return False
 
-    def draw_label(self, ctx, get_font_metrics_fn, mapping):
+    def draw_label(self, ctx, ui_settings: UISettings.UISettings, mapping):
         if self.label:
             padding = self.label_padding
             font = self.label_font
-            font_metrics = get_font_metrics_fn(font, self.label)
+            font_metrics = ui_settings.get_font_metrics(font, self.label)
             text_pos = self.label_position(mapping, font_metrics, padding)
             with ctx.saver():
                 ctx.begin_path()
@@ -726,7 +727,7 @@ class MissingGraphic(Graphic):
     def __init__(self, type):
         super().__init__(type)
 
-    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         pass
 
 
@@ -829,7 +830,7 @@ class RectangleTypeGraphic(Graphic):
         return mask
 
     # test point hit
-    def test(self, mapping, get_font_metrics_fn, p, move_only):
+    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         p = Geometry.FloatPoint.make(p)
@@ -839,12 +840,12 @@ class RectangleTypeGraphic(Graphic):
         center = mapping.map_point_image_norm_to_widget(bounds.center)
         size = mapping.map_size_image_norm_to_widget(bounds.size)
 
-        part, specific = test_rectangle(p, center, size, rotation)
+        part, specific = test_rectangle(p, ui_settings.cursor_tolerance, center, size, rotation)
         if part is not None:
             return part, specific
 
         # label
-        if self.test_label(get_font_metrics_fn, mapping, p):
+        if self.test_label(ui_settings, mapping, p):
             return "all", False
 
         # didn't find anything
@@ -867,7 +868,7 @@ class RectangleTypeGraphic(Graphic):
         current = (original[0] + delta[0], original[1] + delta[1])
         self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
 
-    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         raise NotImplementedError()
 
 
@@ -886,7 +887,7 @@ class RectangleGraphic(RectangleTypeGraphic):
         if rotation != self.rotation:
             self.rotation = rotation
 
-    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         # origin is top left
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
         size = mapping.map_size_image_norm_to_widget(self.bounds[1])
@@ -953,7 +954,7 @@ class RectangleGraphic(RectangleTypeGraphic):
                     ctx.stroke()
                     ctx.fill_style = self.used_fill_style
                     ctx.fill()
-        self.draw_label(ctx, get_font_metrics_fn, mapping)
+        self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
         bounds = Geometry.FloatRect.make(self.bounds)
@@ -980,7 +981,7 @@ class EllipseGraphic(RectangleTypeGraphic):
         if rotation != self.rotation:
             self.rotation = rotation
 
-    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         # origin is top left
         rotation = self.rotation
         stroke_style = self.used_stroke_style
@@ -989,7 +990,7 @@ class EllipseGraphic(RectangleTypeGraphic):
         center = mapping.map_point_image_norm_to_widget(bounds.center)
         size = mapping.map_size_image_norm_to_widget(bounds.size)
         draw_ellipse_graphic(ctx, center, size, rotation, is_selected, stroke_style, fill_style)
-        self.draw_label(ctx, get_font_metrics_fn, mapping)
+        self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
         bounds = Geometry.FloatRect.make(self.bounds)
@@ -1096,23 +1097,23 @@ class LineTypeGraphic(Graphic):
         self.notify_property_changed("angle")
 
     # test is required for Graphic interface
-    def test(self, mapping, get_font_metrics_fn, p, move_only):
+    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only):
         p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         # start point
-        if test_point(p1, p, 4):
+        if test_point(p1, p, ui_settings.cursor_tolerance):
             return "start", True
         # end point
-        if test_point(p2, p, 4):
+        if test_point(p2, p, ui_settings.cursor_tolerance):
             return "end", True
         # along the line
-        if test_line(p1, p2, p, 4):
+        if test_line(p1, p2, p, ui_settings.cursor_tolerance):
             return "all", True
         # label
-        if self.test_label(get_font_metrics_fn, mapping, p):
+        if self.test_label(ui_settings, mapping, p):
             return "all", False
         # didn't find anything
         return None, None
@@ -1202,7 +1203,7 @@ class LineTypeGraphic(Graphic):
         current = (original[0] + delta[0], original[1] + delta[1])
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
-    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         raise NotImplementedError()
 
 
@@ -1210,7 +1211,7 @@ class LineGraphic(LineTypeGraphic):
     def __init__(self):
         super().__init__("line-graphic", _("Line"))
 
-    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         with ctx.saver():
@@ -1227,7 +1228,7 @@ class LineGraphic(LineTypeGraphic):
         if is_selected:
             draw_marker(ctx, p1)
             draw_marker(ctx, p2)
-        self.draw_label(ctx, get_font_metrics_fn, mapping)
+        self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
@@ -1251,7 +1252,7 @@ class LineProfileGraphic(LineTypeGraphic):
         super().read_from_mime_data(graphic_dict)
         self.width = graphic_dict.get("line_width", self.width)
 
-    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         w = mapping.map_size_image_to_widget((self.width, 0))[0]
@@ -1301,7 +1302,7 @@ class LineProfileGraphic(LineTypeGraphic):
         if is_selected:
             draw_marker(ctx, p1)
             draw_marker(ctx, p2)
-        self.draw_label(ctx, get_font_metrics_fn, mapping)
+        self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
@@ -1326,7 +1327,7 @@ class PointTypeGraphic(Graphic):
         self.position = graphic_dict.get("position", self.position)
 
     # test is required for Graphic interface
-    def test(self, mapping, get_font_metrics_fn, p, move_only):
+    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only):
         p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
@@ -1334,10 +1335,10 @@ class PointTypeGraphic(Graphic):
         pos = mapping.map_point_image_norm_to_widget(self.position)
         bounds = Geometry.FloatRect.from_center_and_size(pos, Geometry.FloatSize(width=cross_hair_size * 2,
                                                                                height=cross_hair_size * 2))
-        if test_inside_bounds(bounds, p, 2):
+        if test_inside_bounds(bounds, p, ui_settings.cursor_tolerance):
             return "all", True
         # check the label
-        if self.test_label(get_font_metrics_fn, mapping, p):
+        if self.test_label(ui_settings, mapping, p):
             return "all", False
         # didn't find anything
         return None, None
@@ -1373,7 +1374,7 @@ class PointTypeGraphic(Graphic):
         current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
-    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         raise NotImplementedError()
 
     @property
@@ -1390,7 +1391,7 @@ class PointGraphic(PointTypeGraphic):
         super().__init__("point-graphic", _("Point"))
         self.cross_hair_size = 12
 
-    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         p = mapping.map_point_image_norm_to_widget(self.position)
         with ctx.saver():
             ctx.begin_path()
@@ -1407,7 +1408,7 @@ class PointGraphic(PointTypeGraphic):
             ctx.line_width = 1
             ctx.stroke_style = self.used_stroke_style
             ctx.stroke()
-            self.draw_label(ctx, get_font_metrics_fn, mapping)
+            self.draw_label(ctx, ui_settings, mapping)
         if is_selected:
             draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, cross_hair_size))
             draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, -cross_hair_size))
@@ -1480,23 +1481,23 @@ class IntervalGraphic(Graphic):
         self.notify_property_changed("end")
 
     # test is required for Graphic interface
-    def test(self, mapping, get_font_metrics_fn, p, move_only):
+    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only):
         p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         p1 = mapping.map_point_channel_norm_to_widget(self.start)
         p2 = mapping.map_point_channel_norm_to_widget(self.end)
         # start point
-        if abs(p.x - p1) < 8:
+        if abs(p.x - p1) < ui_settings.cursor_tolerance:
             return "start", True
         # end point
-        if abs(p.x - p2) < 8:
+        if abs(p.x - p2) < ui_settings.cursor_tolerance:
             return "end", True
         # along the line
-        if p.x > p1 - 8 and p.x < p2 + 8:
+        if p.x > p1 - ui_settings.cursor_tolerance and p.x < p2 + ui_settings.cursor_tolerance:
             return "all", False
         # label
-        if self.test_label(get_font_metrics_fn, mapping, p):
+        if self.test_label(ui_settings, mapping, p):
             return "all", False
         # didn't find anything
         return None, None
@@ -1550,15 +1551,15 @@ class ChannelGraphic(Graphic):
         self._property_changed(name, value)
 
     # test is required for Graphic interface
-    def test(self, mapping, get_font_metrics_fn, p, move_only):
+    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only):
         p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         pos = mapping.map_point_channel_norm_to_widget(self.position)
-        if abs(p.x - pos) < 8:
+        if abs(p.x - pos) < ui_settings.cursor_tolerance:
             return "all", True
         # label
-        if self.test_label(get_font_metrics_fn, mapping, p):
+        if self.test_label(ui_settings, mapping, p):
             return "all", False
         # didn't find anything
         return None, None
@@ -1667,7 +1668,7 @@ class SpotGraphic(Graphic):
         return numpy.logical_or(mask1.data, mask2.data)
 
     # test point hit
-    def test(self, mapping, get_font_metrics_fn, p, move_only):
+    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only):
         p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
@@ -1677,7 +1678,7 @@ class SpotGraphic(Graphic):
         center = origin + mapping.map_size_image_norm_to_widget(bounds.center)
         size = mapping.map_size_image_norm_to_widget(bounds.size)
 
-        part, specific = test_rectangle(p, center, size, rotation)
+        part, specific = test_rectangle(p, ui_settings.cursor_tolerance, center, size, rotation)
         if part is not None:
             return part, specific
 
@@ -1687,7 +1688,7 @@ class SpotGraphic(Graphic):
         center = origin - mapping.map_size_image_norm_to_widget(bounds.center)
         size = mapping.map_size_image_norm_to_widget(bounds.size)
 
-        part, specific = test_rectangle(p, center, size, rotation)
+        part, specific = test_rectangle(p, ui_settings.cursor_tolerance, center, size, rotation)
         if part is not None:
             if part == "top-left":
                 part = "inverted-bottom-right"
@@ -1704,7 +1705,7 @@ class SpotGraphic(Graphic):
             return part, specific
 
         # label
-        if self.test_label(get_font_metrics_fn, mapping, p):
+        if self.test_label(ui_settings, mapping, p):
             return "all", True
 
         # didn't find anything
@@ -1750,7 +1751,7 @@ class SpotGraphic(Graphic):
         current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
-    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         # origin is top left
         stroke_style = self.used_stroke_style
         fill_style = self.used_fill_style
@@ -1765,7 +1766,7 @@ class SpotGraphic(Graphic):
             ctx.rotate(math.pi)
             ctx.translate(-origin.x, -origin.y)
             draw_ellipse_graphic(ctx, center, size, rotation, is_selected, stroke_style, fill_style)
-        self.draw_label(ctx, get_font_metrics_fn, mapping)
+        self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
         center_widget = mapping.calibrated_origin_widget
@@ -1842,7 +1843,7 @@ class WedgeGraphic(Graphic):
             self.end_angle = value - 2 * math.pi
 
     # test is required for Graphic interface
-    def test(self, mapping, get_font_metrics_fn, p, move_only: bool) -> typing.Tuple[str, bool]:
+    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only: bool) -> typing.Tuple[str, bool]:
         p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
@@ -1857,13 +1858,13 @@ class WedgeGraphic(Graphic):
         end_line_endpoint_inverted = (center[0] + length * math.cos(end_angle_inverted + math.pi / 2),
                                       center[1] + length * math.sin(end_angle_inverted + math.pi / 2))
         angle_from_origin = math.pi - math.atan2(center[0] - p[0], center[1] - p[1])
-        if test_line(center, start_line_endpoint, p, 4):
+        if test_line(center, start_line_endpoint, p, ui_settings.cursor_tolerance):
             return "start-angle", True
-        if test_line(center, end_line_endpoint, p, 4):
+        if test_line(center, end_line_endpoint, p, ui_settings.cursor_tolerance):
             return "end-angle", True
-        if test_line(center, start_line_endpoint_inverted, p, 4):
+        if test_line(center, start_line_endpoint_inverted, p, ui_settings.cursor_tolerance):
             return "inverted-start-angle", True
-        if test_line(center, end_line_endpoint_inverted, p, 4):
+        if test_line(center, end_line_endpoint_inverted, p, ui_settings.cursor_tolerance):
             return "inverted-end-angle", True
         if angle_between(angle_from_origin, self.__end_angle_internal, self.__start_angle_internal):
             return "all", True
@@ -1925,7 +1926,7 @@ class WedgeGraphic(Graphic):
         mask2[get_slope_eq(x, y, (self.__end_angle_internal + math.pi) % (math.pi * 2))] = 0
         return numpy.logical_or(mask1, mask2)
 
-    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         center = mapping.calibrated_origin_widget
         size = mapping.map_size_image_norm_to_widget((1.0, 1.0))
         start_length = get_length_for_angle(self.__start_angle_internal, (size[1], size[0]))
@@ -1955,7 +1956,7 @@ class WedgeGraphic(Graphic):
                 ctx.stroke()
         if is_selected:
             draw_marker(ctx, center)
-        self.draw_label(ctx, get_font_metrics_fn, mapping)
+        self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
         p1 = mapping.calibrated_origin_widget
@@ -1992,7 +1993,7 @@ class RingGraphic(Graphic):
         return "fourier_mask"
 
     # test is required for Graphic interface
-    def test(self, mapping, get_font_metrics_fn, p, move_only: bool) -> typing.Tuple[str, bool]:
+    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only: bool) -> typing.Tuple[str, bool]:
         p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
@@ -2007,22 +2008,22 @@ class RingGraphic(Graphic):
         bottom_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0], calibrated_origin[1] + self.radius_2))
         image_norm_test_point = mapping.map_point_widget_to_image_norm(p)
         test_radius = math.sqrt((image_norm_test_point[0] - calibrated_origin[0]) ** 2 + (image_norm_test_point[1] - calibrated_origin[1]) ** 2)
-        if test_point(top_marker_outer, p, 4):
+        if test_point(top_marker_outer, p, ui_settings.cursor_tolerance):
             return "radius_1", True
-        if test_point(bottom_marker_outer, p, 4):
+        if test_point(bottom_marker_outer, p, ui_settings.cursor_tolerance):
             return "radius_1", True
-        if test_point(left_marker_outer, p, 4):
+        if test_point(left_marker_outer, p, ui_settings.cursor_tolerance):
             return "radius_1", True
-        if test_point(right_marker_outer, p, 4):
+        if test_point(right_marker_outer, p, ui_settings.cursor_tolerance):
             return "radius_1", True
         if self.mode == "band-pass":
-            if test_point(top_marker_inner, p, 4):
+            if test_point(top_marker_inner, p, ui_settings.cursor_tolerance):
                 return "radius_2", True
-            if test_point(bottom_marker_inner, p, 4):
+            if test_point(bottom_marker_inner, p, ui_settings.cursor_tolerance):
                 return "radius_2", True
-            if test_point(left_marker_inner, p, 4):
+            if test_point(left_marker_inner, p, ui_settings.cursor_tolerance):
                 return "radius_2", True
-            if test_point(right_marker_inner, p, 4):
+            if test_point(right_marker_inner, p, ui_settings.cursor_tolerance):
                 return "radius_2", True
         if self.mode == "band-pass":
             outer = self.radius_1 if self.radius_1 > self.radius_2 else self.radius_2
@@ -2077,7 +2078,7 @@ class RingGraphic(Graphic):
             mask = numpy.ones(data_shape)
         return mask
 
-    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         # origin is top left
         center = mapping.calibrated_origin_widget
         bounds0 = mapping.map_point_image_norm_to_widget((0.0, 0.0))
@@ -2154,7 +2155,7 @@ class RingGraphic(Graphic):
                         ctx.line_to(x, y)
                 ctx.close_path()
                 ctx.fill()
-        self.draw_label(ctx, get_font_metrics_fn, mapping)
+        self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
         p1 = mapping.calibrated_origin_widget
@@ -2189,7 +2190,7 @@ class LatticeGraphic(Graphic):
         return "fourier_mask"
 
     # test is required for Graphic interface
-    def test(self, mapping, get_font_metrics_fn, p, move_only: bool) -> typing.Tuple[str, bool]:
+    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only: bool) -> typing.Tuple[str, bool]:
         p = Geometry.FloatPoint.make(p)
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
@@ -2204,69 +2205,69 @@ class LatticeGraphic(Graphic):
         v_bounds = Geometry.FloatRect.from_center_and_size(v_end, size)
 
         # test u, v centers
-        if test_point(u_bounds.center, p, 4):
+        if test_point(u_bounds.center, p, ui_settings.cursor_tolerance):
             return "u-all", True
-        if test_point(v_bounds.center, p, 4):
+        if test_point(v_bounds.center, p, ui_settings.cursor_tolerance):
             return "v-all", True
 
         # test u-corners
-        if test_point(u_bounds.top_left, p, 4):
+        if test_point(u_bounds.top_left, p, ui_settings.cursor_tolerance):
             return "u-top-left", True
-        if test_point(u_bounds.top_right, p, 4):
+        if test_point(u_bounds.top_right, p, ui_settings.cursor_tolerance):
             return "u-top-right", True
-        if test_point(u_bounds.bottom_left, p, 4):
+        if test_point(u_bounds.bottom_left, p, ui_settings.cursor_tolerance):
             return "u-bottom-left", True
-        if test_point(u_bounds.bottom_right, p, 4):
+        if test_point(u_bounds.bottom_right, p, ui_settings.cursor_tolerance):
             return "u-bottom-right", True
 
         # test v-corners
-        if test_point(v_bounds.top_left, p, 4):
+        if test_point(v_bounds.top_left, p, ui_settings.cursor_tolerance):
             return "v-top-left", True
-        if test_point(v_bounds.top_right, p, 4):
+        if test_point(v_bounds.top_right, p, ui_settings.cursor_tolerance):
             return "v-top-right", True
-        if test_point(v_bounds.bottom_left, p, 4):
+        if test_point(v_bounds.bottom_left, p, ui_settings.cursor_tolerance):
             return "v-bottom-left", True
-        if test_point(v_bounds.bottom_right, p, 4):
+        if test_point(v_bounds.bottom_right, p, ui_settings.cursor_tolerance):
             return "v-bottom-right", True
 
         # test u-boundary
-        if test_line(u_bounds.top_left, u_bounds.top_right, p, 4):
+        if test_line(u_bounds.top_left, u_bounds.top_right, p, ui_settings.cursor_tolerance):
             return "u-all", True
-        if test_line(u_bounds.bottom_left, u_bounds.bottom_right, p, 4):
+        if test_line(u_bounds.bottom_left, u_bounds.bottom_right, p, ui_settings.cursor_tolerance):
             return "u-all", True
-        if test_line(u_bounds.top_left, u_bounds.bottom_left, p, 4):
+        if test_line(u_bounds.top_left, u_bounds.bottom_left, p, ui_settings.cursor_tolerance):
             return "u-all", True
-        if test_line(u_bounds.top_right, u_bounds.bottom_right, p, 4):
+        if test_line(u_bounds.top_right, u_bounds.bottom_right, p, ui_settings.cursor_tolerance):
             return "u-all", True
 
         # test v-boundary
-        if test_line(v_bounds.top_left, v_bounds.top_right, p, 4):
+        if test_line(v_bounds.top_left, v_bounds.top_right, p, ui_settings.cursor_tolerance):
             return "v-all", True
-        if test_line(v_bounds.bottom_left, v_bounds.bottom_right, p, 4):
+        if test_line(v_bounds.bottom_left, v_bounds.bottom_right, p, ui_settings.cursor_tolerance):
             return "v-all", True
-        if test_line(v_bounds.top_left, v_bounds.bottom_left, p, 4):
+        if test_line(v_bounds.top_left, v_bounds.bottom_left, p, ui_settings.cursor_tolerance):
             return "v-all", True
-        if test_line(v_bounds.top_right, v_bounds.bottom_right, p, 4):
+        if test_line(v_bounds.top_right, v_bounds.bottom_right, p, ui_settings.cursor_tolerance):
             return "v-all", True
 
         # test u, v interiors
-        if test_inside_bounds(u_bounds, p, 4):
+        if test_inside_bounds(u_bounds, p, ui_settings.cursor_tolerance):
             return "u-all", True
-        if test_inside_bounds(v_bounds, p, 4):
+        if test_inside_bounds(v_bounds, p, ui_settings.cursor_tolerance):
             return "v-all", True
 
         # start point
-        if test_point(start, p, 4):
+        if test_point(start, p, ui_settings.cursor_tolerance):
             return "all", True
 
         # along the lines
-        if test_line(start, u_end, p, 4):
+        if test_line(start, u_end, p, ui_settings.cursor_tolerance):
             return "all", True
-        if test_line(start, v_end, p, 4):
+        if test_line(start, v_end, p, ui_settings.cursor_tolerance):
             return "all", True
 
         # label
-        if self.test_label(get_font_metrics_fn, mapping, p):
+        if self.test_label(ui_settings, mapping, p):
             return "all", False
 
         # didn't find anything
@@ -2396,7 +2397,7 @@ class LatticeGraphic(Graphic):
 
         return mask
 
-    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         start = mapping.calibrated_origin_image_norm
         u_pos = Geometry.FloatSize.make(self.u_pos)
         v_pos = Geometry.FloatSize.make(self.v_pos)
@@ -2465,7 +2466,7 @@ class LatticeGraphic(Graphic):
             draw_marker(ctx, v_pos_widget)
             draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(u_pos_widget, size_widget))
             draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(v_pos_widget, size_widget))
-        self.draw_label(ctx, get_font_metrics_fn, mapping)
+        self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
         p1 = mapping.calibrated_origin_widget

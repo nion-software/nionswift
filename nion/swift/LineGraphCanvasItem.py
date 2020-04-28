@@ -27,6 +27,7 @@ from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import UISettings
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
@@ -894,7 +895,7 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__axes = None
         self.font_size = 12
 
-    def size_to_content(self, get_font_metrics_fn):
+    def size_to_content(self, ui_settings: UISettings.UISettings):
         """ Size the canvas item to the proper width, the maximum of any label. """
         new_sizing = self.copy_sizing()
 
@@ -910,19 +911,19 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             max_width = 0
             y_range = axes.calibrated_value_max - axes.calibrated_value_min
             label = axes.y_ticker.value_label(axes.calibrated_value_max + y_range * 5)
-            max_width = max(max_width, get_font_metrics_fn(font, label).width)
+            max_width = max(max_width, ui_settings.get_font_metrics(font, label).width)
             label = axes.y_ticker.value_label(axes.calibrated_value_min - y_range * 5)
-            max_width = max(max_width, get_font_metrics_fn(font, label).width)
+            max_width = max(max_width, ui_settings.get_font_metrics(font, label).width)
 
             new_sizing.minimum_width = max_width
             new_sizing.maximum_width = max_width
 
         self.update_sizing(new_sizing)
 
-    def set_axes(self, axes, get_font_metrics_fn):
+    def set_axes(self, axes, ui_settings: UISettings.UISettings) -> None:
         if not are_axes_equal(self.__axes, axes):
             self.__axes = axes
-            self.size_to_content(get_font_metrics_fn)
+            self.size_to_content(ui_settings)
             self.update()
 
     def _repaint(self, drawing_context):
@@ -1029,7 +1030,7 @@ class LineGraphLegendCanvasItemDelegate:
 class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot background and grid lines."""
 
-    def __init__(self, get_font_metrics_fn, delegate: LineGraphLegendCanvasItemDelegate):
+    def __init__(self, ui_settings: UISettings.UISettings, delegate: LineGraphLegendCanvasItemDelegate):
         super().__init__()
 
         self.__delegate = delegate
@@ -1068,7 +1069,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         # canvas item settings
         self.wants_mouse_events = True
         self.wants_drag_events = True
-        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__ui_settings = ui_settings
         self.font_size = 12
 
     def __generate_effective_entries(self):
@@ -1106,7 +1107,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         font = "{0:d}px".format(self.font_size)
 
         for index, legend_entry in enumerate(self.effective_entries):
-            text_width = max(text_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
+            text_width = max(text_width, self.__ui_settings.get_font_metrics(font, legend_entry.label).width)
 
         legend_width = text_width + border * 2 + line_height
 
@@ -1137,7 +1138,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         font = "{0:d}px".format(self.font_size)
 
         for index, legend_entry in enumerate(legend_entries):
-            legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
+            legend_width = max(legend_width, self.__ui_settings.get_font_metrics(font, legend_entry.label).width)
 
         end_x = legend_width + line_height + border * 2
 
@@ -1293,7 +1294,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
         legend_width = 0
         for index, legend_entry in enumerate(self.__effective_entries):
-            legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_entry.label).width)
+            legend_width = max(legend_width, self.__ui_settings.get_font_metrics(font, legend_entry.label).width)
 
         line_height = self.font_size + 4
         border = 4

@@ -12,6 +12,7 @@ import numpy
 # local libraries
 from nion.data import Calibration
 from nion.swift import Application
+from nion.swift import DisplayPanel
 from nion.swift import DocumentController
 from nion.swift import ImageCanvasItem
 from nion.swift.model import DataItem
@@ -47,67 +48,57 @@ class TestGraphicsClass(unittest.TestCase):
         mapping = self.__get_mapping()
         rect_graphic = Graphics.RectangleGraphic()
         rect_graphic.bounds = (0.25, 0.25), (0.5, 0.5)
-        def get_font_metrics(font, text):
-            FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
-            return FontMetrics(width=(len(text) * 7.0), height=18, ascent=15, descent=3, leading=0)
-        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((500, 500)), move_only=False), ("all", False))
-        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((250, 250)), move_only=False)[0], "top-left")
-        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((750, 750)), move_only=False)[0], "bottom-right")
-        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((250, 750)), move_only=False)[0], "top-right")
-        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((750, 250)), move_only=False)[0], "bottom-left")
-        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((250, 500)), move_only=False), ("all", True))
-        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((750, 500)), move_only=False), ("all", True))
-        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((500, 250)), move_only=False), ("all", True))
-        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((500, 750)), move_only=False), ("all", True))
-        self.assertIsNone(rect_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint(), move_only=False)[0])
+        ui_settings = DisplayPanel.FixedUISettings()
+        self.assertEqual(rect_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((500, 500)), move_only=False), ("all", False))
+        self.assertEqual(rect_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((250, 250)), move_only=False)[0], "top-left")
+        self.assertEqual(rect_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((750, 750)), move_only=False)[0], "bottom-right")
+        self.assertEqual(rect_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((250, 750)), move_only=False)[0], "top-right")
+        self.assertEqual(rect_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((750, 250)), move_only=False)[0], "bottom-left")
+        self.assertEqual(rect_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((250, 500)), move_only=False), ("all", True))
+        self.assertEqual(rect_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((750, 500)), move_only=False), ("all", True))
+        self.assertEqual(rect_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((500, 250)), move_only=False), ("all", True))
+        self.assertEqual(rect_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((500, 750)), move_only=False), ("all", True))
+        self.assertIsNone(rect_graphic.test(mapping, ui_settings, Geometry.FloatPoint(), move_only=False)[0])
 
     def test_line_test(self):
         mapping = self.__get_mapping()
         line_graphic = Graphics.LineGraphic()
         line_graphic.start = (0.25,0.25)
         line_graphic.end = (0.75,0.75)
-        def get_font_metrics(font, text):
-            FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
-            return FontMetrics(width=(len(text) * 7.0), height=18, ascent=15, descent=3, leading=0)
-        self.assertEqual(line_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((500, 500)), move_only=True)[0], "all")
-        self.assertEqual(line_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((250, 250)), move_only=True)[0], "start")
-        self.assertEqual(line_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((750, 750)), move_only=True)[0], "end")
-        self.assertEqual(line_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((250, 250)), move_only=False)[0], "start")
-        self.assertEqual(line_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((750, 750)), move_only=False)[0], "end")
-        self.assertIsNone(line_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((240, 240)), move_only=False)[0])
-        self.assertIsNone(line_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((760, 760)), move_only=False)[0])
-        self.assertIsNone(line_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint(), move_only=False)[0])
+        ui_settings = DisplayPanel.FixedUISettings()
+        self.assertEqual(line_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((500, 500)), move_only=True)[0], "all")
+        self.assertEqual(line_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((250, 250)), move_only=True)[0], "start")
+        self.assertEqual(line_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((750, 750)), move_only=True)[0], "end")
+        self.assertEqual(line_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((250, 250)), move_only=False)[0], "start")
+        self.assertEqual(line_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((750, 750)), move_only=False)[0], "end")
+        self.assertIsNone(line_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((240, 240)), move_only=False)[0])
+        self.assertIsNone(line_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((760, 760)), move_only=False)[0])
+        self.assertIsNone(line_graphic.test(mapping, ui_settings, Geometry.FloatPoint(), move_only=False)[0])
 
     def test_point_test(self):
         mapping = self.__get_mapping()
         point_graphic = Graphics.PointGraphic()
         point_graphic.position = (0.25,0.25)
-        def get_font_metrics(font, text):
-            FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
-            return FontMetrics(width=(len(text) * 7.0), height=18, ascent=15, descent=3, leading=0)
-        self.assertEqual(point_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((250, 250)), move_only=True)[0], "all")
-        self.assertEqual(point_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((250 - 18, 250)), move_only=True)[0], None)
+        ui_settings = DisplayPanel.FixedUISettings()
+        self.assertEqual(point_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((250, 250)), move_only=True)[0], "all")
+        self.assertEqual(point_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((250 - 18, 250)), move_only=True)[0], None)
         point_graphic.label = "Test"
-        self.assertEqual(point_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((250 - 18 - 6, 250)), move_only=True)[0], "all")
+        self.assertEqual(point_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((250 - 18 - 6, 250)), move_only=True)[0], "all")
 
     def test_spot_test(self):
         mapping = self.__get_mapping()
         spot_graphic = Graphics.SpotGraphic()
         spot_graphic.bounds = (0.2 - 0.5, 0.2 - 0.5), (0.1, 0.1)
-
-        def get_font_metrics(font, text):
-            FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
-            return FontMetrics(width=(len(text) * 7.0), height=18, ascent=15, descent=3, leading=0)
-
-        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((200, 200)), move_only=False), ("top-left", True))
-        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((300, 200)), move_only=False), ("bottom-left", True))
-        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((300, 300)), move_only=False), ("bottom-right", True))
-        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((200, 300)), move_only=False), ("top-right", True))
-        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((800, 800)), move_only=False), ("inverted-top-left", True))
-        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((700, 800)), move_only=False), ("inverted-bottom-left", True))
-        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((700, 700)), move_only=False), ("inverted-bottom-right", True))
-        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint.make((800, 700)), move_only=False), ("inverted-top-right", True))
-        self.assertIsNone(spot_graphic.test(mapping, get_font_metrics, Geometry.FloatPoint(), move_only=False)[0])
+        ui_settings = DisplayPanel.FixedUISettings()
+        self.assertEqual(spot_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((200, 200)), move_only=False), ("top-left", True))
+        self.assertEqual(spot_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((300, 200)), move_only=False), ("bottom-left", True))
+        self.assertEqual(spot_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((300, 300)), move_only=False), ("bottom-right", True))
+        self.assertEqual(spot_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((200, 300)), move_only=False), ("top-right", True))
+        self.assertEqual(spot_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((800, 800)), move_only=False), ("inverted-top-left", True))
+        self.assertEqual(spot_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((700, 800)), move_only=False), ("inverted-bottom-left", True))
+        self.assertEqual(spot_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((700, 700)), move_only=False), ("inverted-bottom-right", True))
+        self.assertEqual(spot_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((800, 700)), move_only=False), ("inverted-top-right", True))
+        self.assertIsNone(spot_graphic.test(mapping, ui_settings, Geometry.FloatPoint(), move_only=False)[0])
 
     def test_create_all_graphic_by_dragging(self):
         document_model = DocumentModel.DocumentModel()

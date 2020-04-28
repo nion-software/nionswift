@@ -167,7 +167,7 @@ class ThumbnailProcessor:
         return self.__cached_value
 
     def get_calculated_data(self, ui):
-        drawing_context, shape = DisplayPanel.preview(ui.get_font_metrics, self.__display_item, 512, 512)
+        drawing_context, shape = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(ui), self.__display_item, 512, 512)
         thumbnail_drawing_context = DrawingContext.DrawingContext()
         thumbnail_drawing_context.scale(self.width / 512, self.height / 512)
         thumbnail_drawing_context.translate(0, (shape[1] - shape[0]) * 0.5)
