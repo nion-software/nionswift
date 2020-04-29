@@ -212,7 +212,31 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             calibrated_data_min = axes.calibrated_data_min
             calibrated_data_max = axes.calibrated_data_max
             calibrated_data_range = calibrated_data_max - calibrated_data_min
-            LineGraphCanvasItem.draw_line_graph(drawing_context, 480, 640, 0, 0, data_item.xdata, calibrated_data_min, calibrated_data_range, axes.calibrated_left_channel, axes.calibrated_right_channel, axes.x_calibration, "black", "black", None)
+            LineGraphCanvasItem.draw_line_graph(drawing_context, 480, 640, 0, 0, data_item.xdata, calibrated_data_min, calibrated_data_range, axes.calibrated_left_channel, axes.calibrated_right_channel, axes.x_calibration, "black", "black", None, axes.data_style)
+            # ensure that the drawing commands are sufficiently populated to have drawn the graph
+            self.assertGreater(len(drawing_context.commands), 100)
+
+    def test_line_plot_handles_data_below_one_in_log_scale(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data = numpy.random.rand(100)
+            data_item = DataItem.DataItem(data)
+            data_item.set_xdata(DataAndMetadata.new_data_and_metadata(data))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.set_display_property("y_style", "log")
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            axes = display_panel.display_canvas_item._axes
+            self.assertEqual(axes.data_style, "log")
+            drawing_context = DrawingContext.DrawingContext()
+            calibrated_data_min = axes.calibrated_data_min
+            calibrated_data_max = axes.calibrated_data_max
+            calibrated_data_range = calibrated_data_max - calibrated_data_min
+            display_xdata = display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata
+            LineGraphCanvasItem.draw_line_graph(drawing_context, 480, 640, 0, 0, display_xdata, calibrated_data_min, calibrated_data_range, axes.calibrated_left_channel, axes.calibrated_right_channel, axes.x_calibration, "black", "black", None, axes.data_style)
             # ensure that the drawing commands are sufficiently populated to have drawn the graph
             self.assertGreater(len(drawing_context.commands), 100)
 
