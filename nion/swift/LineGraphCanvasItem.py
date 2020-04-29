@@ -81,16 +81,17 @@ def calculate_y_axis(uncalibrated_data_list, data_min, data_max, y_calibration, 
     calibrated_data_max = y_calibration.convert_to_calibrated_value(uncalibrated_data_max)
 
     if data_style == "log":
-        calibrated_data_min = math.log10(max(calibrated_data_min, 1.0))
-        calibrated_data_max = math.log10(max(calibrated_data_max, 1.0))
+        calibrated_data_min = math.log10(calibrated_data_min if calibrated_data_min > 0 else 1.0)
+        calibrated_data_max = math.log10(calibrated_data_max if calibrated_data_max > 0 else 1.0)
 
     if math.isnan(calibrated_data_min) or math.isnan(calibrated_data_max) or math.isinf(calibrated_data_min) or math.isinf(calibrated_data_max):
         calibrated_data_min = 0.0
         calibrated_data_max = 0.0
 
     calibrated_data_min, calibrated_data_max = min(calibrated_data_min, calibrated_data_max), max(calibrated_data_min, calibrated_data_max)
-    calibrated_data_min = 0.0 if calibrated_data_min > 0 and not min_specified else calibrated_data_min
-    calibrated_data_max = 0.0 if calibrated_data_max < 0 and not max_specified else calibrated_data_max
+    if not data_style == "log":
+        calibrated_data_min = 0.0 if calibrated_data_min > 0 and not min_specified else calibrated_data_min
+        calibrated_data_max = 0.0 if calibrated_data_max < 0 and not max_specified else calibrated_data_max
 
     logarithmic = data_style == "log"
     ticker = Geometry.Ticker(calibrated_data_min, calibrated_data_max, logarithmic=logarithmic)
@@ -249,12 +250,16 @@ class LineGraphAxes:
             y_calibration = self.y_calibration
             if y_calibration:
                 if self.data_style == "log":
-                    calibrated_data = numpy.log10(numpy.maximum(y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data, 1.0))
+                    calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data
+                    calibrated_data[calibrated_data < 0] = 0
+                    numpy.log10(calibrated_data, where=calibrated_data>0, out=calibrated_data)
                 else:
                     calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data
             else:
                 if self.data_style == "log":
-                    calibrated_data = numpy.log10(numpy.maximum(uncalibrated_xdata.data, 1.0))
+                    calibrated_data = uncalibrated_xdata.data.copy()
+                    calibrated_data[calibrated_data < 0] = 0
+                    numpy.log10(calibrated_data, where=calibrated_data>0, out=calibrated_data)
                 else:
                     calibrated_data = uncalibrated_xdata.data
         return DataAndMetadata.new_data_and_metadata(calibrated_data, dimensional_calibrations=uncalibrated_xdata.dimensional_calibrations)
@@ -316,7 +321,7 @@ def draw_vertical_grid_lines(drawing_context, plot_height, plot_origin_y, x_tick
         drawing_context.stroke()
 
 
-def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_xdata, calibrated_data_min, calibrated_data_range, calibrated_left_channel, calibrated_right_channel, x_calibration, fill_color: str, stroke_color: str, rebin_cache):
+def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_xdata, calibrated_data_min, calibrated_data_range, calibrated_left_channel, calibrated_right_channel, x_calibration, fill_color: str, stroke_color: str, rebin_cache, data_style: str):
     # calculate how the data is displayed
     xdata_calibration = calibrated_xdata.dimensional_calibrations[-1]
     assert xdata_calibration.units == x_calibration.units
@@ -353,7 +358,10 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
         stroke_path = DrawingContext.DrawingContext()
         drawing_context.begin_path()
         if calibrated_data_range != 0.0 and uncalibrated_width > 0.0:
-            baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - calibrated_data_min) / calibrated_data_range)
+            if data_style == "log":
+                baseline = plot_origin_y + plot_height- (plot_height * float(numpy.amin(calibrated_xdata.data) - calibrated_data_min) / calibrated_data_range)
+            else:
+                baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - calibrated_data_min) / calibrated_data_range)
             baseline = min(plot_origin_y + plot_height, baseline)
             baseline = max(plot_origin_y, baseline)
             # rebin so that uncalibrated_width corresponds to plot width
@@ -540,7 +548,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
             # draw the line plot itself
             if x_calibration.units == calibrated_xdata.dimensional_calibrations[-1].units:
-                draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_xdata, calibrated_data_min, calibrated_data_range, calibrated_left_channel, calibrated_right_channel, x_calibration, fill_color, stroke_color, self.__retained_rebin_1d)
+                draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_xdata, calibrated_data_min, calibrated_data_range, calibrated_left_channel, calibrated_right_channel, x_calibration, fill_color, stroke_color, self.__retained_rebin_1d, axes.data_style)
 
 
 class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
