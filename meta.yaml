@@ -21,7 +21,7 @@ requirements:
     - python
     - setuptools
   run:
-    - python >=3.6
+    - python >=3.7
     - nionutils >=0.3.20
     - niondata >=0.13.6
     - nionui >=0.3.21

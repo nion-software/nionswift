@@ -17,7 +17,7 @@ Nion Swift for Windows requires Windows 7 or later, although we recommend Window
 
 Nion Swift for macOS requires macOS 10.11 or later. We recommend using the latest version of macOS.
 
-Nion Swift for Linux requires a distribution with Qt 5.5 or later (qt5-default) and Python 3.5 or later.
+Nion Swift for Linux requires a distribution with Qt 5.5 or later (qt5-default) and Python 3.7 or later.
 
 Nion Swift has been tested with Ubuntu 16.04, 17.04, 17.10, 18.04, Debian 9, Fedora 26. It is expected to work with
 newer distributions of Linux. It is not compatible with Debian 8 (Qt 5.3) but please contact us if you need to run on
@@ -46,7 +46,7 @@ Nion Swift.
 
 Installing Python
 -----------------
-You will first need to install Python 3.6 for your specific platform. Visit one of the websites below, download the
+You will first need to install Python for your specific platform. Visit one of the websites below, download the
 64-bit installer, and follow the 'Instructions' link.
 
     * `Anaconda <https://docs.anaconda.com/anaconda/install/>`_
@@ -134,7 +134,7 @@ Launch Nion Swift from your conda command line environment using::
 
 Linux
 -----
-Nion Swift for Linux requires Qt 5.5 or later (qt5-default), Python 3.5 or later.
+Nion Swift for Linux requires Qt 5.5 or later (qt5-default), Python 3.7 or later.
 
 Swift has been tested with Ubuntu 16.04, 17.04, 17.10, Debian 9, Fedora 26. It is not compatible with Debian 8 (Qt 5.3)
 but please contact us if you need to run on Debian 8 as there may be workarounds.

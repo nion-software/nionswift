@@ -7,5 +7,5 @@ conda:
   file: docs/conda_environment.yaml
 
 python:
-  version: 3.6
+  version: 3.7
   pip_install: true
