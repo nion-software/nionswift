@@ -423,10 +423,8 @@ def _test_exception_during_record_halts_playback(testcase, hardware_source, expo
     hardware_source._test_acquire_hook = raise_exception
     hardware_source._test_acquire_exception = lambda *args: None
     # first make sure that record works as expected
-    hardware_source.start_recording()
+    hardware_source.start_recording(sync_timeout=3.0)
     try:
-        time.sleep(exposure * 0.5)
-        testcase.assertTrue(hardware_source.is_recording)
         start = time.time()
         while time.time() - start < exposure * 10.0 and hardware_source.is_recording:
             time.sleep(0.05)
