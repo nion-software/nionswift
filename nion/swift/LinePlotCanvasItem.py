@@ -782,7 +782,19 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             else:
                 self.__display_frame_rate_id = None
             return True
+        # This will update the cursor shape when the user presses a modifier key
+        if self.__last_mouse:
+            last_mouse = self.__last_mouse
+            self.mouse_position_changed(last_mouse.x, last_mouse.y, key.modifiers)
         return False
+
+    def key_released(self, key):
+        if super().key_released(key):
+            return True
+        # This will update the cursor shape when the user releases a modifier key
+        if self.__last_mouse:
+            last_mouse = self.__last_mouse
+            self.mouse_position_changed(last_mouse.x, last_mouse.y, key.modifiers)
 
     def __get_mouse_mapping(self):
         data_scale = self.__data_scale
