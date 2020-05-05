@@ -680,7 +680,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                         if isinstance(graphic, (Graphics.IntervalGraphic, Graphics.ChannelGraphic)):
                             widget_mapping = self.__get_mouse_mapping()
                             part, specific = graphic.test(widget_mapping, self.__ui_settings, pos, False)
-                            if part in {"start", "end"}:
+                            if part in {"start", "end"} and not modifiers.control:
                                 self.cursor_shape = "size_horizontal"
                                 break
                             elif part:
