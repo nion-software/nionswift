@@ -680,7 +680,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                         if isinstance(graphic, (Graphics.IntervalGraphic, Graphics.ChannelGraphic)):
                             widget_mapping = self.__get_mouse_mapping()
                             part, specific = graphic.test(widget_mapping, self.__ui_settings, pos, False)
-                            if part in {"start", "end"}:
+                            if part in {"start", "end"} and not modifiers.control:
                                 self.cursor_shape = "size_horizontal"
                                 break
                             elif part:
@@ -782,7 +782,19 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             else:
                 self.__display_frame_rate_id = None
             return True
+        # This will update the cursor shape when the user presses a modifier key
+        if self.__last_mouse:
+            last_mouse = self.__last_mouse
+            self.mouse_position_changed(last_mouse.x, last_mouse.y, key.modifiers)
         return False
+
+    def key_released(self, key):
+        if super().key_released(key):
+            return True
+        # This will update the cursor shape when the user releases a modifier key
+        if self.__last_mouse:
+            last_mouse = self.__last_mouse
+            self.mouse_position_changed(last_mouse.x, last_mouse.y, key.modifiers)
 
     def __get_mouse_mapping(self):
         data_scale = self.__data_scale
