@@ -1,5 +1,6 @@
 # standard libraries
 import copy
+import datetime
 import gettext
 import json
 import logging
@@ -95,8 +96,10 @@ class Application(UIApplication.BaseApplication):
         super().initialize()
         # configure app data
         if load_plug_ins:
+            logging.info("Launch time " + str(datetime.datetime.now()))
             logging.info("Python version " + str(sys.version.replace('\n', '')))
             logging.info("User interface class " + type(self.ui).__name__ + " / " + type(self.ui.proxy).__name__)
+            logging.info("Qt version " + self.ui.get_qt_version())
             app_data_file_path = self.ui.get_configuration_location() / pathlib.Path("nionswift_appdata.json")
             ApplicationData.set_file_path(app_data_file_path)
             logging.info("Application data: " + str(app_data_file_path))
