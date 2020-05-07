@@ -251,6 +251,19 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def _has_valid_drawn_graph_data(self):
         return self.___has_valid_drawn_graph_data
 
+    @property
+    def valid_graphics_descriptions(self):
+        return [
+                {
+                    "type": "item",
+                    "action_id": "graphics.add_interval_graphic"
+                },
+                {
+                    "type": "item",
+                    "action_id": "graphics.add_channel_graphic"
+                }
+               ]
+
     def __update_legend_origin(self):
         plot_rect = self.__line_graph_area_stack.canvas_bounds
         if plot_rect:

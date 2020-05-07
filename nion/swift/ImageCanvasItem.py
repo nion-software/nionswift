@@ -501,6 +501,27 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def _info_overlay_canvas_item_for_test(self):
         return self.__info_overlay_canvas_item
 
+    @property
+    def valid_graphics_descriptions(self):
+        return [
+                {
+                    "type": "item",
+                    "action_id": "graphics.add_line_graphic"
+                },
+                {
+                    "type": "item",
+                    "action_id": "graphics.add_ellipse_graphic"
+                },
+                {
+                    "type": "item",
+                    "action_id": "graphics.add_rectangle_graphic"
+                },
+                {
+                    "type": "item",
+                    "action_id": "graphics.add_point_graphic"
+                }
+               ]
+
     def update_display_values(self, display_values_list) -> None:
         self.__display_values = display_values_list[0] if display_values_list else None
         self.__display_values_dirty = True

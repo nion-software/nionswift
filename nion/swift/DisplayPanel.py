@@ -2070,6 +2070,40 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
 
         display_panel_type = display_panel.display_panel_type
 
+        if display_panel_type == "data_item" and display_panel.display_canvas_item:
+            valid_graphics = display_panel.display_canvas_item.valid_graphics_descriptions
+            if display_panel.display_item and display_panel.display_item.graphic_selection.has_selection:
+                valid_graphics += [{
+                                        "type": "separator"
+                                    },
+                                    {
+                                        "type": "item",
+                                        "action_id": "graphics.add_graphic_mask"
+                                    },
+                                    {
+                                        "type": "item",
+                                        "action_id": "graphics.remove_graphic_mask"
+                                    },
+                                    {
+                                        "type": "separator"
+                                    },
+                                    {
+                                        "type": "item",
+                                        "action_id": "window.delete"
+                                    }]
+            graphics_menu_description = [
+               {
+                "type": "sub_menu",
+                "menu_id": "processing_transform",
+                "title": "Graphics",
+                "items": valid_graphics
+                },
+                {
+                 "type": "separator"
+                }
+            ]
+            document_controller.build_menu(display_type_menu, graphics_menu_description)
+
         empty_action.checked = display_panel_type == "empty" and display_panel.display_panel_controller is None
         data_item_display_action.checked = display_panel_type == "data_item"
         thumbnail_browser_action.checked = display_panel_type == "horizontal"

@@ -1192,14 +1192,14 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_image_display_panel_produces_context_menu_with_correct_item_count(self):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
-        # show, sep, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
-        self.assertEqual(15, len(self.document_controller.ui.popup.items))
+        # show, sep, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep, graphics, sep
+        self.assertEqual(17, len(self.document_controller.ui.popup.items))
 
     def test_image_display_panel_produces_context_menu_with_correct_item_count_outside_image_area(self):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.root_container.canvas_widget.on_context_menu_event(10, 32, 10, 32)  # header + 10
-        # show, sep, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
-        self.assertEqual(15, len(self.document_controller.ui.popup.items))
+        # show, sep, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep, graphics, sep
+        self.assertEqual(17, len(self.document_controller.ui.popup.items))
 
     def test_image_display_panel_with_no_image_produces_context_menu_with_correct_item_count(self):
         self.display_panel.set_display_panel_display_item(None)
