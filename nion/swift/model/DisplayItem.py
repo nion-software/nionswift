@@ -1315,6 +1315,10 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             self._description_changed()
 
     @property
+    def is_composite_data(self):
+        return self.__is_composite_data
+
+    @property
     def text_for_filter(self) -> str:
         return " ".join([self.displayed_title, self.caption, self.description, self.size_and_data_format_as_string])
 

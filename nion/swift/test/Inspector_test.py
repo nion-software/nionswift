@@ -793,6 +793,28 @@ class TestInspectorClass(unittest.TestCase):
                 self.assertEqual("40.0 eV", graphic_widget.find_widget_by_id("start").text)  # energy
                 self.assertEqual("80.0 eV", graphic_widget.find_widget_by_id("end").text)  # energy
 
+    def test_interval_dimensions_show_calibrated_units_on_composite_line_plot(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.full((100, ), 0, dtype=numpy.uint32))  # time, energy
+            data_item2 = DataItem.DataItem(numpy.full((100, ), 1, dtype=numpy.uint32))  # time, energy
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2, False)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
+            interval_graphic = Graphics.IntervalGraphic()
+            interval_graphic.start = 0.2
+            interval_graphic.end = 0.4
+            display_item.add_graphic(interval_graphic)
+            display_item.calibration_style_id = "calibrated"
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(units="eV", scale=2.0))  # energy
+            graphic_widget = Inspector.make_interval_type_inspector(document_controller, display_item, display_item.graphics[0])
+            with contextlib.closing(graphic_widget):
+                self.assertEqual("40.0 eV", graphic_widget.find_widget_by_id("start").text)  # energy
+                self.assertEqual("80.0 eV", graphic_widget.find_widget_by_id("end").text)  # energy
+
     def test_calibration_inspector_updates_for_when_data_shape_changes(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
