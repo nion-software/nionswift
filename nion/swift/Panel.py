@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import collections
 import gettext
@@ -16,6 +18,9 @@ from nion.ui import CanvasItem
 from nion.utils import Geometry
 from nion.utils import Process
 
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
+
 
 _ = gettext.gettext
 
@@ -28,7 +33,7 @@ class Panel:
     """
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, document_controller, panel_id, display_name):
+    def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, display_name: str):
         Panel.count += 1
         self.__document_controller_weakref = weakref.ref(document_controller)
         self.ui = document_controller.ui
@@ -41,7 +46,7 @@ class Panel:
         self.__periodic_task_set = Process.TaskSet()
 
     # subclasses can override to clean up when the panel closes.
-    def close(self):
+    def close(self) -> None:
         if self.dock_widget:  # sometimes encountered during tests
             self.dock_widget.close()
         self.widget = None  # closed by the dock_widget
@@ -55,11 +60,11 @@ class Panel:
         self.dock_widget.on_ui_activity = self.document_controller._register_ui_activity
 
     @property
-    def document_controller(self):
+    def document_controller(self) -> DocumentController.DocumentController:
         return self.__document_controller_weakref()
 
     # not thread safe. always call from main thread.
-    def periodic(self):
+    def periodic(self) -> None:
         self.dock_widget.periodic()
 
     def show(self) -> None:
@@ -73,26 +78,26 @@ class Panel:
     # added tasks are only executed if not replaced before execution.
     # added tasks do not guarantee execution order or execution at all.
 
-    def add_task(self, key, task):
+    def add_task(self, key: str, task: typing.Callable[[], None]) -> None:
         self.document_controller.add_task(key + str(id(self)), task)
 
-    def clear_task(self, key):
+    def clear_task(self, key: str) -> None:
         self.document_controller.clear_task(key + str(id(self)))
 
-    def queue_task(self, task):
+    def queue_task(self, task: typing.Callable[[], None]) -> None:
         self.document_controller.queue_task(task)
 
-    def clear_queued_tasks(self):
+    def clear_queued_tasks(self) -> None:
         self.document_controller.clear_queued_tasks()
 
-    def size_changed(self, width, height):
+    def size_changed(self, width: int, height: int) -> None:
         pass
 
-    def focus_changed(self, focused):
+    def focus_changed(self, focused: bool) -> None:
         if focused:
             self.document_controller.request_refocus()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.display_name
 
 
@@ -137,7 +142,7 @@ class OutputPanel(Panel):
         sys.stdout = cls.__old_stdout
         sys.stderr = cls.__old_stderr
 
-    def __init__(self, document_controller, panel_id, properties):
+    def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: typing.Dict):
         super().__init__(document_controller, panel_id, "Output")
         properties["min-height"] = 180
         if sys.platform != "win32":
@@ -148,13 +153,13 @@ class OutputPanel(Panel):
         self.__lock = threading.RLock()
         self.__q = collections.deque()
 
-        def safe_emit():
+        def safe_emit() -> None:
             with self.__lock:
                 while len(self.__q) > 0:
                     output_widget.move_cursor_position("end")
                     output_widget.append_text(self.__q.popleft())
 
-        def queue_message(message):
+        def queue_message(message: str) -> None:
             with self.__lock:
                 self.__q.append(message.strip())
             if threading.current_thread().getName() == "MainThread":
@@ -164,13 +169,13 @@ class OutputPanel(Panel):
 
         class OutputPanelHandler(logging.Handler):
 
-            def __init__(self, queue_message_fn, records):
+            def __init__(self, queue_message_fn: typing.Callable[[str], None], records):
                 super().__init__()
                 self.queue_message_fn = queue_message_fn
                 for record in records or list():
                     self.emit(record)
 
-            def emit(self, record):
+            def emit(self, record) -> None:
                 if record.levelno >= logging.INFO:
                     self.queue_message_fn(record.getMessage())
 
@@ -186,7 +191,7 @@ class OutputPanel(Panel):
 
         OutputPanel.__count += 1
 
-    def close(self):
+    def close(self) -> None:
         OutputPanel.__count -= 1
         OutputPanel.__stdout_listeners.pop(self)
         OutputPanel.__stderr_listeners.pop(self)
