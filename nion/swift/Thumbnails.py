@@ -3,8 +3,10 @@
 """
 
 # standard libraries
+import concurrent.futures
 import threading
 import time
+import typing
 
 # third-party libraries
 import numpy
@@ -20,6 +22,7 @@ from nion.utils import ReferenceCounting
 
 class ThumbnailProcessor:
     """Processes thumbnails for a display in a thread."""
+    _executor = concurrent.futures.ThreadPoolExecutor()
 
     def __init__(self, display_item: DisplayItem.DisplayItem):
         self.__display_item = display_item
@@ -37,22 +40,22 @@ class ThumbnailProcessor:
         self.width = 72
         self.height = 72
         self.on_thumbnail_updated = None
-        self.__recompute_thread = None
+        self.__recompute_future = None
         self.__recompute_lock = threading.RLock()
         self.__recompute_thread_cancel = threading.Event()
 
     def close(self):
         self.on_thumbnail_updated = None
         with self.__is_recomputing_lock:
-            if self.__recompute_thread:
+            if self.__recompute_future:
                 self.__recompute_thread_cancel.set()
-                self.__recompute_thread.join()
+                concurrent.futures.wait([self.__recompute_future])
 
     def __about_to_close_display_item(self) -> None:
         with self.__is_recomputing_lock:
-            if self.__recompute_thread:
+            if self.__recompute_future:
                 self.__recompute_thread_cancel.set()
-                self.__recompute_thread.join()
+                concurrent.futures.wait([self.__recompute_future])
         self.__display_item = None
 
     # used for testing
@@ -102,10 +105,9 @@ class ThumbnailProcessor:
                         self.recompute_data(ui)
                     finally:
                         self.__is_recomputing = False
-                        self.__recompute_thread = None
+                        self.__recompute_future = None
                 with self.__is_recomputing_lock:
-                    self.__recompute_thread = threading.Thread(target=recompute)
-                    self.__recompute_thread.start()
+                    self.__recompute_future = ThumbnailProcessor._executor.submit(recompute)
 
     def recompute_data(self, ui):
         """Compute the data associated with this processor.
@@ -118,7 +120,7 @@ class ThumbnailProcessor:
         with self.__recompute_lock:
             if self.__cached_value_dirty:
                 try:
-                    calculated_data = self.get_calculated_data(ui)
+                    calculated_data = self.__get_calculated_data(ui)
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
@@ -131,23 +133,13 @@ class ThumbnailProcessor:
             else:
                 calculated_data = None
             if calculated_data is None:
-                calculated_data = self.get_default_data()
-                if calculated_data is not None:
-                    # if the default is not None, treat is as valid cached data
-                    self.__cache.set_cached_value(self.__display_item, self.__cache_property_name, calculated_data)
-                    self.__cached_value = calculated_data
-                    self.__cached_value_dirty = False
-                    self.__cached_value_time = time.time()
-                else:
-                    # otherwise remove everything from the cache
-                    self.__cache.remove_cached_value(self.__display_item, self.__cache_property_name)
-                    self.__cached_value = None
-                    self.__cached_value_dirty = None
-                    self.__cached_value_time = 0
-            self.__recompute_lock.release()
-            if callable(self.on_thumbnail_updated):
-                self.on_thumbnail_updated()
-            self.__recompute_lock.acquire()
+                calculated_data = numpy.zeros((self.height, self.width), dtype=numpy.uint32)
+                self.__cache.set_cached_value(self.__display_item, self.__cache_property_name, calculated_data)
+                self.__cached_value = calculated_data
+                self.__cached_value_dirty = False
+                self.__cached_value_time = time.time()
+        if callable(self.on_thumbnail_updated):
+            self.on_thumbnail_updated()
 
     def get_data(self, ui):
         """Return the computed data for this processor.
@@ -166,16 +158,13 @@ class ThumbnailProcessor:
         self.__initialize_cache()
         return self.__cached_value
 
-    def get_calculated_data(self, ui):
+    def __get_calculated_data(self, ui):
         drawing_context, shape = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(ui), self.__display_item, 512, 512)
         thumbnail_drawing_context = DrawingContext.DrawingContext()
         thumbnail_drawing_context.scale(self.width / 512, self.height / 512)
         thumbnail_drawing_context.translate(0, (shape[1] - shape[0]) * 0.5)
         thumbnail_drawing_context.add(drawing_context)
         return ui.create_rgba_image(thumbnail_drawing_context, self.width, self.height)
-
-    def get_default_data(self):
-        return numpy.zeros((self.height, self.width), dtype=numpy.uint32)
 
 
 class ThumbnailSource(ReferenceCounting.ReferenceCounted):
@@ -263,7 +252,7 @@ class ThumbnailManager(metaclass=Utility.Singleton):
                 assert thumbnail_source._ui == ui
             return thumbnail_source.add_ref()
 
-    def thumbnail_data_for_display_item(self, display_item: DisplayItem.DisplayItem) -> numpy.ndarray:
+    def thumbnail_data_for_display_item(self, display_item: DisplayItem.DisplayItem) -> typing.Optional[numpy.ndarray]:
         thumbnail_source = self.__thumbnail_sources.get(display_item) if display_item else None
         if thumbnail_source:
             return thumbnail_source.thumbnail_data
