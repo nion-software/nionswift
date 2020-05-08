@@ -1501,7 +1501,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     @property
     def display_data_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
         if not self.__data_and_metadata:
-            return None
+            return self.displayed_dimensional_scales if self.__is_composite_data else None
         data_and_metadata = self.__data_and_metadata
         dimensional_shape = data_and_metadata.dimensional_shape
         next_dimension = 0
@@ -1592,6 +1592,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
                     return calibrations[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
             else:
                 return calibrations[next_dimension:]
+        if self.__is_composite_data:
+            return self.displayed_dimensional_calibrations
         return [Calibration.Calibration() for c in self.__dimensional_calibrations] if self.__dimensional_calibrations else [Calibration.Calibration()]
 
     @property

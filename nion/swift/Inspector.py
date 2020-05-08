@@ -1700,11 +1700,12 @@ class CalibratedValueFloatToStringConverter:
         self.__index = index
     def __get_calibration(self):
         index = self.__index
-        dimension_count = len(self.__display_item.displayed_datum_calibrations)
+        calibrations = self.__display_item.displayed_datum_calibrations
+        dimension_count = len(calibrations)
         if index < 0:
             index = dimension_count + index
         if index >= 0 and index < dimension_count:
-            return self.__display_item.displayed_datum_calibrations[index]
+            return calibrations[index]
         else:
             return Calibration.Calibration()
     def __get_data_size(self):
@@ -1748,7 +1749,8 @@ class CalibratedSizeFloatToStringConverter:
         self.__factor = factor
     def __get_calibration(self):
         index = self.__index
-        dimension_count = len(self.__display_item.displayed_datum_calibrations)
+        calibrations = self.__display_item.displayed_datum_calibrations
+        dimension_count = len(calibrations)
         if index < 0:
             index = dimension_count + index
         if index >= 0 and index < dimension_count:
