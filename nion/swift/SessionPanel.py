@@ -56,7 +56,10 @@ class SessionPanel(Panel.Panel):
 
         intro_row = self.ui.create_row_widget()
         intro_row.add_stretch()
-        intro_row.add(self.ui.create_label_widget(_("Session metadata added to acquired data."), properties={"stylesheet": "font: italic; color: gray"}))
+        intro_label_widget = self.ui.create_label_widget(_("Session metadata added to acquired data."))
+        intro_label_widget.text_font = "italic"
+        intro_label_widget.text_color = "gray"
+        intro_row.add(intro_label_widget)
         intro_row.add_stretch()
 
         def line_edit_changed(line_edit_widget, field_id, text):

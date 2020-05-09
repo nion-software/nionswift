@@ -25,6 +25,7 @@ import numpy
 from nion.swift.model import PlugInManager
 from nion.swift.model import Utility
 from nion.swift import FacadeQueued
+from nion.swift import Panel
 from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import Widgets
@@ -325,9 +326,10 @@ class RunScriptDialog(Dialog.ActionDialog):
         properties = dict()
         properties["min-height"] = 180
         properties["min-width"] = 540
-        properties["stylesheet"] = "background: white; font-family: Monaco, Courier, monospace"
 
         self.__output_widget = self.ui.create_text_edit_widget(properties)
+        self.__output_widget.set_text_font(Panel.Panel.get_monospace_text_font())
+        self.__output_widget.set_line_height_proportional(Panel.Panel.get_monospace_proportional_line_height())
 
         self.__message_column = ui.create_column_widget()
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import copy
 import functools
@@ -26,6 +28,9 @@ from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Geometry
 
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
+
 _ = gettext.gettext
 
 
@@ -37,7 +42,7 @@ class ComputationModel:
     Provides a computation_text_changed event, always fired on UI thread.
     """
 
-    def __init__(self, document_controller):
+    def __init__(self, document_controller: DocumentController.DocumentController):
         self.__weak_document_controller = weakref.ref(document_controller)
         self.__display_item = None
         self.__set_display_item(None)
@@ -61,7 +66,7 @@ class ComputationModel:
         self.__set_display_item(None)
 
     @property
-    def document_controller(self):
+    def document_controller(self) -> DocumentController.DocumentController:
         return self.__weak_document_controller()
 
     @property
@@ -470,7 +475,7 @@ class ChangeVariableBinding(Binding.PropertyBinding):
 
 class ComputationPanelSection:
 
-    def __init__(self, document_controller, computation, variable, on_remove, queue_task_fn):
+    def __init__(self, document_controller: DocumentController.DocumentController, computation, variable, on_remove, queue_task_fn):
         ui = document_controller.ui
 
         self.variable = variable
@@ -482,7 +487,8 @@ class ComputationPanelSection:
         twist_down_canvas_widget = ui.create_canvas_widget(properties={"height": 20, "width": 20})
         twist_down_canvas_widget.canvas_item.add_canvas_item(twist_down_canvas_item)
         section_title_row.add(twist_down_canvas_widget)
-        twist_down_label_widget = ui.create_label_widget(variable.name, properties={"stylesheet": "font-weight: bold"})
+        twist_down_label_widget = ui.create_label_widget(variable.name)
+        twist_down_label_widget.text_font = "bold"
         twist_down_label_widget.bind_text(Binding.PropertyBinding(variable, "name"))
         section_title_row.add(twist_down_label_widget)
         section_title_row.add_stretch()
@@ -807,7 +813,7 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
 
 class EditComputationDialog(Dialog.ActionDialog):
 
-    def __init__(self, document_controller, data_item):
+    def __init__(self, document_controller: DocumentController.DocumentController, data_item):
         ui = document_controller.ui
         super().__init__(ui, _("Edit Computation"), parent_window=document_controller, persistent_id="EditComputationDialog" + str(data_item.uuid))
 
@@ -855,7 +861,8 @@ class EditComputationDialog(Dialog.ActionDialog):
         text_edit_row.add_spacing(8)
 
         error_row = ui.create_row_widget(properties={"min-width": 400})  # the stylesheet allows it to shrink. guh.
-        error_label = ui.create_label_widget("\n", properties={"stylesheet": "color: red", "min-width": 120})
+        error_label = ui.create_label_widget("\n", properties={"min-width": 120})
+        error_label.text_color = "red"
         error_label.word_wrap = True
         error_row.add_spacing(8)
         error_row.add(error_label)

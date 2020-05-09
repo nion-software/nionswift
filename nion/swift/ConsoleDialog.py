@@ -4,14 +4,15 @@ import contextlib
 import copy
 import gettext
 import io
-import json
 import re
 import rlcompleter
 import sys
 import typing
 
 # local libraries
+from nion.swift import Panel
 from nion.ui import Dialog
+from nion.ui import UserInterface
 from nion.ui import Widgets
 
 if typing.TYPE_CHECKING:
@@ -142,11 +143,8 @@ class ConsoleWidgetStateController:
 
 class ConsoleWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, locals=None, properties=None):
+    def __init__(self, ui: UserInterface.UserInterface, locals=None, properties=None):
         super().__init__(ui.create_column_widget())
-
-        properties = properties if properties is not None else dict()
-        properties["stylesheet"] = "background: black; color: white; font-family: Monaco, Courier, monospace"
 
         self.prompt = ">>> "
         self.continuation_prompt = "... "
@@ -154,6 +152,10 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         self.__cursor_position = None
 
         self.__text_edit_widget = ui.create_text_edit_widget(properties)
+        self.__text_edit_widget.set_text_color("white")
+        self.__text_edit_widget.set_text_background_color("black")
+        self.__text_edit_widget.set_text_font(Panel.Panel.get_monospace_text_font())
+        self.__text_edit_widget.set_line_height_proportional(Panel.Panel.get_monospace_proportional_line_height())
         self.__text_edit_widget.word_wrap_mode = "anywhere"
         self.__text_edit_widget.on_cursor_position_changed = self.__cursor_position_changed
         self.__text_edit_widget.on_selection_changed = self.__selection_changed

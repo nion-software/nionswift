@@ -249,8 +249,11 @@ class FilterPanel:
         date_browser_tree_widget.item_model_controller = self.__filter_controller.item_model_controller
         date_browser_tree_widget.on_selection_changed = self.__filter_controller.date_browser_selection_changed
 
+        date_label_widget = ui.create_label_widget(_("Date"))
+        date_label_widget.text_font = "bold"
+
         date_browser = ui.create_column_widget()
-        date_browser.add(ui.create_label_widget(_("Date"), properties={"stylesheet": "font-weight: bold"}))
+        date_browser.add(date_label_widget)
         date_browser.add(date_browser_tree_widget)
         date_browser.add_stretch()
 

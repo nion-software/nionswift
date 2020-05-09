@@ -33,6 +33,14 @@ class Panel:
     """
     count = 0  # useful for detecting leaks in tests
 
+    @classmethod
+    def get_monospace_text_font(cls) -> str:
+        return "11pt monospace"
+
+    @classmethod
+    def get_monospace_proportional_line_height(cls) -> float:
+        return 1.2
+
     def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, display_name: str):
         Panel.count += 1
         self.__document_controller_weakref = weakref.ref(document_controller)
@@ -145,10 +153,9 @@ class OutputPanel(Panel):
     def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: typing.Dict):
         super().__init__(document_controller, panel_id, "Output")
         properties["min-height"] = 180
-        if sys.platform != "win32":
-            properties["font-size"] = 12
-        properties["stylesheet"] = "background: white; font-family: Monaco, Courier, monospace"
         self.widget = self.ui.create_text_edit_widget(properties)
+        self.widget.set_text_font(Panel.get_monospace_text_font())
+        self.widget.set_line_height_proportional(Panel.get_monospace_proportional_line_height())
         output_widget = self.widget  # no access to OutputPanel.self inside OutputPanelHandler
         self.__lock = threading.RLock()
         self.__q = collections.deque()

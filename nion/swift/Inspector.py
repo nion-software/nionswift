@@ -1304,8 +1304,10 @@ class CalibrationsInspectorSection(InspectorSection):
 
     # not thread safe
     def __create_header_for_empty_list_widget(self):
+        label_widget = self.ui.create_label_widget(_("None"))
+        label_widget.text_font = "italic"
         header_for_empty_list_row = self.ui.create_row_widget()
-        header_for_empty_list_row.add(self.ui.create_label_widget("None", properties={"stylesheet": "font: italic"}))
+        header_for_empty_list_row.add(label_widget)
         return header_for_empty_list_row
 
     # not thread safe.
@@ -2834,8 +2836,10 @@ class ComputationInspectorSection(InspectorSection):
             for index, variable in enumerate(computation.variables):
                 variable_inserted(index, variable)
         else:
+            none_label = self.ui.create_label_widget(_("None"))
+            none_label.text_font = "italic"
             none_widget = self.ui.create_row_widget()
-            none_widget.add(self.ui.create_label_widget("None", properties={"stylesheet": "font: italic"}))
+            none_widget.add(none_label)
             self.add_widget_to_content(none_widget)
             self.__computation_variable_inserted_event_listener = None
             self.__computation_variable_removed_event_listener = None
@@ -2954,7 +2958,8 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
         remove_display_data_channel_button = TextPushButtonWidget(ui, "\N{MULTIPLICATION X}")
 
         section_title_row = ui.create_row_widget()
-        section_title_label_widget = ui.create_label_widget(properties={"stylesheet": "font-weight: bold"})
+        section_title_label_widget = ui.create_label_widget()
+        section_title_label_widget.text_font = "bold"
         section_title_label_widget.text = "{} #{}".format(_("Data"), index + 1)
         section_title_row.add_spacing(20)
         section_title_row.add(section_title_label_widget)
@@ -3112,7 +3117,8 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
         content_widget.add_spacing(4)
         if display_item:
             title_row = self.ui.create_row_widget()
-            title_label_widget = self.ui.create_label_widget(properties={"stylesheet": "font-weight: bold"})
+            title_label_widget = self.ui.create_label_widget()
+            title_label_widget.text_font = "bold"
             title_label_widget.bind_text(Binding.PropertyBinding(display_item, "title"))
             title_row.add_spacing(20)
             title_row.add(title_label_widget)

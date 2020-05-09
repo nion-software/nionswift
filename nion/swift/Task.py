@@ -133,7 +133,8 @@ class TaskSectionController(object):
 
         widget = self.ui.create_column_widget()
         task_header = self.ui.create_row_widget()
-        self.title_widget = self.ui.create_label_widget(properties={"stylesheet": "font-weight: bold"})
+        self.title_widget = self.ui.create_label_widget()
+        self.title_widget.text_font = "bold"
         task_header.add(self.title_widget)
         task_spacer_row = self.ui.create_row_widget()
         task_spacer_row_col = self.ui.create_column_widget()
@@ -143,7 +144,8 @@ class TaskSectionController(object):
         self.task_progress_label = self.ui.create_label_widget()
         self.task_progress_row.add(self.task_progress_label)
         task_time_row = self.ui.create_row_widget()
-        self.task_progress_state = self.ui.create_label_widget(properties={"stylesheet": "font: italic"})
+        self.task_progress_state = self.ui.create_label_widget()
+        self.task_progress_state.text_font = "italic"
         task_time_row.add(self.task_progress_state)
         task_spacer_row_col.add(self.task_progress_row)
         task_spacer_row_col.add(task_time_row)
@@ -362,8 +364,10 @@ class TableController(object):
                 while column_widget.child_count > row_count + 1:
                     column_widget.remove(column_widget.child_count - 1)
                 while column_widget.child_count < row_count + 1:
-                    properties = {"stylesheet": "font-weight: bold"} if column_widget.child_count == 0 else None
-                    column_widget.add(self.ui.create_label_widget(properties=properties))
+                    label_widget = self.ui.create_label_widget()
+                    if column_widget.child_count == 0:
+                        label_widget.text_font = "bold"
+                    column_widget.add(label_widget)
                 header_text = task.task_data["headers"][column_index]
                 column_widget.children[0].text = header_text
                 text_lines[0].append(header_text)

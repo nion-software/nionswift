@@ -37,7 +37,8 @@ class DisplayEditorDialog(Dialog.ActionDialog):
         text_edit_row.add_spacing(8)
 
         error_row = ui.create_row_widget(properties={"min-width": 320})  # the stylesheet allows it to shrink. guh.
-        error_label = ui.create_label_widget("\n", properties={"stylesheet": "color: red", "min-width": 120})
+        error_label = ui.create_label_widget("\n", properties={"min-width": 120})
+        error_label.text_color = "red"
         error_label.word_wrap = True
         error_row.add_spacing(8)
         error_row.add(error_label)
