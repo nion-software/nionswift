@@ -476,7 +476,7 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 class ProjectTreeWidget(Widgets.CompositeWidgetBase):
 
     def __init__(self, ui, document_controller):
-        super().__init__(ui.create_column_widget(properties={"stylesheet": "border: #F00"}))
+        super().__init__(ui.create_column_widget())
 
         column = self.content_widget
 
@@ -635,7 +635,7 @@ class ProjectListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 class ProjectsWidget(Widgets.CompositeWidgetBase):
 
     def __init__(self, ui: UserInterface.UserInterface, document_controller: "DocumentController.DocumentController"):
-        super().__init__(ui.create_column_widget(properties={"stylesheet": "border: #F00"}))
+        super().__init__(ui.create_column_widget())
 
         column = self.content_widget
 
@@ -828,7 +828,7 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 class CollectionsWidget(Widgets.CompositeWidgetBase):
 
     def __init__(self, ui, document_controller):
-        super().__init__(ui.create_column_widget(properties={"stylesheet": "border: #F00"}))
+        super().__init__(ui.create_column_widget())
 
         column = self.content_widget
 
@@ -951,7 +951,7 @@ class ProjectPanel(Panel.Panel):
         self._projects_section = ProjectsWidget(ui, document_controller)
         self._collections_section = CollectionsWidget(ui, document_controller)
 
-        column = ui.create_column_widget(properties={"stylesheet": "border: #F00"})
+        column = ui.create_column_widget()
         column.add(self._projects_section)
         column.add(self._collections_section)
         column.add_stretch()
