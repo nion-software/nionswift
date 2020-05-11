@@ -125,12 +125,13 @@ def pose_confirmation_message_box(ui, message_column, caption, accepted_fn, reje
 
 
 class ScriptListItem:
-    __version__ = "1"
+    __version__ = "2"
 
-    def __init__(self, full_path: str, indent: int = 0, show_dirname: bool = True):
+    def __init__(self, full_path: str, indent: int = 0, indent_level: int = 0, show_dirname: bool = True):
         self.__full_path = os.path.abspath(full_path)
         self._exists = None
         self.indent = indent
+        self.indent_level = indent_level
         self.show_dirname = show_dirname
 
     @property
@@ -158,6 +159,7 @@ class ScriptListItem:
                 "__type__": "ScriptListItem",
                 "full_path": self.full_path,
                 "indent": self.indent,
+                "indent_level": self.indent_level,
                 "show_dirname": self.show_dirname,
                 "_exists": self._exists}
 
@@ -192,10 +194,9 @@ class ScriptListItem:
 
 
 class FolderListItem(ScriptListItem):
-    __version__ = "1"
 
-    def __init__(self, full_path: str, content: typing.Optional[typing.List[ScriptListItem]] = None, indent: int = 0, show_dirname: bool = True):
-        super().__init__(full_path)
+    def __init__(self, full_path: str, content: typing.Optional[typing.List[ScriptListItem]] = None, indent: int = 0, indent_level: int = 0, show_dirname: bool = True):
+        super().__init__(full_path, indent=indent, indent_level=indent_level, show_dirname=show_dirname)
         self.__content = content if content is not None else list()
         self.folder_closed = True
 
@@ -209,7 +210,8 @@ class FolderListItem(ScriptListItem):
             filtered_items = list()
             for item in dirlist:
                 if filter_pattern is None or re.search(filter_pattern, item):
-                    filtered_items.append(ScriptListItem(os.path.join(self.full_path, item), indent=20, show_dirname=False))
+                    indent_level = self.indent_level + 1
+                    filtered_items.append(ScriptListItem(os.path.join(self.full_path, item), indent=indent_level*20, indent_level=indent_level, show_dirname=False))
             self.__content = filtered_items
 
     def to_dict(self) -> dict:
@@ -217,6 +219,7 @@ class FolderListItem(ScriptListItem):
                 "__type__": "FolderListItem",
                 "full_path": self.full_path,
                 "indent": self.indent,
+                "indent_level": self.indent_level,
                 "show_dirname": self.show_dirname,
                 "_exists": self._exists,
                 "__content": [item.to_dict() for item in self.content],
@@ -238,15 +241,29 @@ class FolderListItem(ScriptListItem):
         return NotImplemented
 
 
+def _upgrade_item_dict_to_version_2(item_dict):
+    if "__content" in item_dict:
+        [_upgrade_item_dict_to_version_2(content_dict) for content_dict in item_dict["__content"]]
+    if item_dict["__version__"] == "2":
+        return item_dict
+    if item_dict.get("indent") > 0:
+        item_dict["indent_level"] = 1
+    else:
+        item_dict["indent_level"] = 0
+    item_dict["__version__"] = "2"
+    return item_dict
+
+
 def _create_list_item_from_dict(item_dict) -> ScriptListItem:
     type_ = item_dict.pop("__type__")
+    item_dict = _upgrade_item_dict_to_version_2(item_dict)
     return globals()[type_].from_dict(item_dict)
 
 
 def _build_sorted_scripts_list(scripts_list: typing.List[ScriptListItem]) -> typing.List[ScriptListItem]:
         filtered_items = []
         for item in scripts_list:
-            if item.indent == 0:
+            if item.indent_level == 0:
                 filtered_items.append(item)
         filtered_items.sort()
         set_items = []
@@ -276,12 +293,49 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         self.__document_controller = document_controller
         self.__update_list_fn = update_list_fn
 
+    @staticmethod
+    def _closed_folder_icon_strings() -> typing.Tuple[str, str]:
+        if sys.platform == "win32":
+            triangle = "\N{BLACK MEDIUM RIGHT-POINTING TRIANGLE CENTRED} "
+        else:
+            triangle = f"\N{BLACK RIGHT-POINTING TRIANGLE} "
+        return triangle, f"\N{FILE FOLDER} "
+
+    @staticmethod
+    def _open_folder_icon_strings() -> typing.Tuple[str, str]:
+        if sys.platform == "win32":
+            triangle = "\N{BLACK MEDIUM DOWN-POINTING TRIANGLE CENTRED} "
+        else:
+            triangle = "\N{BLACK DOWN-POINTING TRIANGLE} "
+        return triangle, f"\N{OPEN FILE FOLDER} "
+
+    @staticmethod
+    def _file_icon_string() -> str:
+        return f"\N{PAGE FACING UP} "
+
+    @staticmethod
+    def _major_font_size() -> str:
+        return "12px"
+
+    @staticmethod
+    def _minor_font_size() -> str:
+        return "10px"
+
+    @staticmethod
+    def _major_font_color() -> str:
+        return "#000"
+
+    @staticmethod
+    def _minor_font_color() -> str:
+        return "#888"
+
     def close(self):
         ...
 
     def mouse_pressed_in_item(self, mouse_index: int, pos: Geometry.IntPoint, modifiers) -> bool:
         display_item = self.items[mouse_index]
-        if isinstance(display_item, FolderListItem) and display_item.indent < pos.x < display_item.indent + 20:
+        width = self.__ui.get_font_metrics(self._major_font_size(), self._closed_folder_icon_strings()[0]).width
+        if isinstance(display_item, FolderListItem) and display_item.indent - 4 < pos.x < display_item.indent + width + 2:
             display_item.folder_closed = not display_item.folder_closed
             self.__update_list_fn()
             return True
@@ -298,34 +352,46 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         menu.popup(gx, gy)
         return True
 
+    def __calculate_indent(self, display_item):
+        # An item that can cause an indent_level > 0 is always an open folder
+        triangle_string, icon_string = self._open_folder_icon_strings()
+        return 4 + self.__ui.get_font_metrics(self._major_font_size(), triangle_string + icon_string).width * display_item.indent_level
+
     def paint_item(self, drawing_context, display_item, rect, is_selected):
-        folder_string = ''
         if isinstance(display_item, FolderListItem):
             if display_item.folder_closed:
-                folder_string = f"\N{BLACK RIGHT-POINTING TRIANGLE} \N{FILE FOLDER} "
+                triangle_string, icon_string = self._closed_folder_icon_strings()
             else:
-                folder_string = f"\N{BLACK DOWN-POINTING SMALL TRIANGLE} \N{OPEN FILE FOLDER} "
+                triangle_string, icon_string = self._open_folder_icon_strings()
+        else:
+            triangle_string = str()
+            icon_string = self._file_icon_string()
+
+        icon_offset = self.__ui.get_font_metrics(self._major_font_size(), self._closed_folder_icon_strings()[0]).width
+        icon_width = self.__ui.get_font_metrics(self._major_font_size(), icon_string).width
 
         if isinstance(display_item, ScriptListItem):
             with drawing_context.saver():
 
-                drawing_context.fill_style = "#000"
-                drawing_context.font = "12px"
+                drawing_context.fill_style = self._major_font_color()
+                drawing_context.font = self._major_font_size()
                 drawing_context.text_align = "left"
                 drawing_context.text_baseline = "bottom"
-                name_string = folder_string + display_item.basename
-                drawing_context.fill_text(name_string, rect[0][1] + 4 + display_item.indent, rect[0][0] + 20 - 4)
-                drawing_context.fill_style = "#888"
-                drawing_context.font = "10px"
-                name_width = self.__ui.get_font_metrics("12px", name_string).width
+                name_string = display_item.basename
+                display_item.indent = self.__calculate_indent(display_item)
+                drawing_context.fill_text(triangle_string, rect[0][1] + display_item.indent, rect[0][0] + 20 - 4)
+                drawing_context.fill_text(icon_string + name_string, rect[0][1] + display_item.indent + icon_offset, rect[0][0] + 20 - 4)
+                drawing_context.fill_style = self._minor_font_color()
+                drawing_context.font = self._minor_font_color()
+                name_width = self.__ui.get_font_metrics(self._major_font_size(), name_string).width
                 if display_item.exists is not None and not display_item.exists:
                     type_str = "Folder" if type(display_item) is FolderListItem else "File"
                     drawing_context.fill_text(f"({type_str} not found)",
-                                              rect[0][1] + 4 + display_item.indent + 4 + name_width,
+                                              rect[0][1] + 4 + display_item.indent + 4 + icon_offset + icon_width + name_width,
                                               rect[0][0] + 20 - 4)
                 elif display_item.show_dirname:
                     drawing_context.fill_text(f"({display_item.dirname})",
-                                              rect[0][1] + 4 + display_item.indent + 4 + name_width,
+                                              rect[0][1] + 4 + display_item.indent + 4 + icon_offset + icon_width + name_width,
                                               rect[0][0] + 20 - 4)
 
 
