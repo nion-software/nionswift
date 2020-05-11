@@ -14,6 +14,8 @@ import locale
 from importlib import reload
 import sys
 import json
+import subprocess
+import functools
 
 # typing
 from typing import AbstractSet
@@ -257,11 +259,21 @@ def _build_sorted_scripts_list(scripts_list: typing.List[ScriptListItem]) -> typ
         return set_items
 
 
+def open_location(location: str) -> None:
+    if sys.platform == "darwin":
+        subprocess.Popen(["open", str(location)])
+    elif sys.platform == 'win32':
+        subprocess.run(['explorer', str(location)])
+    elif sys.platform == 'linux':
+        subprocess.check_call(['xdg-open', '--', str(location)])
+
+
 class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
-    def __init__(self, ui, update_list_fn: typing.Callable[[], typing.Any]):
+    def __init__(self, ui, document_controller, update_list_fn: typing.Callable[[], typing.Any]):
         super().__init__()
         self.__ui = ui
+        self.__document_controller = document_controller
         self.__update_list_fn = update_list_fn
 
     def close(self):
@@ -274,6 +286,17 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             self.__update_list_fn()
             return True
         return False
+
+    def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
+        display_item = self.items[index]
+        menu = self.__document_controller.create_context_menu()
+        if isinstance(display_item, FolderListItem):
+            menu.add_menu_item(_("Open Folder"), functools.partial(open_location, display_item.full_path))
+        elif isinstance(display_item, ScriptListItem):
+            menu = self.__document_controller.create_context_menu()
+            menu.add_menu_item(_("Open Containing Folder"), functools.partial(open_location, display_item.dirname))
+        menu.popup(gx, gy)
+        return True
 
     def paint_item(self, drawing_context, display_item, rect, is_selected):
         folder_string = ''
@@ -407,7 +430,7 @@ class RunScriptDialog(Dialog.ActionDialog):
             run_clicked()
             return True
 
-        self.scripts_list_widget = Widgets.ListWidget(ui, ScriptListCanvasItemDelegate(ui, self.rebuild_scripts_list), items=items, selection_style=Selection.Style.single_or_none, border_color="#888", properties={"min-height": 200, "min-width": 560, "size-policy-vertical": "expanding"})
+        self.scripts_list_widget = Widgets.ListWidget(ui, ScriptListCanvasItemDelegate(ui, document_controller, self.rebuild_scripts_list), items=items, selection_style=Selection.Style.single_or_none, border_color="#888", properties={"min-height": 200, "min-width": 560, "size-policy-vertical": "expanding"})
         self.scripts_list_widget.on_selection_changed = selected_changed
         self.scripts_list_widget.on_item_selected = item_selected
         self.rebuild_scripts_list()
