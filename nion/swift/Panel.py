@@ -35,11 +35,14 @@ class Panel:
 
     @classmethod
     def get_monospace_text_font(cls) -> str:
-        return "11pt monospace"
+        if sys.platform == "darwin":
+            return "11px monospace"
+        else:
+            return "12px monospace"
 
     @classmethod
     def get_monospace_proportional_line_height(cls) -> float:
-        return 1.2
+        return 1.1
 
     def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, display_name: str):
         Panel.count += 1
