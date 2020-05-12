@@ -223,6 +223,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
         self.__graphics = list()
         self.__graphic_selection = None
+        self.__pending_interval = None
 
     def close(self):
         # call super
@@ -877,17 +878,25 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def continue_tracking(self, pos, modifiers):
         if self.__tracking_selections:
             if self.__graphic_drag_item is None and not self.__graphic_drag_changed:
-                pos = self.__graphic_drag_start_pos
                 widget_mapping = self.__get_mouse_mapping()
-                x = widget_mapping.map_point_widget_to_channel_norm(pos)
-                region = Graphics.IntervalGraphic()
-                region.start = x
-                region.end = x
-                self.__undo_command = self.delegate.add_and_select_region(region)
+                x = widget_mapping.map_point_widget_to_channel_norm(self.__graphic_drag_start_pos)
+                if not self.__pending_interval:
+                    region = Graphics.IntervalGraphic()
+                    region.start = x
+                    region.end = x
+                    self.__pending_interval = region
+                    region = None
+                elif abs(widget_mapping.map_point_channel_norm_to_widget(self.__pending_interval.start) - pos.x) > self.__ui_settings.cursor_tolerance:
+                    region = self.__pending_interval
+                    self.__pending_interval = None
+                    region.end = widget_mapping.map_point_widget_to_channel_norm(pos)
+                    self.__undo_command = self.delegate.add_and_select_region(region)
+                else:
+                    region = None
                 selection_indexes = self.__graphic_selection.indexes
                 for graphic_index, graphic in enumerate(self.__graphics):
                     if graphic == region:
-                        part, specific = graphic.test(widget_mapping, self.__ui_settings, self.__graphic_drag_start_pos, False)
+                        part, specific = graphic.test(widget_mapping, self.__ui_settings, pos, False)
                         if part:
                             self.graphic_drag_item_was_selected = False
                             self.delegate.set_selection(graphic_index)
@@ -986,6 +995,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
         self.__tracking_selections = False
+        self.__pending_interval = None
         self.prepare_display()
 
     def __update_cursor_info(self):
