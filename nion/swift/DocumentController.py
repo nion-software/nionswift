@@ -2422,7 +2422,8 @@ class DocumentController(Window.Window):
                     def show_source_data_item(data_item):
                         self.select_data_item_in_data_panel(data_item)
 
-                    menu.add_menu_item("{0} \"{1}\"".format(_("Go to Source "), source_data_item.title),
+                    truncated_title = self.ui.truncate_string_to_width(str(), source_data_item.title, 280, UserInterface.TruncateModeType.MIDDLE)
+                    menu.add_menu_item("{0} \"{1}\"".format(_("Go to Source "), truncated_title),
                                        functools.partial(show_source_data_item, source_data_item))
 
             dependent_data_items = self.document_model.get_dependent_data_items(data_item)
@@ -2432,7 +2433,8 @@ class DocumentController(Window.Window):
                     def show_dependent_data_item(data_item):
                         self.select_data_item_in_data_panel(data_item)
 
-                    menu.add_menu_item("{0} \"{1}\"".format(_("Go to Dependent "), dependent_data_item.title),
+                    truncated_title = self.ui.truncate_string_to_width(str(), dependent_data_item.title, 280, UserInterface.TruncateModeType.MIDDLE)
+                    menu.add_menu_item("{0} \"{1}\"".format(_("Go to Dependent "), truncated_title),
                                        functools.partial(show_dependent_data_item, dependent_data_item))
         return menu
 
