@@ -5,6 +5,7 @@ Release Notes
 
 Version 0.15.0 (UNRELEASED)
 ---------------------------
+* (2020-5-12) Add support for exporting composite line plots to csv.
 * (2020-3-26) Allow pick computations for sequences of spectrum images.
 
 Version 0.14.8, November 27, 2019

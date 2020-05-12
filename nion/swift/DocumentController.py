@@ -801,8 +801,7 @@ class DocumentController(Window.Window):
 
     def export_file(self, display_item: DisplayItem.DisplayItem) -> None:
         # present a loadfile dialog to the user
-        data_item = display_item.data_item
-        writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
+        writers = ImportExportManager.ImportExportManager().get_writers_for_display_item(display_item)
         name_writer_dict = dict()
         for writer in writers:
             writer_key = (writer.name, " ".join(["*." + extension for extension in writer.extensions]))
@@ -818,7 +817,7 @@ class DocumentController(Window.Window):
         filter = ";;".join(filter_lines)
         filter += ";;All Files (*.*)"
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
-        export_dir = os.path.join(export_dir, data_item.title)
+        export_dir = os.path.join(export_dir, display_item.displayed_title)
         selected_filter = self.ui.get_persistent_string("export_filter")
         path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, selected_filter)
         selected_writer = filter_line_to_writer_map.get(selected_filter)
