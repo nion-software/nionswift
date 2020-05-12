@@ -15,6 +15,7 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift.model import DataItem
+from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
@@ -239,6 +240,65 @@ class TestImportExportManagerClass(unittest.TestCase):
         self.assertEqual(data_item.metadata["description"]["time_zone"]["tz"], "+0300")
         self.assertEqual(data_item.metadata["description"]["time_zone"]["dst"], "+60")
         self.assertEqual("2013-11-18 14:05:04.000001", str(data_item.created))
+
+    def test_csv1_exporter_handles_multi_layer_display_item_with_same_calibration(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.full((50, ), 0, dtype=numpy.uint32))
+            data_item.intensity_calibration = Calibration.Calibration(offset=10, scale=2)
+            data_item2 = DataItem.DataItem(numpy.full((100, ), 1, dtype=numpy.uint32))
+            data_item2.intensity_calibration = Calibration.Calibration(offset=5, scale=2)
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2, False)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            current_working_directory = os.getcwd()
+            file_path = os.path.join(current_working_directory, "__file.csv")
+            handler = ImportExportManager.CSV1ImportExportHandler("csv1-io-handler", "CSV 1D", ["csv"])
+            handler.write_display_item(None, display_item, file_path, "csv")
+            self.assertTrue(os.path.exists(file_path))
+            try:
+                saved_data = numpy.genfromtxt(file_path, delimiter=", ")
+                self.assertSequenceEqual(saved_data.shape, (max(data_item.xdata.data_shape[0], data_item2.xdata.data_shape[0]), 3))
+                self.assertTrue(numpy.allclose(saved_data[:, 0], numpy.linspace(0, 99, 100)))
+                self.assertTrue(numpy.allclose(saved_data[:50, 1], 10))
+                self.assertTrue(numpy.allclose(saved_data[:, 2], 7))
+                with open(file_path) as f:
+                    print(f.readline())
+            finally:
+                os.remove(file_path)
+
+    def test_csv1_exporter_handles_multi_layer_display_item_with_different_calibration(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.full((50, ), 0, dtype=numpy.uint32))
+            data_item.dimensional_calibrations = [Calibration.Calibration(offset=0, scale=1, units="eV")]
+            data_item.intensity_calibration = Calibration.Calibration(offset=10, scale=2)
+            data_item2 = DataItem.DataItem(numpy.full((100, ), 1, dtype=numpy.uint32))
+            data_item2.dimensional_calibrations = [Calibration.Calibration(offset=-10, scale=2, units="eV")]
+            data_item2.intensity_calibration = Calibration.Calibration(offset=5, scale=2)
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2, False)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            current_working_directory = os.getcwd()
+            file_path = os.path.join(current_working_directory, "__file.csv")
+            handler = ImportExportManager.CSV1ImportExportHandler("csv1-io-handler", "CSV 1D", ["csv"])
+            handler.write_display_item(None, display_item, file_path, "csv")
+            self.assertTrue(os.path.exists(file_path))
+            try:
+                saved_data = numpy.genfromtxt(file_path, delimiter=", ")
+                self.assertSequenceEqual(saved_data.shape, (max(data_item.xdata.data_shape[0], data_item2.xdata.data_shape[0]), 4))
+                self.assertTrue(numpy.allclose(saved_data[:50, 0], numpy.linspace(0, 49, 50)))
+                self.assertTrue(numpy.allclose(saved_data[:50, 1], 10))
+                self.assertTrue(numpy.allclose(saved_data[:, 2], numpy.linspace(-10, 188, 100)))
+                self.assertTrue(numpy.allclose(saved_data[:, 3], 7))
+                with open(file_path) as f:
+                    print(f.readline())
+            finally:
+                os.remove(file_path)
 
 
 if __name__ == '__main__':

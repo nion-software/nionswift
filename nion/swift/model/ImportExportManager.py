@@ -8,6 +8,7 @@ import pathlib
 import typing
 import uuid
 import zipfile
+import itertools
 
 # third party libraries
 import numpy
@@ -39,6 +40,7 @@ class ImportExportHandler:
         self.io_handler_id = io_handler_id
         self.name = name
         self.extensions = extensions
+        self.supports_composite_data = False
 
     def can_read(self):
         return True
@@ -127,6 +129,16 @@ class ImportExportManager(metaclass=Utility.Singleton):
                         writers.append(io_handler)
         return writers
 
+    def get_writers_for_display_item(self, display_item):
+        writers = self.get_writers_for_data_item(display_item.data_items[0]) if display_item.data_items else list()
+        if len(display_item.data_items) > 1:
+            composite_writers = list()
+            for writer in writers:
+                if writer.supports_composite_data:
+                    composite_writers.append(writer)
+            writers = composite_writers
+        return writers
+
     # read file, return data items
     def read_data_items(self, ui, path):
         root, extension = os.path.splitext(path)
@@ -154,7 +166,7 @@ class ImportExportManager(metaclass=Utility.Singleton):
         if extension:
             extension = extension[1:]  # remove the leading "."
             extension = extension.lower()
-            data_metadata = display_item.data_item.data_metadata
+            data_metadata = display_item.data_items[0].data_metadata if display_item.data_items else None
             if extension in writer.extensions and data_metadata and writer.can_write(data_metadata, extension):
                 writer.write_display_item(ui, display_item, path_str, extension)
 
@@ -506,6 +518,7 @@ class CSV1ImportExportHandler(ImportExportHandler):
 
     def __init__(self, io_handler_id, name, extensions):
         super().__init__(io_handler_id, name, extensions)
+        self.supports_composite_data = True
 
     def read_data_elements(self, ui, extension, path):
         return None
@@ -514,17 +527,44 @@ class CSV1ImportExportHandler(ImportExportHandler):
         return x_data and x_data.is_data_1d
 
     def write_display_item(self, ui, display_item: DisplayItem.DisplayItem, path_str: str, extension: str) -> None:
-        data_item = display_item.data_item
-        data = data_item.data
-        calibration = data_item.xdata.dimensional_calibrations[0]
-        intensity_calibration = data_item.xdata.intensity_calibration
-        if data is not None:
-            calibrated_data = numpy.empty(data.shape + (2,), data.dtype)
-            length = calibrated_data.shape[0]
-            calibrated_data[:, 0] = numpy.linspace(calibration.offset, calibration.offset + (length - 1) * calibration.scale, length)
-            calibrated_data[:, 1] = intensity_calibration.offset + data * intensity_calibration.scale
-            header = str(calibration.units) + ", " + str(intensity_calibration.units)
-            numpy.savetxt(path_str, calibrated_data, delimiter=', ', header=header)
+        data_items = display_item.data_items
+        assert all([data_item.is_data_1d for data_item in data_items])
+
+        def calibrate(calibration, data):
+            return calibration.offset + data * calibration.scale
+
+        def make_x_data(calibration, length):
+            return numpy.linspace(calibration.offset, calibration.offset + (length - 1) * calibration.scale, length)
+
+        calibration = data_items[0].xdata.dimensional_calibrations[0]
+        if all([calibration == data_item.xdata.dimensional_calibrations[0] for data_item in data_items]):
+            length = max([data_item.xdata.data_shape[0] for data_item in data_items])
+            data_list = [make_x_data(calibration, length)]
+            headers = [f"X ({calibration.units or 'pixel'})"]
+            for data_item, display_layer in zip(data_items, display_item.display_layers):
+                data_list.append(calibrate(data_item.xdata.intensity_calibration, data_item.xdata.data))
+                headers.append(display_layer.get("label", f"Data {display_layer['data_index']}") + f" ({data_item.xdata.intensity_calibration.units or 'None'})")
+        else:
+            data_list = list()
+            headers = list()
+            for data_item, display_layer in zip(data_items, display_item.display_layers):
+                data_list.extend([make_x_data(data_item.dimensional_calibrations[0], data_item.xdata.data_shape[0]),
+                                  calibrate(data_item.intensity_calibration, data_item.xdata.data)])
+                headers.extend(["X " + display_layer.get("label", f"Data {display_layer['data_index']}") + f" ({data_item.xdata.dimensional_calibrations[0].units or 'pixel'})",
+                                "Y " + display_layer.get("label", f"Data {display_layer['data_index']}") + f" ({data_item.xdata.intensity_calibration.units or 'None'})"])
+
+        newline = "\n"
+        delimiter = ", "
+        format_ = "{}" # We need to stick with an empty format string here, otherwise we will have problems with the
+                       # fill value of zip_longest
+        row_template = delimiter.join([format_] * len(data_list))
+        row_template += newline
+        header_template = "# " + row_template
+
+        with open(path_str, "w+") as f:
+            f.write(header_template.format(*headers))
+            for row in itertools.zip_longest(*data_list, fillvalue=""):
+                f.write(row_template.format(*row))
 
 
 class NDataImportExportHandler(ImportExportHandler):
