@@ -729,6 +729,10 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 self.content_widget.add(content_row)
                 self.content_widget.add(fill_color_row)
                 self.content_widget.add(stroke_color_row)
+                # complex display type
+                complex_display_type_row, self.__complex_display_type_changed_listener = make_complex_display_type_chooser(document_controller, display_item.display_data_channels[index])
+                if complex_display_type_row:
+                    self.content_widget.add(complex_display_type_row)
                 # save for populate
                 self.__label_edit_widget = label_edit_widget
                 self.__display_data_channel_index_widget = display_data_channel_index_widget
@@ -742,6 +746,9 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 self.__display_data_channel_row_widget = None
                 self.__fill_color_widget = None
                 self.__stroke_color_widget = None
+                if self.__complex_display_type_changed_listener:
+                    self.__complex_display_type_changed_listener.close()
+                    self.__complex_display_type_changed_listener = None
                 super().close()
 
             def populate(self, display_layer: dict) -> None:
@@ -799,6 +806,9 @@ class ImageDataInspectorSection(InspectorSection):
         # color map
         color_map_row, self.__color_map_changed_listener = make_color_map_chooser(document_controller, display_data_channel)
 
+        # complex display type
+        complex_display_type_row, self.__complex_display_type_changed_listener = make_complex_display_type_chooser(document_controller, display_data_channel)
+
         # data_range model
         self.__data_range_model = Model.PropertyModel()
 
@@ -852,6 +862,8 @@ class ImageDataInspectorSection(InspectorSection):
         self.add_widget_to_content(self.display_limits_range_row)
         self.add_widget_to_content(self.display_limits_limit_row)
         self.add_widget_to_content(color_map_row)
+        if complex_display_type_row:
+            self.add_widget_to_content(complex_display_type_row)
 
         self.finish_widget_content()
 
@@ -870,6 +882,9 @@ class ImageDataInspectorSection(InspectorSection):
         self.__display_limits_model = None
         self.__color_map_changed_listener.close()
         self.__color_map_changed_listener = None
+        if self.__complex_display_type_changed_listener:
+            self.__complex_display_type_changed_listener.close()
+            self.__complex_display_type_changed_listener = None
         self.__next_calculated_display_values_listener.close()
         self.__next_calculated_display_values_listener = None
         self.__data_range_model.close()
@@ -1419,6 +1434,34 @@ def make_color_map_chooser(document_controller, display_data_channel: DisplayIte
     color_map_row.add_stretch()
     return color_map_row, listener
 
+def make_complex_display_type_chooser(document_controller, display_data_channel: DisplayItem.DisplayDataChannel, include_log_abs=True):
+    if not (display_data_channel.data_item and display_data_channel.data_item.is_data_complex_type):
+        return None, None
+    ui = document_controller.ui
+    display_type_row = ui.create_row_widget()
+    display_type_options = [(_("Log Absolute"), "log-absolute")] if include_log_abs else list()
+    display_type_options.extend([(_("Absolute"), "absolute"), (_("Real"), "real"), (_("Imaginary"), "imaginary")])
+    display_type_reverse_map = {p[1]: i for i, p in enumerate(display_type_options)}
+    display_type_chooser = ui.create_combo_box_widget(items=display_type_options, item_getter=operator.itemgetter(0))
+
+    def property_changed(name):
+        if name == "complex_display_type":
+            display_type_chooser.current_index = display_type_reverse_map[display_data_channel.complex_display_type]
+
+    listener = display_data_channel.property_changed_event.listen(property_changed)
+
+    def change_display_type(item):
+        if display_data_channel.complex_display_type != item[1]:
+            command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, complex_display_type=item[1])
+            command.perform()
+            document_controller.push_undo_command(command)
+
+    display_type_chooser.on_current_item_changed = change_display_type
+    display_type_chooser.current_index = display_type_reverse_map.get(display_data_channel.complex_display_type, 0)
+    display_type_row.add(ui.create_label_widget(_("Complex Display Type:"), properties={"width": 120}))
+    display_type_row.add(display_type_chooser)
+    display_type_row.add_stretch()
+    return display_type_row, listener
 
 class ImageDisplayInspectorSection(InspectorSection):
     """Display type inspector."""
