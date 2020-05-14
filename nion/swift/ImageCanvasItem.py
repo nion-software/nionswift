@@ -666,6 +666,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         return self.delegate.image_clicked(image_position, modifiers)
 
     def mouse_double_clicked(self, x, y, modifiers):
+        # let the image panel handle mouse clicking if desired
+        image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
+        if self.delegate.image_mouse_double_clicked(image_position, modifiers):
+            return True
         self.set_fit_mode()
         return True
 

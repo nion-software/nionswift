@@ -1407,6 +1407,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def image_clicked(self, image_position, modifiers):
         return DisplayPanelManager().image_display_clicked(self, self.__display_item, image_position, modifiers)
 
+    def image_mouse_double_clicked(self, image_position, modifiers):
+        return DisplayPanelManager().image_display_mouse_double_clicked(self, self.__display_item, image_position, modifiers)
+
     def image_mouse_pressed(self, image_position, modifiers):
         return DisplayPanelManager().image_display_mouse_pressed(self, self.__display_item, image_position, modifiers)
 
@@ -1988,6 +1991,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         self.key_pressed_event = Event.Event()
         self.key_released_event = Event.Event()
         self.image_display_clicked_event = Event.Event()
+        self.image_display_mouse_double_clicked_event = Event.Event()
         self.image_display_mouse_pressed_event = Event.Event()
         self.image_display_mouse_released_event = Event.Event()
         self.image_display_mouse_position_changed_event = Event.Event()
@@ -2002,6 +2006,9 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
 
     def image_display_clicked(self, display_panel, display_item, image_position, modifiers):
         return self.image_display_clicked_event.fire_any(display_panel, display_item, image_position, modifiers)
+
+    def image_display_mouse_double_clicked(self, display_panel, display_item, image_position, modifiers):
+        return self.image_display_mouse_double_clicked_event.fire_any(display_panel, display_item, image_position, modifiers)
 
     def image_display_mouse_pressed(self, display_panel, display_item, image_position, modifiers):
         return self.image_display_mouse_pressed_event.fire_any(display_panel, display_item, image_position, modifiers)
