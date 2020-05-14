@@ -783,7 +783,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
     def get_calculated_display_values(self, immediate: bool=False) -> DisplayValues:
         """Return the display values.
 
-        Return the current (possibly uncalculated) display values unless 'immediate' is specified.
+        Return the current (possibly not calculated) display values unless 'immediate' is specified.
 
         If 'immediate', return the existing (calculated) values if they exist. Using the 'immediate' values
         avoids calculation except in cases where the display values haven't already been calculated.

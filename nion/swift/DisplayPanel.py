@@ -2089,7 +2089,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
 def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.DisplayItem, width: int, height: int) -> typing.Tuple[DrawingContext.DrawingContext, Geometry.IntSize]:
     drawing_context = DrawingContext.DrawingContext()
     shape = Geometry.IntSize()
-    display_values_list = [display_data_channel.get_calculated_display_values(True) for display_data_channel in display_item.display_data_channels]
+    display_values_list = [display_data_channel.get_calculated_display_values() for display_data_channel in display_item.display_data_channels]
     display_canvas_item = create_display_canvas_item(display_item, ui_settings, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
