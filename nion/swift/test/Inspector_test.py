@@ -386,6 +386,7 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_type = "line_plot"
+            self.assertEqual(1, len(display_item.display_layers))
             display_panel.set_display_panel_display_item(display_item)
             inspector_panel = document_controller.find_dock_panel("inspector-panel")
             document_controller.periodic()

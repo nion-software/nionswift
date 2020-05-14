@@ -1005,7 +1005,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.display_changed_event.fire()
         self.graphics_changed_event.fire(self.graphic_selection)
         if self.display_type == "line_plot":
-            if self.display_data_shape:
+            if self.display_data_shape and len(self.display_data_shape) == 2:
                 index = 0
                 while len(self.display_layers) < min(self.display_data_shape[0], 8):
                     self.__add_display_layer_auto(dict(), 0, index)
