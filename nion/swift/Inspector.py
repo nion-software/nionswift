@@ -730,7 +730,8 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 self.content_widget.add(fill_color_row)
                 self.content_widget.add(stroke_color_row)
                 # complex display type
-                complex_display_type_row, self.__complex_display_type_changed_listener = make_complex_display_type_chooser(document_controller, display_item.display_data_channels[index])
+                data_index = display_item.display_layers[index].get("data_index")  # use layers to find data index to handle various data groupings, e.g. 1 x (2, 32) or 2 x (32, )
+                complex_display_type_row, self.__complex_display_type_changed_listener = make_complex_display_type_chooser(document_controller, display_item.display_data_channels[data_index])
                 if complex_display_type_row:
                     self.content_widget.add(complex_display_type_row)
                 # save for populate
