@@ -119,6 +119,10 @@ class CollectionDisplayItemCounter:
         self.on_title_changed = None
         self.__count = 0
 
+        # useful for drag and drop
+        self.document_controller = document_controller
+        self.document_model = document_controller.document_model
+
         container = self.__data_group or document_controller.document_model
 
         def count_changed(count: Observer.ItemValue) -> None:
