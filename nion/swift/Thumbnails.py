@@ -16,6 +16,7 @@ from nion.swift import DisplayPanel
 from nion.swift.model import Utility
 from nion.swift.model import DisplayItem
 from nion.ui import DrawingContext
+from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import ReferenceCounting
 
@@ -29,14 +30,9 @@ class ThumbnailProcessor:
         self.__display_item_about_to_close_listener = self.__display_item.about_to_close_event.listen(self.__about_to_close_display_item)
         self.__cache = self.__display_item._display_cache
         self.__cache_property_name = "thumbnail_data"
-        # the next two fields represent a memory cache -- a cache of the cache values.
-        # if self.__cached_value_dirty is None then this first level cache has not yet
-        # been initialized. these fields are used for optimization.
-        self.__cached_value = None
-        self.__cached_value_dirty = None
         self.__cached_value_time = 0
-        self.__is_recomputing = False
         self.__is_recomputing_lock = threading.RLock()
+        self.__is_recompute_pending = False
         self.width = 72
         self.height = 72
         self.on_thumbnail_updated = None
@@ -46,70 +42,62 @@ class ThumbnailProcessor:
 
     def close(self):
         self.on_thumbnail_updated = None
-        with self.__is_recomputing_lock:
-            if self.__recompute_future:
-                self.__recompute_thread_cancel.set()
-                concurrent.futures.wait([self.__recompute_future])
+        recompute_future = self.__recompute_future  # avoid race by using local
+        if recompute_future:
+            self.__recompute_thread_cancel.set()
+            concurrent.futures.wait([recompute_future])
 
     def __about_to_close_display_item(self) -> None:
-        with self.__is_recomputing_lock:
-            if self.__recompute_future:
-                self.__recompute_thread_cancel.set()
-                concurrent.futures.wait([self.__recompute_future])
+        recompute_future = self.__recompute_future  # avoid race by using local
+        if recompute_future:
+            self.__recompute_thread_cancel.set()
+            concurrent.futures.wait([recompute_future])
         self.__display_item = None
 
-    # used for testing
+    # used internally and for testing
     @property
     def _is_cached_value_dirty(self):
-        return self.__cached_value_dirty
+        return self.__cache.is_cached_value_dirty(self.__display_item, self.__cache_property_name)
 
     # thread safe
     def mark_data_dirty(self):
         """ Called from item to indicate its data or metadata has changed."""
         self.__cache.set_cached_value_dirty(self.__display_item, self.__cache_property_name)
-        self.__initialize_cache()
-        self.__cached_value_dirty = True
 
-    def __initialize_cache(self):
-        """Initialize the cache values (cache values are used for optimization)."""
-        if self.__cached_value_dirty is None:
-            self.__cached_value_dirty = self.__cache.is_cached_value_dirty(self.__display_item, self.__cache_property_name)
-            self.__cached_value = self.__cache.get_cached_value(self.__display_item, self.__cache_property_name)
+    def __get_cached_value(self) -> typing.Optional[numpy.ndarray]:
+        return self.__cache.get_cached_value(self.__display_item, self.__cache_property_name)
 
-    def recompute_if_necessary(self, ui):
-        """Recompute the data on a thread, if necessary.
-
-        This may be called on the main thread or a thread. It must return quickly in both cases.
-
-        If the data has recently been computed, this call will be rescheduled for the future.
-
-        If the data is currently being computed, it do nothing."""
-        self.__initialize_cache()
-        if self.__cached_value_dirty:
-            with self.__is_recomputing_lock:
-                is_recomputing = self.__is_recomputing
-                self.__is_recomputing = True
-            if is_recomputing:
-                pass
-            else:
-                # the only way to get here is if we're not currently computing
-                # this has the side effect of limiting the number of threads that
-                # are sleeping.
-                def recompute():
-                    try:
-                        if self.__recompute_thread_cancel.wait(0.01):  # helps tests run faster
-                            return
-                        minimum_time = 0.5
-                        current_time = time.time()
-                        if current_time < self.__cached_value_time + minimum_time:
-                            if self.__recompute_thread_cancel.wait(self.__cached_value_time + minimum_time - current_time):
-                                return
-                        self.recompute_data(ui)
-                    finally:
-                        self.__is_recomputing = False
-                        self.__recompute_future = None
+    def __recompute_task(self, ui: UserInterface.UserInterface) -> None:
+        while True:
+            try:
+                if self.__recompute_thread_cancel.wait(0.05):  # gather changes and helps tests run faster
+                    return
+                minimum_time = 0.5
+                current_time = time.time()
+                if current_time < self.__cached_value_time + minimum_time:
+                    if self.__recompute_thread_cancel.wait(self.__cached_value_time + minimum_time - current_time):
+                        return
+                self.__is_recompute_pending = False  # any pending calls up to this point will be realized in the recompute
+                self.recompute_data(ui)
+            finally:
                 with self.__is_recomputing_lock:
-                    self.__recompute_future = ThumbnailProcessor._executor.submit(recompute)
+                    # the only way the thread can end is if not pending within lock.
+                    # recompute_future can only be set within lock.
+                    if not self.__is_recompute_pending:
+                        self.__recompute_future = None
+                        break
+
+    def recompute(self, ui: UserInterface.UserInterface) -> None:
+        # recompute the thumbnail data on a thread.
+        # if already computing, ensure the thread recomputes again.
+        # may be called on the main thread or a thread - must return quickly in both cases.
+        with self.__is_recomputing_lock:
+            # in case thread is already running, set pending.
+            # the only way the thread can end is if not pending within lock.
+            # recompute_future can only be set within lock.
+            self.__is_recompute_pending = True
+            if not self.__recompute_future:
+                self.__recompute_future = ThumbnailProcessor._executor.submit(self.__recompute_task, ui)
 
     def recompute_data(self, ui):
         """Compute the data associated with this processor.
@@ -118,28 +106,18 @@ class ThumbnailProcessor:
          the UI thread. Upon return, the results will be calculated with the latest data available
          and the cache will not be marked dirty.
         """
-        self.__initialize_cache()
         with self.__recompute_lock:
-            if self.__cached_value_dirty:
-                try:
-                    calculated_data = self.__get_calculated_data(ui)
-                except Exception as e:
-                    import traceback
-                    traceback.print_exc()
-                    traceback.print_stack()
-                    raise
-                self.__cache.set_cached_value(self.__display_item, self.__cache_property_name, calculated_data)
-                self.__cached_value = calculated_data
-                self.__cached_value_dirty = False
-                self.__cached_value_time = time.time()
-            else:
-                calculated_data = None
+            try:
+                calculated_data = self.__get_calculated_data(ui)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+                raise
             if calculated_data is None:
                 calculated_data = numpy.zeros((self.height, self.width), dtype=numpy.uint32)
-                self.__cache.set_cached_value(self.__display_item, self.__cache_property_name, calculated_data)
-                self.__cached_value = calculated_data
-                self.__cached_value_dirty = False
-                self.__cached_value_time = time.time()
+            self.__cache.set_cached_value(self.__display_item, self.__cache_property_name, calculated_data)
+            self.__cached_value_time = time.time()
         if callable(self.on_thumbnail_updated):
             self.on_thumbnail_updated()
 
@@ -148,8 +126,7 @@ class ThumbnailProcessor:
 
         This method is thread safe and always returns quickly, using the cached data.
         """
-        self.__initialize_cache()
-        return self.__cached_value
+        return self.__get_cached_value()
 
     def __get_calculated_data(self, ui):
         drawing_context, shape = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(ui), self.__display_item, 512, 512)
@@ -176,7 +153,7 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
             thumbnail_processor = self.__thumbnail_processor
             if thumbnail_processor:
                 thumbnail_processor.mark_data_dirty()
-                thumbnail_processor.recompute_if_necessary(ui)
+                thumbnail_processor.recompute(ui)
 
         self.__display_changed_event_listener = display_item.display_changed_event.listen(thumbnail_changed)
 
@@ -185,7 +162,9 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
 
         self.__thumbnail_processor.on_thumbnail_updated = thumbnail_updated
 
-        self.__thumbnail_processor.recompute_if_necessary(ui)
+        # initial recompute, if required
+        if self.__thumbnail_processor._is_cached_value_dirty:
+            self.__thumbnail_processor.recompute(ui)
 
         def display_item_will_close():
             if self.__thumbnail_processor:
