@@ -3,6 +3,7 @@ import contextlib
 import locale
 import logging
 import math
+import typing
 import unittest
 import uuid
 
@@ -407,6 +408,34 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
             inspector_sections = list(type(i) for i in inspector_panel._get_inspector_sections())
             self.assertIn(Inspector.LinePlotDisplayInspectorSection, inspector_sections)
+
+    def test_line_plot_with_data_item_with_multiple_rows_adds_display_layer_for_each_row(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((2, 32)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
+            self.assertEqual(2, len(display_item.display_layers))
+            display_item.display_type = "image"
+            self.assertEqual(1, len(display_item.display_layers))
+
+    def test_line_plot_with_one_data_items_and_two_rows_and_two_layers_displays_inspector(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((2, 32)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.add_display_layer(data_index=0, data_row=1)
+            display_item.display_type = "line_plot"
+            display_panel.set_display_panel_display_item(display_item)
+            inspector_panel = typing.cast(Inspector.InspectorPanel, document_controller.find_dock_panel("inspector-panel"))
+            document_controller.periodic()
+            self.assertIn(Inspector.LinePlotDisplayInspectorSection, (type(i) for i in inspector_panel._get_inspector_sections()))
 
     def test_line_plot_with_two_data_items_interval_inspector(self):
         document_model = DocumentModel.DocumentModel()

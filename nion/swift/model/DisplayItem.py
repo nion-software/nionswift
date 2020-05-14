@@ -1004,6 +1004,15 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.display_values_changed_event.fire()
         self.display_changed_event.fire()
         self.graphics_changed_event.fire(self.graphic_selection)
+        if self.display_type == "line_plot":
+            if self.display_data_shape:
+                index = 0
+                while len(self.display_layers) < min(self.display_data_shape[0], 8):
+                    self.__add_display_layer_auto(dict(), 0, index)
+                    index += 1
+        else:
+            while len(self.display_layers) > 1:
+                self.remove_display_layer(len(self.display_layers) - 1)
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -1419,11 +1428,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         if len(self.display_layers) == 2 and self.get_display_property("legend_position") is None:
             self.set_display_property("legend_position", "top-right")
 
-    def __add_display_layer_auto(self, display_layer: typing.Dict, data_index: int) -> None:
+    def __add_display_layer_auto(self, display_layer: typing.Dict, data_index: int, data_row: typing.Optional[int] = 0) -> None:
         # this fill color code breaks encapsulation. i'm leaving it here as a convenience for now.
         # eventually there should be a connection to a display controller based on the display type which can be
         # used to set defaults for the layers.
         display_layer["data_index"] = data_index
+        if data_row is not None:
+            display_layer["data_row"] = data_row
         display_layer.setdefault("fill_color", self.__get_unique_display_layer_color())
         self.add_display_layer(**display_layer)
         self.__auto_display_legend()
