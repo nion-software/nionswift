@@ -64,11 +64,12 @@ class TestLineGraphCanvasItem(unittest.TestCase):
     def test_display_limits_are_reasonable_when_using_calibrated_log_scale(self):
         intensity_calibration = Calibration.Calibration(-5, 2)
         data = numpy.linspace(-0.1, 10.0, 10)
+        # same as data = np.linspace(-0.1, 10.0, 10) * 2 - 5 with default calibration
         data_style = "log"
         calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([data], None, None, intensity_calibration, data_style)
         axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, y_calibration=intensity_calibration, data_style=data_style, y_ticker=y_ticker)
         self.assertAlmostEqual(axes.calibrated_data_min, 0.0)
-        self.assertAlmostEqual(axes.calibrated_data_max, 1.5)  # empirically mesaured
+        self.assertAlmostEqual(axes.calibrated_data_max, 2.0)  # empirically mesaured
         calibrated_data = axes.calculate_calibrated_xdata(DataAndMetadata.new_data_and_metadata(data)).data
         self.assertAlmostEqual(numpy.amin(calibrated_data), math.log10(1.0))
         self.assertAlmostEqual(numpy.amax(calibrated_data), math.log10(15.0))

@@ -94,7 +94,10 @@ def calculate_y_axis(uncalibrated_data_list, data_min, data_max, y_calibration, 
         calibrated_data_max = 0.0 if calibrated_data_max < 0 and not max_specified else calibrated_data_max
 
     logarithmic = data_style == "log"
-    ticker = Geometry.Ticker(calibrated_data_min, calibrated_data_max, logarithmic=logarithmic)
+    if logarithmic:
+        ticker = Geometry.LogTicker(calibrated_data_min, calibrated_data_max)
+    else:
+        ticker = Geometry.LinearTicker(calibrated_data_min, calibrated_data_max)
 
     if not min_specified:
         calibrated_data_min = ticker.minimum
