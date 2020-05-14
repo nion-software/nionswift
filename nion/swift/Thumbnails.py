@@ -79,6 +79,8 @@ class ThumbnailProcessor:
     def recompute_if_necessary(self, ui):
         """Recompute the data on a thread, if necessary.
 
+        This may be called on the main thread or a thread. It must return quickly in both cases.
+
         If the data has recently been computed, this call will be rescheduled for the future.
 
         If the data is currently being computed, it do nothing."""
@@ -140,15 +142,6 @@ class ThumbnailProcessor:
                 self.__cached_value_time = time.time()
         if callable(self.on_thumbnail_updated):
             self.on_thumbnail_updated()
-
-    def get_data(self, ui):
-        """Return the computed data for this processor.
-
-        This method is thread safe but may take a long time to return since it may have to compute
-         the results. It should not be called from the UI thread.
-        """
-        self.recompute_data(ui)
-        return self.get_cached_data()
 
     def get_cached_data(self):
         """Return the cached data for this processor.

@@ -724,11 +724,11 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.__slice_interval = self.slice_interval
 
     def __color_map_id_changed(self, property_name, value):
-        self.__property_changed(property_name, value)
         if value:
             self.__color_map_data = ColorMaps.get_color_map_data_by_id(value)
         else:
             self.__color_map_data = None
+        self.__property_changed(property_name, value)
         self.__property_changed("color_map_data", self.__color_map_data)
 
     @property
@@ -1238,7 +1238,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         # the data changed messages.
         self.item_changed_event.fire()
 
-    def __display_channel_property_changed(self, name):
+    def __display_channel_property_changed(self, name: str) -> None:
         self.display_changed_event.fire()
 
     @property
