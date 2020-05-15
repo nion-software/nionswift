@@ -942,6 +942,55 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.stroke()
 
 
+class Exponenter:
+
+    def __init__(self):
+        self.__labels_list = list()
+
+    def add_label(self, label: str) -> None:
+        labels = label.lower().split("e")
+        if len(labels) == 2:
+            labels[1] = str(int(labels[1]))
+            self.__labels_list.append(labels)
+        else:
+            self.__labels_list.append(labels + [""])
+
+    def used_labels(self, label: str) -> typing.Tuple[str, str]:
+        labels = label.lower().split("e")
+        if len(labels) == 2:
+            labels[1] = str(int(labels[1]))
+            if set(labels[1] for labels in self.__labels_list) == {"0"}:
+                return labels[0], ""
+            if set(labels[0] for labels in self.__labels_list) == {"1"}:
+                return "10", labels[1]
+            return labels[0] + " x 10", labels[1]
+        else:
+            return labels[0], ""
+
+    def draw_scientific_notation(self, drawing_context: DrawingContext.DrawingContext, ui_settings: UISettings.UISettings, fonts: typing.Tuple[str, str], label: str, width: int, y: int) -> None:
+        labels = self.used_labels(label)
+        if labels[1] is not None:
+            mw = max(ui_settings.get_font_metrics(fonts[1], _labels[1]).width for _labels in self.__labels_list)
+            w = ui_settings.get_font_metrics(fonts[1], labels[1])
+            drawing_context.font = fonts[0]
+            drawing_context.text_align = "right"
+            drawing_context.fill_text(labels[0], width - mw, y)
+            drawing_context.font = fonts[1]
+            drawing_context.text_align = "left"
+            drawing_context.fill_text(labels[1], width - mw, y - 4)
+        else:
+            drawing_context.fill_text(label, width, y)
+
+
+def calculate_scientific_notation_drawing_width(ui_settings: UISettings.UISettings, fonts: typing.Tuple[str, str], label: str) -> int:
+    labels = label.lower().split("e")
+    if len(labels) == 2:
+        labels[0] = labels[0] + " x 10"
+        labels[1] = str(int(labels[1]))
+    return sum(ui_settings.get_font_metrics(font, label).width for font, label in zip(fonts, labels))
+
+
+
 class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the vertical scale."""
 
@@ -949,6 +998,8 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         super().__init__()
         self.__axes = None
         self.font_size = 12
+        self.__fonts = ("{0:d}px".format(self.font_size), "{0:d}px".format(int(self.font_size * 0.8)))
+        self.__ui_settings = None
 
     def size_to_content(self, ui_settings: UISettings.UISettings):
         """ Size the canvas item to the proper width, the maximum of any label. """
@@ -959,21 +1010,17 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
         axes = self.__axes
         if axes and axes.is_valid:
-
             # calculate the width based on the label lengths
-            font = "{0:d}px".format(self.font_size)
-
             max_width = 0
             y_range = axes.calibrated_value_max - axes.calibrated_value_min
-            label = axes.y_ticker.value_label(axes.calibrated_value_max + y_range * 5)
-            max_width = max(max_width, ui_settings.get_font_metrics(font, label).width)
-            label = axes.y_ticker.value_label(axes.calibrated_value_min - y_range * 5)
-            max_width = max(max_width, ui_settings.get_font_metrics(font, label).width)
-
+            max_width = max(max_width, calculate_scientific_notation_drawing_width(ui_settings, self.__fonts, axes.y_ticker.value_label(axes.calibrated_value_max + y_range * 5)))
+            max_width = max(max_width, calculate_scientific_notation_drawing_width(ui_settings, self.__fonts, axes.y_ticker.value_label(axes.calibrated_value_min - y_range * 5)))
             new_sizing.minimum_width = max_width
             new_sizing.maximum_width = max_width
 
         self.update_sizing(new_sizing)
+
+        self.__ui_settings = ui_settings  # hack
 
     def set_axes(self, axes, ui_settings: UISettings.UISettings) -> None:
         if not are_axes_equal(self.__axes, axes):
@@ -995,23 +1042,30 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             y_ticks = axes.calculate_y_ticks(plot_height, flag_minor=True)
             include_minor_ticks = plot_height / self.font_size > 2.5 * axes.y_ticker.ticks
             at_least_one = False
+
+            e = Exponenter()
+            for y, label, is_minor in y_ticks:
+                if include_minor_ticks or not is_minor:
+                    e.add_label(label)
+                    at_least_one = True
+
             # draw the y_ticks and labels
             with drawing_context.saver():
                 drawing_context.text_baseline = "middle"
                 drawing_context.font = "{0:d}px".format(self.font_size)
+                label = None  # satisfy static analysis checker
+                y = None
                 for y, label, is_minor in y_ticks:
                     drawing_context.begin_path()
                     drawing_context.stroke_style = '#888'
                     drawing_context.stroke()
                     if include_minor_ticks or not is_minor:
-                        drawing_context.text_align = "right"
                         drawing_context.fill_style = "#000"
-                        drawing_context.fill_text(label, width, y)
+                        e.draw_scientific_notation(drawing_context, self.__ui_settings, self.__fonts, label, width, y)
                         at_least_one = True
-                if not at_least_one and y_ticks:
-                    drawing_context.text_align = "right"
+                if not at_least_one and y_ticks and y is not None and label is not None:
                     drawing_context.fill_style = "#000"
-                    drawing_context.fill_text(label, width, y)
+                    e.draw_scientific_notation(drawing_context, self.__ui_settings, self.__fonts, label, width, y)
 
 
 class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
