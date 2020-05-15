@@ -49,6 +49,7 @@ install:
 script:
   - python --version
   - python -m unittest discover -p '*_test.py'
+  - mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/swift/DataPanel.py
 
 # command to deploy to pypi on tags
 deploy:
