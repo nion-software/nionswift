@@ -26,7 +26,6 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
 
     def __init__(self, type, *, parent=None):
         super().__init__()
-        self.about_to_cascade_delete_event = Event.Event()
         self.define_type(type)
         self.define_property("parent_specifier", changed=self.__parent_specifier_changed, key="parent_uuid")
         self.__parent_proxy = self.create_item_proxy(item=parent)
@@ -47,11 +46,6 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
-
-    def prepare_cascade_delete(self) -> typing.List:
-        cascade_items = list()
-        self.about_to_cascade_delete_event.fire(cascade_items)
-        return cascade_items
 
     def clone(self) -> "Connection":
         connection = copy.deepcopy(self)

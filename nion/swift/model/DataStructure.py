@@ -22,7 +22,6 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
     # regarding naming: https://en.wikipedia.org/wiki/Passive_data_structure
     def __init__(self, *, structure_type: str=None, source=None):
         super().__init__()
-        self.about_to_cascade_delete_event = Event.Event()
         self.__properties = dict()
         self.__referenced_object_proxies = dict()
         self.define_type("data_structure")
@@ -68,11 +67,6 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
-
-    def prepare_cascade_delete(self) -> typing.List:
-        cascade_items = list()
-        self.about_to_cascade_delete_event.fire(cascade_items)
-        return cascade_items
 
     def insert_model_item(self, container, name, before_index, item):
         if self.container:

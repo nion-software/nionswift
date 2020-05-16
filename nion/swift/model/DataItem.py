@@ -244,7 +244,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__suspendable_storage_cache = None
         self.__display_data_channel_refs = set()  # display data channels referencing this data item
         self.r_var = None
-        self.about_to_cascade_delete_event = Event.Event()
         if data is not None:
             data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, timezone=self.timezone, timezone_offset=self.timezone_offset)
             self.__set_data_metadata_direct(data_and_metadata)
@@ -307,11 +306,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
-
-    def prepare_cascade_delete(self) -> typing.List:
-        cascade_items = list()
-        self.about_to_cascade_delete_event.fire(cascade_items)
-        return cascade_items
 
     def insert_model_item(self, container, name, before_index, item):
         """Insert a model item. Let this item's container do it if possible; otherwise do it directly.

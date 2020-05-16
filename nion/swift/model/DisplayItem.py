@@ -407,8 +407,6 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.__data_item_data_changed_listener = None
         self.__data_item_description_changed_listener = None
 
-        self.about_to_cascade_delete_event = Event.Event()
-
         self.__last_data_item = None
 
         def connect_data_item(data_item: DataItem.DataItem) -> None:
@@ -490,11 +488,6 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
-
-    def prepare_cascade_delete(self) -> typing.List:
-        cascade_items = list()
-        self.about_to_cascade_delete_event.fire(cascade_items)
-        return cascade_items
 
     def insert_model_item(self, container, name, before_index, item):
         if self.container:
@@ -897,7 +890,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.graphics_changed_event = Event.Event()
         self.display_values_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
-        self.about_to_cascade_delete_event = Event.Event()
 
         def graphic_selection_changed():
             # relay the message
@@ -956,11 +948,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
-
-    def prepare_cascade_delete(self) -> typing.List:
-        cascade_items = list()
-        self.about_to_cascade_delete_event.fire(cascade_items)
-        return cascade_items
 
     def insert_model_item(self, container, name, before_index, item):
         """Insert a model item. Let this item's container do it if possible; otherwise do it directly.

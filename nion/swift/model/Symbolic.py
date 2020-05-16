@@ -1046,7 +1046,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def __init__(self, expression: str=None):
         super().__init__()
-        self.about_to_cascade_delete_event = Event.Event()
         self.define_type("computation")
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
         self.define_property("original_expression", expression)
@@ -1088,11 +1087,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
-
-    def prepare_cascade_delete(self) -> typing.List:
-        cascade_items = list()
-        self.about_to_cascade_delete_event.fire(cascade_items)
-        return cascade_items
 
     def read_properties_from_dict(self, d):
         self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d.get("source_uuid", None))
