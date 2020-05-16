@@ -14,6 +14,7 @@ if typing.TYPE_CHECKING:
 
 
 DISPLAY_ITEM_MIME_TYPE = "text/vnd.nionswift.display_item"
+DISPLAY_ITEMS_MIME_TYPE = "text/vnd.nionswift.display_items"
 DISPLAY_PANEL_MIME_TYPE = "text/vnd.nionswift.display_panel"
 DATA_SOURCE_MIME_TYPE = "text/vnd.nionswift.display_source"
 GRAPHICS_MIME_TYPE = "text/vnd.nionswift.graphics"
@@ -52,9 +53,32 @@ def mime_data_get_display_item(mime_data: UserInterface.MimeData, document_model
     return display_item
 
 
+def mime_data_get_display_items(mime_data: UserInterface.MimeData, document_model: "DocumentModel.DocumentModel") -> typing.List[DisplayItem.DisplayItem]:
+    display_items : typing.List[DisplayItem.DisplayItem] = list()
+    if mime_data.has_format(DISPLAY_ITEMS_MIME_TYPE):
+        data_sources_mime_data = json.loads(mime_data.data_as_string(DISPLAY_ITEMS_MIME_TYPE))
+        for data_source_mime_data in data_sources_mime_data:
+            display_item_specifier = Persistence.PersistentObjectSpecifier.read(data_source_mime_data["display_item_specifier"])
+            display_item = document_model.resolve_item_specifier(display_item_specifier)
+            if display_item:
+                display_items.append(typing.cast(DisplayItem.DisplayItem, display_item))
+    if mime_data.has_format(DISPLAY_ITEM_MIME_TYPE):
+        data_source_mime_data = json.loads(mime_data.data_as_string(DISPLAY_ITEM_MIME_TYPE))
+        display_item_specifier = Persistence.PersistentObjectSpecifier.read(data_source_mime_data["display_item_specifier"])
+        display_item = document_model.resolve_item_specifier(display_item_specifier)
+        if display_item:
+            display_items.append(typing.cast(DisplayItem.DisplayItem, display_item))
+    return display_items
+
+
 def mime_data_put_display_item(mime_data: UserInterface.MimeData, display_item: DisplayItem.DisplayItem) -> None:
     mime_data_content = {"display_item_specifier": display_item.project.create_specifier(display_item, allow_partial=False).write()}
     mime_data.set_data_as_string(DISPLAY_ITEM_MIME_TYPE, json.dumps(mime_data_content))
+
+
+def mime_data_put_display_items(mime_data: UserInterface.MimeData, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
+    mime_data_content = [{"display_item_specifier": display_item.project.create_specifier(display_item, allow_partial=False).write()} for display_item in display_items]
+    mime_data.set_data_as_string(DISPLAY_ITEMS_MIME_TYPE, json.dumps(mime_data_content))
 
 
 def mime_data_get_graphics(mime_data: UserInterface.MimeData) -> typing.Sequence[Graphics.Graphic]:

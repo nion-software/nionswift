@@ -959,13 +959,13 @@ class DocumentController(Window.Window):
         # delete key gets handled by key handlers, but this method gets called by menu items
         self.remove_selected_graphics()
 
-    class InsertDataGroupDisplayItemCommand(Undo.UndoableCommand):
-        def __init__(self, document_model, data_group: DataGroup.DataGroup, before_index: int, display_item: DisplayItem.DisplayItem):
-            super().__init__("Insert Data Item")
+    class InsertDataGroupDisplayItemsCommand(Undo.UndoableCommand):
+        def __init__(self, document_model, data_group: DataGroup.DataGroup, before_index: int, display_items: typing.Sequence[DisplayItem.DisplayItem]):
+            super().__init__("Insert Data Items")
             self.__document_model = document_model
             self.__data_group_proxy = data_group.create_proxy()
             self.__before_index = before_index
-            self.__display_item_proxy = display_item.create_proxy()
+            self.__display_item_proxies = [display_item.create_proxy() for display_item in display_items]
             self.initialize()
 
         def close(self):
@@ -973,8 +973,9 @@ class DocumentController(Window.Window):
             self.__data_group_proxy.close()
             self.__data_group_proxy = None
             self.__before_index = None
-            self.__display_item_proxy.close()
-            self.__display_item_proxy = None
+            for display_item_proxy in self.__display_item_proxies:
+                display_item_proxy.close()
+            self.__display_item_proxies = None
             super().close()
 
         def _get_modified_state(self):
@@ -991,18 +992,21 @@ class DocumentController(Window.Window):
 
         def perform(self) -> None:
             data_group = self.__data_group_proxy.item
-            display_item = self.__display_item_proxy.item
-            data_group.insert_display_item(self.__before_index, display_item)
+            display_items = [display_item_proxy.item for display_item_proxy in self.__display_item_proxies]
+            for index, display_item in enumerate(display_items):
+                data_group.insert_display_item(self.__before_index + index, display_item)
 
         def _undo(self) -> None:
             data_group = self.__data_group_proxy.item
-            data_group.remove_display_item(data_group.display_items[self.__before_index])
+            display_items_len = len(self.__display_item_proxies)
+            for index in reversed(range(display_items_len)):
+                data_group.remove_display_item(data_group.display_items[self.__before_index + index])
 
         def _redo(self) -> None:
             self.perform()
 
-    def create_insert_data_group_display_item_command(self, data_group: DataGroup.DataGroup, before_index: int, display_item: DisplayItem.DisplayItem) -> InsertDataGroupDisplayItemCommand:
-        return DocumentController.InsertDataGroupDisplayItemCommand(self.document_model, data_group, before_index, display_item)
+    def create_insert_data_group_display_items_command(self, data_group: DataGroup.DataGroup, before_index: int, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> InsertDataGroupDisplayItemsCommand:
+        return DocumentController.InsertDataGroupDisplayItemsCommand(self.document_model, data_group, before_index, display_items)
 
     class InsertDataGroupDataItemsCommand(Undo.UndoableCommand):
         def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):

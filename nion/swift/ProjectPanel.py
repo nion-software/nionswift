@@ -442,13 +442,16 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
     def item_can_drop_mime_data(self, mime_data, action: str, drop_index: int) -> bool:
         display_item = self.__tree_model.value[drop_index]
-        if display_item.project is not None and display_item.is_enabled:
-            return mime_data.has_file_paths or mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE)
+        if display_item.project and display_item.is_enabled:
+            display_items = MimeTypes.mime_data_get_display_items(mime_data, self.__document_controller.document_model)
+            if display_items:
+                return True
+            return mime_data.has_file_paths
         return False
 
     def item_drop_mime_data(self, mime_data, action: str, drop_index: int) -> str:
         display_item = self.__tree_model.value[drop_index]
-        if display_item.project is not None and display_item.is_enabled:
+        if display_item.project and display_item.is_enabled:
             document_controller = display_item.display_item_controller.document_controller
             document_controller._register_ui_activity()
             if mime_data.has_file_paths:
@@ -617,6 +620,33 @@ class ProjectListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             drawing_context.text_align = 'left'
             drawing_context.text_baseline = 'bottom'
             drawing_context.fill_text(title, rect[0][1] + 4, rect[0][0] + 20 - 4)
+
+    def item_can_drop_mime_data(self, mime_data, action: str, drop_index: int) -> bool:
+        display_item = self.items[drop_index]
+        if isinstance(display_item, ProjectCounterDisplayItem):
+            if display_item.project_reference.is_active and display_item.project_reference.project:
+                display_items = MimeTypes.mime_data_get_display_items(mime_data, self.__document_controller.document_model)
+                if display_items:
+                    return True
+                return mime_data.has_file_paths
+        return False
+
+    def item_drop_mime_data(self, mime_data, action: str, drop_index: int) -> str:
+        display_item = self.items[drop_index]
+        if isinstance(display_item, ProjectCounterDisplayItem):
+            display_item = self.items[drop_index]
+            if display_item.project_reference.is_active and display_item.project_reference.project:
+                document_controller = self.__document_controller
+                document_controller._register_ui_activity()
+                display_items = MimeTypes.mime_data_get_display_items(mime_data, document_controller.document_model)
+                if display_items:
+                    document_controller.move_items(display_items, display_item.project_reference.project)
+                    return "move"
+                if mime_data.has_file_paths:
+                    file_paths = [pathlib.Path(file_path) for file_path in mime_data.file_paths]
+                    document_controller.receive_project_files(file_paths, display_item.project_reference.project)
+                    return "copy"
+        return "ignore"
 
     def item_tool_tip(self, index: int) -> typing.Optional[str]:
         display_item = self.items[index]
@@ -796,29 +826,28 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
     def item_can_drop_mime_data(self, mime_data, action: str, drop_index: int) -> bool:
         list_display_item = self.items[drop_index]
         is_smart_collection = list_display_item.is_smart_collection if list_display_item else False
-        if list_display_item and not is_smart_collection and mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
+        display_items = MimeTypes.mime_data_get_display_items(mime_data, list_display_item.document_model)
+        if list_display_item and not is_smart_collection and display_items:
             # if the display item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            display_item = MimeTypes.mime_data_get_display_item(mime_data, list_display_item.document_model)
-            return display_item is not None
+            return True
         return False
 
     def item_drop_mime_data(self, mime_data, action: str, drop_index: int) -> str:
         list_display_item = self.items[drop_index]
         is_smart_collection = list_display_item.is_smart_collection if list_display_item else False
-        if list_display_item and not is_smart_collection and mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
+        display_items = MimeTypes.mime_data_get_display_items(mime_data, list_display_item.document_model)
+        if list_display_item and not is_smart_collection and display_items:
             # if the display item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            display_item = MimeTypes.mime_data_get_display_item(mime_data, list_display_item.document_model)
-            if display_item:
-                document_controller = list_display_item.document_controller
-                data_group = list_display_item.data_group
-                command = document_controller.create_insert_data_group_display_item_command(data_group, len(data_group.display_items), display_item)
-                command.perform()
-                document_controller.push_undo_command(command)
-                return "copy"
+            document_controller = list_display_item.document_controller
+            data_group = list_display_item.data_group
+            command = document_controller.create_insert_data_group_display_items_command(data_group, len(data_group.display_items), display_items)
+            command.perform()
+            document_controller.push_undo_command(command)
+            return "copy"
         return "ignore"
 
     def delete_pressed(self) -> None:

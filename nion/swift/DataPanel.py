@@ -115,8 +115,7 @@ class DisplayItemAdapter:
     def __create_thumbnail(self, draw_rect: Geometry.IntRect) -> DrawingContext.DrawingContext:
         drawing_context = DrawingContext.DrawingContext()
         if self.__display_item:
-            self.__create_thumbnail_source()
-            thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
+            thumbnail_data = self.calculate_thumbnail_data()
             if thumbnail_data is not None:
                 draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
                 drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
@@ -147,10 +146,14 @@ class DisplayItemAdapter:
             mime_data = self.ui.create_mime_data()
             if self.__display_item:
                 MimeTypes.mime_data_put_display_item(mime_data, self.__display_item)
-            self.__create_thumbnail_source()
-            thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
+            thumbnail_data = self.calculate_thumbnail_data()
             return mime_data, thumbnail_data
         return None, None
+
+    def calculate_thumbnail_data(self) -> typing.Optional[numpy.ndarray]:
+        self.__create_thumbnail_source()
+        thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
+        return thumbnail_data
 
     def draw_list_item(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect) -> None:
         with drawing_context.saver():
@@ -215,7 +218,7 @@ class DataListController:
         self.__display_item_adapter_end_changes_event_listener = self.__display_item_adapters_model.end_changes_event.listen(self.__display_item_adapter_end_changes)
 
         class ListCanvasItemDelegate:
-            def __init__(self, data_list_controller):
+            def __init__(self, data_list_controller: DataListController):
                 self.__data_list_controller = data_list_controller
 
             @property
@@ -235,7 +238,7 @@ class DataListController:
             def delete_pressed(self) -> None:
                 self.__data_list_controller._delete_pressed()
 
-            def key_pressed(self, key: UserInterface.Key) -> None:
+            def key_pressed(self, key: UserInterface.Key) -> bool:
                 return self.__data_list_controller._key_pressed(key)
 
             def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
@@ -267,7 +270,7 @@ class DataListController:
         self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
         self.on_display_item_adapter_selection_changed : typing.Optional[typing.Callable[[typing.List[DisplayItemAdapter]], None]] = None
-        self.on_context_menu_event : typing.Optional[typing.Callable[[DisplayItemAdapter, int, int, int, int], bool]] = None
+        self.on_context_menu_event : typing.Optional[typing.Callable[[DisplayItem.DisplayItem, int, int, int, int], bool]] = None
         self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
         self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, numpy.ndarray], None]] = None
 
@@ -319,7 +322,11 @@ class DataListController:
     # this message comes from the canvas item when delete key is pressed
     def _delete_pressed(self) -> None:
         if callable(self.on_delete_display_item_adapters):
-            self.on_delete_display_item_adapters([self.__display_item_adapters[index] for index in self.__selection.indexes])
+            self.on_delete_display_item_adapters(self.selected_display_item_adapters)
+
+    @property
+    def selected_display_item_adapters(self) -> typing.List[DisplayItemAdapter]:
+        return [self.__display_item_adapters[index] for index in self.__selection.indexes]
 
     # this message comes from the canvas item when a key is pressed
     def _key_pressed(self, key: UserInterface.Key) -> bool:
@@ -339,13 +346,23 @@ class DataListController:
         return self.__display_item_adapters[index]
 
     def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
-        if self.on_context_menu_event:
+        if callable(self.on_context_menu_event):
             display_item_adapter = self.__display_item_adapters[index] if index is not None else None
-            return self.on_context_menu_event(display_item_adapter, x, y, gx, gy)
+            display_item = display_item_adapter.display_item if display_item_adapter else None
+            return self.on_context_menu_event(display_item, x, y, gx, gy)
         return False
 
     def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
-        mime_data, thumbnail_data = self.__display_item_adapters[index].drag_started(self.ui, x, y, modifiers)
+        mime_data = None
+        thumbnail_data = None
+        display_item_adapters = self.selected_display_item_adapters
+        if len(display_item_adapters) == 1:
+            mime_data, thumbnail_data = self.__display_item_adapters[index].drag_started(self.ui, x, y, modifiers)
+        elif len(display_item_adapters) > 1:
+            mime_data = self.ui.create_mime_data()
+            anchor_index = self.__selection.anchor_index or 0
+            MimeTypes.mime_data_put_display_items(mime_data, [display_item_adapter.display_item for display_item_adapter in display_item_adapters])
+            thumbnail_data = self.__display_item_adapters[anchor_index].calculate_thumbnail_data()
         if mime_data:
             if self.on_drag_started:
                 self.on_drag_started(mime_data, thumbnail_data)
@@ -416,7 +433,7 @@ class DataGridController:
         self.on_key_pressed : typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
         self.on_display_item_adapter_double_clicked : typing.Optional[typing.Callable[[DisplayItemAdapter], bool]] = None
         self.on_display_item_adapter_selection_changed : typing.Optional[typing.Callable[[typing.List[DisplayItemAdapter]], None]] = None
-        self.on_context_menu_event : typing.Optional[typing.Callable[[DisplayItemAdapter, int, int, int, int], bool]] = None
+        self.on_context_menu_event : typing.Optional[typing.Callable[[DisplayItem.DisplayItem, int, int, int, int], bool]] = None
         self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
         self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, numpy.ndarray], None]] = None
 
@@ -553,7 +570,11 @@ class DataGridController:
     # this message comes from the canvas item when delete key is pressed
     def _delete_pressed(self) -> None:
         if callable(self.on_delete_display_item_adapters):
-            self.on_delete_display_item_adapters([self.__display_item_adapters[index] for index in self.__selection.indexes])
+            self.on_delete_display_item_adapters(self.selected_display_item_adapters)
+
+    @property
+    def selected_display_item_adapters(self) -> typing.List[DisplayItemAdapter]:
+        return [self.__display_item_adapters[index] for index in self.__selection.indexes]
 
     # this message comes from the canvas item when a key is pressed
     def _key_pressed(self, key: UserInterface.Key) -> bool:
@@ -577,14 +598,23 @@ class DataGridController:
         return copy.copy(self.__display_item_adapters)
 
     def context_menu_event(self, index, x, y, gx, gy):
-        if self.on_context_menu_event:
+        if callable(self.on_context_menu_event):
             display_item_adapter = self.__display_item_adapters[index] if index is not None else None
             display_item = display_item_adapter.display_item if display_item_adapter else None
             return self.on_context_menu_event(display_item, x, y, gx, gy)
         return False
 
     def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
-        mime_data, thumbnail_data = self.__display_item_adapters[index].drag_started(self.ui, x, y, modifiers)
+        mime_data = None
+        thumbnail_data = None
+        display_item_adapters = self.selected_display_item_adapters
+        if len(display_item_adapters) == 1:
+            mime_data, thumbnail_data = self.__display_item_adapters[index].drag_started(self.ui, x, y, modifiers)
+        elif len(display_item_adapters) > 1:
+            mime_data = self.ui.create_mime_data()
+            anchor_index = self.__selection.anchor_index or 0
+            MimeTypes.mime_data_put_display_items(mime_data, [display_item_adapter.display_item for display_item_adapter in display_item_adapters])
+            thumbnail_data = self.__display_item_adapters[anchor_index].calculate_thumbnail_data()
         if mime_data:
             if self.on_drag_started:
                 self.on_drag_started(mime_data, thumbnail_data)
@@ -663,8 +693,8 @@ class DataPanel(Panel.Panel):
 
         ui = document_controller.ui
 
-        def show_context_menu(display_item_adapter: DisplayItemAdapter, x: int, y: int, gx: int, gy: int) -> bool:
-            menu = document_controller.create_context_menu_for_display(display_item_adapter.display_item, use_selection=True)
+        def show_context_menu(display_item: DisplayItem.DisplayItem, x: int, y: int, gx: int, gy: int) -> bool:
+            menu = document_controller.create_context_menu_for_display(display_item, use_selection=True)
             menu.popup(gx, gy)
             return True
 

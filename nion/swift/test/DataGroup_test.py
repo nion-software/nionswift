@@ -222,7 +222,7 @@ class TestDataGroupClass(unittest.TestCase):
             document_model.append_data_group(data_group)
             # insert a new one
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
-            command = document_controller.create_insert_data_group_display_item_command(data_group, 1, display_item2)
+            command = document_controller.create_insert_data_group_display_items_command(data_group, 1, [display_item2])
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(3, len(data_group.display_items))
@@ -410,11 +410,8 @@ class TestDataGroupClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.random.randn(4, 4))
             document_model.append_data_item(data_item2)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
-            # hack until InsertDataGroupDisplayItemCommand handles multiple display items, call it twice
-            command = DocumentController.DocumentController.InsertDataGroupDisplayItemCommand(document_controller.document_model, data_group, 1, display_item2)
-            command.perform()
-            document_controller.push_undo_command(command)
-            command = DocumentController.DocumentController.InsertDataGroupDisplayItemCommand(document_controller.document_model, data_group, 2, display_item4)
+            # hack until InsertDataGroupDisplayItemsCommand handles multiple display items, call it twice
+            command = DocumentController.DocumentController.InsertDataGroupDisplayItemsCommand(document_controller.document_model, data_group, 1, [display_item2, display_item4])
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(4, len(document_model.data_items))
@@ -423,13 +420,11 @@ class TestDataGroupClass(unittest.TestCase):
             self.assertListEqual([display_item1, display_item2, display_item4, display_item3], list(data_group.display_items))
             # undo and check
             document_controller.handle_undo()
-            document_controller.handle_undo()
             self.assertEqual(4, len(document_model.data_items))
             self.assertEqual(2, len(data_group.display_items))
             self.assertListEqual([data_item1, data_item3, data_item4, data_item2], list(document_model.data_items))
             self.assertListEqual([display_item1, display_item3], list(data_group.display_items))
             # redo and check
-            document_controller.handle_redo()
             document_controller.handle_redo()
             data_item2 = document_model.data_items[3]
             self.assertEqual(4, len(document_model.data_items))
