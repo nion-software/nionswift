@@ -270,7 +270,7 @@ class DataListController:
         self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
         self.on_display_item_adapter_selection_changed : typing.Optional[typing.Callable[[typing.List[DisplayItemAdapter]], None]] = None
-        self.on_context_menu_event : typing.Optional[typing.Callable[[DisplayItem.DisplayItem, int, int, int, int], bool]] = None
+        self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
         self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
         self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, numpy.ndarray], None]] = None
 
@@ -378,6 +378,7 @@ class DataListController:
         if key == "display_item_adapters":
             self.__display_item_adapters.insert(before_index, display_item_adapter)
             self.__display_item_adapter_needs_update_listeners.insert(before_index, display_item_adapter.needs_update_event.listen(self.__display_item_adapter_needs_update))
+            self.__selection.insert_index(before_index)
 
     # call this method to remove a display item (by index)
     # not thread safe
@@ -386,6 +387,7 @@ class DataListController:
             self.__display_item_adapter_needs_update_listeners[index].close()
             del self.__display_item_adapter_needs_update_listeners[index]
             del self.__display_item_adapters[index]
+            self.__selection.remove_index(index)
 
     def __display_item_adapter_end_changes(self, key: str) -> None:
         if key == "display_item_adapters":
@@ -433,7 +435,7 @@ class DataGridController:
         self.on_key_pressed : typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
         self.on_display_item_adapter_double_clicked : typing.Optional[typing.Callable[[DisplayItemAdapter], bool]] = None
         self.on_display_item_adapter_selection_changed : typing.Optional[typing.Callable[[typing.List[DisplayItemAdapter]], None]] = None
-        self.on_context_menu_event : typing.Optional[typing.Callable[[DisplayItem.DisplayItem, int, int, int, int], bool]] = None
+        self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
         self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
         self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, numpy.ndarray], None]] = None
 
@@ -693,7 +695,7 @@ class DataPanel(Panel.Panel):
 
         ui = document_controller.ui
 
-        def show_context_menu(display_item: DisplayItem.DisplayItem, x: int, y: int, gx: int, gy: int) -> bool:
+        def show_context_menu(display_item: typing.Optional[DisplayItem.DisplayItem], x: int, y: int, gx: int, gy: int) -> bool:
             menu = document_controller.create_context_menu_for_display(display_item, use_selection=True)
             menu.popup(gx, gy)
             return True

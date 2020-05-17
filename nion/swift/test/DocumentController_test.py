@@ -609,6 +609,19 @@ class TestDocumentControllerClass(unittest.TestCase):
                 display_data_channel.display_limits = display_data_channel.get_calculated_display_values(True).data_range
                 self.assertEqual(len(display_data_channel.display_limits), 2)
 
+    def test_context_menu_succeeds_with_no_display_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_controller.select_display_items_in_data_panel([display_item])
+            with contextlib.closing(document_controller.create_context_menu_for_display(None)):
+                pass
+            with contextlib.closing(document_controller.create_context_menu_for_display(None, use_selection=True)):
+                pass
+
     def test_delete_by_context_menu_actually_deletes_item_from_library(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

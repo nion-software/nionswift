@@ -1696,7 +1696,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         menu = self.__document_controller.create_context_menu()
         return self.show_context_menu(menu, gx, gy)
 
-    def __handle_context_menu_for_display(self, display_item, x, y, gx, gy):
+    def __handle_context_menu_for_display(self, display_item: typing.Optional[DisplayItem.DisplayItem], x: int, y: int, gx: int, gy: int) -> bool:
         menu = self.__document_controller.create_context_menu_for_display(display_item, use_selection=True)
         return self.show_context_menu(menu, gx, gy)
 

@@ -818,6 +818,19 @@ class TestDataPanelClass(unittest.TestCase):
             mime_data, thumbnail = display_item.drag_started(self.app.ui, 0, 0, 0)
             self.assertTrue(mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
 
+    def test_changing_filter_validates_data_browser_selection(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            document_controller.select_data_items_in_data_panel(document_model.data_items[1:])
+            self.assertEqual({0, 1}, document_controller.selection.indexes)  # items are ordered newest to oldest
+            document_controller.select_filter_in_data_panel(filter_id="none")
+            self.assertEqual(list(), document_controller.selected_display_items)
+            self.assertEqual(set(), document_controller.selection.indexes)  # items are ordered newest to oldest
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

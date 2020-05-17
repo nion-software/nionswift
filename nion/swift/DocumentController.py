@@ -2358,8 +2358,11 @@ class DocumentController(Window.Window):
         else:
             return receive_files_on_thread(file_paths, data_group, index, functools.partial(receive_files_complete, index))
 
-    def create_context_menu_for_display(self, display_item: DisplayItem.DisplayItem, container=None, *, use_selection: bool=True):
-        selected_display_items = self.selected_display_items if use_selection else [display_item]
+    def create_context_menu_for_display(self, display_item: typing.Optional[DisplayItem.DisplayItem], container=None, *, use_selection: bool=True) -> UserInterface.Menu:
+        if use_selection:
+            selected_display_items = self.selected_display_items
+        else:
+            selected_display_items = [display_item] if display_item else list()
 
         menu = self.create_context_menu()
 
