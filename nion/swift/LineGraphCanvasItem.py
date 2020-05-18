@@ -267,15 +267,15 @@ class LineGraphAxes:
             if y_calibration:
                 if self.data_style == "log":
                     calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data
-                    calibrated_data[calibrated_data < 0] = 0
-                    numpy.log10(calibrated_data, where=calibrated_data>0, out=calibrated_data)
+                    calibrated_data[calibrated_data <= 0] = numpy.nan
+                    numpy.log10(calibrated_data, out=calibrated_data)
                 else:
                     calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data
             else:
                 if self.data_style == "log":
                     calibrated_data = uncalibrated_xdata.data.copy()
-                    calibrated_data[calibrated_data < 0] = 0
-                    numpy.log10(calibrated_data, where=calibrated_data>0, out=calibrated_data)
+                    calibrated_data[calibrated_data <= 0] = numpy.nan
+                    numpy.log10(calibrated_data, out=calibrated_data)
                 else:
                     calibrated_data = uncalibrated_xdata.data
         return DataAndMetadata.new_data_and_metadata(calibrated_data, dimensional_calibrations=uncalibrated_xdata.dimensional_calibrations)
@@ -375,7 +375,7 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
         drawing_context.begin_path()
         if calibrated_data_range != 0.0 and uncalibrated_width > 0.0:
             if data_style == "log":
-                baseline = plot_origin_y + plot_height- (plot_height * float(numpy.amin(calibrated_xdata.data) - calibrated_data_min) / calibrated_data_range)
+                baseline = plot_origin_y + plot_height - (plot_height * float(numpy.amin(calibrated_xdata.data) - calibrated_data_min) / calibrated_data_range)
             else:
                 baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - calibrated_data_min) / calibrated_data_range)
             baseline = min(plot_origin_y + plot_height, baseline)
@@ -383,42 +383,59 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
             # rebin so that uncalibrated_width corresponds to plot width
             calibrated_data = calibrated_xdata.data
             binned_length = int(calibrated_data.shape[-1] * plot_width / uncalibrated_width)
+            shape_origin_x = plot_origin_x
+            shape_origin_y = baseline
+            did_draw = False
             if binned_length > 0:
                 binned_data = Image.rebin_1d(calibrated_data, binned_length, rebin_cache)
                 binned_left = int(uncalibrated_left_channel * plot_width / uncalibrated_width)
                 # draw the plot
+                last_px = plot_origin_x
                 last_py = baseline
                 for i in range(0, plot_width):
                     px = plot_origin_x + i
                     binned_index = binned_left + i
-                    data_value = binned_data[binned_index] if binned_index >= 0 and binned_index < binned_length else 0.0
-                    # plot_origin_y is the TOP of the drawing
-                    # py extends DOWNWARDS
-                    py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
-                    py = max(plot_origin_y, py)
-                    py = min(plot_origin_y + plot_height, py)
-                    if i == 0:
-                        stroke_path.move_to(px, py)
+                    data_value = binned_data[binned_index] if binned_index >= 0 and binned_index < binned_length else numpy.nan
+                    if not numpy.isnan(data_value):
+                        # plot_origin_y is the TOP of the drawing
+                        # py extends DOWNWARDS
+                        py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
+                        py = max(plot_origin_y, py)
+                        py = min(plot_origin_y + plot_height, py)
+                        if did_draw:
+                            # only draw horizontal lines when necessary
+                            if py != last_py:
+                                # draw forward from last_px to px at last_py level
+                                stroke_path.line_to(px, last_py)
+                                stroke_path.line_to(px, py)
+                        else:
+                            did_draw = True
+                            shape_origin_x = px
+                            shape_origin_y = baseline
+                            if i == 0:
+                                stroke_path.move_to(px, py)
+                            else:
+                                stroke_path.move_to(px, baseline)
+                                stroke_path.line_to(px, py)
+                        last_px = px
+                        last_py = py
                     else:
-                        # only draw horizontal lines when necessary
-                        if py != last_py:
-                            # draw forward from last_px to px at last_py level
+                        if did_draw:
+                            did_draw = False
                             stroke_path.line_to(px, last_py)
-                            stroke_path.line_to(px, py)
-                    last_py = py
+                            if stroke_color and not fill_color:
+                                stroke_path.line_to(last_px, shape_origin_y)
+                            finalize_path(drawing_context, stroke_path, shape_origin_x, last_px, shape_origin_y, fill_color, stroke_color)
+                            stroke_path = DrawingContext.DrawingContext()
+                            drawing_context.begin_path()
+                        last_px = px
+                        #stroke_path.move_to(px, last_py)
+
                 stroke_path.line_to(plot_origin_x + plot_width, last_py)
-            if fill_color:
-                drawing_context.add(stroke_path)
-                drawing_context.line_to(plot_origin_x + plot_width, baseline)
-                drawing_context.line_to(plot_origin_x, baseline)
-                drawing_context.close_path()
-                drawing_context.fill_style = fill_color
-                drawing_context.fill()
-            if stroke_color:
-                drawing_context.add(stroke_path)
-                drawing_context.line_width = 0.5
-                drawing_context.stroke_style = stroke_color
-                drawing_context.stroke()
+
+            if did_draw:
+                finalize_path(drawing_context, stroke_path, shape_origin_x, last_px, shape_origin_y, fill_color, stroke_color)
+
         else:
             if fill_color or stroke_color:
                 drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
@@ -427,6 +444,19 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
                 drawing_context.stroke_style = fill_color or stroke_color
                 drawing_context.stroke()
 
+def finalize_path(drawing_context, stroke_path, path_origin_x, path_end_x, path_baseline, fill_color, stroke_color):
+    if fill_color:
+        drawing_context.add(stroke_path)
+        drawing_context.line_to(path_end_x, path_baseline)
+        drawing_context.line_to(path_origin_x, path_baseline)
+        drawing_context.close_path()
+        drawing_context.fill_style = fill_color
+        drawing_context.fill()
+    if stroke_color:
+        drawing_context.add(stroke_path)
+        drawing_context.line_width = 0.5
+        drawing_context.stroke_style = stroke_color
+        drawing_context.stroke()
 
 def draw_frame(drawing_context, plot_height, plot_origin_x, plot_origin_y, plot_width):
     with drawing_context.saver():
