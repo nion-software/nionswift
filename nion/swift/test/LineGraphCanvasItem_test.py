@@ -35,7 +35,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             ((7.46, 85.36), (0.0, 100.0)),
             ((7.67, 12.95), (0.0, 15.0)),
             ((6.67, 11.95), (0.0, 15.0)),
-            ((0.00, 0.00), (0.0, 0.0))
+            ((0.00, 0.00), (-1.0, 1.0))
         )
 
         for data_in, data_out in test_ranges:
@@ -51,28 +51,53 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertEqual(axes.uncalibrated_data_max, expected_uncalibrated_data_max)
 
     def test_display_limits_are_reasonable_when_using_log_scale(self):
-        data = numpy.linspace(-0.1, 10.0, 10)
-        data_style = "log"
-        calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([data], None, None, None, data_style)
-        axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, data_style=data_style, y_ticker=y_ticker)
-        self.assertAlmostEqual(axes.uncalibrated_data_min, 1.0)
-        self.assertAlmostEqual(axes.uncalibrated_data_max, 10.0)
-        calibrated_data = axes.calculate_calibrated_xdata(DataAndMetadata.new_data_and_metadata(data)).data
-        self.assertAlmostEqual(numpy.amin(calibrated_data), math.log10(1.0))
-        self.assertAlmostEqual(numpy.amax(calibrated_data), math.log10(10.0))
+
+        test_ranges = (
+            ((-0.1, 11.0), (0.0, 100.0)),
+            ((1000.0, 1100.0), (998.85, 1122.02)),
+            ((1.0, 2.0), (0.99, 2.0)),
+            ((3.0, 4.0), (2.98, 5.01)),
+            ((2.0, 2.1), (2.0, 2.14)),
+            ((0.0, 5.0), (0.05, 5.0))
+        )
+
+        for data_in, data_out in test_ranges:
+            with self.subTest(data_in=data_in, data_out=data_out):
+                data = numpy.linspace(data_in[0], data_in[1], 100, endpoint=False)
+                data_style = "log"
+                calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([data], None, None, None, data_style)
+                axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, data_style=data_style, y_ticker=y_ticker)
+                self.assertAlmostEqual(axes.uncalibrated_data_min, data_out[0], places=1)
+                self.assertAlmostEqual(axes.uncalibrated_data_max, data_out[1], places=1)
+                calibrated_data = axes.calculate_calibrated_xdata(DataAndMetadata.new_data_and_metadata(data)).data
+                data[data <= 0] = numpy.nan
+                self.assertAlmostEqual(numpy.nanmin(calibrated_data), math.log10(numpy.nanmin(data)))
+                self.assertAlmostEqual(numpy.nanmax(calibrated_data), math.log10(numpy.nanmax(data)))
 
     def test_display_limits_are_reasonable_when_using_calibrated_log_scale(self):
-        intensity_calibration = Calibration.Calibration(-5, 2)
-        data = numpy.linspace(-0.1, 10.0, 10)
-        # same as data = np.linspace(-0.1, 10.0, 10) * 2 - 5 with default calibration
-        data_style = "log"
-        calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([data], None, None, intensity_calibration, data_style)
-        axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, y_calibration=intensity_calibration, data_style=data_style, y_ticker=y_ticker)
-        self.assertAlmostEqual(axes.calibrated_data_min, 0.0)
-        self.assertAlmostEqual(axes.calibrated_data_max, 2.0)  # empirically mesaured
-        calibrated_data = axes.calculate_calibrated_xdata(DataAndMetadata.new_data_and_metadata(data)).data
-        self.assertAlmostEqual(numpy.amin(calibrated_data), math.log10(1.0))
-        self.assertAlmostEqual(numpy.amax(calibrated_data), math.log10(15.0))
+
+        test_ranges = (
+            ((-0.1, 11.0), (0.97, 20.0)),
+            ((1000.0, 1100.0), (1992.70, 2238.7)),
+            ((1.0, 2.0), (0.09, 20.0)),
+            ((3.0, 4.0), (0.99, 3.0)),
+            ((2.0, 2.1), (0.09, 20.0)),
+            ((0.0, 5.0), (0.98, 10.0))
+        )
+
+        for data_in, data_out in test_ranges:
+            with self.subTest(data_in=data_in, data_out=data_out):
+                data = numpy.linspace(data_in[0], data_in[1], 100, endpoint=False)
+                intensity_calibration = Calibration.Calibration(-5, 2)
+                data_style = "log"
+                calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([data], None, None, intensity_calibration, data_style)
+                axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, data_style=data_style, y_ticker=y_ticker)
+                self.assertAlmostEqual(axes.uncalibrated_data_min, data_out[0], places=1)
+                self.assertAlmostEqual(axes.uncalibrated_data_max, data_out[1], places=1)
+                calibrated_data = axes.calculate_calibrated_xdata(DataAndMetadata.new_data_and_metadata(data)).data
+                data[data <= 0] = numpy.nan
+                self.assertAlmostEqual(numpy.nanmin(calibrated_data), math.log10(numpy.nanmin(data)))
+                self.assertAlmostEqual(numpy.nanmax(calibrated_data), math.log10(numpy.nanmax(data)))
 
     def test_tool_returns_to_pointer_after_but_not_during_creating_interval(self):
         # setup

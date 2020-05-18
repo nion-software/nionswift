@@ -264,8 +264,6 @@ class TestImportExportManagerClass(unittest.TestCase):
                 self.assertTrue(numpy.allclose(saved_data[:, 0], numpy.linspace(0, 99, 100)))
                 self.assertTrue(numpy.allclose(saved_data[:50, 1], 10))
                 self.assertTrue(numpy.allclose(saved_data[:, 2], 7))
-                with open(file_path) as f:
-                    print(f.readline())
             finally:
                 os.remove(file_path)
 
@@ -295,8 +293,6 @@ class TestImportExportManagerClass(unittest.TestCase):
                 self.assertTrue(numpy.allclose(saved_data[:50, 1], 10))
                 self.assertTrue(numpy.allclose(saved_data[:, 2], numpy.linspace(-10, 188, 100)))
                 self.assertTrue(numpy.allclose(saved_data[:, 3], 7))
-                with open(file_path) as f:
-                    print(f.readline())
             finally:
                 os.remove(file_path)
 

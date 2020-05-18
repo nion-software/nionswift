@@ -207,6 +207,7 @@ class LineGraphAxes:
 
         ticker = self.y_ticker
         y_ticks = list()
+
         for i, (tick_value, tick_label) in enumerate(zip(ticker.values, ticker.labels)):
             if calibrated_data_range != 0.0:
                 y_tick = plot_height - plot_height * (tick_value - calibrated_data_min) / calibrated_data_range
