@@ -55,13 +55,16 @@ def calculate_y_axis(uncalibrated_data_list, data_min, data_max, y_calibration, 
         uncalibrated_data_min = None
         for uncalibrated_data in uncalibrated_data_list:
             if uncalibrated_data is not None and uncalibrated_data.shape[-1] > 0:
-                partial_uncalibrated_data_min = numpy.amin(uncalibrated_data)
+                if data_style == "log":
+                    partial_uncalibrated_data_min = numpy.amin(uncalibrated_data[uncalibrated_data > 0], initial=numpy.inf)
+                else:
+                    partial_uncalibrated_data_min = numpy.amin(uncalibrated_data)
                 if uncalibrated_data_min is not None:
                     uncalibrated_data_min = min(uncalibrated_data_min, partial_uncalibrated_data_min)
                 else:
                     uncalibrated_data_min = partial_uncalibrated_data_min
-        if uncalibrated_data_min is None:
-            uncalibrated_data_min = 0.0
+        if uncalibrated_data_min is None or not numpy.isfinite(uncalibrated_data_min):
+                uncalibrated_data_min = 0.0
 
     if max_specified:
         uncalibrated_data_max = data_max
@@ -69,20 +72,24 @@ def calculate_y_axis(uncalibrated_data_list, data_min, data_max, y_calibration, 
         uncalibrated_data_max = None
         for uncalibrated_data in uncalibrated_data_list:
             if uncalibrated_data is not None and uncalibrated_data.shape[-1] > 0:
-                partial_uncalibrated_data_max = numpy.amax(uncalibrated_data)
+                if data_style == "log":
+                    partial_uncalibrated_data_max = numpy.amax(uncalibrated_data[uncalibrated_data > 0], initial=-numpy.inf)
+                else:
+                    partial_uncalibrated_data_max = numpy.amax(uncalibrated_data)
                 if uncalibrated_data_max is not None:
                     uncalibrated_data_max = max(uncalibrated_data_max, partial_uncalibrated_data_max)
                 else:
                     uncalibrated_data_max = partial_uncalibrated_data_max
-        if uncalibrated_data_max is None:
+        if uncalibrated_data_max is None or not numpy.isfinite(uncalibrated_data_max):
             uncalibrated_data_max = 0.0
 
     calibrated_data_min = y_calibration.convert_to_calibrated_value(uncalibrated_data_min)
     calibrated_data_max = y_calibration.convert_to_calibrated_value(uncalibrated_data_max)
 
     if data_style == "log":
-        calibrated_data_min = math.log10(calibrated_data_min if calibrated_data_min > 0 else 1.0)
-        calibrated_data_max = math.log10(calibrated_data_max if calibrated_data_max > 0 else 1.0)
+        calibrated_data_min = math.log10(calibrated_data_min) if calibrated_data_min > 0 else 0.0
+        calibrated_data_max = math.log10(calibrated_data_max) if calibrated_data_max > 0 else 0.0
+
 
     if math.isnan(calibrated_data_min) or math.isnan(calibrated_data_max) or math.isinf(calibrated_data_min) or math.isinf(calibrated_data_max):
         calibrated_data_min = 0.0
@@ -93,8 +100,11 @@ def calculate_y_axis(uncalibrated_data_list, data_min, data_max, y_calibration, 
         calibrated_data_min = 0.0 if calibrated_data_min > 0 and not min_specified else calibrated_data_min
         calibrated_data_max = 0.0 if calibrated_data_max < 0 and not max_specified else calibrated_data_max
 
-    logarithmic = data_style == "log"
-    if logarithmic:
+    if calibrated_data_min == calibrated_data_max:
+        calibrated_data_min -= 1.0
+        calibrated_data_max += 1.0
+
+    if data_style == "log":
         ticker = Geometry.LogTicker(calibrated_data_min, calibrated_data_max)
     else:
         ticker = Geometry.LinearTicker(calibrated_data_min, calibrated_data_max)
