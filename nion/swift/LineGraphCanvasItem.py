@@ -198,7 +198,7 @@ class LineGraphAxes:
         assert self.is_valid
         return self.x_calibration.convert_to_calibrated_value(self.drawn_right_channel)
 
-    def calculate_y_ticks(self, plot_height):
+    def calculate_y_ticks(self, plot_height, flag_minor=False):
         """Calculate the y-axis items dependent on the plot height."""
 
         calibrated_data_min = self.calibrated_data_min
@@ -207,13 +207,16 @@ class LineGraphAxes:
 
         ticker = self.y_ticker
         y_ticks = list()
-        for tick_value, tick_label in zip(ticker.values, ticker.labels):
+        for i, (tick_value, tick_label) in enumerate(zip(ticker.values, ticker.labels)):
             if calibrated_data_range != 0.0:
                 y_tick = plot_height - plot_height * (tick_value - calibrated_data_min) / calibrated_data_range
             else:
                 y_tick = plot_height - plot_height * 0.5
             if y_tick >= 0 and y_tick <= plot_height:
-                y_ticks.append((y_tick, tick_label))
+                if flag_minor:
+                    y_ticks.append((y_tick, tick_label, i in ticker.minor_tick_indices))
+                else:
+                    y_ticks.append((y_tick, tick_label))
 
         return y_ticks
 
@@ -958,16 +961,23 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             plot_height = int(self.canvas_size[0]) - 1
 
             # extract the data we need for drawing y-axis
-            y_ticks = axes.calculate_y_ticks(plot_height)
-
+            y_ticks = axes.calculate_y_ticks(plot_height, flag_minor=True)
+            include_minor_ticks = plot_height / self.font_size > 2.5 * axes.y_ticker.ticks
+            at_least_one = False
             # draw the y_ticks and labels
             with drawing_context.saver():
                 drawing_context.text_baseline = "middle"
                 drawing_context.font = "{0:d}px".format(self.font_size)
-                for y, label in y_ticks:
+                for y, label, is_minor in y_ticks:
                     drawing_context.begin_path()
                     drawing_context.stroke_style = '#888'
                     drawing_context.stroke()
+                    if include_minor_ticks or not is_minor:
+                        drawing_context.text_align = "right"
+                        drawing_context.fill_style = "#000"
+                        drawing_context.fill_text(label, width, y)
+                        at_least_one = True
+                if not at_least_one and y_ticks:
                     drawing_context.text_align = "right"
                     drawing_context.fill_style = "#000"
                     drawing_context.fill_text(label, width, y)
