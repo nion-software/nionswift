@@ -49,5 +49,11 @@ class StorageHandler(abc.ABC):
     @abc.abstractmethod
     def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype, file_datetime: datetime.datetime) -> None: ...
 
+    @abc.abstractmethod
+    def prepare_move(self) -> None: ...
+
+    @abc.abstractmethod
+    def remove(self) -> None: ...
+
 
 # class FileStorageHandler(StorageHandler):

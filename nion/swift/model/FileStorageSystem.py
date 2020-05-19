@@ -29,7 +29,8 @@ PROJECT_VERSION_0_14 = 2
 
 
 class ReaderInfo:
-    def __init__(self, properties: typing.Dict, changed_ref: typing.List[bool], large_format: bool, storage_handler: StorageHandler.StorageHandler, identifier: str):
+    def __init__(self, properties: typing.Dict, changed_ref: typing.List[bool], large_format: bool,
+                 storage_handler: StorageHandler.StorageHandler, identifier: str):
         self.properties = properties
         self.changed_ref = changed_ref
         self.large_format = large_format
@@ -109,7 +110,7 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem",
                 properties = Migration.transform_to_latest(storage_handler.read_properties())
                 reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
                 preliminary_reader_info_list.append(reader_info)
-            except Exception as e:
+            except Exception:
                 storage_handler.close()
                 logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
@@ -121,7 +122,7 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem",
         # is marked as deleted so that if migration is performed again, that deleted item will not be re-migrated.
         new_library_properties = source_project_storage_system._read_library_properties(migration_stage)
         for deletion in copy.deepcopy(new_library_properties.get("data_item_deletions", list())):
-            if not deletion in deletions:
+            if deletion not in deletions:
                 deletions.append(deletion)
 
         # set library properties to one from the first/newest migration stage encountered with library properties.
@@ -132,7 +133,7 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem",
         # produce additional library updates in preliminary_library_updates. these are changes to the library that
         # must be made in order to move information that at one point was stored in the data item files into the
         # library. an example is a computation, which was originally stored in the data item file itself.
-        preliminary_library_updates : typing.Dict = dict()
+        preliminary_library_updates: typing.Dict = dict()
         Migration.migrate_to_latest(preliminary_reader_info_list, preliminary_library_updates)
 
         # finally, for each item in the preliminary_reader_info_list, confirm that it is the latest version and then
@@ -146,7 +147,7 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem",
                 version = properties.get("version", 0)
                 if version == DataItem.DataItem.writer_version:
                     data_item_uuid = uuid.UUID(properties["uuid"])
-                    if not data_item_uuid in data_item_uuids:
+                    if data_item_uuid not in data_item_uuids:
                         if not str(data_item_uuid) in deletions:
                             new_reader_info = target_project_storage_system._migrate_data_item(reader_info, index, count)
                             if new_reader_info:
@@ -155,7 +156,7 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem",
                                 library_update = preliminary_library_updates.get(data_item_uuid)
                                 if library_update:
                                     library_updates[data_item_uuid] = library_update
-            except Exception as e:
+            except Exception:
                 logging.debug(f"Error reading {reader_info.storage_handler.reference}")
                 import traceback
                 traceback.print_exc()
@@ -447,7 +448,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
     def _is_storage_handler_large_format(self, storage_handler: StorageHandler.StorageHandler) -> bool: ...
 
     @abc.abstractmethod
-    def _remove_storage_handler(self, storage_handler: StorageHandler.StorageHandler, *, safe: bool=False) -> None: ...
+    def _remove_storage_handler(self, storage_handler: StorageHandler.StorageHandler, *, safe: bool = False) -> None: ...
 
     @abc.abstractmethod
     def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]: ...
@@ -502,7 +503,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
                 properties = Migration.transform_to_latest(storage_handler.read_properties())
                 reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
                 reader_info_list.append(reader_info)
-            except Exception as e:
+            except Exception:
                 logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
@@ -705,7 +706,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
     def _get_identifier(self) -> str:
         return str(self.__project_path)
 
-    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler: typing.Optional[typing.Type[StorageHandler.StorageHandler]] = None) -> StorageHandler.StorageHandler:
+    def _make_storage_handler(self, data_item: DataItem.DataItem,
+                              file_handler: typing.Optional[typing.Type[StorageHandler.StorageHandler]] = None) -> StorageHandler.StorageHandler:
         # if there are two handlers, first is small, second is large
         # if there is only one handler, it is used in all cases
         large_format = hasattr(data_item, "large_format") and data_item.large_format
@@ -716,10 +718,10 @@ class FileProjectStorageSystem(ProjectStorageSystem):
     def _find_storage_handlers(self) -> typing.Sequence[StorageHandler.StorageHandler]:
         return self.__find_storage_handlers(self.__project_data_path)
 
-    def _is_storage_handler_large_format(self, storage_handler) -> bool:
+    def _is_storage_handler_large_format(self, storage_handler: StorageHandler.StorageHandler) -> bool:
         return isinstance(storage_handler, HDF5Handler.HDF5Handler)
 
-    def _remove_storage_handler(self, storage_handler, *, safe: bool=False) -> None:
+    def _remove_storage_handler(self, storage_handler: StorageHandler.StorageHandler, *, safe: bool = False) -> None:
         assert self.__project_data_path is not None
         file_path = pathlib.Path(storage_handler.reference)
         file_name = file_path.parts[-1]
@@ -793,7 +795,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
                 target_storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
                 logging.getLogger("migration").info(f"Copying data item ({index + 1}/{count}) {data_item_uuid} to new library.")
-                return ReaderInfo(properties, [False], self._is_storage_handler_large_format(target_storage_handler), target_storage_handler, target_storage_handler.reference)
+                return ReaderInfo(properties, [False], self._is_storage_handler_large_format(target_storage_handler),
+                                  target_storage_handler, target_storage_handler.reference)
         logging.getLogger("migration").warning(f"Unable to copy data item {data_item_uuid} to new library.")
         return None
 
@@ -841,13 +844,15 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         # data_item_uuid.bytes.encode('base64').rstrip('=\n').replace('/', '_')
         # and back: data_item_uuid = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
         # also:
-        def encode(uuid_, alphabet):
+
+        def encode(uuid_: uuid.UUID, alphabet: str) -> str:
             result = str()
             uuid_int = uuid_.int
             while uuid_int:
                 uuid_int, digit = divmod(uuid_int, len(alphabet))
                 result += alphabet[digit]
             return result
+
         path_components = created_local.strftime("%Y-%m-%d").split('-')
         session_id = session_id if session_id else created_local.strftime("%Y%m%d-000000")
         path_components.append(session_id)
@@ -931,10 +936,17 @@ class MemoryStorageHandler(StorageHandler.StorageHandler):
     def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype, file_datetime: datetime.datetime) -> None:
         self.__data_map[self.__uuid] = numpy.zeros(data_shape, data_dtype)
 
+    def prepare_move(self) -> None:
+        pass
+
+    def remove(self) -> None:
+        pass
+
 
 class MemoryProjectStorageSystem(ProjectStorageSystem):
 
-    def __init__(self, *, library_properties: typing.Dict = None, data_properties_map: typing.Dict = None, data_map: typing.Dict = None, trash_map: typing.Dict = None, data_read_event: Event.Event = None):
+    def __init__(self, *, library_properties: typing.Dict = None, data_properties_map: typing.Dict = None,
+                 data_map: typing.Dict = None, trash_map: typing.Dict = None, data_read_event: Event.Event = None):
         super().__init__()
         self.__library_properties = library_properties if library_properties is not None else dict()
         self.__data_properties_map = data_properties_map if data_properties_map is not None else dict()
@@ -952,7 +964,8 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
     def _get_identifier(self) -> str:
         return "memory"
 
-    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler: typing.Optional[typing.Type[StorageHandler.StorageHandler]] = None) -> MemoryStorageHandler:
+    def _make_storage_handler(self, data_item: DataItem.DataItem,
+                              file_handler: typing.Optional[typing.Type[StorageHandler.StorageHandler]] = None) -> MemoryStorageHandler:
         data_item_uuid_str = str(data_item.uuid)
         return MemoryStorageHandler(data_item_uuid_str, self.__data_properties_map, self.__data_map, self._test_data_read_event)
 
@@ -1044,7 +1057,9 @@ def make_folder_project_storage_system(project_folder_path: pathlib.Path) -> typ
 def make_memory_project_storage_system(profile_context, _uuid: uuid.UUID, d: typing.Dict) -> typing.Optional[ProjectStorageSystem]:
     storage_system_uuid = _uuid or uuid.uuid4()
     # the profile context must be valid here.
-    new_project_properties = profile_context.x_project_properties.setdefault(storage_system_uuid, {"version": PROJECT_VERSION, "uuid": str(storage_system_uuid)})
+    new_project_properties = profile_context.x_project_properties.setdefault(storage_system_uuid,
+                                                                             {"version": PROJECT_VERSION,
+                                                                              "uuid": str(storage_system_uuid)})
     new_data_properties_map = profile_context.x_data_properties_map.setdefault(storage_system_uuid, dict())
     new_data_map = profile_context.x_data_map.setdefault(storage_system_uuid, dict())
     new_trash_map = profile_context.x_trash_map.setdefault(storage_system_uuid, dict())
