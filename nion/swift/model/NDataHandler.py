@@ -18,6 +18,7 @@ import time
 import typing
 
 # local libraries
+from nion.swift.model import StorageHandler
 from nion.swift.model import Utility
 from nion.utils import Geometry
 
@@ -357,7 +358,7 @@ def rewrite_zip(file_path, properties):
             write_zip_fp(fp, data, properties)
 
 
-class NDataHandler:
+class NDataHandler(StorageHandler.StorageHandler):
     """
         A handler object for ndata files.
 
@@ -418,12 +419,12 @@ class NDataHandler:
         return False
 
     @classmethod
-    def make(cls, file_path):
+    def make(cls, file_path: pathlib.Path):
         return cls(cls.make_path(file_path))
 
     @classmethod
-    def make_path(cls, file_path) -> str:
-        return str(pathlib.Path(file_path).with_suffix(cls.get_extension()))
+    def make_path(cls, file_path: pathlib.Path) -> str:
+        return str(file_path.with_suffix(cls.get_extension()))
 
     @classmethod
     def get_extension(self) -> str:

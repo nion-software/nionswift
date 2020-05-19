@@ -12,6 +12,7 @@ import typing
 import h5py
 import numpy
 
+from nion.swift.model import StorageHandler
 from nion.swift.model import Utility
 from nion.utils import Geometry
 
@@ -27,7 +28,7 @@ def make_directory_if_needed(directory_path):
         os.makedirs(directory_path)
 
 
-class HDF5Handler:
+class HDF5Handler(StorageHandler.StorageHandler):
     count = 0  # useful for detecting leaks in tests
 
     def __init__(self, file_path):
@@ -64,12 +65,12 @@ class HDF5Handler:
         return False
 
     @classmethod
-    def make(cls, file_path):
+    def make(cls, file_path: pathlib.Path):
         return cls(cls.make_path(file_path))
 
     @classmethod
-    def make_path(cls, file_path) -> str:
-        return str(pathlib.Path(file_path).with_suffix(cls.get_extension()))
+    def make_path(cls, file_path: pathlib.Path) -> str:
+        return str(file_path.with_suffix(cls.get_extension()))
 
     @classmethod
     def get_extension(self) -> str:

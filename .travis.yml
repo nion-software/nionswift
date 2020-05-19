@@ -53,6 +53,10 @@ script:
   - python --version
   - python -m unittest discover -p '*_test.py'
   - mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/swift/DataPanel.py
+  - mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/swift/model/FileStorageSystem.py
+  - mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/swift/model/NDataHandler.py
+  - mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/swift/model/HDF5Handler.py
+  - mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/swift/model/StorageHandler.py
 
 # command to deploy to pypi on tags
 deploy:

@@ -1,5 +1,4 @@
 import abc
-import collections
 import contextlib
 import copy
 import datetime
@@ -10,7 +9,6 @@ import os.path
 import pathlib
 import shutil
 import threading
-import time
 import typing
 import uuid
 
@@ -19,6 +17,7 @@ from nion.swift.model import HDF5Handler
 from nion.swift.model import Migration
 from nion.swift.model import NDataHandler
 from nion.swift.model import Persistence
+from nion.swift.model import StorageHandler
 from nion.swift.model import Utility
 from nion.utils import Event
 
@@ -28,43 +27,50 @@ PROFILE_VERSION = 2
 PROJECT_VERSION = 3
 PROJECT_VERSION_0_14 = 2
 
-ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "large_format", "storage_handler", "identifier"])
+
+class ReaderInfo:
+    def __init__(self, properties: typing.Dict, changed_ref: typing.List[bool], large_format: bool, storage_handler: StorageHandler.StorageHandler, identifier: str):
+        self.properties = properties
+        self.changed_ref = changed_ref
+        self.large_format = large_format
+        self.storage_handler = storage_handler
+        self.identifier = identifier
 
 
 class DataItemStorageAdapter:
     """Persistent storage for writing data item properties, relationships, and data to its storage handler."""
 
-    def __init__(self, storage_handler, properties: typing.Dict):
+    def __init__(self, storage_handler: StorageHandler.StorageHandler, properties: typing.Dict):
         self.__storage_handler = storage_handler
         self.__properties = properties
 
-    def close(self):
+    def close(self) -> None:
         if self.__storage_handler:
             self.__storage_handler.close()
-            self.__storage_handler = None
+            self.__storage_handler = typing.cast(StorageHandler.StorageHandler, None)
 
     @property
-    def properties(self):
+    def properties(self) -> typing.Dict:
         return self.__properties
 
     @property
-    def storage_handler(self):
+    def storage_handler(self) -> StorageHandler.StorageHandler:
         return self.__storage_handler
 
-    def rewrite_item(self, item) -> None:
+    def rewrite_item(self, item: Persistence.PersistentObject) -> None:
         file_datetime = item.created_local
         self.__storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(self.__properties)), file_datetime)
 
-    def update_data(self, item, data):
+    def update_data(self, item: Persistence.PersistentObject, data: numpy.ndarray) -> None:
         file_datetime = item.created_local
         if data is not None:
             self.__storage_handler.write_data(data, file_datetime)
 
-    def reserve_data(self, item, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
+    def reserve_data(self, item: Persistence.PersistentObject, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
         file_datetime = item.created_local
         self.__storage_handler.reserve_data(data_shape, data_dtype, file_datetime)
 
-    def load_data(self, item) -> None:
+    def load_data(self, item: Persistence.PersistentObject) -> numpy.ndarray:
         return self.__storage_handler.read_data()
 
 
@@ -126,7 +132,7 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem",
         # produce additional library updates in preliminary_library_updates. these are changes to the library that
         # must be made in order to move information that at one point was stored in the data item files into the
         # library. an example is a computation, which was originally stored in the data item file itself.
-        preliminary_library_updates = dict()
+        preliminary_library_updates : typing.Dict = dict()
         Migration.migrate_to_latest(preliminary_reader_info_list, preliminary_library_updates)
 
         # finally, for each item in the preliminary_reader_info_list, confirm that it is the latest version and then
@@ -160,6 +166,8 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem",
 
     assert len(reader_info_list) == len(data_item_uuids)
 
+    assert library_properties is not None
+
     # for each data item represented by a ReaderInfo object, apply its library updates. this will include
     # connections, computations, and display items. for instance, before version 13, the data item and display item
     # were both stored in the data item file; this migrates the display portion to the library properties.
@@ -170,6 +178,7 @@ def migrate_to_latest(source_project_storage_system: "ProjectStorageSystem",
         if version == DataItem.DataItem.writer_version:
             data_item_uuid = uuid.UUID(properties.get("uuid", uuid.uuid4()))
             library_update = library_updates.get(data_item_uuid, dict())
+            assert library_update is not None
             library_properties.setdefault("connections", list()).extend(library_update.get("connections", list()))
             library_properties.setdefault("computations", list()).extend(library_update.get("computations", list()))
             library_properties.setdefault("display_items", list()).extend(library_update.get("display_items", list()))
@@ -232,11 +241,11 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         """Return the internal properties. Callers should not modify and it is ok to not return a copy."""
         return self.__properties
 
-    def __write_properties_if_not_delayed(self, item) -> None:
+    def __write_properties_if_not_delayed(self, item: typing.Optional[Persistence.PersistentObject]) -> None:
         if self.__write_delay_counts.get(item, 0) == 0:
             self._write_item_properties(item)
 
-    def _write_item_properties(self, item) -> None:
+    def _write_item_properties(self, item: typing.Optional[Persistence.PersistentObject]) -> None:
         persistent_object_parent = item.persistent_object_parent if item else None
         if not persistent_object_parent:
             if self.__write_delay_count == 0:
@@ -258,25 +267,25 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
             self.__update_modified_and_get_storage_dict(parent)
         return storage_dict
 
-    def insert_item(self, parent, name: str, before_index: int, item) -> None:
+    def insert_item(self, parent: Persistence.PersistentObject, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
         # insert item in internal storage
         item.persistent_dict = item.write_to_dict()
         item.persistent_storage = self
         self._insert_item(parent, name, before_index, item)
 
-    def remove_item(self, parent, name: str, index: int, item) -> None:
+    def remove_item(self, parent: Persistence.PersistentObject, name: str, index: int, item: Persistence.PersistentObject) -> None:
         self._remove_item(parent, name, index, item)
-        item.persistent_dict = None
-        item.persistent_storage = None
+        item.persistent_dict = typing.cast(typing.Dict, None)
+        item.persistent_storage = typing.cast(Persistence.PersistentStorageInterface, None)
 
-    def _insert_item(self, parent, name: str, before_index: int, item) -> None:
+    def _insert_item(self, parent: Persistence.PersistentObject, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
             item_list = storage_dict.setdefault(name, list())
             item_list.insert(before_index, item.persistent_dict)
         self.__write_properties_if_not_delayed(parent)
 
-    def _remove_item(self, parent, name: str, index: int, item) -> None:
+    def _remove_item(self, parent: Persistence.PersistentObject, name: str, index: int, item: Persistence.PersistentObject) -> None:
         # remove item from internal storage
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
@@ -284,7 +293,7 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
             del item_list[index]
         self.__write_properties_if_not_delayed(parent)
 
-    def set_item(self, parent, name: str, item) -> None:
+    def set_item(self, parent: Persistence.PersistentObject, name: str, item: Persistence.PersistentObject) -> None:
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         if item:
             # set the item and update its persistent context
@@ -296,41 +305,41 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
             # clear the item
             with self.__properties_lock:
                 storage_dict.pop(name, None)
-                item.persistent_dict = None
-                item.persistent_storage = None
+                item.persistent_dict = typing.cast(typing.Dict, None)
+                item.persistent_storage = typing.cast(Persistence.PersistentStorageInterface, None)
         self.__write_properties_if_not_delayed(parent)
 
-    def set_property(self, object, name: str, value) -> None:
+    def set_property(self, object: Persistence.PersistentObject, name: str, value: typing.Any) -> None:
         # set property in internal storage
         storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.__properties_lock:
             storage_dict[name] = value
         self.__write_properties_if_not_delayed(object)
 
-    def clear_property(self, object, name: str) -> None:
+    def clear_property(self, object: Persistence.PersistentObject, name: str) -> None:
         # clear property in internal storage
         storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.__properties_lock:
             storage_dict.pop(name, None)
         self.__write_properties_if_not_delayed(object)
 
-    def get_storage_property(self, item, name: str) -> typing.Optional[str]:
+    def get_storage_property(self, item: Persistence.PersistentObject, name: str) -> typing.Optional[str]:
         return None
 
-    def read_external_data(self, item, name: str) -> typing.Any:
+    def read_external_data(self, item: Persistence.PersistentObject, name: str) -> typing.Any:
         return None
 
-    def write_external_data(self, item, name: str, value) -> None:
+    def write_external_data(self, item: Persistence.PersistentObject, name: str, value: numpy.ndarray) -> None:
         pass
 
-    def reserve_external_data(self, item, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
+    def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
         pass
 
-    def enter_write_delay(self, object) -> None:
+    def enter_write_delay(self, object: Persistence.PersistentObject) -> None:
         count = self.__write_delay_counts.setdefault(object, 0)
         self.__write_delay_counts[object] = count + 1
 
-    def exit_write_delay(self, object) -> None:
+    def exit_write_delay(self, object: Persistence.PersistentObject) -> None:
         count = self.__write_delay_counts.get(object, 1)
         count -= 1
         if count == 0:
@@ -338,10 +347,10 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         else:
             self.__write_delay_counts[object] = count
 
-    def is_write_delayed(self, item) -> bool:
+    def is_write_delayed(self, item: Persistence.PersistentObject) -> bool:
         return self.__write_delay_counts.get(item, 0) > 0
 
-    def rewrite_item(self, item) -> None:
+    def rewrite_item(self, item: Persistence.PersistentObject) -> None:
         self.__write_properties_if_not_delayed(item)
 
     def read_properties(self) -> typing.Dict:
@@ -429,16 +438,16 @@ class ProjectStorageSystem(PersistentStorageSystem):
     def _get_identifier(self) -> str: ...
 
     @abc.abstractmethod
-    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler=None): ...
+    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler: typing.Optional[typing.Type[StorageHandler.StorageHandler]] = None): ...
 
     @abc.abstractmethod
-    def _find_storage_handlers(self) -> typing.List: ...
+    def _find_storage_handlers(self) -> typing.Sequence[StorageHandler.StorageHandler]: ...
 
     @abc.abstractmethod
-    def _is_storage_handler_large_format(self, storage_handler) -> bool: ...
+    def _is_storage_handler_large_format(self, storage_handler: StorageHandler.StorageHandler) -> bool: ...
 
     @abc.abstractmethod
-    def _remove_storage_handler(self, storage_handler, *, safe: bool=False) -> None: ...
+    def _remove_storage_handler(self, storage_handler: StorageHandler.StorageHandler, *, safe: bool=False) -> None: ...
 
     @abc.abstractmethod
     def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]: ...
@@ -459,7 +468,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
     def _read_library_properties(self, migration_stage) -> typing.Dict: ...
 
     @abc.abstractmethod
-    def _find_data_items(self, migration_stage) -> typing.List: ...
+    def _find_data_items(self, migration_stage) -> typing.Sequence[StorageHandler.StorageHandler]: ...
 
     def get_identifier(self) -> str:
         return self._get_identifier()
@@ -538,14 +547,14 @@ class ProjectStorageSystem(PersistentStorageSystem):
         return properties_copy
 
     # override
-    def _write_item_properties(self, item):
+    def _write_item_properties(self, item: typing.Optional[Persistence.PersistentObject]) -> None:
         if item and isinstance(item, DataItem.DataItem):
             self.__rewrite_data_item_properties(item)
         else:
             super()._write_item_properties(item)
 
     # override
-    def _insert_item(self, parent, name: str, before_index: int, item) -> None:
+    def _insert_item(self, parent: Persistence.PersistentObject, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
         if isinstance(item, DataItem.DataItem):
             item_uuid = item.uuid
             storage_handler = self._make_storage_handler(item)
@@ -556,7 +565,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
             super()._insert_item(parent, name, before_index, item)
 
     # override
-    def _remove_item(self, parent, name: str, index: int, item) -> None:
+    def _remove_item(self, parent: Persistence.PersistentObject, name: str, index: int, item: Persistence.PersistentObject) -> None:
         if isinstance(item, DataItem.DataItem):
             assert item.uuid in self.__storage_adapter_map
             storage = self.__storage_adapter_map.get(item.uuid)
@@ -566,33 +575,33 @@ class ProjectStorageSystem(PersistentStorageSystem):
             super()._remove_item(parent, name, index, item)
 
     # override
-    def get_storage_property(self, item, name: str) -> typing.Optional[str]:
+    def get_storage_property(self, item: Persistence.PersistentObject, name: str) -> typing.Optional[str]:
         if isinstance(item, DataItem.DataItem):
             return self.__get_data_item_property(item, name)
         return super().get_storage_property(item, name)
 
     # override
-    def read_external_data(self, item, name: str) -> typing.Any:
+    def read_external_data(self, item: Persistence.PersistentObject, name: str) -> numpy.ndarray:
         if isinstance(item, DataItem.DataItem) and name == "data":
             return self.__read_data_item_data(item)
         return super().read_external_data(item, name)
 
     # override
-    def write_external_data(self, item, name: str, value) -> None:
+    def write_external_data(self, item: Persistence.PersistentObject, name: str, value: numpy.ndarray) -> None:
         if isinstance(item, DataItem.DataItem) and name == "data":
             self.__write_data_item_data(item, value)
         else:
             super().write_external_data(item, name, value)
 
     # override
-    def reserve_external_data(self, item, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
+    def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
         if isinstance(item, DataItem.DataItem) and name == "data":
             self.__reserve_data_item_data(item, data_shape, data_dtype)
         else:
             super().reserve_external_data(item, name, data_shape, data_dtype)
 
     # override
-    def rewrite_item(self, item) -> None:
+    def rewrite_item(self, item: Persistence.PersistentObject) -> None:
         if isinstance(item, DataItem.DataItem):
             self.__rewrite_data_item_properties(item)
         else:
@@ -604,7 +613,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
     def prune(self) -> None:
         self._prune()
 
-    def find_data_items(self) -> typing.List:
+    def find_data_items(self) -> typing.Sequence[StorageHandler.StorageHandler]:
         return self._find_storage_handlers()
 
     def migrate_to_latest(self) -> None:
@@ -619,7 +628,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
             return storage.storage_handler.reference if storage else None
         return None
 
-    def __read_data_item_data(self, data_item: DataItem.DataItem):
+    def __read_data_item_data(self, data_item: DataItem.DataItem) -> numpy.ndarray:
         storage = self.__storage_adapter_map.get(data_item.uuid)
         return storage.load_data(data_item)
 
@@ -696,20 +705,22 @@ class FileProjectStorageSystem(ProjectStorageSystem):
     def _get_identifier(self) -> str:
         return str(self.__project_path)
 
-    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler=None):
+    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler: typing.Optional[typing.Type[StorageHandler.StorageHandler]] = None) -> StorageHandler.StorageHandler:
         # if there are two handlers, first is small, second is large
         # if there is only one handler, it is used in all cases
         large_format = hasattr(data_item, "large_format") and data_item.large_format
         file_handler = file_handler if file_handler else (self._file_handlers[-1] if large_format else self._file_handlers[0])
+        assert self.__project_data_path is not None
         return file_handler.make(self.__project_data_path / self.__get_base_path(data_item))
 
-    def _find_storage_handlers(self) -> typing.List:
+    def _find_storage_handlers(self) -> typing.Sequence[StorageHandler.StorageHandler]:
         return self.__find_storage_handlers(self.__project_data_path)
 
     def _is_storage_handler_large_format(self, storage_handler) -> bool:
         return isinstance(storage_handler, HDF5Handler.HDF5Handler)
 
     def _remove_storage_handler(self, storage_handler, *, safe: bool=False) -> None:
+        assert self.__project_data_path is not None
         file_path = pathlib.Path(storage_handler.reference)
         file_name = file_path.parts[-1]
         trash_dir = self.__project_data_path / "trash"
@@ -718,10 +729,11 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         # TODO: move this functionality to the storage handler.
         if safe and not os.path.exists(new_file_path):
             trash_dir.mkdir(exist_ok=True)
-            shutil.move(file_path, new_file_path)
+            shutil.move(str(file_path), new_file_path)
         storage_handler.remove()
 
     def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
+        assert self.__project_data_path is not None
         data_item_uuid_str = str(data_item_uuid)
         trash_dir = self.__project_data_path / "trash"
         storage_handlers = self.__find_storage_handlers(trash_dir, skip_trash=False)
@@ -758,6 +770,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
 
     @property
     def _trash_dir(self) -> pathlib.Path:
+        assert self.__project_data_path is not None
         return self.__project_data_path / "trash"
 
     def _migrate_data_item(self, reader_info: ReaderInfo, index: int, count: int) -> typing.Optional[ReaderInfo]:
@@ -818,7 +831,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 os.replace(project_path, project_path.with_suffix(".bak"))
         return properties
 
-    def _find_data_items(self, migration_stage) -> typing.List:
+    def _find_data_items(self, migration_stage) -> typing.Sequence[StorageHandler.StorageHandler]:
         return self.__find_storage_handlers(migration_stage[1])
 
     def __get_base_path(self, data_item: DataItem.DataItem) -> pathlib.Path:
@@ -842,13 +855,13 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         path_components.append(encoded_base_path)
         return pathlib.Path(*path_components)
 
-    def __get_file_handler_for_file(self, path: str):
+    def __get_file_handler_for_file(self, path: str) -> typing.Optional[typing.Type[StorageHandler.StorageHandler]]:
         for file_handler in self._file_handlers:
             if file_handler.is_matching(path):
                 return file_handler
         return None
 
-    def __find_storage_handlers(self, directory: pathlib.Path, *, skip_trash=True) -> typing.List:
+    def __find_storage_handlers(self, directory: typing.Optional[pathlib.Path], *, skip_trash: bool = True) -> typing.Sequence[StorageHandler.StorageHandler]:
         storage_handlers = list()
         if directory and directory.exists():
             absolute_file_paths = set()
@@ -869,37 +882,53 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         return storage_handlers
 
 
-class MemoryStorageHandler:
+class MemoryStorageHandler(StorageHandler.StorageHandler):
 
-    def __init__(self, uuid, data_properties_map, data_map, data_read_event):
-        self.__uuid = uuid
+    def __init__(self, uuid_: str, data_properties_map: typing.Dict[str, typing.Dict], data_map: typing.Dict[str, numpy.ndarray], data_read_event: Event.Event):
+        self.__uuid = uuid_
         self.__data_properties_map = data_properties_map
         self.__data_map = data_map
         self.__data_read_event = data_read_event
 
-    def close(self):
-        self.__uuid = None
-        self.__data_properties_map = None
-        self.__data_map = None
+    def close(self) -> None:
+        self.__uuid = typing.cast(str, None)
+        self.__data_properties_map = typing.cast(typing.Dict[str, typing.Dict], None)
+        self.__data_map = typing.cast(typing.Dict[str, numpy.ndarray], None)
+
+    @classmethod
+    def is_matching(cls, file_path: str) -> bool:
+        return True
+
+    @classmethod
+    def make(cls, file_path: pathlib.Path) -> StorageHandler.StorageHandler:
+        return MemoryStorageHandler(str(uuid.uuid4()), dict(), dict(), Event.Event())
+
+    @classmethod
+    def make_path(cls, file_path: pathlib.Path) -> str:
+        return str(file_path)
 
     @property
-    def reference(self):
+    def reference(self) -> str:
         return str(self.__uuid)
 
-    def read_properties(self):
+    @property
+    def is_valid(self) -> bool:
+        return True
+
+    def read_properties(self) -> typing.Dict:
         return copy.deepcopy(self.__data_properties_map.get(self.__uuid, dict()))
 
-    def read_data(self):
+    def read_data(self) -> numpy.ndarray:
         self.__data_read_event.fire(self.__uuid)
         return self.__data_map.get(self.__uuid)
 
-    def write_properties(self, properties, file_datetime):
+    def write_properties(self, properties: typing.Dict, file_datetime: datetime.datetime) -> None:
         self.__data_properties_map[self.__uuid] = Utility.clean_dict(properties)
 
-    def write_data(self, data, file_datetime):
+    def write_data(self, data: numpy.ndarray, file_datetime: datetime.datetime) -> None:
         self.__data_map[self.__uuid] = data.copy()
 
-    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype, file_datetime) -> None:
+    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype, file_datetime: datetime.datetime) -> None:
         self.__data_map[self.__uuid] = numpy.zeros(data_shape, data_dtype)
 
 
@@ -923,21 +952,21 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
     def _get_identifier(self) -> str:
         return "memory"
 
-    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler=None):
+    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler: typing.Optional[typing.Type[StorageHandler.StorageHandler]] = None) -> MemoryStorageHandler:
         data_item_uuid_str = str(data_item.uuid)
         return MemoryStorageHandler(data_item_uuid_str, self.__data_properties_map, self.__data_map, self._test_data_read_event)
 
-    def _find_storage_handlers(self) -> typing.List:
+    def _find_storage_handlers(self) -> typing.Sequence[StorageHandler.StorageHandler]:
         storage_handlers = list()
         for key in sorted(self.__data_properties_map):
             self.__data_properties_map[key].setdefault("uuid", str(uuid.uuid4()))
             storage_handlers.append(MemoryStorageHandler(key, self.__data_properties_map, self.__data_map, self._test_data_read_event))
         return storage_handlers
 
-    def _is_storage_handler_large_format(self, storage_handler) -> bool:
+    def _is_storage_handler_large_format(self, storage_handler: StorageHandler.StorageHandler) -> bool:
         return False
 
-    def _remove_storage_handler(self, storage_handler, *, safe: bool=False) -> None:
+    def _remove_storage_handler(self, storage_handler: StorageHandler.StorageHandler, *, safe: bool = False) -> None:
         storage_handler_reference = storage_handler.reference
         data = self.__data_map.pop(storage_handler_reference, None)
         properties = self.__data_properties_map.pop(storage_handler_reference)
@@ -946,7 +975,7 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
             self.__trash_map[storage_handler_reference] = {"data": data, "properties": properties}
         storage_handler.close()  # moving files in the storage handler requires it to be closed.
 
-    def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
+    def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[typing.Dict]:
         data_item_uuid_str = str(data_item_uuid)
         trash_entry = self.__trash_map.pop(data_item_uuid_str)
         assert data_item_uuid_str not in self.__data_properties_map
@@ -981,7 +1010,7 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
                 data_item_properties["__large_format"] = reader_info.large_format
                 data_properties_map[reader_info.identifier] = data_item_properties
 
-        def data_item_created(data_item_properties: typing.Mapping) -> str:
+        def data_item_created(data_item_properties: typing.Tuple[str, typing.Mapping]) -> str:
             # created is a utc timestamp
             earliest_datetime = datetime.datetime.utcfromtimestamp(0).isoformat()
             return data_item_properties[1].get("created", earliest_datetime)
@@ -997,7 +1026,7 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
     def _read_library_properties(self, migration_stage) -> typing.Dict:
         return copy.deepcopy(self.__library_properties)
 
-    def _find_data_items(self, migration_stage) -> typing.List:
+    def _find_data_items(self, migration_stage) -> typing.Sequence[StorageHandler.StorageHandler]:
         return self._find_storage_handlers()
 
 
