@@ -417,8 +417,7 @@ class AcquisitionTask:
 class DataChannel:
     """A channel of raw data from a hardware source.
 
-    The channel buffer is an interface to the stream of data from a hardware source to a client
-    of that stream.
+    The channel buffer is an interface to the stream of data from a hardware source to a client of that stream.
 
     The client can listen to the following events from the channel:
         * data_channel_updated_event
@@ -433,6 +432,12 @@ class DataChannel:
         * state
         * src_channel_index
         * sub_area
+
+    This class is used when the document model or data item is not available to be called directly. The document model
+    will watch for registered hardware sources and query each hardware source for its predefined data channels and
+    listen to them for start/updated/stop events. Setting data on this object will trigger a data_channel_updated_event
+    which will set pending data on the data item and eventually call set_data_and_metadata on the data item from the
+    main thread.
     """
     def __init__(self, hardware_source: "HardwareSource", index: int, channel_id: str=None, name: str=None, src_channel_index: int=None, processor=None):
         self.__hardware_source = hardware_source
