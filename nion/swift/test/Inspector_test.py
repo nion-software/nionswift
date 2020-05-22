@@ -410,7 +410,7 @@ class TestInspectorClass(unittest.TestCase):
             inspector_sections = list(type(i) for i in inspector_panel._get_inspector_sections())
             self.assertIn(Inspector.LinePlotDisplayInspectorSection, inspector_sections)
 
-    def test_line_plot_with_data_item_with_multiple_rows_adds_display_layer_for_each_row(self):
+    def test_line_plot_with_data_item_with_two_rows_adds_display_layer_for_each_row(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
@@ -420,8 +420,27 @@ class TestInspectorClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_type = "line_plot"
             self.assertEqual(2, len(display_item.display_layers))
+            # check for unique data rows and fill colors
+            self.assertEqual(1, len({display_layer["data_index"] for display_layer in display_item.display_layers}))
+            self.assertEqual(2, len({display_layer["data_row"] for display_layer in display_item.display_layers}))
+            self.assertEqual(2, len({display_layer["fill_color"] for display_layer in display_item.display_layers}))
             display_item.display_type = "image"
             self.assertEqual(1, len(display_item.display_layers))
+
+    def test_line_plot_with_data_item_with_three_rows_adds_display_layer_for_each_row(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((3, 32)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
+            self.assertEqual(3, len(display_item.display_layers))
+            # check for unique data rows and fill colors
+            self.assertEqual(1, len({display_layer["data_index"] for display_layer in display_item.display_layers}))
+            self.assertEqual(3, len({display_layer["data_row"] for display_layer in display_item.display_layers}))
+            self.assertEqual(3, len({display_layer["fill_color"] for display_layer in display_item.display_layers}))
 
     def test_line_plot_with_one_data_items_and_two_rows_and_two_layers_displays_inspector(self):
         document_model = DocumentModel.DocumentModel()

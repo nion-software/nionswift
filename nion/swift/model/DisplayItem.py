@@ -993,10 +993,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.graphics_changed_event.fire(self.graphic_selection)
         if self.display_type == "line_plot":
             if self.display_data_shape and len(self.display_data_shape) == 2:
-                index = 0
-                while len(self.display_layers) < min(self.display_data_shape[0], 8):
-                    self.__add_display_layer_auto(dict(), 0, index)
-                    index += 1
+                while len(self.display_layers) > 0:
+                    self.remove_display_layer(len(self.display_layers) - 1)
+                for data_index, display_data_channel in enumerate(self.display_data_channels):
+                    data_item = display_data_channel.data_item
+                    if data_item:
+                        for data_row in range(data_item.dimensional_shape[0]):
+                            self.__add_display_layer_auto(dict(), data_index, data_row)
         else:
             while len(self.display_layers) > 1:
                 self.remove_display_layer(len(self.display_layers) - 1)
