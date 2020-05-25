@@ -296,6 +296,17 @@ class TestImportExportManagerClass(unittest.TestCase):
             finally:
                 os.remove(file_path)
 
+    def test_data_item_to_data_element_produces_json_compatible_dict(self):
+        data_item = DataItem.DataItem(numpy.zeros((16, 16)))
+        data_item.created = datetime.datetime(2013, 6, 18, 14, 5, 4, 0)  # always utc
+        data_item.timezone = "Europe/Athens"
+        data_item.timezone_offset = "+0300"
+        data_item.source_file_path = "/path/to/source/file"
+        data_item._set_modified(datetime.datetime(2013, 6, 18, 14, 5, 4, 0))  # always utc
+        data_item.metadata = {"description": {"time_zone": {"tz": "+0300", "dst": "+60"}}}
+        data_element = ImportExportManager.create_data_element_from_data_item(data_item, include_data=False)
+        json.dumps(data_element)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
