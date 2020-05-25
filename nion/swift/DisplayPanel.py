@@ -134,7 +134,14 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.__selected = False
         self.__selected_style = "#CCC"  # TODO: platform dependent
         self.__focused_style = "#3876D6"  # TODO: platform dependent
+        self.__highlighted = False
+        self.__highlighted_style = "#FF0000"
         self.__drop_regions_map = dict()
+        self.__font = "12px"
+        self.__text_color = "#000000"
+        self.__background_color = "#FFFFFF"
+        self.__popup_message_text = None
+        self.get_font_metrics_fn = None
         self.on_context_menu_event = None
         self.on_drag_enter = None
         self.on_drag_leave = None
@@ -192,6 +199,24 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.__focused_style = focused_style
 
     @property
+    def highlighted(self):
+        return self.__highlighted
+
+    @highlighted.setter
+    def highlighted(self, highlighted):
+        if self.__highlighted != highlighted:
+            self.__highlighted = highlighted
+            self.update()
+
+    @property
+    def highlighted_style(self):
+        return self.__highlighted_style
+
+    @highlighted_style.setter
+    def highlighted_style(self, highlighted_style):
+        self.__highlighted_style = highlighted_style
+
+    @property
     def drop_regions_map(self):
         return self.__drop_regions_map
 
@@ -232,6 +257,19 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
                 drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
                 drawing_context.fill()
 
+        if self.highlighted:
+
+            stroke_style = self.highlighted_style
+
+            if stroke_style:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    drawing_context.rect(6, 6, canvas_width - 12, canvas_height - 12)
+                    drawing_context.line_join = "miter"
+                    drawing_context.stroke_style = stroke_style
+                    drawing_context.line_width = 12.0
+                    drawing_context.stroke()
+
         if self.selected:
 
             stroke_style = self.__focused_style if self.focused else self.__selected_style
@@ -244,6 +282,30 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
                     drawing_context.stroke_style = stroke_style
                     drawing_context.line_width = 4.0
                     drawing_context.stroke()
+
+        if self.__popup_message_text:
+
+            with drawing_context.saver():
+                font_metrics = self.get_font_metrics_fn(self.__font, self.__popup_message_text)
+                drawing_context.begin_path()
+                drawing_context.rect(canvas_width - 26 - font_metrics.width, 14, font_metrics.width + 12, font_metrics.height + 8)
+                drawing_context.fill_style = self.__background_color
+                drawing_context.fill()
+                drawing_context.font = self.__font
+                drawing_context.text_align = "right"
+                drawing_context.text_baseline = "middle"
+                drawing_context.fill_style = self.__text_color
+                drawing_context.fill_text(self.__popup_message_text, canvas_width - 18, font_metrics.height + 14)
+
+    def show_popup_message(self, message, font=None, text_color=None, background_color=None):
+        if font:
+            self.__font = font
+        if text_color:
+            self.__text_color = text_color
+        if background_color:
+            self.__background_color = background_color
+        self.__popup_message_text = message
+        self.update()
 
     def context_menu_event(self, x, y, gx, gy):
         if super().context_menu_event(x, y, gx, gy):
@@ -1031,6 +1093,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__content_canvas_item.focusable = True
         self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
         self.__content_canvas_item.on_context_menu_event = self.__handle_context_menu_event
+        self.__content_canvas_item.get_font_metrics_fn = self.image_panel_get_font_metrics
 
         self.__header_canvas_item = Panel.HeaderCanvasItem(document_controller, display_close_control=True)
 
