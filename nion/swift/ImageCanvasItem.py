@@ -665,10 +665,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
         return self.delegate.image_clicked(image_position, modifiers)
 
-    def mouse_double_clicked(self, x, y, modifiers):
-        self.set_fit_mode()
-        return True
-
     def mouse_pressed(self, x, y, modifiers):
         if super().mouse_pressed(x, y, modifiers):
             return True
