@@ -2744,9 +2744,9 @@ class SetTargetProjectAction(Window.Action):
             project_references = window.selected_project_references
             if not project_references:
                 self.report(Window.ReportType.ERROR, _("Select a project in the project panel."))
-            if len(project_references) > 1:
+            elif len(project_references) > 1:
                 self.report(Window.ReportType.ERROR, _("Select a single project in the project panel."))
-            if not project_references[0].project:
+            elif not project_references[0].project:
                 self.report(Window.ReportType.ERROR, _("Select a loaded project in the project panel."))
             else:
                 document_model.profile.set_target_project_reference(project_references[0])
