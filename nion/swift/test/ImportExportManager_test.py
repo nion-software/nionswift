@@ -307,6 +307,28 @@ class TestImportExportManagerClass(unittest.TestCase):
         data_element = ImportExportManager.create_data_element_from_data_item(data_item, include_data=False)
         json.dumps(data_element)
 
+    def test_data_item_to_data_element_and_back_keeps_large_format_flag(self):
+        data_item = DataItem.DataItem(numpy.zeros((4, 4, 4)), large_format=True)
+        data_element = ImportExportManager.create_data_element_from_data_item(data_item, include_data=True)
+        self.assertTrue(data_element.get("large_format"))
+        data_item = ImportExportManager.create_data_item_from_data_element(data_element)
+        self.assertTrue(data_item.large_format)
+
+    def test_importing_large_numpy_file_sets_large_format_flag(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            current_working_directory = os.getcwd()
+            file_path_npy = os.path.join(current_working_directory, "__file.npy")
+            numpy.save(file_path_npy, numpy.zeros((4, 4, 4)))
+            handler = ImportExportManager.NumPyImportExportHandler("numpy-io-handler", "npy", ["npy"])
+            try:
+                data_items = handler.read_data_items(None, "npy", file_path_npy)
+                self.assertEqual(len(data_items), 1)
+                data_item = data_items[0]
+                self.assertTrue(data_item.large_format)
+            finally:
+                os.remove(file_path_npy)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
