@@ -188,7 +188,10 @@ class ImportExportManager(metaclass=Utility.Singleton):
 def create_data_item_from_data_element(data_element, data_file_path=None):
     uuid_str = data_element.get("uuid")
     uuid_ = uuid.UUID(uuid_str) if uuid_str else None
-    large_format = data_element.get("large_format", False)
+    large_format = data_element.get("large_format")
+    if large_format is None:
+        data = data_element.get("data")
+        large_format = len(data.shape) > 2 if data is not None else False
     data_item = DataItem.DataItem(item_uuid=uuid_, large_format=large_format)
     update_data_item_from_data_element(data_item, data_element, data_file_path)
     return data_item
@@ -379,6 +382,7 @@ def create_data_element_from_data_item(data_item, include_data=True):
     data_element["version"] = 1
     data_element["reader_version"] = 1
     if data_item.has_data:
+        data_element["large_format"] = data_item.large_format
         if include_data:
             data_element["data"] = data_item.data
         dimensional_calibrations = data_item.dimensional_calibrations
