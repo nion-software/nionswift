@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import contextlib
 import copy
@@ -25,6 +27,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import HardwareSource
 from nion.swift.model import Persistence
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
@@ -35,6 +38,9 @@ from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
+
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
 
 
 _ = gettext.gettext
@@ -1029,7 +1035,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__content_canvas_item = DisplayPanelOverlayCanvasItem()
         self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
         self.__content_canvas_item.focusable = True
-        self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
+        self.__content_canvas_item.on_focus_changed = self.set_focused
         self.__content_canvas_item.on_context_menu_event = self.__handle_context_menu_event
 
         self.__header_canvas_item = Panel.HeaderCanvasItem(document_controller, display_close_control=True)
@@ -1259,11 +1265,11 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         super().close()
 
     @property
-    def __document_controller(self):
+    def __document_controller(self) -> DocumentController.DocumentController:
         return self.__weak_document_controller()
 
     @property
-    def document_controller(self):
+    def document_controller(self) -> DocumentController.DocumentController:
         return self.__weak_document_controller()
 
     @property
@@ -1404,16 +1410,16 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 document_controller.push_undo_command(command)
         document_controller.replaced_display_panel_content = None
 
-    def image_clicked(self, image_position, modifiers):
+    def image_clicked(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
         return DisplayPanelManager().image_display_clicked(self, self.__display_item, image_position, modifiers)
 
-    def image_mouse_pressed(self, image_position, modifiers):
+    def image_mouse_pressed(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
         return DisplayPanelManager().image_display_mouse_pressed(self, self.__display_item, image_position, modifiers)
 
-    def image_mouse_released(self, image_position, modifiers):
+    def image_mouse_released(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
         return DisplayPanelManager().image_display_mouse_released(self, self.__display_item, image_position, modifiers)
 
-    def image_mouse_position_changed(self, image_position, modifiers):
+    def image_mouse_position_changed(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
         return DisplayPanelManager().image_display_mouse_position_changed(self, self.__display_item, image_position, modifiers)
 
     def image_panel_get_font_metrics(self, font, text):
@@ -1580,6 +1586,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         if focused:
             self.__document_controller.selected_display_panel = self  # MARK
             self.__document_controller.notify_focused_display_changed(self.__display_item)
+        DisplayPanelManager().focus_changed(self, focused)
 
     def _is_focused(self):
         """ Used for testing. """
@@ -1603,23 +1610,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def __begin_drag(self, mime_data, thumbnail_data):
         self.drag(mime_data, thumbnail_data, drag_finished_fn=functools.partial(self._drag_finished, self.__document_controller))
-
-    # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
-    # doesn't handle it, gives the display controller a chance to handle it.
-    def _handle_key_pressed(self, key):
-        display_canvas_item = self.display_canvas_item
-        if display_canvas_item and display_canvas_item.key_pressed(key):
-            return True
-        if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
-            return True
-        if self.__display_panel_controller is None:
-            # cycle views is only valid if there is no display_panel_controller
-            if key.text == "v":
-                self.__cycle_display()
-                return True
-        if self.document_controller.perform_display_panel_command(key):
-            return True
-        return DisplayPanelManager().key_pressed(self, key)
 
     def __cycle_display(self):
         # the second part of the if statement below handles the case where the data item has been changed by
@@ -1659,6 +1649,23 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__display_composition_canvas_item.visible = False
         self.__horizontal_browser_canvas_item.visible = False
         self.__grid_browser_canvas_item.visible = True
+
+    # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
+    # doesn't handle it, gives the display controller a chance to handle it.
+    def _handle_key_pressed(self, key):
+        display_canvas_item = self.display_canvas_item
+        if display_canvas_item and display_canvas_item.key_pressed(key):
+            return True
+        if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
+            return True
+        if self.__display_panel_controller is None:
+            # cycle views is only valid if there is no display_panel_controller
+            if key.text == "v":
+                self.__cycle_display()
+                return True
+        if self.document_controller.perform_display_panel_command(key):
+            return True
+        return DisplayPanelManager().key_pressed(self, key)
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
@@ -1992,24 +1999,50 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         self.image_display_mouse_released_event = Event.Event()
         self.image_display_mouse_position_changed_event = Event.Event()
 
+    def __get_kwargs(self, display_panel: DisplayPanel) -> typing.Dict[str, typing.Any]:
+        kwargs = dict()
+        kwargs["display_panel"] = display_panel
+        if display_panel.data_item:
+            kwargs["data_item"] = display_panel.data_item
+        if display_panel.display_item:
+            kwargs["display_item"] = display_panel.display_item
+        if display_panel.data_item and display_panel.data_item.has_metadata_value("stem.hardware_source.id"):
+            kwargs["hardware_source"] = HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(display_panel.data_item.get_metadata_value("stem.hardware_source.id"))
+        return kwargs
+
     # events from the image panels
-    def key_pressed(self, display_panel, key):
+    def key_pressed(self, display_panel: DisplayPanel, key) -> bool:
+        if display_panel.document_controller.exec_action_events("key_pressed", key=key, **self.__get_kwargs(display_panel)):
+            return True
         return self.key_pressed_event.fire_any(display_panel, key)
 
     # events from the image panels
-    def key_released(self, display_panel, key):
+    def key_released(self, display_panel: DisplayPanel, key) -> bool:
+        if display_panel.document_controller.exec_action_events("key_released", key=key, **self.__get_kwargs(display_panel)):
+            return True
         return self.key_released_event.fire_any(display_panel, key)
 
-    def image_display_clicked(self, display_panel, display_item, image_position, modifiers):
+    def focus_changed(self, display_panel: DisplayPanel, focused: bool) -> None:
+        display_panel.document_controller.exec_action_events("focused" if focused else "unfocused", **self.__get_kwargs(display_panel))
+
+    def image_display_clicked(self, display_panel: DisplayPanel, display_item: DisplayItem.DisplayItem, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
+        if display_panel.document_controller.exec_action_events("mouse_clicked", image_position=image_position, modifiers=modifiers, **self.__get_kwargs(display_panel)):
+            return True
         return self.image_display_clicked_event.fire_any(display_panel, display_item, image_position, modifiers)
 
-    def image_display_mouse_pressed(self, display_panel, display_item, image_position, modifiers):
+    def image_display_mouse_pressed(self, display_panel: DisplayPanel, display_item: DisplayItem.DisplayItem, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
+        if display_panel.document_controller.exec_action_events("mouse_pressed", image_position=image_position, modifiers=modifiers, **self.__get_kwargs(display_panel)):
+            return True
         return self.image_display_mouse_pressed_event.fire_any(display_panel, display_item, image_position, modifiers)
 
-    def image_display_mouse_released(self, display_panel, display_item, image_position, modifiers):
+    def image_display_mouse_released(self, display_panel: DisplayPanel, display_item: DisplayItem.DisplayItem, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
+        if display_panel.document_controller.exec_action_events("mouse_released", image_position=image_position, modifiers=modifiers, **self.__get_kwargs(display_panel)):
+            return True
         return self.image_display_mouse_released_event.fire_any(display_panel, display_item, image_position, modifiers)
 
-    def image_display_mouse_position_changed(self, display_panel, display_item, image_position, modifiers):
+    def image_display_mouse_position_changed(self, display_panel: DisplayPanel, display_item: DisplayItem.DisplayItem, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
+        if display_panel.document_controller.exec_action_events("mouse_moved", image_position=image_position, modifiers=modifiers, **self.__get_kwargs(display_panel)):
+            return True
         return self.image_display_mouse_position_changed_event.fire_any(display_panel, display_item, image_position, modifiers)
 
     def register_display_panel_controller_factory(self, factory_id, factory):
