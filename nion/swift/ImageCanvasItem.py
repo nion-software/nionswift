@@ -35,40 +35,40 @@ class ImageCanvasItemMapping:
             self.canvas_rect = Geometry.fit_to_size(canvas_rect, self.data_shape)
         self.calibrations = calibrations
 
-    def map_point_image_norm_to_widget(self, p):
+    def map_point_image_norm_to_widget(self, p) -> typing.Optional[Geometry.FloatPoint]:
         p = Geometry.FloatPoint.make(p)
         if self.data_shape:
             return Geometry.FloatPoint(y=p.y * self.canvas_rect.height + self.canvas_rect.top, x=p.x * self.canvas_rect.width + self.canvas_rect.left)
         return None
 
-    def map_size_image_norm_to_widget(self, s):
+    def map_size_image_norm_to_widget(self, s) -> Geometry.FloatSize:
         ms = self.map_point_image_norm_to_widget(s)
         ms0 = self.map_point_image_norm_to_widget((0, 0))
         return Geometry.FloatSize.make(ms - ms0)
 
-    def map_size_image_to_image_norm(self, s):
+    def map_size_image_to_image_norm(self, s) -> Geometry.FloatSize:
         ms = self.map_point_image_to_image_norm(s)
         ms0 = self.map_point_image_to_image_norm((0, 0))
         return Geometry.FloatSize.make(ms - ms0)
 
-    def map_size_image_to_widget(self, s):
+    def map_size_image_to_widget(self, s) -> Geometry.FloatSize:
         ms = self.map_point_image_to_widget(s)
         ms0 = self.map_point_image_to_widget((0, 0))
         return Geometry.FloatSize.make(ms - ms0)
 
-    def map_size_widget_to_image_norm(self, s):
+    def map_size_widget_to_image_norm(self, s) -> Geometry.FloatSize:
         ms = self.map_point_widget_to_image_norm(s)
         ms0 = self.map_point_widget_to_image_norm((0, 0))
         return Geometry.FloatSize.make(ms - ms0)
 
-    def map_point_widget_to_image_norm(self, p):
+    def map_point_widget_to_image_norm(self, p) -> typing.Optional[Geometry.FloatPoint]:
         if self.data_shape:
             p = Geometry.FloatPoint.make(p)
             p_image = self.map_point_widget_to_image(p)
             return Geometry.FloatPoint(y=p_image.y / self.data_shape[0], x=p_image.x / self.data_shape[1])
         return None
 
-    def map_point_widget_to_image(self, p):
+    def map_point_widget_to_image(self, p) -> typing.Optional[Geometry.FloatPoint]:
         if self.canvas_rect and self.data_shape:
             p = Geometry.FloatPoint.make(p)
             if self.canvas_rect.height != 0.0:
@@ -82,19 +82,19 @@ class ImageCanvasItemMapping:
             return Geometry.FloatPoint(y=image_y, x=image_x)  # c-indexing
         return None
 
-    def map_point_image_norm_to_image(self, p):
+    def map_point_image_norm_to_image(self, p) -> typing.Optional[Geometry.FloatPoint]:
         if self.data_shape:
             p = Geometry.FloatPoint.make(p)
             return Geometry.FloatPoint(y=p.y * self.data_shape[0], x=p.x * self.data_shape[1])
         return None
 
-    def map_point_image_to_image_norm(self, p):
+    def map_point_image_to_image_norm(self, p) -> typing.Optional[Geometry.FloatPoint]:
         if self.data_shape:
             p = Geometry.FloatPoint.make(p)
             return Geometry.FloatPoint(y=p.y / self.data_shape[0], x=p.x / self.data_shape[1])
         return None
 
-    def map_point_image_to_widget(self, p):
+    def map_point_image_to_widget(self, p) -> typing.Optional[Geometry.FloatPoint]:
         p = Geometry.FloatPoint.make(p)
         if self.data_shape:
             return Geometry.FloatPoint(y=p.y * self.canvas_rect.height / self.data_shape[0] + self.canvas_rect.top, x=p.x * self.canvas_rect.width / self.data_shape[1] + self.canvas_rect.left)
@@ -318,13 +318,13 @@ class ImageCanvasItemDelegate:
 
     def adjust_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers) -> None: ...
 
-    def image_clicked(self, image_position, modifiers) -> bool: ...
+    def image_clicked(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool: ...
 
-    def image_mouse_pressed(self, image_position, modifiers) -> bool: ...
+    def image_mouse_pressed(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool: ...
 
-    def image_mouse_released(self, image_position, modifiers) -> bool: ...
+    def image_mouse_released(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool: ...
 
-    def image_mouse_position_changed(self, image_position, modifiers) -> bool: ...
+    def image_mouse_position_changed(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool: ...
 
     def show_display_context_menu(self, gx, gy) -> bool: ...
 
@@ -658,19 +658,22 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         if scroll_area_canvas_size is not None:
             self.__update_overlay_canvas_item(scroll_area_canvas_size)
 
-    def mouse_clicked(self, x, y, modifiers):
+    def mouse_clicked(self, x: int, y: int, modifiers: CanvasItem.KeyboardModifiers) -> bool:
         if super().mouse_clicked(x, y, modifiers):
             return True
         # now let the image panel handle mouse clicking if desired
         image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
-        return self.delegate.image_clicked(image_position, modifiers)
+        if image_position is not None:
+            return self.delegate.image_clicked(image_position, modifiers)
+        return False
 
-    def mouse_pressed(self, x, y, modifiers):
+    def mouse_pressed(self, x: int, y: int, modifiers: CanvasItem.KeyboardModifiers) -> bool:
         if super().mouse_pressed(x, y, modifiers):
             return True
         if self.__data_shape is None:
             return False
         image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
+        assert image_position is not None
         if self.delegate.image_mouse_pressed(image_position, modifiers):
             return True
         self.__undo_command = None
@@ -946,11 +949,11 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             self.__is_dragging = True
         return True
 
-    def mouse_released(self, x, y, modifiers):
+    def mouse_released(self, x: int, y: int, modifiers: CanvasItem.KeyboardModifiers) -> bool:
         if super().mouse_released(x, y, modifiers):
             return True
         image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
-        if self.delegate.image_mouse_released(image_position, modifiers):
+        if image_position is not None and self.delegate.image_mouse_released(image_position, modifiers):
             return True
         if self.__data_shape is not None:
             graphics = self.__graphics
@@ -982,13 +985,13 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             self.delegate.tool_mode = "pointer"
         return True
 
-    def mouse_entered(self):
+    def mouse_entered(self) -> bool:
         if super().mouse_entered():
             return True
         self.__mouse_in = True
         return True
 
-    def mouse_exited(self):
+    def mouse_exited(self) -> bool:
         if super().mouse_exited():
             return True
         self.__mouse_in = False
@@ -997,11 +1000,11 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             self.delegate.cursor_changed(None)
         return True
 
-    def mouse_position_changed(self, x, y, modifiers):
+    def mouse_position_changed(self, x: int, y: int, modifiers: CanvasItem.KeyboardModifiers) -> bool:
         if super().mouse_position_changed(x, y, modifiers):
             return True
         image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
-        if self.delegate.image_mouse_position_changed(image_position, modifiers):
+        if image_position is not None and self.delegate.image_mouse_position_changed(image_position, modifiers):
             return True
         if self.delegate.tool_mode == "pointer":
             def get_pointer_tool_shape():
