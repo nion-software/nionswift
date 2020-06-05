@@ -26,7 +26,7 @@
     "processing.pick": {
         "display_panel": "P"
     },
-    "processing.pick_sum": {
+    "processing.pick_average": {
         "display_panel": "p"
     },
     "processing.fft": {
