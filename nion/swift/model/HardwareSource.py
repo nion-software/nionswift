@@ -31,15 +31,14 @@ import numpy
 # local imports
 from nion.data import Core
 from nion.data import DataAndMetadata
-from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
-from nion.swift.model import Persistence
 from nion.swift.model import Utility
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
+from nion.utils import Registry
 
 _ = gettext.gettext
 
@@ -1111,11 +1110,6 @@ def get_data_generator_by_id(hardware_source_id, sync=True):
     yield get_last_data
 
 
-def convert_data_element_to_data_and_metadata(data_element) -> DataAndMetadata.DataAndMetadata:
-    # TODO: remove this after customers have all stopped using it.
-    return ImportExportManager.convert_data_element_to_data_and_metadata(data_element)
-
-
 def parse_hardware_aliases_config_file(config_path):
     """
         Parse config file for aliases and automatically register them.
@@ -1292,6 +1286,36 @@ class DataChannelBuffer:
         Thread safe and UI safe."""
         with self.__state_lock:
             self.__state = DataChannelBuffer.State.idle
+
+
+class MetadataDisplayComponent:
+
+    # populate the dictionary d with the keys 'frame_index' and 'info_items' if they can be extracted
+    # from the metadata
+    def populate(self, d: typing.MutableMapping, metadata: typing.Mapping) -> None:
+        hardware_source_dict = metadata.get("hardware_source", dict())
+        if "frame_index" in hardware_source_dict:
+            d["frame_index"] = hardware_source_dict["frame_index"]
+
+        if "valid_rows" in hardware_source_dict:
+            d["valid_rows"] = hardware_source_dict["valid_rows"]
+
+        info_items = list()
+        voltage = hardware_source_dict.get("autostem", dict()).get("high_tension_v", 0)
+        if voltage:
+            units = "V"
+            if voltage % 1000 == 0:
+                voltage = voltage // 1000
+                units = "kV"
+            info_items.append(f"{voltage} {units}")
+        hardware_source_name = hardware_source_dict.get("hardware_source_name")
+        if hardware_source_name:
+            info_items.append(str(hardware_source_name))
+        if info_items:
+            d["info_items"] = info_items
+
+
+Registry.register_component(MetadataDisplayComponent(), {"metadata_display"})
 
 
 def matches_hardware_source(hardware_source_id, channel_id, document_model, data_item):

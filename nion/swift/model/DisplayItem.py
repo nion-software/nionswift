@@ -8,7 +8,6 @@ import numbers
 import numpy
 import operator
 import threading
-import time
 import typing
 import uuid
 
@@ -26,6 +25,7 @@ from nion.swift.model import Persistence
 from nion.swift.model import Utility
 from nion.utils import Event
 from nion.utils import Observable
+from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import Project
@@ -1651,9 +1651,14 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def status_str(self) -> str:
         data_item = self.data_item
         if data_item and data_item.is_live:
-            live_metadata = data_item.metadata.get("hardware_source", dict())
-            frame_index_str = str(live_metadata.get("frame_index", str()))
-            partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), data_item.dimensional_shape[0]) if "valid_rows" in live_metadata else str()
+            # allow registered metadata_display components to populate a dictionary
+            # the display item will use 'frame_index' and 'valid_rows' for the status string in the data panel
+            d = dict()
+            for component in Registry.get_components_by_type("metadata_display"):
+                component.populate(d, self.data_item.metadata)
+            # build the status string
+            frame_index_str = str(d.get("frame_index", str()))
+            partial_str = "{0:d}/{1:d}".format(d["valid_rows"], data_item.dimensional_shape[0]) if "valid_rows" in d else str()
             return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
         return str()
 

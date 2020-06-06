@@ -17,6 +17,7 @@ from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.utils import Geometry
+from nion.utils import Registry
 
 
 class ImageCanvasItemMapping:
@@ -212,7 +213,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__image_canvas_origin = value
             self.update()
 
-    def set_data_info(self, data_shape, dimensional_calibration: Calibration.Calibration, metadata: dict) -> None:
+    def set_data_info(self, data_shape, dimensional_calibration: Calibration.Calibration, info_items: typing.Sequence[str]) -> None:
         needs_update = False
         if self.__data_shape is None or data_shape != self.__data_shape:
             self.__data_shape = data_shape
@@ -220,18 +221,6 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.__dimensional_calibration is None or dimensional_calibration != self.__dimensional_calibration:
             self.__dimensional_calibration = dimensional_calibration
             needs_update = True
-        info_items = list()
-        hardware_source_metadata = metadata.get("hardware_source", dict())
-        voltage = hardware_source_metadata.get("autostem", dict()).get("high_tension_v", 0)
-        if voltage:
-            units = "V"
-            if voltage % 1000 == 0:
-                voltage = voltage // 1000
-                units = "kV"
-            info_items.append("{0} {1}".format(voltage, units))
-        hardware_source_name = hardware_source_metadata.get("hardware_source_name")
-        if hardware_source_name:
-            info_items.append(str(hardware_source_name))
         info_text = " ".join(info_items)
         if self.__info_text is None or self.__info_text != info_text:
             self.__info_text = info_text
@@ -532,6 +521,16 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             data_shape = display_calibration_info.display_data_shape
             metadata = data_and_metadata.metadata
 
+            # allow registered metadata_display components to populate a dictionary
+            # the image canvas item will look at "frame_index" and "info_items"
+            d = dict()
+            for component in Registry.get_components_by_type("metadata_display"):
+                component.populate(d, metadata)
+
+            # pull out the frame_index and info_items keys
+            frame_index = d.get("frame_index", 0)
+            info_items = d.get("info_items", list())
+
             # this method may trigger a layout of its parent scroll area. however, the parent scroll
             # area may already be closed. this is a stop-gap guess at a solution - the basic idea being
             # that this object is not closeable while this method is running; and this method should not
@@ -560,7 +559,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                     self.__data_shape = data_shape
                     self.__coordinate_system = display_calibration_info.datum_calibrations
                     if self.__display_frame_rate_id:
-                        frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
                         if frame_index != self.__display_frame_rate_last_index:
                             Utility.fps_tick("frame_"+self.__display_frame_rate_id)
                             self.__display_frame_rate_last_index = frame_index
@@ -599,7 +597,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                                         self.__update_layout_handle = None
 
                 # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
-                self.__info_overlay_canvas_item.set_data_info(data_shape, dimensional_calibration, metadata)
+                self.__info_overlay_canvas_item.set_data_info(data_shape, dimensional_calibration, info_items)
 
     def update_graphics_coordinate_system(self, graphics, graphic_selection, display_calibration_info) -> None:
         self.__graphics = copy.copy(graphics)

@@ -10,14 +10,15 @@ import typing
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
+from nion.swift import DataItemThumbnailWidget
 from nion.swift import Undo
+from nion.swift.model import DataItem
 from nion.ui import Dialog
 from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Model
-from nion.swift import DataItemThumbnailWidget
-from nion.swift.model import DataItem
+from nion.utils import Registry
 
 _ = gettext.gettext
 
@@ -62,8 +63,13 @@ class Recorder:
         def data_changed():
             current_xdata = self.__data_item.xdata
             if current_xdata and not current_xdata.is_sequence:
-                hardware_source_metadata = current_xdata.metadata.get("hardware_source", dict())
-                valid_rows = hardware_source_metadata.get("valid_rows", 0) if "valid_rows" in hardware_source_metadata else current_xdata.data_shape[0]
+                # allow registered metadata_display components to populate a dictionary
+                # the recorder will look at 'valid_rows'
+                d = dict()
+                for component in Registry.get_components_by_type("metadata_display"):
+                    component.populate(d, current_xdata.metadata)
+                # grab valid_rows to determine if frame is incomplete
+                valid_rows = d.get("valid_rows", 0) if "valid_rows" in d else current_xdata.data_shape[0]
                 if len(current_xdata.data_shape) == 1 or valid_rows >= current_xdata.data_shape[0]:
                     self.__last_complete_xdata = current_xdata
             else:

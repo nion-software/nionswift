@@ -22,6 +22,7 @@ from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.utils import Geometry
+from nion.utils import Registry
 
 
 class LinePlotCanvasItemMapping:
@@ -326,7 +327,15 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def __update_frame(self, metadata):
         # update frame rate info
         if self.__display_frame_rate_id:
-            frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
+            # allow registered metadata_display components to populate a dictionary
+            # the line plot canvas item will look at "frame_index"
+            d = dict()
+            for component in Registry.get_components_by_type("metadata_display"):
+                component.populate(d, metadata)
+
+            # pull out the frame_index key
+            frame_index = d.get("frame_index", 0)
+
             if frame_index != self.__display_frame_rate_last_index:
                 Utility.fps_tick("frame_"+self.__display_frame_rate_id)
                 self.__display_frame_rate_last_index = frame_index
