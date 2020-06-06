@@ -27,7 +27,6 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import HardwareSource
 from nion.swift.model import Persistence
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
@@ -2006,8 +2005,8 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
             kwargs["data_item"] = display_panel.data_item
         if display_panel.display_item:
             kwargs["display_item"] = display_panel.display_item
-        if display_panel.data_item and display_panel.data_item.has_metadata_value("stem.hardware_source.id"):
-            kwargs["hardware_source"] = HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(display_panel.data_item.get_metadata_value("stem.hardware_source.id"))
+        if display_panel.data_item:
+            display_panel.document_controller.document_model.populate_action_context(display_panel.data_item, kwargs)
         return kwargs
 
     # events from the image panels

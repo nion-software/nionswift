@@ -1936,6 +1936,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__data_channel_start_listeners.pop(hardware_source.hardware_source_id, None)
         self.__data_channel_stop_listeners.pop(hardware_source.hardware_source_id, None)
 
+    def populate_action_context(self, data_item: DataItem.DataItem, d: typing.MutableMapping) -> None:
+        if data_item.has_metadata_value("stem.hardware_source.id"):
+            d["hardware_source"] = HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(data_item.get_metadata_value("stem.hardware_source.id"))
+
     def get_display_item_snapshot_new(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
         display_item_copy = display_item.snapshot()
         data_item_copies = list()
