@@ -23,15 +23,21 @@ key_map = {
     'stem.hardware_source.name': {'path': ['hardware_source', 'hardware_source_name'], 'type': 'string'},
 
     'stem.signal_type': {'path': ['hardware_source', 'signal_type'], 'type': 'string'},
-    # EDS, WDS, ELS, AES, PES, XRF, CLS, GAM, BEI, CBED, EBSD, EDIF, LEED, OPR, OPT, PIXE, RHEED, SEI, SXES, TEM
+    # EDXS, WDS, ELS, AES, PES, XRF, CLS, GAM, BEI, CBED, EBSD, EDIF, LEED, OPR, OPT, PIXE, RHEED, SEI, SXES, TEM
     # see HMSA
 
+    'stem.high_tension': {'path': ['hardware_source', 'autostem', 'high_tension_v'], 'type': 'integer'},
     'stem.high_tension_v': {'path': ['hardware_source', 'autostem', 'high_tension_v'], 'type': 'integer'},
     'stem.gun_type': {'path': ['hardware_source', 'gun_type'], 'type': 'string'},
+    'stem.convergence_angle': {'path': ['hardware_source', 'convergence_angle_rad'], 'type': 'real'},
     'stem.convergence_angle_rad': {'path': ['hardware_source', 'convergence_angle_rad'], 'type': 'real'},
+    'stem.collection_angle': {'path': ['hardware_source', 'collection_angle_rad'], 'type': 'real'},
     'stem.collection_angle_rad': {'path': ['hardware_source', 'collection_angle_rad'], 'type': 'real'},
+    'stem.probe_size': {'path': ['hardware_source', 'probe_size_m2'], 'type': 'real'},
     'stem.probe_size_m2': {'path': ['hardware_source', 'probe_size_m2'], 'type': 'real'},
+    'stem.beam_current': {'path': ['hardware_source', 'beam_current_a'], 'type': 'real'},
     'stem.beam_current_a': {'path': ['hardware_source', 'beam_current_a'], 'type': 'real'},
+    'stem.defocus': {'path': ['hardware_source', 'defocus_m'], 'type': 'real'},
     'stem.defocus_m': {'path': ['hardware_source', 'defocus_m'], 'type': 'real'},
 
     'stem.eels.spectrum_type': {'path': ['hardware_source', 'eels_spectrum_type'], 'type': 'string'},
@@ -42,6 +48,7 @@ key_map = {
     'stem.camera.channel_id': {'path': ['hardware_source', 'channel_id'], 'type': 'string'},
     'stem.camera.channel_index': {'path': ['hardware_source', 'channel_index'], 'type': 'integer'},
     'stem.camera.channel_name': {'path': ['hardware_source', 'channel_name'], 'type': 'string'},
+    'stem.camera.exposure': {'path': ['hardware_source', 'exposure'], 'type': 'real'},
     'stem.camera.exposure_s': {'path': ['hardware_source', 'exposure'], 'type': 'real'},
     'stem.camera.frame_index': {'path': ['hardware_source', 'frame_index'], 'type': 'integer'},
     'stem.camera.valid_rows': {'path': ['hardware_source', 'valid_rows'], 'type': 'integer'},
@@ -52,11 +59,13 @@ key_map = {
     'stem.scan.channel_id': {'path': ['hardware_source', 'channel_id'], 'type': 'string'},
     'stem.scan.channel_index': {'path': ['hardware_source', 'channel_index'], 'type': 'integer'},
     'stem.scan.channel_name': {'path': ['hardware_source', 'channel_name'], 'type': 'string'},
+    'stem.scan.frame_time': {'path': ['hardware_source', 'exposure'], 'type': 'real'},
     'stem.scan.frame_time_s': {'path': ['hardware_source', 'exposure'], 'type': 'real'},
     'stem.scan.fov_nm': {'path': ['hardware_source', 'fov_nm'], 'type': 'real'},
     'stem.scan.frame_index': {'path': ['hardware_source', 'frame_index'], 'type': 'integer'},
     'stem.scan.pixel_time_us': {'path': ['hardware_source', 'pixel_time_us'], 'type': 'real'},
-    'stem.scan.rotation_rad': {'path': ['hardware_source', 'rotation_rad'], 'type': 'real'},
+    'stem.scan.rotation': {'path': ['hardware_source', 'rotation'], 'type': 'real'},
+    'stem.scan.rotation_rad': {'path': ['hardware_source', 'rotation'], 'type': 'real'},
     'stem.scan.scan_id': {'path': ['hardware_source', 'scan_id'], 'type': 'string'},
     'stem.scan.valid_rows': {'path': ['hardware_source', 'valid_rows'], 'type': 'integer'},
     'stem.scan.line_time_us': {'path': ['hardware_source', 'line_time_us'], 'type': 'real'},
