@@ -34,6 +34,7 @@ from nion.data import DataAndMetadata
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Metadata
 from nion.swift.model import Utility
 from nion.utils import Event
 from nion.utils import Geometry
@@ -1293,24 +1294,27 @@ class MetadataDisplayComponent:
     # populate the dictionary d with the keys 'frame_index' and 'info_items' if they can be extracted
     # from the metadata
     def populate(self, d: typing.MutableMapping, metadata: typing.Mapping) -> None:
-        hardware_source_dict = metadata.get("hardware_source", dict())
-        if "frame_index" in hardware_source_dict:
-            d["frame_index"] = hardware_source_dict["frame_index"]
+        frame_index = Metadata.get_metadata_value(metadata, "stem.hardware_source.frame_number")
+        if frame_index is not None:
+            d["frame_index"] = frame_index
 
-        if "valid_rows" in hardware_source_dict:
-            d["valid_rows"] = hardware_source_dict["valid_rows"]
+        valid_rows = Metadata.get_metadata_value(metadata, "stem.hardware_source.valid_rows")
+        if valid_rows is not None:
+            d["valid_rows"] = valid_rows
 
         info_items = list()
-        voltage = hardware_source_dict.get("autostem", dict()).get("high_tension_v", 0)
-        if voltage:
+        voltage = Metadata.get_metadata_value(metadata, "stem.high_tension")
+        if voltage is not None:
             units = "V"
             if voltage % 1000 == 0:
                 voltage = voltage // 1000
                 units = "kV"
             info_items.append(f"{voltage} {units}")
-        hardware_source_name = hardware_source_dict.get("hardware_source_name")
+
+        hardware_source_name = Metadata.get_metadata_value(metadata, "stem.hardware_source.name")
         if hardware_source_name:
             info_items.append(str(hardware_source_name))
+
         if info_items:
             d["info_items"] = info_items
 

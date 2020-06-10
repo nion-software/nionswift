@@ -790,7 +790,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                 if pending_xdata:
                     self.set_xdata(pending_xdata)
                 for partial_xdata, partial_src_slice, partial_dst_slice, partial_metadata in pending_queue:
-                    self.set_data_and_metadata_partial(partial_metadata, partial_xdata, partial_src_slice, partial_dst_slice)
+                    self.set_data_and_metadata_partial(partial_metadata, partial_xdata, partial_src_slice, partial_dst_slice, update_metadata=True)
 
     @property
     def xdata(self) -> DataAndMetadata.DataAndMetadata:
