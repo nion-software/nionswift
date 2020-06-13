@@ -1,4 +1,5 @@
 # standard libraries
+import contextlib
 import unittest
 
 # third party libraries
@@ -9,7 +10,6 @@ from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import HistogramPanel
-from nion.swift.model import Cache
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
@@ -103,6 +103,32 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.histogram_panel._statistics_widget._statistics_func_value_model._run_until_complete()
         self.assertNotEqual(stats1_new_text, self.histogram_panel._statistics_widget._stats1_property.value)
         self.assertNotEqual(stats2_new_text, self.histogram_panel._statistics_widget._stats2_property.value)
+
+    def test_target_region_stream_stops_updates_when_region_deselected(self):
+        target_display_item_stream = HistogramPanel.TargetDisplayItemStream(self.document_controller).add_ref()
+        target_region_stream = HistogramPanel.TargetRegionStream(target_display_item_stream).add_ref()
+        try:
+            count = 0
+            def new_region(graphic: Graphics.Graphic) -> None:
+                nonlocal count
+                count += 1
+
+            with contextlib.closing(target_region_stream.value_stream.listen(new_region)) as listener:
+                rect_region = Graphics.RectangleGraphic()
+                rect_region.bounds = (0.2, 0.2), (0.2, 0.2)
+                self.display_item.add_graphic(rect_region)
+                self.display_item.graphic_selection.set(0)  # count 1
+                rect_region.bounds = (0.2, 0.2), (0.2, 0.2)  # count 2
+                self.display_item.graphic_selection.clear()  # count 2
+                count0 = count
+                rect_region.bounds = (0.2, 0.2), (0.2, 0.2)  # count 2
+                rect_region.bounds = (0.2, 0.2), (0.2, 0.2)  # count 2
+                rect_region.bounds = (0.2, 0.2), (0.2, 0.2)  # count 2
+                self.assertEqual(count0, count)
+
+        finally:
+            target_region_stream.remove_ref()
+            target_display_item_stream.remove_ref()
 
     def test_cursor_histogram_of_empty_data_displays_without_exception(self):
         self.data_item.set_xdata(DataAndMetadata.DataAndMetadata(lambda: None, ((0, 0), numpy.float)))

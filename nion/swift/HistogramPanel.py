@@ -727,6 +727,9 @@ class TargetRegionStream(Stream.AbstractStream):
                     graphic_changed()
             elif self.__value is not None:
                 self.__value = None
+                if self.__graphic_changed_event_listener:
+                    self.__graphic_changed_event_listener.close()
+                    self.__graphic_changed_event_listener = None
                 self.value_stream.fire(None)
         if self.__graphic_changed_event_listener:
             self.__graphic_changed_event_listener.close()
