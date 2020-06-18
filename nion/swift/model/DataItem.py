@@ -1133,6 +1133,10 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         return self.__data_and_metadata.dimensional_shape if self.__data_and_metadata else list()
 
     @property
+    def datum_dimension_shape(self):
+        return self.__data_and_metadata.datum_dimension_shape if self.__data_and_metadata else list()
+
+    @property
     def datum_dimension_count(self) -> int:
         return self.__data_and_metadata.datum_dimension_count if self.__data_and_metadata else 0
 

@@ -1679,7 +1679,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
                 if valid_data:
                     if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
                         display_type = "image"
-                    elif data_item.datum_dimension_count == 1:
+                    elif data_item.datum_dimension_count == 1 or (data_item.datum_dimension_count == 2 and data_item.datum_dimension_shape[0] == 1):
                         display_type = "line_plot"
                     elif data_item.datum_dimension_count == 2:
                         display_type = "image"

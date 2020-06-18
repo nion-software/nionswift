@@ -1280,10 +1280,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.__display_panel_controller
 
     @property
-    def _display_canvas_item(self):
-        return self.display_canvas_item
-
-    @property
     def _display_item_adapters_for_test(self):
         return self.__filtered_display_item_adapters_model.display_item_adapters
 

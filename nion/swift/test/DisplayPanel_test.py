@@ -516,6 +516,17 @@ class TestDisplayPanelClass(unittest.TestCase):
         # check results
         self.assertIsNotNone(self.display_panel.data_item)
 
+    def test_default_display_for_1xN_data_is_line_plot(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((1, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
+
     def test_line_plot_initially_displays_entire_data_in_horizontal_direction(self):
         line_plot_canvas_item = self.setup_line_plot()
         self.assertEqual(line_plot_canvas_item.line_graph_canvas_item._axes.drawn_left_channel, 0)
