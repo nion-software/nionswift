@@ -647,7 +647,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
             self.__storage_adapter_map.get(data_item.uuid).rewrite_item(data_item)
 
     def __restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[dict]:
-        raise NotImplementedError()
+        return self._restore_item(data_item_uuid)
 
 
 class FileProjectStorageSystem(ProjectStorageSystem):
