@@ -582,16 +582,16 @@ class UserInterface:
         return RowWidget(self.__ui)
 
     def create_splitter_widget(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def create_tab_widget(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def create_stack_widget(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def create_scroll_area_widget(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def create_combo_box_widget(self, items=None, item_text_getter=None):
         combo_box_widget = ComboBoxWidget(self.__ui)
@@ -615,7 +615,7 @@ class UserInterface:
         return push_button_widget
 
     def create_radio_button_widget(self, text=None):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def create_check_box_widget(self, text=None):
         check_box_widget = CheckBoxWidget(self.__ui)
@@ -623,7 +623,7 @@ class UserInterface:
         return check_box_widget
 
     def create_slider_widget(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def create_text_edit_widget(self, text=None):
         text_edit_widget = TextEditWidget(self.__ui)
