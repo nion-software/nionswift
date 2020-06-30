@@ -32,7 +32,6 @@ from nion.swift.model import Processing
 from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
-from nion.swift.model import WorkspaceLayout
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
@@ -860,18 +859,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     @property
     def current_session_id(self):
         return self.session_id
-
-    def append_workspace(self, workspace):
-        self.insert_workspace(len(self.workspaces), workspace)
-
-    def insert_workspace(self, before_index, workspace):
-        self.__profile.insert_item("workspaces", before_index, workspace)
-        self.notify_insert_item("workspaces", workspace, before_index)
-
-    def remove_workspace(self, workspace):
-        index = self.workspaces.index(workspace)
-        self.__profile.remove_item("workspaces", workspace)
-        self.notify_remove_item("workspaces", workspace, index)
 
     def copy_data_item(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
         computation_copy = copy.deepcopy(self.get_data_item_computation(data_item))
@@ -1784,20 +1771,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         return len(self.__pending_data_item_updates)
 
     @property
-    def workspace_uuid(self) -> uuid.UUID:
-        return self.__profile.workspace_uuid
-
-    @workspace_uuid.setter
-    def workspace_uuid(self, value: uuid.UUID) -> None:
-        self.__profile.workspace_uuid = value
-
-    @property
     def data_groups(self) -> typing.List[DataGroup.DataGroup]:
         return self.__profile.data_groups
-
-    @property
-    def workspaces(self) -> typing.List[WorkspaceLayout.WorkspaceLayout]:
-        return self.__profile.workspaces
 
     def _update_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
         assert threading.current_thread() == threading.main_thread()

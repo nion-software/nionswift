@@ -100,13 +100,13 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_basic_change_layout_results_in_correct_image_panel_count(self):
         document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
         with contextlib.closing(document_controller):
-            workspace_1x1 = document_controller.document_model.workspaces[0]
+            workspace_1x1 = document_controller.profile.workspaces[0]
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             workspace_3x1 = document_controller.workspace_controller.new_workspace(*get_layout("3x1"))
             workspace_2x2 = document_controller.workspace_controller.new_workspace(*get_layout("2x2"))
             workspace_3x2 = document_controller.workspace_controller.new_workspace(*get_layout("3x2"))
             workspace_1x2 = document_controller.workspace_controller.new_workspace(*get_layout("1x2"))
-            self.assertEqual(len(document_controller.document_model.workspaces), 6)
+            self.assertEqual(len(document_controller.profile.workspaces), 6)
             document_controller.workspace_controller.change_workspace(workspace_1x1)
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 1)
             document_controller.workspace_controller.change_workspace(workspace_1x1)
@@ -128,7 +128,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            workspace_1x1 = document_controller.document_model.workspaces[0]
+            workspace_1x1 = document_controller.profile.workspaces[0]
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_1x1)
             image_panel_weak_ref = weakref.ref(document_controller.workspace_controller.display_panels[0])
@@ -243,19 +243,19 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_workspace_change_records_workspace_uuid(self):
         document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
         with contextlib.closing(document_controller):
-            workspace_1x1 = document_controller.document_model.workspaces[0]
+            workspace_1x1 = document_controller.profile.workspaces[0]
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
-            self.assertEqual(document_controller.document_model.workspace_uuid, workspace_1x1.uuid)
+            self.assertEqual(document_controller.profile.workspace_uuid, workspace_1x1.uuid)
             document_controller.workspace_controller.change_workspace(workspace_2x1)
-            self.assertEqual(document_controller.document_model.workspace_uuid, workspace_2x1.uuid)
+            self.assertEqual(document_controller.profile.workspace_uuid, workspace_2x1.uuid)
             document_controller.workspace_controller.change_workspace(workspace_1x1)
-            self.assertEqual(document_controller.document_model.workspace_uuid, workspace_1x1.uuid)
+            self.assertEqual(document_controller.profile.workspace_uuid, workspace_1x1.uuid)
 
     def test_workspace_change_records_workspace_data_item_contents(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            workspace_1x1 = document_controller.document_model.workspaces[0]
+            workspace_1x1 = document_controller.profile.workspaces[0]
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -278,7 +278,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             with contextlib.closing(document_controller):
-                workspace_1x1 = document_controller.document_model.workspaces[0]
+                workspace_1x1 = document_controller.profile.workspaces[0]
                 data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
                 document_model.append_data_item(data_item1)
                 document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
@@ -615,7 +615,7 @@ class TestWorkspaceClass(unittest.TestCase):
             display_panel = workspace_controller.display_panels[0]
             workspace_controller.insert_display_panel(display_panel, "bottom").close()
             # save info
-            self.assertEqual(1, len(document_model.workspaces))
+            self.assertEqual(1, len(document_controller.profile.workspaces))
             old_workspace_uuid = document_controller.workspace_controller._workspace.uuid
             old_workspace_layout = workspace_controller._workspace_layout
             # perform create command
@@ -625,21 +625,21 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # check things
-            self.assertEqual(2, len(document_model.workspaces))
+            self.assertEqual(2, len(document_controller.profile.workspaces))
             new_workspace_layout = workspace_controller._workspace_layout
             # undo
             document_controller.handle_undo()
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
-            self.assertEqual(1, len(document_model.workspaces))
+            self.assertEqual(1, len(document_controller.profile.workspaces))
             self.assertEqual(old_workspace_uuid, document_controller.workspace_controller._workspace.uuid)
             # redo
             document_controller.handle_redo()
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
-            self.assertEqual(2, len(document_model.workspaces))
+            self.assertEqual(2, len(document_controller.profile.workspaces))
 
     def test_rename_workspace_undo_and_redo_works_cleanly(self):
         document_model = DocumentModel.DocumentModel()
@@ -649,19 +649,19 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_controller = document_controller.workspace_controller
             # save info
-            old_name = document_model.workspaces[0].name
+            old_name = document_controller.profile.workspaces[0].name
             # perform command
             command = Workspace.Workspace.RenameWorkspaceCommand(workspace_controller, "NEW")
             command.perform()
             document_controller.push_undo_command(command)
             # check things
-            self.assertEqual("NEW", document_model.workspaces[0].name)
+            self.assertEqual("NEW", document_controller.profile.workspaces[0].name)
             # undo
             document_controller.handle_undo()
-            self.assertEqual(old_name, document_model.workspaces[0].name)
+            self.assertEqual(old_name, document_controller.profile.workspaces[0].name)
             # redo
             document_controller.handle_redo()
-            self.assertEqual("NEW", document_model.workspaces[0].name)
+            self.assertEqual("NEW", document_controller.profile.workspaces[0].name)
 
     def test_remove_workspace_undo_and_redo_works_cleanly(self):
         document_model = DocumentModel.DocumentModel()
@@ -677,7 +677,7 @@ class TestWorkspaceClass(unittest.TestCase):
             command.perform()
             document_controller.push_undo_command(command)
             # save info
-            self.assertEqual(2, len(document_model.workspaces))
+            self.assertEqual(2, len(document_controller.profile.workspaces))
             old_workspace_layout = workspace_controller._workspace_layout
             # perform remove command
             command = Workspace.Workspace.RemoveWorkspaceCommand(workspace_controller)
@@ -686,7 +686,7 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # check things
-            self.assertEqual(1, len(document_model.workspaces))
+            self.assertEqual(1, len(document_controller.profile.workspaces))
             # undo
             document_controller.handle_undo()
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -694,7 +694,7 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
             # redo
             document_controller.handle_redo()
-            self.assertEqual(1, len(document_model.workspaces))
+            self.assertEqual(1, len(document_controller.profile.workspaces))
 
     def test_clone_workspace_undo_and_redo_works_cleanly(self):
         document_model = DocumentModel.DocumentModel()
@@ -706,7 +706,7 @@ class TestWorkspaceClass(unittest.TestCase):
             display_panel = workspace_controller.display_panels[0]
             workspace_controller.insert_display_panel(display_panel, "bottom").close()
             # save info
-            self.assertEqual(1, len(document_model.workspaces))
+            self.assertEqual(1, len(document_controller.profile.workspaces))
             old_workspace_uuid = document_controller.workspace_controller._workspace.uuid
             old_workspace_layout = workspace_controller._workspace_layout
             # perform create command
@@ -716,7 +716,7 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # check things
-            self.assertEqual(2, len(document_model.workspaces))
+            self.assertEqual(2, len(document_controller.profile.workspaces))
             # TODO: why is splitter incorrect? check children.
             self.assertEqual(old_workspace_layout["children"], workspace_controller._workspace_layout["children"])
             new_workspace_layout = workspace_controller._workspace_layout
@@ -725,21 +725,21 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
-            self.assertEqual(1, len(document_model.workspaces))
+            self.assertEqual(1, len(document_controller.profile.workspaces))
             self.assertEqual(old_workspace_uuid, document_controller.workspace_controller._workspace.uuid)
             # redo
             document_controller.handle_redo()
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
-            self.assertEqual(2, len(document_model.workspaces))
+            self.assertEqual(2, len(document_controller.profile.workspaces))
 
     def test_workspace_records_and_reloads_image_panel_contents(self):
         with create_memory_profile_context() as profile_context:
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             with contextlib.closing(document_controller):
-                workspace_1x1 = document_controller.document_model.workspaces[0]
+                workspace_1x1 = document_controller.profile.workspaces[0]
                 data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
                 document_model.append_data_item(data_item1)
                 document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
@@ -747,7 +747,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             with contextlib.closing(document_controller):
-                workspace_1x1 = document_controller.document_model.workspaces[0]
+                workspace_1x1 = document_controller.profile.workspaces[0]
                 self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, document_model.data_items[0])
 
     def __test_drop_on_1x1(self, region):

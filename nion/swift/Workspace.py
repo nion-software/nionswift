@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import copy
 import functools
@@ -23,6 +25,7 @@ from nion.ui import UserInterface
 
 if typing.TYPE_CHECKING:
     from nion.swift import Panel
+    from nion.swift.model import Profile
 
 
 _ = gettext.gettext
@@ -134,6 +137,10 @@ class Workspace:
     @property
     def document_model(self):
         return self.document_controller.document_model
+
+    @property
+    def _profile(self) -> Profile.Profile:
+        return self.document_controller.profile
 
     @property
     def _canvas_item(self):
@@ -332,37 +339,37 @@ class Workspace:
                 self.__canvas_item.add_canvas_item(canvas_item)
                 self.image_row.add(canvas_widget)
         self.document_controller.selected_display_panel = selected_display_panel
-        self.document_model.workspace_uuid = workspace.uuid
+        self.document_controller.profile.workspace_uuid = workspace.uuid
 
-    def restore(self, workspace_uuid):
+    def restore(self, workspace_uuid: uuid.UUID) -> None:
         """
             Restore the workspace to the given workspace_uuid.
 
             If workspace_uuid is None then create a new workspace and use it.
         """
-        workspace = next((workspace for workspace in self.document_model.workspaces if workspace.uuid == workspace_uuid), None)
+        workspace = next((workspace for workspace in self._profile.workspaces if workspace.uuid == workspace_uuid), None)
         if workspace is None:
             workspace = self.new_workspace()
         self._change_workspace(workspace)
 
-    def change_to_previous_workspace(self):
-        workspace_uuid = self.document_model.workspace_uuid
-        workspace = next((workspace for workspace in self.document_model.workspaces if workspace.uuid == workspace_uuid), None)
-        workspace_index = self.document_model.workspaces.index(workspace)
-        workspace_index = (workspace_index - 1) % len(self.document_model.workspaces)
-        self.change_workspace(self.document_model.workspaces[workspace_index])
+    def change_to_previous_workspace(self) -> None:
+        workspace_uuid = self.document_controller.profile.workspace_uuid
+        workspace = next((workspace for workspace in self._profile.workspaces if workspace.uuid ==workspace_uuid), None)
+        workspace_index = self._profile.workspaces.index(workspace)
+        workspace_index = (workspace_index - 1) % len(self._profile.workspaces)
+        self.change_workspace(self._profile.workspaces[workspace_index])
 
-    def change_to_next_workspace(self):
-        workspace_uuid = self.document_model.workspace_uuid
-        workspace = next((workspace for workspace in self.document_model.workspaces if workspace.uuid == workspace_uuid), None)
-        workspace_index = self.document_model.workspaces.index(workspace)
-        workspace_index = (workspace_index + 1) % len(self.document_model.workspaces)
-        self.change_workspace(self.document_model.workspaces[workspace_index])
+    def change_to_next_workspace(self) -> None:
+        workspace_uuid = self.document_controller.profile.workspace_uuid
+        workspace = next((workspace for workspace in self._profile.workspaces if workspace.uuid == workspace_uuid), None)
+        workspace_index = self._profile.workspaces.index(workspace)
+        workspace_index = (workspace_index + 1) % len(self._profile.workspaces)
+        self.change_workspace(self._profile.workspaces[workspace_index])
 
     def new_workspace(self, name=None, layout=None, workspace_id=None, index=None) -> WorkspaceLayout.WorkspaceLayout:
         """ Create a new workspace, insert into document_model, and return it. """
         workspace = WorkspaceLayout.WorkspaceLayout()
-        self.document_model.insert_workspace(index if index is not None else len(self.document_model.workspaces), workspace)
+        self._profile.insert_item("workspaces", index if index is not None else len(self._profile.workspaces), workspace)
         d = create_image_desc()
         d["selected"] = True
         workspace.layout = layout if layout is not None else d
@@ -376,13 +383,13 @@ class Workspace:
 
         If none is found, create a new one, add it, and change to it.
         """
-        workspace = next((workspace for workspace in self.document_model.workspaces if workspace.workspace_id == workspace_id), None)
+        workspace = next((workspace for workspace in self._profile.workspaces if workspace.workspace_id == workspace_id), None)
         if not workspace:
             workspace = self.new_workspace(name=name, layout=layout, workspace_id=workspace_id)
         self._change_workspace(workspace)
 
     def get_workspace_layout_by_uuid(self, workspace_layout_uuid: uuid.UUID) -> typing.Optional[WorkspaceLayout.WorkspaceLayout]:
-        for workspace_layout in self.document_model.workspaces:
+        for workspace_layout in self._profile.workspaces:
             if workspace_layout.uuid == workspace_layout_uuid:
                 return workspace_layout
         return None
@@ -413,7 +420,7 @@ class Workspace:
             self.__new_layout = self.__workspace_controller._workspace.layout
             self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
             self.__workspace_controller._change_workspace(workspace_layout)
-            self.__workspace_controller.document_model.remove_workspace(new_workspace)
+            self.__workspace_controller._profile.remove_item("workspaces", new_workspace)
 
         def _redo(self) -> None:
             self.perform()
@@ -425,7 +432,7 @@ class Workspace:
             self.__old_name = workspace_controller._workspace.name
             self.__old_layout = workspace_controller._workspace.layout
             self.__old_workspace_id = workspace_controller._workspace.workspace_id
-            self.__old_workspace_index = workspace_controller.document_model.workspaces.index(workspace_controller._workspace)
+            self.__old_workspace_index = workspace_controller._profile.workspaces.index(workspace_controller._workspace)
             self.initialize()
 
         def _get_modified_state(self):
@@ -435,10 +442,10 @@ class Workspace:
             self.__workspace_controller.document_model.modified_state = modified_state
 
         def perform(self) -> None:
-            assert len(self.__workspace_controller.document_model.workspaces) > 1
+            assert len(self.__workspace_controller._profile.workspaces) > 1
             old_workspace = self.__workspace_controller._workspace
             self.__workspace_controller.change_to_previous_workspace()
-            self.__workspace_controller.document_model.remove_workspace(old_workspace)
+            self.__workspace_controller._profile.remove_item("workspaces", old_workspace)
 
         def _undo(self) -> None:
             new_workspace = self.__workspace_controller.new_workspace(name=self.__old_name, layout=self.__old_layout, workspace_id=self.__old_workspace_id, index=self.__old_workspace_index)
@@ -496,7 +503,7 @@ class Workspace:
             self.__new_layout = self.__workspace_controller._workspace.layout
             self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
             self.__workspace_controller._change_workspace(workspace_layout)
-            self.__workspace_controller.document_model.remove_workspace(new_workspace)
+            self.__workspace_controller._profile.remove_item("workspaces", new_workspace)
 
         def _redo(self) -> None:
             self.perform()
@@ -572,11 +579,11 @@ class Workspace:
                                          accepted_fn=rename_clicked, accepted_text=_("Rename"),
                                          message_box_id="rename_workspace")
 
-    def remove_workspace(self):
+    def remove_workspace(self) -> None:
         """ Pose a dialog to confirm removal then remove workspace. """
 
         def confirm_clicked():
-            if len(self.document_model.workspaces) > 1:
+            if len(self._profile.workspaces) > 1:
                 command = Workspace.RemoveWorkspaceCommand(self)
                 command.perform()
                 self.document_controller.push_undo_command(command)
