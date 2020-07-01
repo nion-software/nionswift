@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import collections
 import copy
@@ -171,21 +173,20 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
 
     def insert_data_group(self, before_index, data_group):
         self.insert_item("data_groups", before_index, data_group)
-        if self.__lookup_display_item:
-            data_group.connect_display_items(self.__lookup_display_item)
-        self.notify_insert_item("data_groups", data_group, before_index)
 
     def remove_data_group(self, data_group):
-        data_group.disconnect_display_items()
-        index = self.data_groups.index(data_group)
         self.remove_item("data_groups", data_group)
-        self.notify_remove_item("data_groups", data_group, index)
 
-    def __insert_data_group(self, name, before_index, data_group):
+    def __insert_data_group(self, name: str, before_index: int, data_group: DataGroup) -> None:
+        if self.__lookup_display_item:
+            data_group.connect_display_items(self.__lookup_display_item)
         self.update_counted_display_items(data_group.counted_display_items)
+        self.notify_insert_item("data_groups", data_group, before_index)
 
     def __remove_data_group(self, name, index, data_group):
+        data_group.disconnect_display_items()
         self.subtract_counted_display_items(data_group.counted_display_items)
+        self.notify_remove_item("data_groups", data_group, index)
 
     @property
     def counted_display_items(self):

@@ -10,6 +10,7 @@ import weakref
 # local libraries
 from nion.swift.model import Changes
 from nion.swift.model import Connection
+from nion.swift.model import DataGroup
 from nion.swift.model import Symbolic
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
@@ -44,6 +45,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.define_relationship("computations", computation_factory, insert=self.__computation_inserted, remove=self.__computation_removed)
         self.define_relationship("data_structures", data_structure_factory, insert=self.__data_structure_inserted, remove=self.__data_structure_removed)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__connection_inserted, remove=self.__connection_removed)
+        self.define_relationship("data_groups", DataGroup.data_group_factory, insert=self.__data_group_inserted, remove=self.__data_group_removed)
 
         self.__project_state = None
         self.__project_version = 0
@@ -123,6 +125,22 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 graphic = display_item.get_item_by_uuid("graphics", item_uuid)
                 if graphic:
                     return graphic
+
+            def check_data_group(data_group: DataGroup.DataGroup, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[DataGroup.DataGroup]:
+                for data_group in data_group.data_groups:
+                    if data_group.uuid == item_specifier.item_uuid:
+                        return data_group
+                    matching_data_group = check_data_group(data_group, item_specifier)
+                    if matching_data_group:
+                        return matching_data_group
+                return None
+
+            for data_group in self.data_groups:
+                if data_group.uuid == item_uuid:
+                    return data_group
+                matching_data_group = check_data_group(data_group, item_specifier)
+                if matching_data_group:
+                    return matching_data_group
         return super()._get_related_item(item_specifier)
 
     @property
@@ -179,6 +197,12 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
     def __connection_removed(self, name: str, index: int, connection: Connection.Connection) -> None:
         self.notify_remove_item("connections", connection, index)
+
+    def __data_group_inserted(self, name: str, before_index: int, data_group: DataGroup.DataGroup) -> None:
+        self.notify_insert_item("data_groups", data_group, before_index)
+
+    def __data_group_removed(self, name: str, index: int, data_group: DataGroup.DataGroup) -> None:
+        self.notify_remove_item("data_groups", data_group, index)
 
     def _get_relationship_persistent_dict(self, item, key: str, index: int) -> typing.Dict:
         if key == "data_items":
@@ -240,6 +264,13 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 connection.finish_reading()
                 if not self.get_item_by_uuid("connections", connection.uuid):
                     self.load_item("connections", len(self.connections), connection)
+            for item_d in properties.get("data_groups", list()):
+                data_group = DataGroup.data_group_factory(item_d.get)
+                data_group.begin_reading()
+                data_group.read_from_dict(item_d)
+                data_group.finish_reading()
+                if not self.get_item_by_uuid("data_groups", data_group.uuid):
+                    self.load_item("data_groups", len(self.data_groups), data_group)
             self.__project_state = "loaded"
         elif self.__project_version is not None:
             self.__project_state = "needs_upgrade"
@@ -309,6 +340,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.read_project()
 
     def unmount(self) -> None:
+        while len(self.data_groups) > 0:
+            self.unload_item("data_groups", len(self.data_groups) - 1)
         while len(self.connections) > 0:
             self.unload_item("connections", len(self.connections) - 1)
         while len(self.computations) > 0:

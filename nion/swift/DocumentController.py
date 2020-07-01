@@ -1173,7 +1173,7 @@ class DocumentController(Window.Window):
         return DocumentController.RenameDataGroupCommand(self.document_model, data_group, title)
 
     class InsertDataGroupCommand(Undo.UndoableCommand):
-        def __init__(self, document_model, container: typing.Union[DataGroup.DataGroup, DocumentModel.DocumentModel], before_index: int, data_group: DataGroup.DataGroup):
+        def __init__(self, document_model: DocumentModel.DocumentModel, container: typing.Union[DataGroup.DataGroup, Project.Project], before_index: int, data_group: DataGroup.DataGroup):
             super().__init__("Insert Data Group")
             self.__document_model = document_model
             self.__container_proxy = container.create_proxy()
@@ -1206,24 +1206,21 @@ class DocumentController(Window.Window):
             container = self.__container_proxy.item
             data_group = DataGroup.DataGroup()
             data_group.read_from_dict(self.__data_group_properties)
-            container.insert_data_group(self.__before_index, data_group)
+            container.insert_item("data_groups", self.__before_index, data_group)
             self.__data_group_proxy = data_group.create_proxy()
 
         def _undo(self) -> None:
             container = self.__container_proxy.item
             data_group = self.__data_group_proxy.item
-            container.remove_data_group(data_group)
+            container.remove_item("data_groups", data_group)
             self.__data_group_proxy.close()
             self.__data_group_proxy = None
 
         def _redo(self) -> None:
             self.perform()
 
-    def create_insert_data_group_command(self, container: typing.Union[DataGroup.DataGroup, DocumentModel.DocumentModel], before_index: int, data_group: DataGroup.DataGroup) -> InsertDataGroupCommand:
-        return DocumentController.InsertDataGroupCommand(self.document_model, container, before_index, data_group)
-
     class RemoveDataGroupCommand(Undo.UndoableCommand):
-        def __init__(self, document_model, container: typing.Union[DataGroup.DataGroup, DocumentModel.DocumentModel], data_group: DataGroup.DataGroup):
+        def __init__(self, document_model: DocumentModel.DocumentModel, container: typing.Union[DataGroup.DataGroup, Project.Project], data_group: DataGroup.DataGroup):
             super().__init__("Remove Data Group")
             self.__document_model = document_model
             self.__container_proxy = container.create_proxy()
@@ -1256,7 +1253,7 @@ class DocumentController(Window.Window):
             data_group = self.__data_group_proxy.item
             self.__data_group_properties = data_group.write_to_dict()
             self.__data_group_index = container.data_groups.index(data_group)
-            container.remove_data_group(data_group)
+            container.remove_item("data_groups", data_group)
 
         def _undo(self) -> None:
             container = self.__container_proxy.item
@@ -1264,7 +1261,7 @@ class DocumentController(Window.Window):
             data_group.begin_reading()
             data_group.read_from_dict(self.__data_group_properties)
             data_group.finish_reading()
-            container.insert_data_group(self.__data_group_index, data_group)
+            container.insert_item("data_groups", self.__data_group_index, data_group)
 
         def _redo(self) -> None:
             self.perform()
@@ -1272,11 +1269,11 @@ class DocumentController(Window.Window):
     def add_group(self):
         data_group = DataGroup.DataGroup()
         data_group.title = _("Untitled Group")
-        command = DocumentController.InsertDataGroupCommand(self.document_model, self.document_model, 0, data_group)
+        command = DocumentController.InsertDataGroupCommand(self.document_model, self.document_model._project, 0, data_group)
         command.perform()
         self.push_undo_command(command)
 
-    def remove_data_group_from_container(self, data_group, container):
+    def remove_data_group_from_container(self, data_group: DataGroup.DataGroup, container: typing.Union[DataGroup.DataGroup, Project.Project]):
         data_group_empty = len(data_group.display_items) == 0 and len(data_group.data_groups) == 0
         if data_group_empty:
             assert data_group in container.data_groups

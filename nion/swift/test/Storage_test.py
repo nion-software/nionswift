@@ -613,7 +613,7 @@ class TestStorageClass(unittest.TestCase):
             document_controller.document_model.data_groups[0].append_data_group(data_group1)
             document_controller.document_model.data_groups[0].insert_data_group(0, data_group2)
             document_controller.document_model.data_groups[0].append_data_group(data_group3)
-            self.assertEqual(len(profile_context.profile_properties["data_groups"][0]["data_groups"]), 3)
+            self.assertEqual(len(profile_context.project_properties["data_groups"][0]["data_groups"]), 3)
             # delete items to generate key error unless primary keys handled carefully. need to delete an item that is at index >= 2 to test for this problem.
             data_group4 = DataGroup.DataGroup()
             data_group5 = DataGroup.DataGroup()
@@ -621,7 +621,7 @@ class TestStorageClass(unittest.TestCase):
             document_controller.document_model.data_groups[0].insert_data_group(1, data_group5)
             document_controller.document_model.data_groups[0].remove_data_group(document_controller.document_model.data_groups[0].data_groups[2])
             # make sure indexes are in sequence still
-            self.assertEqual(len(profile_context.profile_properties["data_groups"][0]["data_groups"]), 4)
+            self.assertEqual(len(profile_context.project_properties["data_groups"][0]["data_groups"]), 4)
 
     def test_copy_data_group(self):
         with TestContext.create_memory_context() as test_context:
@@ -676,7 +676,7 @@ class TestStorageClass(unittest.TestCase):
                 data_group.append_display_item(document_model.display_items[0])
                 data_group.append_display_item(document_model.display_items[1])
                 document_model.append_data_group(data_group)
-            profile_context.profile_properties['data_groups'][0]['display_item_references'][1] = profile_context.profile_properties['data_groups'][0]['display_item_references'][0]
+            profile_context.project_properties['data_groups'][0]['display_item_references'][1] = profile_context.project_properties['data_groups'][0]['display_item_references'][0]
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(1, len(document_model.data_groups[0].display_items))

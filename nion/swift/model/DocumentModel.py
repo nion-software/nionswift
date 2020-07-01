@@ -772,6 +772,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__handle_computation_inserted(project, item)
         elif name == "connections":
             self.__handle_connection_inserted(project, item)
+        elif name == "data_groups":
+            self.notify_insert_item("data_groups", item, before_index)
 
     def __project_item_removed(self, project: Project.Project, name: str, item, index: int) -> None:
         if name == "data_items":
@@ -784,6 +786,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__handle_computation_removed(project, item)
         elif name == "connections":
             self.__handle_connection_removed(project, item)
+        elif name == "data_groups":
+            item.disconnect_display_items()
+            self.notify_remove_item("data_groups", item, index)
 
     def __project_inserted(self, key: str, project: Project.Project, before_index: int) -> None:
         if key == "projects":
@@ -794,10 +799,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if key == "projects":
             self.__project_item_inserted_listeners.pop(index).close()
             self.__project_item_removed_listeners.pop(index).close()
-
-    def create_proxy(self) -> Persistence.PersistentObjectProxy:
-        # returns item proxy in profile. used in data group hierarchy.
-        return self.__profile.create_item_proxy(item=typing.cast(Persistence.PersistentObject, self))
 
     def create_item_proxy(self, *, item_uuid: uuid.UUID = None, item_specifier: Persistence.PersistentObjectSpecifier = None, item: Persistence.PersistentObject = None) -> Persistence.PersistentObjectProxy:
         # returns item proxy in projects. used in data group hierarchy.
@@ -1476,14 +1477,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.insert_data_group(len(self.data_groups), data_group)
 
     def insert_data_group(self, before_index, data_group):
-        self.__profile.insert_item("data_groups", before_index, data_group)
-        self.notify_insert_item("data_groups", data_group, before_index)
+        self._project.insert_item("data_groups", before_index, data_group)
 
     def remove_data_group(self, data_group):
-        data_group.disconnect_display_items()
-        index = self.data_groups.index(data_group)
-        self.__profile.remove_item("data_groups", data_group)
-        self.notify_remove_item("data_groups", data_group, index)
+        self._project.remove_item("data_groups", data_group)
 
     def create_default_data_groups(self):
         # ensure there is at least one group
@@ -1776,7 +1773,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     @property
     def data_groups(self) -> typing.List[DataGroup.DataGroup]:
-        return self.__profile.data_groups
+        return self._project.data_groups
 
     def _update_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
         assert threading.current_thread() == threading.main_thread()

@@ -485,7 +485,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.document_model.insert_data_group(0, green_group)
             self.assertEqual(len(green_group.display_items), 1)
             data_panel = document_controller.find_dock_panel("data-panel")
-            document_controller.remove_data_group_from_container(document_controller.document_model.data_groups[0], document_controller.document_model)
+            document_controller.remove_data_group_from_container(document_controller.document_model.data_groups[0], document_controller.document_model._project)
 
     def test_data_panel_remove_item_by_key(self):
         with TestContext.create_memory_context() as test_context:

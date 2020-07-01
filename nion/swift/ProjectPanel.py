@@ -866,7 +866,7 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         list_display_item = self.items[index] if index is not None else None
         data_group = list_display_item.data_group
         if data_group:
-            list_display_item.document_controller.remove_data_group_from_container(data_group, list_display_item.document_controller.document_model)
+            list_display_item.document_controller.remove_data_group_from_container(data_group, list_display_item.document_controller.document_model._project)
 
 
 class CollectionsWidget(Widgets.CompositeWidgetBase):

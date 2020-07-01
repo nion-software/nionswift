@@ -258,7 +258,7 @@ class TestDataGroupClass(unittest.TestCase):
             document_model.append_data_group(data_group1)
             document_model.append_data_group(data_group3)
             # insert the middle data group
-            command = DocumentController.DocumentController.InsertDataGroupCommand(document_model, document_model, 1, data_group2)
+            command = DocumentController.DocumentController.InsertDataGroupCommand(document_model, document_model._project, 1, data_group2)
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(3, len(document_model.data_groups))
@@ -296,7 +296,7 @@ class TestDataGroupClass(unittest.TestCase):
             document_model.append_data_group(data_group2)
             document_model.append_data_group(data_group3)
             # remove the middle data group
-            command = DocumentController.DocumentController.RemoveDataGroupCommand(document_model, document_model, data_group2)
+            command = DocumentController.DocumentController.RemoveDataGroupCommand(document_model, document_model._project, data_group2)
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(2, len(document_model.data_groups))
