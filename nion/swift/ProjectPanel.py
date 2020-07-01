@@ -489,10 +489,10 @@ class ProjectTreeWidget(Widgets.CompositeWidgetBase):
 
         document_model = document_controller.document_model
 
-        self._tree_model = TreeModel(document_controller, set(document_model.profile.closed_items))
+        self._tree_model = TreeModel(document_controller, set(document_controller.profile.closed_items))
 
         def closed_items_changed(closed_items: typing.Set[str]):
-            document_model.profile.closed_items = list(closed_items)
+            document_controller.profile.closed_items = list(closed_items)
 
         self._tree_model.on_closed_items_changed = closed_items_changed
 

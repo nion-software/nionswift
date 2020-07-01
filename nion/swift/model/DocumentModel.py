@@ -602,15 +602,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, profile.work_project, Persistence.PersistentObjectSpecifier.read(data_item_specifier)))
 
         # handle the reference variable assignments
-        data_item_variables = self.profile._get_persistent_property_value("data_item_variables")
+        data_item_variables = self.__profile._get_persistent_property_value("data_item_variables")
         new_data_item_variables = dict()
         for r_var, data_item_specifier_d in data_item_variables.items():
-            data_item_proxy = self.profile.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(data_item_specifier_d))
+            data_item_proxy = self.__profile.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(data_item_specifier_d))
             data_item = typing.cast(DataItem.DataItem, data_item_proxy.item) if data_item_proxy.item else None
             if data_item:
                 new_data_item_variables[r_var] = data_item.item_specifier.write()
                 data_item.set_r_value(r_var, notify_changed=False)
-        self.profile._set_persistent_property_value("data_item_variables", new_data_item_variables)
+        self.__profile._set_persistent_property_value("data_item_variables", new_data_item_variables)
 
         def resolve_display_item_specifier(display_item_specifier_d: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:
             display_item_specifier = Persistence.PersistentObjectSpecifier.read(display_item_specifier_d)
@@ -797,15 +797,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
         # returns item proxy in profile. used in data group hierarchy.
-        return self.profile.create_item_proxy(item=typing.cast(Persistence.PersistentObject, self))
+        return self.__profile.create_item_proxy(item=typing.cast(Persistence.PersistentObject, self))
 
     def create_item_proxy(self, *, item_uuid: uuid.UUID = None, item_specifier: Persistence.PersistentObjectSpecifier = None, item: Persistence.PersistentObject = None) -> Persistence.PersistentObjectProxy:
         # returns item proxy in projects. used in data group hierarchy.
-        return self.profile.work_project.create_item_proxy(item_uuid=item_uuid, item_specifier=item_specifier, item=item)
+        return self.__profile.work_project.create_item_proxy(item_uuid=item_uuid, item_specifier=item_specifier, item=item)
 
     def resolve_item_specifier(self, item_specifier: Persistence.PersistentObjectSpecifier) -> Persistence.PersistentObject:
         assert item_specifier.context_uuid  # require full item specifier since it shouldn't match the arbitrary project used to resolve.
-        return self.profile.work_project.resolve_item_specifier(item_specifier)
+        return self.__profile.work_project.resolve_item_specifier(item_specifier)
 
     @property
     def modified_state(self) -> int:
@@ -837,7 +837,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     @property
     def _project(self) -> Project.Project:
-        return self.profile.work_project
+        return self.__profile.work_project
+
+    @property
+    def projects(self) -> typing.Sequence[Project.Project]:
+        return self.__profile.projects
 
     @property
     def profile(self) -> Profile.Profile:
@@ -923,7 +927,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         uuid_order = save_item_order(self.__data_items)
         self.append_data_item(data_item, auto_display=auto_display, project=project)
         insert_item_order(uuid_order, index, data_item)
-        self.__data_items = restore_item_order("data_items", self.profile.projects, uuid_order)
+        self.__data_items = restore_item_order("data_items", self.__profile.projects, uuid_order)
 
     def __rebind_computations(self):
         for computation in self.computations:
@@ -944,15 +948,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def restore_items_order(self, name: str, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
         if name == "data_items":
-            self.__data_items = restore_item_order(name, self.profile.projects, order)
+            self.__data_items = restore_item_order(name, self.__profile.projects, order)
         elif name == "display_items":
-            self.__display_items = restore_item_order(name, self.profile.projects, order)
+            self.__display_items = restore_item_order(name, self.__profile.projects, order)
         elif name == "data_strutures":
-            self.__data_structures = restore_item_order(name, self.profile.projects, order)
+            self.__data_structures = restore_item_order(name, self.__profile.projects, order)
         elif name == "computations":
-            self.__computations = restore_item_order(name, self.profile.projects, order)
+            self.__computations = restore_item_order(name, self.__profile.projects, order)
         elif name == "connections":
-            self.__connections = restore_item_order(name, self.profile.projects, order)
+            self.__connections = restore_item_order(name, self.__profile.projects, order)
 
     def deepcopy_display_item(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
         display_item_copy = copy.deepcopy(display_item)
@@ -983,7 +987,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         uuid_order = save_item_order(self.__display_items)
         self.append_display_item(display_item, update_session=update_session, project=project)
         insert_item_order(uuid_order, before_index, display_item)
-        self.__display_items = restore_item_order("display_items", self.profile.projects, uuid_order)
+        self.__display_items = restore_item_order("display_items", self.__profile.projects, uuid_order)
 
     def remove_display_item(self, display_item) -> None:
         self.__cascade_delete(display_item).close()
@@ -1404,7 +1408,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def transaction_context(self):
         """Return a context object for a document-wide transaction."""
-        return self.profile.transaction_context()
+        return self.__profile.transaction_context()
 
     def item_transaction(self, item) -> Transaction:
         return self.__transaction_manager.item_transaction(item)
@@ -1789,7 +1793,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         data_item_reference = self.__data_item_references.get(key)
         if data_item_reference:
             return data_item_reference
-        return self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self.profile.work_project))
+        return self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self.__profile.work_project))
 
     def setup_channel(self, data_item_reference_key: str, data_item: DataItem.DataItem) -> None:
         data_item_reference = self.get_data_item_reference(data_item_reference_key)
@@ -1818,7 +1822,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 data_item_reference.data_item = data_item
 
                 def append_data_item():
-                    self.append_data_item(data_item, project=self.profile.work_project)
+                    self.append_data_item(data_item, project=self.__profile.work_project)
                     self._update_data_item_reference(key, data_item)
 
                 self.__call_soon(append_data_item)
@@ -1950,7 +1954,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         uuid_order = save_item_order(self.__connections)
         self.append_connection(connection, project=project)
         insert_item_order(uuid_order, before_index, connection)
-        self.__connections = restore_item_order("connections", self.profile.projects, uuid_order)
+        self.__connections = restore_item_order("connections", self.__profile.projects, uuid_order)
 
     def remove_connection(self, connection: Connection.Connection) -> None:
         connection.container.remove_connection(connection)
@@ -1983,7 +1987,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         uuid_order = save_item_order(self.__data_structures)
         self.append_data_structure(data_structure, project=project)
         insert_item_order(uuid_order, before_index, data_structure)
-        self.__data_structures = restore_item_order("data_structures", self.profile.projects, uuid_order)
+        self.__data_structures = restore_item_order("data_structures", self.__profile.projects, uuid_order)
 
     def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
         return self.__cascade_delete(data_structure).close()
@@ -2067,7 +2071,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         uuid_order = save_item_order(self.__computations)
         self.append_computation(computation, project=project)
         insert_item_order(uuid_order, before_index, computation)
-        self.__computations = restore_item_order("computations", self.profile.projects, uuid_order)
+        self.__computations = restore_item_order("computations", self.__profile.projects, uuid_order)
 
     def remove_computation(self, computation: Symbolic.Computation, *, safe: bool=False) -> None:
         self.__cascade_delete(computation, safe=safe).close()
@@ -2344,7 +2348,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 break
             else:
                 project = input_project
-        project = project or self.profile.work_project
+        project = project or self.__profile.work_project
 
         # construct the computation
         computation = self.create_computation(script)

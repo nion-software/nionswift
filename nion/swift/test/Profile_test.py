@@ -39,17 +39,17 @@ class TestProfileClass(unittest.TestCase):
                 document_model.append_data_item(data_item, project=profile.projects[0])
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item, project=profile.projects[1])
-                self.assertEqual(1, len(document_model.profile.projects[0].data_items))
-                self.assertEqual(1, len(document_model.profile.projects[1].data_items))
+                self.assertEqual(1, len(document_model.projects[0].data_items))
+                self.assertEqual(1, len(document_model.projects[1].data_items))
             document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
             with contextlib.closing(document_model):
-                self.assertEqual(2, len(document_model.profile.projects))
+                self.assertEqual(2, len(document_model.projects))
                 self.assertEqual(2, len(document_model.data_items))
-                self.assertEqual(1, len(document_model.profile.projects[0].data_items))
-                self.assertEqual(1, len(document_model.profile.projects[1].data_items))
+                self.assertEqual(1, len(document_model.projects[0].data_items))
+                self.assertEqual(1, len(document_model.projects[1].data_items))
                 self.assertEqual(2, len(document_model.display_items))
-                self.assertEqual(1, len(document_model.profile.projects[0].display_items))
-                self.assertEqual(1, len(document_model.profile.projects[1].display_items))
+                self.assertEqual(1, len(document_model.projects[0].display_items))
+                self.assertEqual(1, len(document_model.projects[1].display_items))
 
     def test_work_project_cannot_be_removed(self):
         with create_memory_profile_context() as profile_context:
