@@ -249,7 +249,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.storage_cache = storage_cache or Cache.DictStorageCache()  # need to deallocate
         self.set_storage_system(self.storage_system)
 
-        self.__document_model = None
         self.profile_context = None
 
         # helper object to produce the projects sequence
@@ -272,7 +271,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.storage_system = None
         self.__projects_observer.close()
         self.__projects_observer = None
-        self.__document_model = None
         self.profile_context = None
         super().close()
 
@@ -368,7 +366,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         # this makes storage reusable during tests
         for project_reference in self.project_references:
             project_reference.open()
-        self.__document_model = document_model
 
     def insert_model_item(self, container, name, before_index, item):
         """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
