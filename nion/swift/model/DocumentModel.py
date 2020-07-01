@@ -597,9 +597,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__prune()
 
         # update the data item references
-        data_item_references = self.__profile.data_item_references
+        data_item_references = self._project.data_item_references
         for key, data_item_specifier in data_item_references.items():
-            self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, profile.work_project, Persistence.PersistentObjectSpecifier.read(data_item_specifier)))
+            self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self._project, Persistence.PersistentObjectSpecifier.read(data_item_specifier)))
 
         # handle the reference variable assignments
         data_item_variables = self.__profile._get_persistent_property_value("data_item_variables")
@@ -1778,9 +1778,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def _update_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
         assert threading.current_thread() == threading.main_thread()
         if data_item:
-            self.__profile.set_data_item_reference(key, data_item)
+            self._project.set_data_item_reference(key, data_item)
         else:
-            self.__profile.clear_data_item_reference(key)
+            self._project.clear_data_item_reference(key)
 
     def make_data_item_reference_key(self, *components) -> str:
         return "_".join([str(component) for component in list(components) if component is not None])
@@ -1790,7 +1790,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         data_item_reference = self.__data_item_references.get(key)
         if data_item_reference:
             return data_item_reference
-        return self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self.__profile.work_project))
+        return self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self._project))
 
     def setup_channel(self, data_item_reference_key: str, data_item: DataItem.DataItem) -> None:
         data_item_reference = self.get_data_item_reference(data_item_reference_key)

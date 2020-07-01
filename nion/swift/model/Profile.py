@@ -222,7 +222,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_relationship("workspaces", WorkspaceLayout.factory)
         self.define_relationship("project_references", project_reference_factory, insert=self.__insert_project_reference, remove=self.__remove_project_reference)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
-        self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
         self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
         self.define_property("target_project_reference_uuid", converter=Converter.UuidToStringConverter(), changed=self.__property_changed)
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter(), changed=self.__property_changed)
@@ -533,20 +532,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
     @data_item_variables.setter
     def data_item_variables(self, value):
         self._set_persistent_property_value("data_item_variables", value)
-
-    @property
-    def data_item_references(self) -> typing.Dict[str, uuid.UUID]:
-        return {k: v for k, v in self._get_persistent_property_value("data_item_references").items()}
-
-    def set_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
-        data_item_references = self.data_item_references
-        data_item_references[key] = data_item.item_specifier.write()
-        self._set_persistent_property_value("data_item_references", {k: v for k, v in data_item_references.items()})
-
-    def clear_data_item_reference(self, key: str) -> None:
-        data_item_references = self.data_item_references
-        del data_item_references[key]
-        self._set_persistent_property_value("data_item_references", {k: v for k, v in data_item_references.items()})
 
     def append_project_reference(self, project_reference: ProjectReference) -> None:
         assert not self.get_item_by_uuid("project_references", project_reference.uuid)
