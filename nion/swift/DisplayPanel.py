@@ -40,6 +40,7 @@ from nion.utils import ListModel
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
+    from nion.swift import Workspace
 
 
 _ = gettext.gettext
@@ -967,7 +968,7 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
 
 class ReplaceDisplayPanelCommand(Undo.UndoableCommand):
 
-    def __init__(self, workspace_controller: "Workspace", old_workspace_layout=None):
+    def __init__(self, workspace_controller: Workspace.Workspace, old_workspace_layout=None):
         super().__init__("Replace Display Panel")
         self.__workspace_controller = workspace_controller
         self.__old_workspace_layout = old_workspace_layout if old_workspace_layout else workspace_controller.deconstruct()
@@ -979,10 +980,10 @@ class ReplaceDisplayPanelCommand(Undo.UndoableCommand):
         return self.__old_workspace_layout
 
     def _get_modified_state(self):
-        return self.__workspace_controller.document_model.modified_state
+        return self.__workspace_controller._profile.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        self.__workspace_controller.document_model.modified_state = modified_state
+        self.__workspace_controller._profile.modified_state = modified_state
 
     def _undo(self) -> None:
         self.__new_workspace_layout = self.__workspace_controller.deconstruct()
