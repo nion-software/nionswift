@@ -209,7 +209,8 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             data_item_r = document_model.assign_variable_to_data_item(data_item)
-            self.assertEqual(data_item_r, "r01")
+            self.assertIsNotNone(data_item.r_var)
+            self.assertEqual(data_item_r, data_item.r_var)
 
     def test_transaction_handles_added_graphic(self):
         with TestContext.create_memory_context() as test_context:

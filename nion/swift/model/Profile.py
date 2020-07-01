@@ -222,7 +222,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_relationship("workspaces", WorkspaceLayout.factory)
         self.define_relationship("project_references", project_reference_factory, insert=self.__insert_project_reference, remove=self.__remove_project_reference)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
-        self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
         self.define_property("target_project_reference_uuid", converter=Converter.UuidToStringConverter(), changed=self.__property_changed)
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter(), changed=self.__property_changed)
         self.define_property("closed_items", list())
@@ -524,14 +523,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def toggle_project_reference_active(self, project_reference: ProjectReference) -> None:
         self.set_project_reference_active(project_reference, not project_reference.is_active)
-
-    @property
-    def data_item_variables(self):
-        return self._get_persistent_property_value("data_item_variables")
-
-    @data_item_variables.setter
-    def data_item_variables(self, value):
-        self._set_persistent_property_value("data_item_variables", value)
 
     def append_project_reference(self, project_reference: ProjectReference) -> None:
         assert not self.get_item_by_uuid("project_references", project_reference.uuid)

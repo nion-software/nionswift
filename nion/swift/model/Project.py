@@ -47,6 +47,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.define_relationship("connections", Connection.connection_factory, insert=self.__connection_inserted, remove=self.__connection_removed)
         self.define_relationship("data_groups", DataGroup.data_group_factory, insert=self.__data_group_inserted, remove=self.__data_group_removed)
         self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
+        self.define_property("mapped_items", list())  # list of item references, used for shortcut variables in scripts
 
         self.__project_state = None
         self.__project_version = 0
@@ -273,6 +274,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 if not self.get_item_by_uuid("data_groups", data_group.uuid):
                     self.load_item("data_groups", len(self.data_groups), data_group)
             self._set_persistent_property_value("data_item_references", properties.get("data_item_references", dict()))
+            self._set_persistent_property_value("mapped_items", properties.get("mapped_items", dict()))
             self.__project_state = "loaded"
         elif self.__project_version is not None:
             self.__project_state = "needs_upgrade"
@@ -333,7 +335,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def data_item_references(self) -> typing.Dict[str, uuid.UUID]:
-        return {k: v for k, v in self._get_persistent_property_value("data_item_references").items()}
+        return dict(self._get_persistent_property_value("data_item_references").items())
 
     def set_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
         data_item_references = self.data_item_references
@@ -344,6 +346,14 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         data_item_references = self.data_item_references
         del data_item_references[key]
         self._set_persistent_property_value("data_item_references", {k: v for k, v in data_item_references.items()})
+
+    @property
+    def mapped_items(self) -> typing.Sequence[typing.Union[typing.Mapping, str]]:
+        return list(self._get_persistent_property_value("mapped_items"))
+
+    @mapped_items.setter
+    def mapped_items(self, value: typing.Sequence[typing.Union[typing.Mapping, str]]) -> None:
+        self._set_persistent_property_value("mapped_items", value)
 
     def prune(self) -> None:
         self.__storage_system.prune()

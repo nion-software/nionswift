@@ -11,6 +11,7 @@ import typing
 
 # local libraries
 from nion.swift import Panel
+from nion.swift.model import DocumentModel
 from nion.ui import Dialog
 from nion.ui import UserInterface
 from nion.ui import Widgets
@@ -341,8 +342,8 @@ class ConsoleDialog(Dialog.ActionDialog):
             "",
             ]
 
-        variable_to_data_item_map = document_controller.document_model.variable_to_data_item_map()
-        for variable_name, data_item in variable_to_data_item_map.items():
+        variable_to_item_map = DocumentModel.MappedItemManager().item_map
+        for variable_name, data_item in variable_to_item_map.items():
             data_item_specifier = data_item.item_specifier
             lines.append(f"{variable_name} = api.library.get_item_by_specifier(api.create_specifier(item_uuid=uuid.UUID('{str(data_item_specifier.item_uuid)}'), context_uuid=uuid.UUID('{str(data_item_specifier.context_uuid)}')))")
 

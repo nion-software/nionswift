@@ -535,6 +535,24 @@ class ImplicitDependency(AbstractImplicitDependency):
         return [self.__item] if item in self.__items else list()
 
 
+class MappedItemManager(metaclass=Registry.Singleton):
+
+    def __init__(self):
+        self.__item_map = dict()
+
+    def register(self, item: Persistence.PersistentObject) -> str:
+        for r in range(1, 1000000):
+            r_var = "r{:02d}".format(r)
+            if not r_var in self.__item_map:
+                self.__item_map[r_var] = item
+                return r_var
+        return str()
+
+    @property
+    def item_map(self) -> typing.Mapping[str, Persistence.PersistentObject]:
+        return dict(self.__item_map)
+
+
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, DataItem.SessionManager):
     """Manages storage and dependencies between data items and other objects.
 
@@ -602,15 +620,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self._project, Persistence.PersistentObjectSpecifier.read(data_item_specifier)))
 
         # handle the reference variable assignments
-        data_item_variables = self.__profile._get_persistent_property_value("data_item_variables")
-        new_data_item_variables = dict()
-        for r_var, data_item_specifier_d in data_item_variables.items():
-            data_item_proxy = self.__profile.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(data_item_specifier_d))
-            data_item = typing.cast(DataItem.DataItem, data_item_proxy.item) if data_item_proxy.item else None
-            if data_item:
-                new_data_item_variables[r_var] = data_item.item_specifier.write()
-                data_item.set_r_value(r_var, notify_changed=False)
-        self.__profile._set_persistent_property_value("data_item_variables", new_data_item_variables)
+        new_mapped_items = list()
+        for mapped_item in self._project.mapped_items:
+            item_proxy = self._project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(mapped_item))
+            if isinstance(item_proxy.item, DataItem.DataItem):
+                data_item = typing.cast(DataItem.DataItem, item_proxy.item)
+                data_item.set_r_value(MappedItemManager().register(item_proxy.item), notify_changed=False)
+                new_mapped_items.append(data_item.item_specifier.write())
+            else:
+                logging.warning(f"Missing mapped item: {data_item_specifier.write()}")
+        self._project.mapped_items = new_mapped_items
 
         def resolve_display_item_specifier(display_item_specifier_d: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:
             display_item_specifier = Persistence.PersistentObjectSpecifier.read(display_item_specifier_d)
@@ -908,9 +927,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         assert data_item in self.data_items
         index = self.data_items.index(data_item)
         if data_item.r_var:
-            data_item_variables = self.__profile.data_item_variables
-            del data_item_variables[data_item.r_var]
-            self.__profile.data_item_variables = data_item_variables
+            mapped_items = self._project.mapped_items
+            if data_item.r_var in mapped_items:
+                mapped_items.remove(data_item.r_var)
+            self._project.mapped_items = mapped_items
             data_item.r_var = None
         self.__data_items.remove(data_item)
         self.notify_remove_item("data_items", data_item, index)
@@ -1027,30 +1047,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def assign_variable_to_data_item(self, data_item: DataItem.DataItem) -> str:
         if not data_item.r_var:
-            data_item_variables = self.__profile.data_item_variables
-            def find_var() -> str:
-                for r in range(1, 1000000):
-                    r_var = "r{:02d}".format(r)
-                    if not r_var in data_item_variables:
-                        return r_var
-                return str()
-            data_item_var = find_var()
-            data_item_variables[data_item_var] = data_item.project.create_specifier(data_item, allow_partial=False).write()
-            data_item.set_r_value(data_item_var)
-            self.__profile.data_item_variables = data_item_variables
+            data_item.set_r_value(MappedItemManager().register(data_item))
+            mapped_items = self._project.mapped_items
+            mapped_items.append(data_item.project.create_specifier(data_item, allow_partial=False).write())
+            self._project.mapped_items = mapped_items
         return data_item.r_var
-
-    def variable_to_data_item_map(self) -> typing.Mapping[str, DataItem.DataItem]:
-        m = dict()
-        data_item_variables = self.__profile.data_item_variables
-        for variable, data_item_specifier_d in data_item_variables.items():
-            data_item_specifier = Persistence.PersistentObjectSpecifier.read(data_item_specifier_d)
-            data_item = typing.cast(DataItem.DataItem, self.resolve_item_specifier(data_item_specifier))
-            if data_item:
-                m[variable] = data_item
-            else:
-                logging.warning(f"Missing {variable}: {data_item_specifier.write()}")
-        return m
 
     def __build_cascade(self, item, items: list, dependencies: list) -> None:
         # build a list of items to delete using item as the base. put the leafs at the end of the list.

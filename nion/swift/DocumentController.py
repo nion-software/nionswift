@@ -2040,7 +2040,7 @@ class DocumentController(Window.Window):
     def processing_computation(self, expression, map: typing.Mapping[str, Symbolic.ComputationItem]=None):
         if map is None:
             map = dict()
-            for variable_name, data_item in self.document_model.variable_to_data_item_map().items():
+            for variable_name, data_item in DocumentModel.MappedItemManager().item_map.items():
                 map[variable_name] = Symbolic.make_item(data_item)
         data_item = DataItem.DataItem()
         data_item.ensure_data_source()
