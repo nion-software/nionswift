@@ -1071,46 +1071,6 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(2, len(display_item1.data_items))
             self.assertEqual(2, len(display_item1.display_layers))
 
-    def test_profile_selected_projects_updated_when_one_deleted(self):
-        with create_memory_profile_context() as profile_context:
-            document_controller = profile_context.create_document_controller()
-            document_model = document_controller.document_model
-            profile = profile_context.profile
-            TestContext.add_project_memory(profile)
-            project_panel = document_controller.find_dock_panel("project-panel")
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-            document_model.append_data_item(data_item, project=profile.projects[0])
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-            document_model.append_data_item(data_item, project=profile.projects[1])
-            project_panel._projects_selection.set(1)  # 0 is 'all'
-            self.assertEqual(1, len(document_controller.selected_project_references))
-            self.assertIn(profile.project_references[0], document_controller.selected_project_references)
-            profile.remove_project_reference(profile.project_references[1])  # note: cannot remove project 0, since it is work project
-            self.assertEqual(1, len(document_controller.selected_project_references))
-            self.assertIn(profile.project_references[0], document_controller.selected_project_references)
-
-    def test_profile_selected_projects_updated_when_middle_one_deleted(self):
-        # this test ensures that the project selection is updated properly when an item
-        # is removed but the index of the item is still valid in the new list.
-        with create_memory_profile_context() as profile_context:
-            document_controller = profile_context.create_document_controller()
-            document_model = document_controller.document_model
-            profile = profile_context.profile
-            TestContext.add_project_memory(profile)
-            TestContext.add_project_memory(profile)
-            project_panel = document_controller.find_dock_panel("project-panel")
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-            document_model.append_data_item(data_item, project=profile.projects[0])
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-            document_model.append_data_item(data_item, project=profile.projects[1])
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-            document_model.append_data_item(data_item, project=profile.projects[2])
-            project_panel._projects_selection.set(2)  # 0 is 'all'
-            self.assertEqual(1, len(document_controller.selected_project_references))
-            self.assertIn(profile.project_references[1], document_controller.selected_project_references)
-            profile.remove_project_reference(profile.project_references[1])  # note: cannot remove project 0, since it is work project
-            self.assertEqual(0, len(document_controller.selected_project_references))
-
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

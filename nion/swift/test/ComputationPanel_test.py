@@ -253,37 +253,6 @@ class TestComputationPanelClass(unittest.TestCase):
             self.assertEqual(data_item2, computation.get_input("a"))
             self.assertIsNone(computation.error_text)
 
-    def test_dropping_data_source_from_different_project_works(self):
-        # create three data items, two in the first project, one in the second project.
-        # create the computation with the first two. then simulate a drag and drop from
-        # the second project. recompute and make sure no error occur.
-        with create_memory_profile_context() as profile_context:
-            document_controller = profile_context.create_document_controller()
-            document_model = document_controller.document_model
-            TestContext.add_project_memory(profile_context.profile)
-            data1 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
-            data2 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
-            data3 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
-            data_item1 = DataItem.DataItem(data1)
-            data_item2 = DataItem.DataItem(data2)
-            data_item3 = DataItem.DataItem(data3)
-            document_model.append_data_item(data_item1, project=document_model.projects[0])
-            document_model.append_data_item(data_item2, project=document_model.projects[0])
-            document_model.append_data_item(data_item3, project=document_model.projects[1])
-            display_item1 = document_model.get_display_item_for_data_item(data_item1)
-            display_item2 = document_model.get_display_item_for_data_item(data_item2)
-            display_item3 = document_model.get_display_item_for_data_item(data_item3)
-            document_controller.select_display_items_in_data_panel([display_item1, display_item2])
-            document_controller.perform_action("processing.cross_correlate")
-            computation = document_model.computations[-1]
-            document_model.recompute_all()
-            self.assertIsNone(document_model.computations[0].error_text)
-            mime_data = self.app.ui.create_mime_data()
-            MimeTypes.mime_data_put_data_source(mime_data, display_item3, None)
-            ComputationPanel.drop_mime_data(document_controller, computation, computation.variables[1], mime_data, 0, 0)
-            document_model.recompute_all()
-            self.assertIsNone(document_model.computations[0].error_text)
-
     def disabled_test_expression_updates_when_variable_is_assigned(self):
         raise Exception()
 

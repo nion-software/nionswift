@@ -132,9 +132,11 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
     def connect_display_items(self, lookup_display_item):
         for data_group in self.data_groups:
             data_group.connect_display_items(lookup_display_item)
+        display_items = list()
         for display_item_specifier in self.display_item_specifiers:
             display_item = lookup_display_item(display_item_specifier)
-            self.__display_items.append(display_item)
+            display_items.append(display_item)
+        self.__display_items = display_items
         self.__lookup_display_item = lookup_display_item
 
     def disconnect_display_items(self):

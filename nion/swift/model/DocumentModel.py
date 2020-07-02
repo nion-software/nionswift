@@ -6,7 +6,6 @@ import copy
 import datetime
 import functools
 import gettext
-import logging
 import threading
 import time
 import typing
@@ -16,6 +15,7 @@ import weakref
 # local libraries
 from nion.data import DataAndMetadata
 from nion.swift.model import ApplicationData
+from nion.swift.model import Cache
 from nion.swift.model import Changes
 from nion.swift.model import Connection
 from nion.swift.model import Connector
@@ -29,7 +29,6 @@ from nion.swift.model import Observer
 from nion.swift.model import PlugInManager
 from nion.swift.model import Persistence
 from nion.swift.model import Processing
-from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.utils import Event
@@ -49,10 +48,10 @@ def save_item_order(items: typing.List[Persistence.PersistentObject]) -> typing.
     return [item.item_specifier for item in items]
 
 
-def restore_item_order(name: str, projects: typing.List[Project.Project], uuid_order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> typing.List[Persistence.PersistentObject]:
+def restore_item_order(project: Project.Project, uuid_order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> typing.List[Persistence.PersistentObject]:
     items = list()
     for item_specifier in uuid_order:
-        items.append(projects[0].resolve_item_specifier(item_specifier))
+        items.append(project.resolve_item_specifier(item_specifier))
     return items
 
 def insert_item_order(uuid_order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]], index: int, item: Persistence.PersistentObject) -> None:
@@ -282,22 +281,18 @@ class UndeleteObjectSpecifier(Changes.UndeleteBase):
 class UndeleteDataItem(Changes.UndeleteBase):
 
     def __init__(self, document_model: "DocumentModel", data_item: DataItem.DataItem):
-        project = Project.get_project_for_item(data_item)
         container = data_item.container
         index = container.data_items.index(data_item)
         uuid_order = save_item_order(document_model.data_items)
-        self.project_item_proxy = project.create_proxy()
         self.data_item_uuid = data_item.uuid
         self.index = index
         self.order = uuid_order
 
-    def close(self) -> None:
-        self.project_item_proxy.close()
-        self.project_item_proxy = None
+    def close(self):
+        pass
 
     def undelete(self, document_model: "DocumentModel") -> None:
-        project = typing.cast(Project.Project, self.project_item_proxy.item)
-        document_model.restore_data_item(project, self.data_item_uuid, self.index)
+        document_model.restore_data_item(self.data_item_uuid, self.index)
         document_model.restore_items_order("data_items", self.order)
 
 
@@ -323,26 +318,22 @@ class UndeleteDisplayItemInDataGroup(Changes.UndeleteBase):
 class UndeleteDisplayItem(Changes.UndeleteBase):
 
     def __init__(self, document_model: "DocumentModel", display_item: DisplayItem.DisplayItem):
-        project = Project.get_project_for_item(display_item)
         container = display_item.container
         index = container.display_items.index(display_item)
         uuid_order = save_item_order(document_model.display_items)
-        self.project_item_proxy = project.create_proxy()
         self.item_dict = display_item.write_to_dict()
         self.index = index
         self.order = uuid_order
 
-    def close(self) -> None:
-        self.project_item_proxy.close()
-        self.project_item_proxy = None
+    def close(self):
+        pass
 
     def undelete(self, document_model: "DocumentModel") -> None:
-        project = self.project_item_proxy.item
         display_item = DisplayItem.DisplayItem()
         display_item.begin_reading()
         display_item.read_from_dict(self.item_dict)
         display_item.finish_reading()
-        document_model.insert_display_item(self.index, display_item, update_session=False, project=project)
+        document_model.insert_display_item(self.index, display_item, update_session=False)
         document_model.restore_items_order("display_items", self.order)
 
 
@@ -361,7 +352,7 @@ class ItemsController(abc.ABC):
     def write_to_dict(self, data_structure: Persistence.PersistentObject) -> typing.Dict: ...
 
     @abc.abstractmethod
-    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None: ...
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None: ...
 
 
 class DataStructuresController(ItemsController):
@@ -380,12 +371,12 @@ class DataStructuresController(ItemsController):
     def write_to_dict(self, data_structure: Persistence.PersistentObject) -> typing.Dict:
         return data_structure.write_to_dict()
 
-    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
         data_structure = DataStructure.DataStructure()
         data_structure.begin_reading()
         data_structure.read_from_dict(item_dict)
         data_structure.finish_reading()
-        self.__document_model.insert_data_structure(index, data_structure, project=project)
+        self.__document_model.insert_data_structure(index, data_structure)
         self.__document_model.restore_items_order("data_structures", order)
 
 
@@ -405,12 +396,12 @@ class ComputationsController(ItemsController):
     def write_to_dict(self, computation: Persistence.PersistentObject) -> typing.Dict:
         return computation.write_to_dict()
 
-    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
         computation = Symbolic.Computation()
         computation.begin_reading()
         computation.read_from_dict(item_dict)
         computation.finish_reading()
-        self.__document_model.insert_computation(index, computation, project=project)
+        self.__document_model.insert_computation(index, computation)
         self.__document_model.restore_items_order("computations", order)
 
 
@@ -430,12 +421,12 @@ class ConnectionsController(ItemsController):
     def write_to_dict(self, connection: Persistence.PersistentObject) -> typing.Dict:
         return connection.write_to_dict()
 
-    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
         item = Connection.connection_factory(item_dict.get)
         item.begin_reading()
         item.read_from_dict(item_dict)
         item.finish_reading()
-        self.__document_model.insert_connection(index, item, project=project)
+        self.__document_model.insert_connection(index, item)
         self.__document_model.restore_items_order("connections", order)
 
 
@@ -455,7 +446,7 @@ class GraphicsController(ItemsController):
     def write_to_dict(self, graphic: Persistence.PersistentObject) -> typing.Dict:
         return graphic.write_to_dict()
 
-    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
         graphic = Graphics.factory(item_dict.get)
         graphic.begin_reading()
         graphic.read_from_dict(item_dict)
@@ -481,7 +472,7 @@ class DisplayDataChannelsController(ItemsController):
     def write_to_dict(self, display_data_channel: Persistence.PersistentObject) -> typing.Dict:
         return display_data_channel.write_to_dict()
 
-    def restore_from_dict(self, item_dict: typing.Dict, index: int, project: Project.Project, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
         display_data_channel = DisplayItem.display_data_channel_factory(item_dict.get)
         display_data_channel.begin_reading()
         display_data_channel.read_from_dict(item_dict)
@@ -493,12 +484,10 @@ class DisplayDataChannelsController(ItemsController):
 
 class UndeleteItem(Changes.UndeleteBase):
 
-    def __init__(self, document_model: "DocumentModel", items_controller: ItemsController, item: Persistence.PersistentObject):
+    def __init__(self, items_controller: ItemsController, item: Persistence.PersistentObject):
         self.__items_controller = items_controller
-        project = Project.get_project_for_item(item)
         container = self.__items_controller.get_container(item)
         index = self.__items_controller.item_index(item)
-        self.project_item_proxy = project.create_proxy()
         self.container_item_proxy = container.create_proxy() if container else None
         self.container_properties = container.save_properties() if hasattr(container, "save_properties") else dict()
         self.item_dict = self.__items_controller.write_to_dict(item)
@@ -506,17 +495,14 @@ class UndeleteItem(Changes.UndeleteBase):
         self.order = self.__items_controller.save_item_order()
 
     def close(self) -> None:
-        self.project_item_proxy.close()
-        self.project_item_proxy = None
         if self.container_item_proxy:
             self.container_item_proxy.close()
             self.container_item_proxy = None
 
     def undelete(self, document_model: "DocumentModel") -> None:
-        project = typing.cast(Project.Project, self.project_item_proxy.item)
         container = typing.cast(Persistence.PersistentObject, self.container_item_proxy.item) if self.container_item_proxy else None
         container_properties = self.container_properties
-        self.__items_controller.restore_from_dict(self.item_dict, self.index, project, container, container_properties, self.order)
+        self.__items_controller.restore_from_dict(self.item_dict, self.index, container, container_properties, self.order)
 
 
 class AbstractImplicitDependency(abc.ABC):
@@ -562,7 +548,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     computation_min_period = 0.0
     computation_min_factor = 0.0
 
-    def __init__(self, *, profile: Profile.Profile = None):
+    def __init__(self, project: Project.Project, *, storage_cache = None):
         super().__init__()
 
         self.about_to_close_event = Event.Event()
@@ -577,19 +563,22 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         self.__computation_thread_pool = ThreadPool.ThreadPool()
 
-        self.__profile = profile if profile else Profile.Profile(auto_project=True)
-        self.__profile.about_to_be_inserted(self)
-        self.__profile.open(self)
+        self.__project = project
 
-        self.uuid = self.__profile.uuid
+        self.uuid = self._project.uuid
 
-        self.__project_item_inserted_listeners = list()
-        self.__project_item_removed_listeners = list()
+        project.handle_insert_model_item = self.insert_model_item
+        project.handle_remove_model_item = self.remove_model_item
 
-        self.__project_inserted_event_listener = self.__profile.item_inserted_event.listen(self.__project_inserted)
-        self.__project_removed_event_listener = self.__profile.item_removed_event.listen(self.__project_removed)
+        self.__project_item_inserted_listener = project.item_inserted_event.listen(self.__project_item_inserted)
+        self.__project_item_removed_listener = project.item_removed_event.listen(self.__project_item_removed)
+        self.__project_property_changed_listener = project.property_changed_event.listen(self.__project_property_changed)
 
-        self.storage_cache = self.__profile.storage_cache
+        self.storage_cache = storage_cache
+        self.__storage_cache = None  # needed to deallocate
+        if not storage_cache:
+            self.__storage_cache = Cache.DictStorageCache()
+            self.storage_cache = self.__storage_cache
         self.__transaction_manager = TransactionManager(self)
         self.__data_structure_listeners = dict()
         self.__live_data_items_lock = threading.RLock()
@@ -611,32 +600,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__connections = list()
         self.session_id = None
         self.start_new_session()
-        self.__profile.read_profile()
         self.__prune()
 
-        # update the data item references
-        data_item_references = self._project.data_item_references
-        for key, data_item_specifier in data_item_references.items():
-            self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self._project, Persistence.PersistentObjectSpecifier.read(data_item_specifier)))
-
-        # handle the reference variable assignments
-        new_mapped_items = list()
-        for mapped_item in self._project.mapped_items:
-            item_proxy = self._project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(mapped_item))
-            if isinstance(item_proxy.item, DataItem.DataItem):
-                data_item = typing.cast(DataItem.DataItem, item_proxy.item)
-                data_item.set_r_value(MappedItemManager().register(item_proxy.item), notify_changed=False)
-                new_mapped_items.append(data_item.item_specifier.write())
-            else:
-                logging.warning(f"Missing mapped item: {data_item_specifier.write()}")
-        self._project.mapped_items = new_mapped_items
-
-        def resolve_display_item_specifier(display_item_specifier_d: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:
-            display_item_specifier = Persistence.PersistentObjectSpecifier.read(display_item_specifier_d)
-            return typing.cast(typing.Optional[DisplayItem.DisplayItem], self.resolve_item_specifier(display_item_specifier))
-
         for data_group in self.data_groups:
-            data_group.connect_display_items(resolve_display_item_specifier)
+            data_group.connect_display_items(self.__resolve_display_item_specifier)
 
         self.__data_channel_updated_listeners = dict()
         self.__data_channel_start_listeners = dict()
@@ -676,8 +643,44 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__implicit_pick_connection = ImplicitPickConnection(self)
         self.__implicit_line_profile_intervals_connection = ImplicitLineProfileIntervalsConnection(self)
 
+        for index, item in enumerate(self.__project.data_items):
+            self.__project_item_inserted("data_items", item, index)
+        for index, item in enumerate(self.__project.display_items):
+            self.__project_item_inserted("display_items", item, index)
+        for index, item in enumerate(self.__project.data_structures):
+            self.__project_item_inserted("data_structures", item, index)
+        for index, item in enumerate(self.__project.computations):
+            self.__project_item_inserted("computations", item, index)
+        for index, item in enumerate(self.__project.connections):
+            self.__project_item_inserted("connections", item, index)
+        for index, item in enumerate(self.__project.data_groups):
+            self.__project_item_inserted("data_groups", item, index)
+
+    def __resolve_display_item_specifier(self, display_item_specifier_d: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:
+        display_item_specifier = Persistence.PersistentObjectSpecifier.read(display_item_specifier_d)
+        return typing.cast(typing.Optional[DisplayItem.DisplayItem], self.resolve_item_specifier(display_item_specifier))
+
+    def __resolve_mapped_items(self):
+        # handle the reference variable assignments
+        new_mapped_items = list()
+        for mapped_item in self._project.mapped_items:
+            item_proxy = self._project.create_item_proxy(
+                item_specifier=Persistence.PersistentObjectSpecifier.read(mapped_item))
+            if isinstance(item_proxy.item, DataItem.DataItem):
+                data_item = typing.cast(DataItem.DataItem, item_proxy.item)
+                if not data_item in MappedItemManager().item_map.values():
+                    data_item.set_r_value(MappedItemManager().register(item_proxy.item), notify_changed=False)
+                    new_mapped_items.append(data_item.item_specifier.write())
+        # self._project.mapped_items = new_mapped_items
+
+    def __resolve_data_item_references(self):
+        # update the data item references
+        data_item_references = self._project.data_item_references
+        for key, data_item_specifier in data_item_references.items():
+            self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self._project, Persistence.PersistentObjectSpecifier.read(data_item_specifier)))
+
     def __prune(self):
-        self.__profile.prune()
+        self._project.prune()
 
     def close(self):
         with self.__call_soon_queue_lock:
@@ -730,26 +733,28 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__data_channel_start_listeners = None
         self.__data_channel_stop_listeners = None
 
+        if self.__storage_cache:
+            self.__storage_cache.close()
+            self.__storage_cache = None
+
         self.__computation_thread_pool.close()
         self.__transaction_manager.close()
         self.__transaction_manager = None
 
-        for project_item_inserted_listener in self.__project_item_inserted_listeners:
-            project_item_inserted_listener.close()
-        self.__project_item_inserted_listeners = list()
+        if self.__project_item_inserted_listener:
+            self.__project_item_inserted_listener.close()
+            self.__project_item_inserted_listener = None
 
-        for project_item_removed_listener in self.__project_item_removed_listeners:
-            project_item_removed_listener.close()
-        self.__project_item_removed_listeners = list()
+        if self.__project_item_removed_listener:
+            self.__project_item_removed_listener.close()
+            self.__project_item_removed_listener = None
 
-        self.__project_inserted_event_listener.close()
-        self.__project_inserted_event_listener = None
-        self.__project_removed_event_listener.close()
-        self.__project_removed_event_listener = None
+        if self.__project_property_changed_listener:
+            self.__project_property_changed_listener.close()
+            self.__project_property_changed_listener = None
 
-        self.__profile.about_to_be_removed(self)
-        self.__profile.close()
-        self.__profile = None
+        self.__project.close()
+        self.__project = None
 
     def __call_soon(self, fn):
         # add the function to the queue of items to call on the main thread.
@@ -780,60 +785,57 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # override from ReferenceCounted. several DocumentControllers may retain references
         self.close()
 
-    def __project_item_inserted(self, project: Project.Project, name: str, item, before_index: int) -> None:
+    def __project_item_inserted(self, name: str, item, before_index: int) -> None:
         if name == "data_items":
-            self.__handle_data_item_inserted(project, item)
+            self.__handle_data_item_inserted(item)
         elif name == "display_items":
-            self.__handle_display_item_inserted(project, item)
+            self.__handle_display_item_inserted(item)
         elif name == "data_structures":
-            self.__handle_data_structure_inserted(project, item)
+            self.__handle_data_structure_inserted(item)
         elif name == "computations":
-            self.__handle_computation_inserted(project, item)
+            self.__handle_computation_inserted(item)
         elif name == "connections":
-            self.__handle_connection_inserted(project, item)
+            self.__handle_connection_inserted(item)
         elif name == "data_groups":
             self.notify_insert_item("data_groups", item, before_index)
+            item.connect_display_items(self.__resolve_display_item_specifier)
 
-    def __project_item_removed(self, project: Project.Project, name: str, item, index: int) -> None:
+    def __project_item_removed(self, name: str, item, index: int) -> None:
         if name == "data_items":
-            self.__handle_data_item_removed(project, item)
+            self.__handle_data_item_removed(item)
         elif name == "display_items":
-            self.__handle_display_item_removed(project, item)
+            self.__handle_display_item_removed(item)
         elif name == "data_structures":
-            self.__handle_data_structure_removed(project, item)
+            self.__handle_data_structure_removed(item)
         elif name == "computations":
-            self.__handle_computation_removed(project, item)
+            self.__handle_computation_removed(item)
         elif name == "connections":
-            self.__handle_connection_removed(project, item)
+            self.__handle_connection_removed(item)
         elif name == "data_groups":
             item.disconnect_display_items()
             self.notify_remove_item("data_groups", item, index)
 
-    def __project_inserted(self, key: str, project: Project.Project, before_index: int) -> None:
-        if key == "projects":
-            self.__project_item_inserted_listeners.insert(before_index, project.item_inserted_event.listen(functools.partial(self.__project_item_inserted, project)))
-            self.__project_item_removed_listeners.insert(before_index, project.item_removed_event.listen(functools.partial(self.__project_item_removed, project)))
-
-    def __project_removed(self, key: str, project: Project.Project, index: int) -> None:
-        if key == "projects":
-            self.__project_item_inserted_listeners.pop(index).close()
-            self.__project_item_removed_listeners.pop(index).close()
+    def __project_property_changed(self, name: str) -> None:
+        if name == "data_item_references":
+            self.__resolve_data_item_references()
+        if name == "mapped_items":
+            self.__resolve_mapped_items()
 
     def create_item_proxy(self, *, item_uuid: uuid.UUID = None, item_specifier: Persistence.PersistentObjectSpecifier = None, item: Persistence.PersistentObject = None) -> Persistence.PersistentObjectProxy:
         # returns item proxy in projects. used in data group hierarchy.
-        return self.__profile.work_project.create_item_proxy(item_uuid=item_uuid, item_specifier=item_specifier, item=item)
+        return self._project.create_item_proxy(item_uuid=item_uuid, item_specifier=item_specifier, item=item)
 
     def resolve_item_specifier(self, item_specifier: Persistence.PersistentObjectSpecifier) -> Persistence.PersistentObject:
         assert item_specifier.context_uuid  # require full item specifier since it shouldn't match the arbitrary project used to resolve.
-        return self.__profile.work_project.resolve_item_specifier(item_specifier)
+        return self._project.resolve_item_specifier(item_specifier)
 
     @property
     def modified_state(self) -> int:
-        return self.__profile.modified_state
+        return self._project.modified_state
 
     @modified_state.setter
     def modified_state(self, value: int) -> None:
-        self.__profile.modified_state = value
+        self._project.modified_state = value
 
     @property
     def data_items(self) -> typing.List[DataItem.DataItem]:
@@ -857,15 +859,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     @property
     def _project(self) -> Project.Project:
-        return self.__profile.work_project
-
-    @property
-    def projects(self) -> typing.Sequence[Project.Project]:
-        return self.__profile.projects
-
-    @property
-    def profile(self) -> Profile.Profile:
-        return self.__profile
+        return self.__project
 
     @property
     def implicit_dependencies(self):
@@ -894,7 +888,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.set_data_item_computation(data_item_copy, computation_copy)
         return data_item_copy
 
-    def __handle_data_item_inserted(self, project: Project.Project, data_item: DataItem.DataItem) -> None:
+    def __handle_data_item_inserted(self, data_item: DataItem.DataItem) -> None:
         assert data_item is not None
         assert data_item not in self.data_items
         # data item bookkeeping
@@ -908,7 +902,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__rebind_computations()  # rebind any unresolved that may now be resolved
         self.__transaction_manager._add_item(data_item)
 
-    def __handle_data_item_removed(self, project: Project.Project, data_item: DataItem.DataItem) -> None:
+    def __handle_data_item_removed(self, data_item: DataItem.DataItem) -> None:
         self.__transaction_manager._remove_item(data_item)
         library_computation = self.get_data_item_computation(data_item)
         with self.__computation_queue_lock:
@@ -926,29 +920,25 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         assert data_item is not None
         assert data_item in self.data_items
         index = self.data_items.index(data_item)
+        # TODO: remove mapped item for data item. requires cleaning up of specifiers.
         if data_item.r_var:
-            mapped_items = self._project.mapped_items
-            if data_item.r_var in mapped_items:
-                mapped_items.remove(data_item.r_var)
-            self._project.mapped_items = mapped_items
             data_item.r_var = None
         self.__data_items.remove(data_item)
         self.notify_remove_item("data_items", data_item, index)
 
-    def append_data_item(self, data_item: DataItem.DataItem, auto_display: bool = True, *, project: Project.Project = None) -> None:
-        project = project or self.__profile.target_project_for_item(data_item)
+    def append_data_item(self, data_item: DataItem.DataItem, auto_display: bool = True) -> None:
         data_item.session_id = self.session_id
-        project.append_data_item(data_item)
+        self._project.append_data_item(data_item)
         # automatically add a display
         if auto_display:
             display_item = DisplayItem.DisplayItem(data_item=data_item)
-            self.append_display_item(display_item, project=project)
+            self.append_display_item(display_item)
 
-    def insert_data_item(self, index: int, data_item: DataItem.DataItem, auto_display: bool = True, *, project: Project.Project = None) -> None:
+    def insert_data_item(self, index: int, data_item: DataItem.DataItem, auto_display: bool = True) -> None:
         uuid_order = save_item_order(self.__data_items)
-        self.append_data_item(data_item, auto_display=auto_display, project=project)
+        self.append_data_item(data_item, auto_display=auto_display)
         insert_item_order(uuid_order, index, data_item)
-        self.__data_items = restore_item_order("data_items", self.__profile.projects, uuid_order)
+        self.__data_items = restore_item_order(self._project, uuid_order)
 
     def __rebind_computations(self):
         for computation in self.computations:
@@ -964,20 +954,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def remove_data_item_with_log(self, data_item: DataItem.DataItem, *, safe: bool=False) -> Changes.UndeleteLog:
         return self.__cascade_delete(data_item, safe=safe)
 
-    def restore_data_item(self, project: Project.Project, data_item_uuid: uuid.UUID, before_index: int=None) -> typing.Optional[DataItem.DataItem]:
-        return self.__profile.restore_data_item(project, data_item_uuid)
+    def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int=None) -> typing.Optional[DataItem.DataItem]:
+        return self._project.restore_data_item(data_item_uuid)
 
     def restore_items_order(self, name: str, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
         if name == "data_items":
-            self.__data_items = restore_item_order(name, self.__profile.projects, order)
+            self.__data_items = restore_item_order(self._project, order)
         elif name == "display_items":
-            self.__display_items = restore_item_order(name, self.__profile.projects, order)
+            self.__display_items = restore_item_order(self._project, order)
         elif name == "data_strutures":
-            self.__data_structures = restore_item_order(name, self.__profile.projects, order)
+            self.__data_structures = restore_item_order(self._project, order)
         elif name == "computations":
-            self.__computations = restore_item_order(name, self.__profile.projects, order)
+            self.__computations = restore_item_order(self._project, order)
         elif name == "connections":
-            self.__connections = restore_item_order(name, self.__profile.projects, order)
+            self.__connections = restore_item_order(self._project, order)
 
     def deepcopy_display_item(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
         display_item_copy = copy.deepcopy(display_item)
@@ -998,17 +988,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.append_display_item(display_item_copy)
         return display_item_copy
 
-    def append_display_item(self, display_item: DisplayItem.DisplayItem, *, update_session: bool = True, project: Project.Project = None) -> None:
-        project = project or self.__profile.target_project_for_item(display_item)
+    def append_display_item(self, display_item: DisplayItem.DisplayItem, *, update_session: bool = True) -> None:
         if update_session:
             display_item.session_id = self.session_id
-        project.append_display_item(display_item)
+        self._project.append_display_item(display_item)
 
-    def insert_display_item(self, before_index: int, display_item: DisplayItem.DisplayItem, *, update_session: bool = True, project: Project.Project = None) -> None:
+    def insert_display_item(self, before_index: int, display_item: DisplayItem.DisplayItem, *, update_session: bool = True) -> None:
         uuid_order = save_item_order(self.__display_items)
-        self.append_display_item(display_item, update_session=update_session, project=project)
+        self.append_display_item(display_item, update_session=update_session)
         insert_item_order(uuid_order, before_index, display_item)
-        self.__display_items = restore_item_order("display_items", self.__profile.projects, uuid_order)
+        self.__display_items = restore_item_order(self._project, uuid_order)
 
     def remove_display_item(self, display_item) -> None:
         self.__cascade_delete(display_item).close()
@@ -1016,7 +1005,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def remove_display_item_with_log(self, display_item) -> Changes.UndeleteLog:
         return self.__cascade_delete(display_item)
 
-    def __handle_display_item_inserted(self, project: Project.Project, display_item: DisplayItem.DisplayItem) -> None:
+    def __handle_display_item_inserted(self, display_item: DisplayItem.DisplayItem) -> None:
         assert display_item is not None
         assert display_item not in self.__display_items
         # data item bookkeeping
@@ -1027,7 +1016,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # send notifications
         self.notify_insert_item("display_items", display_item, before_index)
 
-    def __handle_display_item_removed(self, project: Project.Project, display_item: DisplayItem.DisplayItem) -> None:
+    def __handle_display_item_removed(self, display_item: DisplayItem.DisplayItem) -> None:
         # remove it from the persistent_storage
         assert display_item is not None
         assert display_item in self.__display_items
@@ -1049,7 +1038,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if not data_item.r_var:
             data_item.set_r_value(MappedItemManager().register(data_item))
             mapped_items = self._project.mapped_items
-            mapped_items.append(data_item.project.create_specifier(data_item, allow_partial=False).write())
+            mapped_items.append(data_item.project.create_specifier(data_item).write())
             self._project.mapped_items = mapped_items
         return data_item.r_var
 
@@ -1235,21 +1224,21 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     # NOTE: remove_display_item will notify_remove_item
                     container.remove_display_item(item)
                 elif isinstance(container, Project.Project) and isinstance(item, DataStructure.DataStructure):
-                    undelete_log.append(UndeleteItem(self, DataStructuresController(self), item))
+                    undelete_log.append(UndeleteItem(DataStructuresController(self), item))
                     container.remove_item("data_structures", item)
                 elif isinstance(container, Project.Project) and isinstance(item, Symbolic.Computation):
-                    undelete_log.append(UndeleteItem(self, ComputationsController(self), item))
+                    undelete_log.append(UndeleteItem(ComputationsController(self), item))
                     container.remove_item("computations", item)
                     if item in self.__computation_changed_delay_list:
                         self.__computation_changed_delay_list.remove(item)
                 elif isinstance(container, Project.Project) and isinstance(item, Connection.Connection):
-                    undelete_log.append(UndeleteItem(self, ConnectionsController(self), item))
+                    undelete_log.append(UndeleteItem(ConnectionsController(self), item))
                     container.remove_item("connections", item)
                 elif container and isinstance(item, Graphics.Graphic):
-                    undelete_log.append(UndeleteItem(self, GraphicsController(self), item))
+                    undelete_log.append(UndeleteItem(GraphicsController(self), item))
                     container.remove_item("graphics", item)
                 elif container and isinstance(item, DisplayItem.DisplayDataChannel):
-                    undelete_log.append(UndeleteItem(self, DisplayDataChannelsController(self), item))
+                    undelete_log.append(UndeleteItem(DisplayDataChannelsController(self), item))
                     container.remove_item("display_data_channels", item)
         except Exception as e:
             import sys, traceback
@@ -1410,7 +1399,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def transaction_context(self):
         """Return a context object for a document-wide transaction."""
-        return self.__profile.transaction_context()
+
+        class Transaction:
+            def __init__(self, document_model: DocumentModel):
+                self.__document_model = document_model
+
+            def __enter__(self):
+                self.__document_model._project.project_storage_system.enter_transaction()
+                return self
+
+            def __exit__(self, type, value, traceback):
+                self.__document_model._project.project_storage_system.exit_transaction()
+
+        return Transaction(self)
 
     def item_transaction(self, item) -> Transaction:
         return self.__transaction_manager.item_transaction(item)
@@ -1522,9 +1523,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def are_display_items_equal(self, display_item1: DisplayItem.DisplayItem, display_item2: DisplayItem.DisplayItem) -> bool:
         return display_item1 == display_item2
-
-    def get_project_for_item(self, item: Project.ProjectItemType) -> typing.Optional[Project.Project]:
-        return item.container if item else None
 
     def get_or_create_data_group(self, group_name):
         data_group = DataGroup.get_data_group_in_container_by_title(self, group_name)
@@ -1820,7 +1818,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 data_item_reference.data_item = data_item
 
                 def append_data_item():
-                    self.append_data_item(data_item, project=self.__profile.work_project)
+                    self.append_data_item(data_item)
                     self._update_data_item_reference(key, data_item)
 
                 self.__call_soon(append_data_item)
@@ -1944,20 +1942,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.append_display_item(display_item_copy)
         return display_item_copy
 
-    def append_connection(self, connection: Connection.Connection, *, project: Project.Project = None) -> None:
-        project = project or self.__profile.target_project_for_item(connection)
-        project.append_connection(connection)
+    def append_connection(self, connection: Connection.Connection) -> None:
+        self._project.append_connection(connection)
 
-    def insert_connection(self, before_index: int, connection: Connection.Connection, *, project: Project.Project = None) -> None:
+    def insert_connection(self, before_index: int, connection: Connection.Connection) -> None:
         uuid_order = save_item_order(self.__connections)
-        self.append_connection(connection, project=project)
+        self.append_connection(connection)
         insert_item_order(uuid_order, before_index, connection)
-        self.__connections = restore_item_order("connections", self.__profile.projects, uuid_order)
+        self.__connections = restore_item_order(self._project, uuid_order)
 
     def remove_connection(self, connection: Connection.Connection) -> None:
         connection.container.remove_connection(connection)
 
-    def __handle_connection_inserted(self, project: Project.Project, connection: Connection.Connection) -> None:
+    def __handle_connection_inserted(self, connection: Connection.Connection) -> None:
         assert connection is not None
         assert connection not in self.__connections
         # insert in internal list
@@ -1966,7 +1963,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # send notifications
         self.notify_insert_item("connections", connection, before_index)
 
-    def __handle_connection_removed(self, project: Project.Project, connection: Connection.Connection) -> None:
+    def __handle_connection_removed(self, connection: Connection.Connection) -> None:
         # remove it from the persistent_storage
         assert connection is not None
         assert connection in self.__connections
@@ -1977,15 +1974,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def create_data_structure(self, *, structure_type: str=None, source=None):
         return DataStructure.DataStructure(structure_type=structure_type, source=source)
 
-    def append_data_structure(self, data_structure: DataStructure.DataStructure, *, project: Project.Project = None) -> None:
-        project = project or self.__profile.target_project_for_item(data_structure)
-        project.append_data_structure(data_structure)
+    def append_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
+        self._project.append_data_structure(data_structure)
 
-    def insert_data_structure(self, before_index: int, data_structure: DataStructure.DataStructure, *, project: Project.Project = None) -> None:
+    def insert_data_structure(self, before_index: int, data_structure: DataStructure.DataStructure) -> None:
         uuid_order = save_item_order(self.__data_structures)
-        self.append_data_structure(data_structure, project=project)
+        self.append_data_structure(data_structure)
         insert_item_order(uuid_order, before_index, data_structure)
-        self.__data_structures = restore_item_order("data_structures", self.__profile.projects, uuid_order)
+        self.__data_structures = restore_item_order(self._project, uuid_order)
 
     def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
         return self.__cascade_delete(data_structure).close()
@@ -1993,7 +1989,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def remove_data_structure_with_log(self, data_structure: DataStructure.DataStructure) -> Changes.UndeleteLog:
         return self.__cascade_delete(data_structure)
 
-    def __handle_data_structure_inserted(self, project: Project.Project, data_structure: DataStructure.DataStructure) -> None:
+    def __handle_data_structure_inserted(self, data_structure: DataStructure.DataStructure) -> None:
         assert data_structure is not None
         assert data_structure not in self.__data_structures
         # insert in internal list
@@ -2009,7 +2005,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # send notifications
         self.notify_insert_item("data_structures", data_structure, before_index)
 
-    def __handle_data_structure_removed(self, project: Project.Project, data_structure: DataStructure.DataStructure) -> None:
+    def __handle_data_structure_removed(self, data_structure: DataStructure.DataStructure) -> None:
         # remove it from the persistent_storage
         assert data_structure is not None
         assert data_structure in self.__data_structures
@@ -2043,15 +2039,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             elif computation:
                 computation.source = data_item
                 computation.create_output_item("target", Symbolic.make_item(data_item))
-                self.append_computation(computation, project=Project.get_project_for_item(data_item))
+                self.append_computation(computation)
             elif old_computation:
                 # remove old computation without cascade (it would delete this data item itself)
                 old_computation.valid = False
                 old_computation.container.remove_computation(old_computation)
 
-    def append_computation(self, computation: Symbolic.Computation, *, project: Project.Project = None) -> None:
-        project = project or self.__profile.target_project_for_item(computation)
-        computation.pending_project = project  # tell the computation where it will end up so get related item works
+    def append_computation(self, computation: Symbolic.Computation) -> None:
+        computation.pending_project = self._project  # tell the computation where it will end up so get related item works
         # input/output bookkeeping
         input_items = computation.get_preliminary_input_items()
         output_items = computation.get_preliminary_output_items()
@@ -2063,13 +2058,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__get_deep_dependent_item_set(output, output_set)
         if input_set.intersection(output_set):
             raise Exception("Computation would result in duplicate dependency.")
-        project.append_computation(computation)
+        self._project.append_computation(computation)
 
-    def insert_computation(self, before_index: int, computation: Symbolic.Computation, *, project: Project.Project = None) -> None:
+    def insert_computation(self, before_index: int, computation: Symbolic.Computation) -> None:
         uuid_order = save_item_order(self.__computations)
-        self.append_computation(computation, project=project)
+        self.append_computation(computation)
         insert_item_order(uuid_order, before_index, computation)
-        self.__computations = restore_item_order("computations", self.__profile.projects, uuid_order)
+        self.__computations = restore_item_order(self._project, uuid_order)
 
     def remove_computation(self, computation: Symbolic.Computation, *, safe: bool=False) -> None:
         self.__cascade_delete(computation, safe=safe).close()
@@ -2077,7 +2072,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def remove_computation_with_log(self, computation: Symbolic.Computation, *, safe: bool=False) -> Changes.UndeleteLog:
         return self.__cascade_delete(computation, safe=safe)
 
-    def __handle_computation_inserted(self, project: Project.Project, computation: Symbolic.Computation) -> None:
+    def __handle_computation_inserted(self, computation: Symbolic.Computation) -> None:
         assert computation is not None
         assert computation not in self.__computations
         # insert in internal list
@@ -2091,7 +2086,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__computation_changed(computation)  # ensure the initial mutation is reported
         self.notify_insert_item("computations", computation, before_index)
 
-    def __handle_computation_removed(self, project: Project.Project, computation: Symbolic.Computation) -> None:
+    def __handle_computation_removed(self, computation: Symbolic.Computation) -> None:
         # remove it from the persistent_storage
         assert computation is not None
         assert computation in self.__computations
@@ -2196,7 +2191,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         parameters = parameters or dict()
 
-        processing_descriptions = self._processing_descriptions
+        processing_descriptions = Project.Project._processing_descriptions
         processing_description = processing_descriptions[processing_id]
 
         # first process the sources in the description. match them to the inputs (which are data item/crop graphic tuples)
@@ -2337,17 +2332,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             script = Symbolic.xdata_expression(expression)
             script = script.format(**dict(zip(src_names, src_texts)))
 
-        # determine the target project
-        project = None
-        for display_item, region in inputs:
-            input_project = Project.get_project_for_item(display_item)
-            if project and input_project != project:
-                project = None
-                break
-            else:
-                project = input_project
-        project = project or self.__profile.work_project
-
         # construct the computation
         computation = self.create_computation(script)
         computation.label = processing_description["title"]
@@ -2376,7 +2360,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         new_data_item.title = prefix + data_item0.title
         new_data_item.category = data_item0.category
 
-        self.append_data_item(new_data_item, project=project)
+        self.append_data_item(new_data_item)
 
         new_display_item = self.get_display_item_for_data_item(new_data_item)
 
@@ -2414,19 +2398,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         return new_data_item
 
-    _processing_descriptions = dict()
     _builtin_processing_descriptions = None
 
     @classmethod
     def register_processing_descriptions(cls, processing_descriptions: typing.Dict) -> None:
-        assert len(set(cls._processing_descriptions.keys()).intersection(set(processing_descriptions.keys()))) == 0
-        cls._processing_descriptions.update(processing_descriptions)
+        assert len(set(Project.Project._processing_descriptions.keys()).intersection(set(processing_descriptions.keys()))) == 0
+        Project.Project._processing_descriptions.update(processing_descriptions)
 
     @classmethod
     def unregister_processing_descriptions(cls, processing_ids: typing.Sequence[str]):
-        assert len(set(cls._processing_descriptions.keys()).intersection(set(processing_ids))) == len(processing_ids)
+        assert len(set(Project.Project._processing_descriptions.keys()).intersection(set(processing_ids))) == len(processing_ids)
         for processing_id in processing_ids:
-            cls._processing_descriptions.pop(processing_id)
+            Project.Project._processing_descriptions.pop(processing_id)
 
     @classmethod
     def _get_builtin_processing_descriptions(cls) -> typing.Dict:

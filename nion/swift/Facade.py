@@ -2121,7 +2121,7 @@ class Computation(metaclass=SharedInstance):
             object = value.get("object")
             object_type = value.get("type")
             if object_type == "data_source":
-                document_model = self.__computation.container.container.container.container
+                document_model = self.__computation.container.container.document_model
                 display_item = document_model.get_display_item_for_data_item(object._data_item)
                 display_data_channel = display_item.display_data_channel
                 input_value = Symbolic.make_item(display_data_channel)

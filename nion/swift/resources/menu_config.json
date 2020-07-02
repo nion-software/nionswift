@@ -24,41 +24,11 @@
                 "action_id": "project.open_project"
             },
             {
-                "type": "item",
-                "action_id": "project.upgrade_project"
-            },
-            {
-                "type": "item",
-                "action_id": "project.unload_project"
-            },
-            {
-                "type": "item",
-                "action_id": "project.remove_project"
-            },
-            {
                 "type": "separator"
             },
             {
                 "type": "item",
                 "action_id": "window.open_project_dialog"
-            },
-            {
-                "type": "separator"
-            },
-            {
-                "type": "item",
-                "action_id": "project.set_target_project"
-            },
-            {
-                "type": "item",
-                "action_id": "project.clear_target_project"
-            },
-            {
-                "type": "separator"
-            },
-            {
-                "type": "item",
-                "action_id": "project.set_work_project"
             },
             {
                 "type": "separator"

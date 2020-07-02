@@ -39,7 +39,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model = document_controller.document_model
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
             data_panel = document_controller.find_dock_panel("data-panel")
-            project_panel = document_controller.find_dock_panel("project-panel")
+            project_panel = document_controller.find_dock_panel("collections-panel")
             document_controller.periodic()
             # data items
             self.assertEqual(1, data_panel.data_list_controller.display_item_adapter_count)
@@ -142,7 +142,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             data_group.append_display_item(document_model.get_display_item_for_data_item(data_item2))
             data_panel = document_controller.find_dock_panel("data-panel")
-            project_panel = document_controller.find_dock_panel("project-panel")
+            project_panel = document_controller.find_dock_panel("collections-panel")
             self.assertSetEqual({0}, project_panel._collection_selection.indexes)
             self.assertSetEqual(set(), document_controller.selection.indexes)
             document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item1)
@@ -181,7 +181,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_group(data_group1)
             document_model.append_data_group(data_group2)
             data_panel = document_controller.find_dock_panel("data-panel")
-            project_panel = document_controller.find_dock_panel("project-panel")
+            project_panel = document_controller.find_dock_panel("collections-panel")
             data_panel.focused = True
             self.assertSetEqual({0}, project_panel._collection_selection.indexes)
             self.assertEqual(document_controller.selection.indexes, set())
@@ -537,7 +537,7 @@ class TestDataPanelClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
             data_panel = document_controller.find_dock_panel("data-panel")
-            project_panel = document_controller.find_dock_panel("project-panel")
+            project_panel = document_controller.find_dock_panel("collections-panel")
             project_panel._collection_selection.set(2)
             project_panel._collection_selection.set(1)
 
@@ -684,7 +684,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             data_panel = document_controller.find_dock_panel("data-panel")
-            project_panel = document_controller.find_dock_panel("project-panel")
+            project_panel = document_controller.find_dock_panel("collections-panel")
             project_panel._collection_selection.set(1)  # persistent
             document_controller.periodic()
             self.assertEqual(1, data_panel.data_list_controller.display_item_adapter_count)
@@ -705,7 +705,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
             data_panel = document_controller.find_dock_panel("data-panel")
-            project_panel = document_controller.find_dock_panel("project-panel")
+            project_panel = document_controller.find_dock_panel("collections-panel")
             # index, parent_row, parent_id
             project_panel._collection_selection.set(2)
             document_controller.periodic()
@@ -733,7 +733,7 @@ class TestDataPanelClass(unittest.TestCase):
             data_item2.session_id = "20170101-120000"
             data_item3.session_id = "20170101-120000"
             data_panel = document_controller.find_dock_panel("data-panel")
-            project_panel = document_controller.find_dock_panel("project-panel")
+            project_panel = document_controller.find_dock_panel("collections-panel")
             # index, parent_row, parent_id
             project_panel._collection_selection.set(1)
             document_controller.periodic()
@@ -760,7 +760,7 @@ class TestDataPanelClass(unittest.TestCase):
             data_item2.session_id = "20170101-120000"
             data_item3.session_id = "20170101-120000"
             data_panel = document_controller.find_dock_panel("data-panel")
-            project_panel = document_controller.find_dock_panel("project-panel")
+            project_panel = document_controller.find_dock_panel("collections-panel")
             # index, parent_row, parent_id
             project_panel._collection_selection.set(1)
             document_controller.periodic()
@@ -779,7 +779,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
             data_panel = document_controller.find_dock_panel("data-panel")
-            project_panel = document_controller.find_dock_panel("project-panel")
+            project_panel = document_controller.find_dock_panel("collections-panel")
             document_controller.periodic()
             # select temporary items
             project_panel._collection_selection.set(2)
@@ -810,7 +810,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_panel = document_controller.find_dock_panel("data-panel")
-            project_panel = document_controller.find_dock_panel("project-panel")
+            project_panel = document_controller.find_dock_panel("collections-panel")
             # index, parent_row, parent_id
             project_panel._collection_selection.set(1)
             document_controller.periodic()

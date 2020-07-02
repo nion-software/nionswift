@@ -36,6 +36,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
     PROJECT_VERSION = 3
 
+    _processing_descriptions = dict()
+
     def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystem):
         super().__init__()
 
@@ -49,8 +51,11 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.define_relationship("data_groups", DataGroup.data_group_factory, insert=self.__data_group_inserted, remove=self.__data_group_removed)
         self.define_relationship("workspaces", WorkspaceLayout.factory)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
-        self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
-        self.define_property("mapped_items", list())  # list of item references, used for shortcut variables in scripts
+        self.define_property("data_item_references", dict(), hidden=True, changed=self.__property_changed)  # map string key to data item, used for data acquisition channels
+        self.define_property("mapped_items", list(), changed=self.__property_changed)  # list of item references, used for shortcut variables in scripts
+
+        self.handle_insert_model_item = None
+        self.handle_remove_model_item = None
 
         self.__project_state = None
         self.__project_version = 0
@@ -62,6 +67,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.set_storage_system(self.__storage_system)
 
     def close(self) -> None:
+        self.handle_insert_model_item = None
+        self.handle_remove_model_item = None
         self.__storage_system.close()
         self.__storage_system = None
         super().close()
@@ -82,28 +89,15 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         else:
             return Persistence.PersistentObjectSpecifier(item=item, context=item.project)
 
-    def insert_model_item(self, container, name, before_index, item):
-        """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
-
-        Passing responsibility to this item's container allows the library to easily track dependencies.
-        However, if this item isn't yet in the library hierarchy, then do the operation directly.
-        """
-        if self.container:
-            self.container.insert_model_item(container, name, before_index, item)
-        else:
-            container.insert_item(name, before_index, item)
+    def insert_model_item(self, container, name, before_index, item) -> None:
+        # special handling to pass on to the document model
+        assert callable(self.handle_insert_model_item)
+        self.handle_insert_model_item(container, name, before_index, item)
 
     def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
-        """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
-
-        Passing responsibility to this item's container allows the library to easily track dependencies.
-        However, if this item isn't yet in the library hierarchy, then do the operation directly.
-        """
-        if self.container:
-            return self.container.remove_model_item(container, name, item, safe=safe)
-        else:
-            container.remove_item(name, item)
-            return Changes.UndeleteLog()
+        # special handling to pass on to the document model
+        assert callable(self.handle_remove_model_item)
+        return self.handle_remove_model_item(container, name, item, safe=safe)
 
     def _get_related_item(self, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[Persistence.PersistentObject]:
         if item_specifier.context_uuid is None or item_specifier.context_uuid == self.uuid:
@@ -261,7 +255,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 if not self.get_item_by_uuid("computations", computation.uuid):
                     self.load_item("computations", len(self.computations), computation)
                     # TODO: handle update script and bind after reload in document model
-                    computation.update_script(self.container.container.container._processing_descriptions)
+                    computation.update_script(Project._processing_descriptions)
             for item_d in properties.get("connections", list()):
                 connection = Connection.connection_factory(item_d.get)
                 connection.begin_reading()
@@ -287,12 +281,15 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             if workspace_uuid_str:
                 self._set_persistent_property_value("workspace_uuid", uuid.UUID(workspace_uuid_str))
             self._set_persistent_property_value("data_item_references", properties.get("data_item_references", dict()))
-            self._set_persistent_property_value("mapped_items", properties.get("mapped_items", dict()))
+            self._set_persistent_property_value("mapped_items", properties.get("mapped_items", list()))
             self.__project_state = "loaded"
         elif self.__project_version is not None:
             self.__project_state = "needs_upgrade"
         else:
             self.__project_state = "missing"
+
+    def __property_changed(self, name, value):
+        self.notify_property_changed(name)
 
     def append_data_item(self, data_item: DataItem.DataItem) -> None:
         assert not self.get_item_by_uuid("data_items", data_item.uuid)
@@ -314,7 +311,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             assert not self.get_item_by_uuid("data_items", data_item.uuid)
             self.append_item("data_items", data_item)
             assert data_item.container == self
-            assert get_project_for_item(data_item) == self
             return data_item
         return None
 
@@ -361,11 +357,11 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self._set_persistent_property_value("data_item_references", {k: v for k, v in data_item_references.items()})
 
     @property
-    def mapped_items(self) -> typing.Sequence[typing.Union[typing.Mapping, str]]:
+    def mapped_items(self) -> typing.List[typing.Union[typing.Mapping, str]]:
         return list(self._get_persistent_property_value("mapped_items"))
 
     @mapped_items.setter
-    def mapped_items(self, value: typing.Sequence[typing.Union[typing.Mapping, str]]) -> None:
+    def mapped_items(self, value: typing.List[typing.Union[typing.Mapping, str]]) -> None:
         self._set_persistent_property_value("mapped_items", value)
 
     def prune(self) -> None:
@@ -410,11 +406,3 @@ def computation_factory(lookup_id):
 
 def data_structure_factory(lookup_id):
     return DataStructure.DataStructure()
-
-
-def get_project_for_item(item) -> typing.Optional[Project]:
-    if item:
-        if isinstance(item, Project):
-            return item
-        return get_project_for_item(item.container)
-    return None

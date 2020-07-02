@@ -81,7 +81,7 @@ class Application(UIApplication.BaseApplication):
 
         workspace_manager = Workspace.WorkspaceManager()
         workspace_manager.register_panel(SessionPanel.SessionPanel, "session-panel", _("Session"), ["left", "right"], "right", {"min-width": 320, "height": 80})
-        workspace_manager.register_panel(ProjectPanel.ProjectPanel, "project-panel", _("Projects"), ["left", "right"], "left", {"min-width": 320, "min-height": 200})
+        workspace_manager.register_panel(ProjectPanel.CollectionsPanel, "collections-panel", _("Collections"), ["left", "right"], "left", {"min-width": 320, "min-height": 200})
         workspace_manager.register_panel(DataPanel.DataPanel, "data-panel", _("Data Panel"), ["left", "right"], "left", {"min-width": 320, "min-height": 320})
         workspace_manager.register_panel(HistogramPanel.HistogramPanel, "histogram-panel", _("Histogram"), ["left", "right"], "right", {"min-width": 320, "height": 140})
         workspace_manager.register_panel(InfoPanel.InfoPanel, "info-panel", _("Info"), ["left", "right"], "right", {"min-width": 320, "height": 60})

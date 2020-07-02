@@ -100,32 +100,6 @@ class DocumentController(Window.Window):
 
         self.selection = Selection.IndexedSelection()
 
-        self.selected_project_references_model = Model.PropertyModel(list())
-        self.__last_filter_project = None
-
-        def selected_project_references_model_changed(key: str) -> None:
-            project = self.selected_project_references[0].project if len(self.selected_project_references) == 1 else None
-            if project != self.__last_filter_project:
-                data_group, filter_id = self.get_data_group_and_filter_id()
-                if data_group:
-                    self.__display_items_model.filter = self.project_filter
-                else:
-                    self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(filter_id)))
-                self.__last_filter_project = project
-
-        self.__selected_project_references_model_listener = self.selected_project_references_model.property_changed_event.listen(selected_project_references_model_changed)
-
-        # configure an observer for watching for project references changes to update the selection.
-
-        def project_references_changed(item: Observer.ItemValue) -> None:
-            selected_project_references = set(self.selected_project_references)
-            project_references = set(typing.cast(typing.Sequence[Profile.ProjectReference], item))
-            self.selected_project_references_model.value = list(selected_project_references.intersection(project_references))
-
-        oo = Observer.ObserverBuilder()
-        oo.source(self.document_model).prop("profile").ordered_sequence_from_array("project_references").collect_list().action_fn(project_references_changed)
-        self.__projects_model_observer = oo.make_observable()
-
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
         # data items model tracks the main list of items selected in the data panel.
@@ -208,13 +182,6 @@ class DocumentController(Window.Window):
         self.filter_controller = None
         self.__display_items_model.close()
         self.__display_items_model = None
-        self.__last_filter_project = None
-        self.__selected_project_references_model_listener.close()
-        self.__selected_project_references_model_listener = None
-        self.__projects_model_observer.close()
-        self.__projects_model_observer = None
-        self.selected_project_references_model.close()
-        self.selected_project_references_model = None
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
         self.document_model.remove_ref()
@@ -434,10 +401,6 @@ class DocumentController(Window.Window):
             display_panel.request_focus()
 
     @property
-    def profile(self) -> Profile.Profile:
-        return self.document_model.profile
-
-    @property
     def project(self) -> Project.Project:
         return self.document_model._project
 
@@ -500,12 +463,7 @@ class DocumentController(Window.Window):
 
     @property
     def project_filter(self) -> ListModel.Filter:
-        project = self.selected_project_references[0].project if len(self.selected_project_references) == 1 else None
-        return project.project_filter if project else ListModel.Filter(True)
-
-    @property
-    def selected_project_references(self) -> typing.List[Profile.ProjectReference]:
-        return self.selected_project_references_model.value
+        return self.project.project_filter
 
     @property
     def selected_display_items(self) -> typing.List[DisplayItem.DisplayItem]:
@@ -757,10 +715,6 @@ class DocumentController(Window.Window):
         new_project_dialog = NewProjectDialog(self.ui, self.app, self, self.profile)
         new_project_dialog.show()
 
-    def _handle_upgrade_project_reference(self) -> None:
-        for project_reference in self.selected_project_references:
-            self.profile.upgrade_project_reference(project_reference)
-
     def _import_folder(self):
         documents_dir = self.ui.get_document_location()
         workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Image Folder"), documents_dir)
@@ -889,7 +843,7 @@ class DocumentController(Window.Window):
 
     def new_project_dialog(self, data_item=None):
         if not self.is_dialog_type_open(ProjectPanel.ProjectDialog):
-            project_dialog = ProjectPanel.ProjectDialog(self)
+            project_dialog = ProjectPanel.ProjectDialog(self.ui, self.profile)
             project_dialog.show()
 
     def new_edit_computation_dialog(self, data_item=None):
@@ -2245,7 +2199,7 @@ class DocumentController(Window.Window):
             index = self.__data_item_index
             for data_item in self.__data_items:
                 # insert will throw an exception if data item already exists in the project
-                document_model.insert_data_item(index, data_item, auto_display=True, project=self.__project)
+                document_model.insert_data_item(index, data_item, auto_display=True)
                 self.__data_item_indexes.append(index)
                 index += 1
             if self.__display_panel and self.__data_items:
@@ -2680,16 +2634,6 @@ class AddGroupAction(Window.Action):
         return Window.ActionResult.FINISHED
 
 
-class ClearTargetProjectAction(Window.Action):
-    action_id = "project.clear_target_project"
-    action_name = _("Clear Target Project")
-
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
-        context.window.profile.set_target_project_reference(None)
-        return Window.ActionResult.FINISHED
-
-
 class NewProjectAction(Window.Action):
     action_id = "project.new_project"
     action_name = _("New Project...")
@@ -2717,89 +2661,9 @@ class OpenProjectAction(Window.Action):
         return Window.ActionResult.FINISHED
 
 
-class RemoveProjectAction(Window.Action):
-    action_id = "project.remove_project"
-    action_name = _("Remove Project")
-
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        project_references = window.selected_project_references
-        for project_reference in project_references:
-            context.window.profile.remove_project_reference(project_reference)
-        return Window.ActionResult.FINISHED
-
-
-class SetTargetProjectAction(Window.Action):
-    action_id = "project.set_target_project"
-    action_name = _("Set Target Project")
-
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        if context.window:
-            context = typing.cast(DocumentController.ActionContext, context)
-            window = typing.cast(DocumentController, context.window)
-            project_references = window.selected_project_references
-            if not project_references:
-                self.report(Window.ReportType.ERROR, _("Select a project in the project panel."))
-            elif len(project_references) > 1:
-                self.report(Window.ReportType.ERROR, _("Select a single project in the project panel."))
-            elif not project_references[0].project:
-                self.report(Window.ReportType.ERROR, _("Select a loaded project in the project panel."))
-            else:
-                context.window.profile.set_target_project_reference(project_references[0])
-        return Window.ActionResult.FINISHED
-
-
-class SetWorkProjectAction(Window.Action):
-    action_id = "project.set_work_project"
-    action_name = _("Set Work Project")
-
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        project_references = window.selected_project_references
-        if not project_references:
-            self.report(Window.ReportType.ERROR, _("Select a project in the project panel."))
-        elif len(project_references) > 1:
-            self.report(Window.ReportType.ERROR, _("Select a single project in the project panel."))
-        elif not project_references[0].project:
-            self.report(Window.ReportType.ERROR, _("Select a loaded project in the project panel."))
-        else:
-            context.window.profile.set_work_project_reference(project_references[0])
-        return Window.ActionResult.FINISHED
-
-
-class UnloadProjectAction(Window.Action):
-    action_id = "project.unload_project"
-    action_name = _("Unload Project")
-
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        project_references = window.selected_project_references
-        for project_reference in project_references:
-            context.window.profile.unload_project_reference(project_reference)
-        return Window.ActionResult.FINISHED
-
-
-class UpgradeProjectAction(Window.Action):
-    action_id = "project.upgrade_project"
-    action_name = _("Upgrade Project")
-
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window._handle_upgrade_project_reference()
-        return Window.ActionResult.FINISHED
-
-
 Window.register_action(AddGroupAction())
-Window.register_action(ClearTargetProjectAction())
 Window.register_action(NewProjectAction())
 Window.register_action(OpenProjectAction())
-Window.register_action(RemoveProjectAction())
-Window.register_action(SetTargetProjectAction())
-Window.register_action(SetWorkProjectAction())
-Window.register_action(UnloadProjectAction())
-Window.register_action(UpgradeProjectAction())
 
 
 class DisplayCopyAction(Window.Action):

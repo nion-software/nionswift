@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import functools
 import gettext
@@ -17,6 +19,7 @@ from nion.swift.model import Observer
 from nion.ui import CanvasItem
 from nion.ui import Dialog
 from nion.ui import UserInterface
+from nion.ui import Window
 from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Event
@@ -46,35 +49,6 @@ def open_location(location: pathlib.Path) -> None:
         subprocess.run(['explorer', str(location)])
     elif sys.platform == 'linux':
         subprocess.check_call(['xdg-open', '--', str(location)])
-
-
-class DocumentModelCounterDisplayItem:
-
-    def __init__(self, document_model: DocumentModel.DocumentModel):
-        self.__document_model = document_model
-
-        self.__count = 0
-        self.on_title_changed = None
-
-        def count_changed(count: Observer.ItemValue) -> None:
-            self.__count = count
-            if callable(self.on_title_changed):
-                self.on_title_changed(self.title)
-
-        oo = Observer.ObserverBuilder()
-        oo.source(self.__document_model).sequence_from_array("display_items").len().action_fn(count_changed)
-        self.__count_observer = oo.make_observable()
-
-    def close(self) -> None:
-        self.__count_observer.close()
-        self.__count_observer = None
-        self.__document_model = None
-        self.on_title_changed = None
-
-    @property
-    def title(self) -> str:
-        title = _("All")
-        return f"{title} ({self.__count})"
 
 
 class ProjectCounterDisplayItem:
@@ -111,7 +85,7 @@ class ProjectCounterDisplayItem:
 
 class CollectionDisplayItemCounter:
 
-    def __init__(self, base_title: str, data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str], document_controller: "DocumentController.DocumentController"):
+    def __init__(self, base_title: str, data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str], document_controller: DocumentController.DocumentController):
         self.__base_title = base_title
         self.__data_group = data_group
         self.__filter_id = filter_id
@@ -166,8 +140,6 @@ class ProjectPanelProjectItem:
         self.indent = indent
         self.project_reference = project_reference
         self.display_item_controller = display_item_controller
-        self.is_target = False
-        self.is_work = False
         self.check_state = "unchecked"
 
     @property
@@ -184,7 +156,7 @@ class ProjectPanelProjectItem:
         return str()
 
     def __str__(self) -> str:
-        icon = "\N{GEAR}" if self.is_work else "\N{CARD FILE BOX}"
+        icon = "\N{CARD FILE BOX}"
         return f"{icon} {self.display_item_controller.title} {self.__state_str}"
         # NOTE: {DIRECT HIT} is the target icon
 
@@ -195,7 +167,7 @@ class ProjectPanelProjectItem:
 
 class ProjectPanelFolderItem:
 
-    def __init__(self, node: "TreeNode", indent: int, folder_name: str, folder_closed: bool, folder_key: str):
+    def __init__(self, node: TreeNode, indent: int, folder_name: str, folder_closed: bool, folder_key: str):
         self.node = node
         self.is_folder = True
         self.indent = indent
@@ -228,9 +200,7 @@ class TreeNode:
 
 class TreeModel:
 
-    def __init__(self, document_controller: "DocumentController.DocumentController", closed_items: typing.Set[str]):
-        self.document_controller = document_controller
-
+    def __init__(self, profile: Profile.Profile):
         # cache
         self.__project_panel_items = None
 
@@ -241,7 +211,7 @@ class TreeModel:
         self.property_changed_event = Event.Event()
 
         # define the closed items
-        self.__closed_items = closed_items
+        self.__closed_items = set(profile.closed_items)
         self.on_closed_items_changed = None
 
         def update_items(item: Observer.ItemValue) -> None:
@@ -249,13 +219,10 @@ class TreeModel:
                 self.__update_project_panel_items(self.__project_panel_items)
                 self.property_changed_event.fire("value")
 
-        # build an observer that will call update_items whenever any of the project_references
-        # or work or target project changes.
+        # build an observer that will call update_items whenever any of the project_references changes.
         oo = Observer.ObserverBuilder()
-        oo.source(self.document_controller.document_model).prop("profile").tuple(
-            oo.x.ordered_sequence_from_array("project_references").map(oo.x.prop("is_active")).collect_list(),
-            oo.x.prop("work_project"),
-            oo.x.prop("target_project")).action_fn(update_items)
+        oo.source(profile).tuple(
+            oo.x.ordered_sequence_from_array("project_references").map(oo.x.prop("is_active")).collect_list()).action_fn(update_items)
 
         self.__profile_observer = oo.make_observable()
 
@@ -263,7 +230,6 @@ class TreeModel:
         self.__profile_observer.close()
         self.__profile_observer = None
         self.__project_panel_items = None
-        self.document_controller = None
 
     def update_project_references(self, project_references: typing.Sequence[Profile.ProjectReference]):
         # build hierarchy of nodes reflecting the project reference parts (strings).
@@ -342,8 +308,6 @@ class TreeModel:
             if isinstance(project_panel_item, ProjectPanelFolderItem):
                 project_panel_item.check_state = self.__get_node_check_state(project_panel_item.node)
             elif isinstance(project_panel_item, ProjectPanelProjectItem):
-                project_panel_item.is_target = project_panel_item.project_reference.project == self.document_controller.profile.target_project
-                project_panel_item.is_work = project_panel_item.project_reference.project == self.document_controller.profile.work_project
                 project_panel_item.check_state = "checked" if project_panel_item.project_reference.is_active else "unchecked"
 
     @property
@@ -372,31 +336,13 @@ class TreeModel:
         if self.on_closed_items_changed:
             self.on_closed_items_changed(self.__closed_items)
 
-    def toggle_folder_active(self, folder_node: TreeNode) -> None:
-
-        # define a function to recursive set projects/folders to active
-        def set_folder_node_active(folder_node: TreeNode, active: bool) -> None:
-            for project_reference in typing.cast(typing.Sequence[Profile.ProjectReference], folder_node.data):
-                self.document_controller.profile.set_project_reference_active(project_reference, active)
-            for key, child_node in folder_node.children.items():
-                set_folder_node_active(child_node, active)
-
-        if self.__get_node_check_state(folder_node) != "checked":
-            set_folder_node_active(folder_node, True)
-        else:
-            set_folder_node_active(folder_node, False)
-
-    def toggle_project_reference_active(self, project_reference: Profile.ProjectReference) -> None:
-        self.document_controller.profile.toggle_project_reference_active(project_reference)
-
 
 class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
-    def __init__(self, document_controller: "DocumentController.DocumentController", tree_model: TreeModel):
+    def __init__(self, window: Window.Window, tree_model: TreeModel):
         super().__init__()
-        self.__document_controller = document_controller
         self.__tree_model = tree_model
-        get_font_metrics_fn = document_controller.ui.get_font_metrics
+        get_font_metrics_fn = self.__window.ui.get_font_metrics
         self.__folder_indent = get_font_metrics_fn("12px", "\N{BLACK DOWN-POINTING TRIANGLE} ").width
         self.__project_indent = get_font_metrics_fn("12px", "\N{OPEN FILE FOLDER} ").width
 
@@ -406,20 +352,13 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         if display_item.is_folder and indent < pos.x < indent + self.__folder_indent:
             self.__tree_model.toggle_folder(display_item.folder_key)
             return True
-        indent0 = self.__calculate_indent(0, 0)
-        if indent0 < pos.x < indent0 + 12:
-            if isinstance(display_item, ProjectPanelFolderItem):
-                self.__tree_model.toggle_folder_active(display_item.node)
-            elif isinstance(display_item, ProjectPanelProjectItem):
-                self.__tree_model.toggle_project_reference_active(display_item.project_reference)
-            return True
         return False
 
     def paint_item(self, drawing_context, display_item, rect, is_selected):
         item_string = str(display_item)
         with drawing_context.saver():
             drawing_context.fill_style = "#000" if display_item.is_enabled else "#888"
-            drawing_context.font = "12px bold" if not display_item.is_folder and display_item.is_target else "12px"
+            drawing_context.font = "12px"
             drawing_context.text_align = 'left'
             drawing_context.text_baseline = 'bottom'
             # drawing_context.fill_text("\N{BALLOT BOX}", rect[0][1] + 4, rect[0][0] + 20 - 4)
@@ -442,26 +381,6 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             drawing_context.stroke_style = "#444"
             drawing_context.stroke()
 
-    def item_can_drop_mime_data(self, mime_data, action: str, drop_index: int) -> bool:
-        display_item = self.__tree_model.value[drop_index]
-        if display_item.project and display_item.is_enabled:
-            display_items = MimeTypes.mime_data_get_display_items(mime_data, self.__document_controller.document_model)
-            if display_items:
-                return True
-            return mime_data.has_file_paths
-        return False
-
-    def item_drop_mime_data(self, mime_data, action: str, drop_index: int) -> str:
-        display_item = self.__tree_model.value[drop_index]
-        if display_item.project and display_item.is_enabled:
-            document_controller = display_item.display_item_controller.document_controller
-            document_controller._register_ui_activity()
-            if mime_data.has_file_paths:
-                file_paths = [pathlib.Path(file_path) for file_path in mime_data.file_paths]
-                document_controller.receive_project_files(file_paths, project=display_item.project)
-                return "copy"
-        return "ignore"
-
     def item_tool_tip(self, index: int) -> typing.Optional[str]:
         display_item = self.__tree_model.value[index]
         if isinstance(display_item, ProjectPanelProjectItem):
@@ -470,7 +389,7 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
     def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
         display_item = self.__tree_model.value[index]
-        menu = self.__document_controller.create_context_menu()
+        menu = self.ui.create_context_menu(self.__window)
         if isinstance(display_item, ProjectPanelProjectItem) and display_item.project_reference.project:
             menu.add_menu_item(_(f"Open Project Location"), functools.partial(reveal_project, display_item.project_reference.project.storage_system_path))
         elif isinstance(display_item, ProjectPanelFolderItem):
@@ -484,23 +403,21 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
 class ProjectTreeWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, document_controller):
-        super().__init__(ui.create_column_widget())
+    def __init__(self, window: Window.Window, profile: Profile.Profile):
+        super().__init__(window.ui.create_column_widget())
 
         column = self.content_widget
 
-        document_model = document_controller.document_model
-
-        self._tree_model = TreeModel(document_controller, set(document_controller.profile.closed_items))
+        self._tree_model = TreeModel(profile)
 
         def closed_items_changed(closed_items: typing.Set[str]):
-            document_controller.profile.closed_items = list(closed_items)
+            profile.closed_items = list(closed_items)
 
         self._tree_model.on_closed_items_changed = closed_items_changed
 
         self._tree_selection = Selection.IndexedSelection(Selection.Style.multiple)
 
-        projects_list_widget = Widgets.ListWidget(ui, ProjectTreeCanvasItemDelegate(document_controller, self._tree_model), selection=self._tree_selection, v_scroll_enabled=False, v_auto_resize=True)
+        projects_list_widget = Widgets.ListWidget(ui, ProjectTreeCanvasItemDelegate(window, self._tree_model), selection=self._tree_selection, v_scroll_enabled=False, v_auto_resize=True)
         projects_list_widget.wants_drag_events = True
         projects_list_widget.bind_items(Binding.PropertyBinding(self._tree_model, "value"))
 
@@ -508,43 +425,6 @@ class ProjectTreeWidget(Widgets.CompositeWidgetBase):
         projects_section.expanded = True
 
         column.add(projects_section)
-
-        # configure the selection objects to track each other
-
-        blocked = False
-
-        def tree_selection_changed() -> None:
-            nonlocal blocked
-            if not blocked:
-                blocked = True
-                try:
-                    selected_project_references = list()
-                    for index in self._tree_selection.indexes:
-                        tree_item = self._tree_model.value[index]
-                        if hasattr(tree_item, "project_reference") and tree_item.project_reference:
-                            selected_project_references.append(tree_item.project_reference)
-                    document_controller.selected_project_references_model.value = selected_project_references
-                finally:
-                    blocked = False
-
-        self.__tree_selection_changed_event_listener = self._tree_selection.changed_event.listen(tree_selection_changed)
-
-        def selected_project_references_model_changed(key: str) -> None:
-            nonlocal blocked
-            if not blocked:
-                blocked = True
-                try:
-                    selected_project_references = document_controller.selected_project_references
-                    indexes = set()
-                    for index, tree_item in enumerate(self._tree_model.value):
-                        if hasattr(tree_item, "project_reference") and tree_item.project_reference:
-                            if tree_item.project_reference in selected_project_references:
-                                indexes.add(index)
-                    self._tree_selection.set_multiple(indexes)
-                finally:
-                    blocked = False
-
-        self.__selected_project_references_changed_listener = document_controller.selected_project_references_model.property_changed_event.listen(selected_project_references_model_changed)
 
         # configure an observer for watching for project references changes.
         # this serves as the master updater for changes. move to document controller?
@@ -555,263 +435,14 @@ class ProjectTreeWidget(Widgets.CompositeWidgetBase):
             self._tree_model.update_project_references(project_references)
 
         oo = Observer.ObserverBuilder()
-        oo.source(document_controller.document_model).prop("profile").ordered_sequence_from_array("project_references").collect_list().action_fn(project_references_changed)
+        oo.source(profile).ordered_sequence_from_array("project_references").collect_list().action_fn(project_references_changed)
         self.__projects_model_observer = oo.make_observable()
 
-        selected_project_references_model_changed(str())
-
     def close(self):
-        self.__selected_project_references_changed_listener.close()
-        self.__selected_project_references_changed_listener = None
-        self.__tree_selection_changed_event_listener.close()
-        self.__tree_selection_changed_event_listener = None
         self._tree_model.on_closed_items_changed = None
         self.__projects_model_observer.close()
         self.__projects_model_observer = None
         super().close()
-
-
-class ProjectListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
-
-    def __init__(self, document_controller: "DocumentController.DocumentController", project_selection: Selection.IndexedSelection):
-        super().__init__()
-        self.__document_controller = document_controller
-        self.__profile = document_controller.profile
-        self.__project_selection = project_selection
-
-    def close(self):
-        self.__document_controller = None
-        self.__profile = None
-        self.__project_selection = None
-
-    def paint_item(self, drawing_context, display_item, rect, is_selected):
-        # target project is bold
-        # work project is italic
-        # unloaded projects are dimmed with reason in parenthesis
-        # reasons can be missing, unloaded, or needs upgrade
-
-        if isinstance(display_item, ProjectCounterDisplayItem):
-            is_active = display_item.project_reference.is_active
-            is_target_project = self.__profile.target_project_reference == display_item.project_reference
-            is_work_project = self.__profile.work_project_reference == display_item.project_reference
-            title = "\N{CARD FILE BOX} " + display_item.title
-            if display_item.project_reference.project:
-                if display_item.project_reference.project.project_state == "missing":
-                    is_active = False
-                    title += " (" + _("missing").upper() + ")"
-                elif display_item.project_reference.project.project_state == "needs_upgrade":
-                    is_active = False
-                    title += " (" + _("needs upgrade").upper() + ")"
-            else:
-                is_active = False
-                title += " (" + _("unloaded").upper() + ")"
-        else:
-            is_active = True
-            is_target_project = False
-            is_work_project = False
-            title = "\N{CARD FILE BOX} " + display_item.title
-
-        with drawing_context.saver():
-            drawing_context.fill_style = "#000" if is_active else "#888"
-            font = "12px"
-            if is_target_project:
-                font += " bold"
-            if is_work_project:
-                font += " italic"
-            drawing_context.font = font
-            drawing_context.text_align = 'left'
-            drawing_context.text_baseline = 'bottom'
-            drawing_context.fill_text(title, rect[0][1] + 4, rect[0][0] + 20 - 4)
-
-    def item_can_drop_mime_data(self, mime_data, action: str, drop_index: int) -> bool:
-        display_item = self.items[drop_index]
-        if isinstance(display_item, ProjectCounterDisplayItem):
-            if display_item.project_reference.is_active and display_item.project_reference.project:
-                display_items = MimeTypes.mime_data_get_display_items(mime_data, self.__document_controller.document_model)
-                if display_items:
-                    return True
-                return mime_data.has_file_paths
-        return False
-
-    def item_drop_mime_data(self, mime_data, action: str, drop_index: int) -> str:
-        display_item = self.items[drop_index]
-        if isinstance(display_item, ProjectCounterDisplayItem):
-            display_item = self.items[drop_index]
-            if display_item.project_reference.is_active and display_item.project_reference.project:
-                document_controller = self.__document_controller
-                document_controller._register_ui_activity()
-                display_items = MimeTypes.mime_data_get_display_items(mime_data, document_controller.document_model)
-                if display_items:
-                    document_controller.move_items(display_items, display_item.project_reference.project)
-                    return "move"
-                if mime_data.has_file_paths:
-                    file_paths = [pathlib.Path(file_path) for file_path in mime_data.file_paths]
-                    document_controller.receive_project_files(file_paths, display_item.project_reference.project)
-                    return "copy"
-        return "ignore"
-
-    def item_tool_tip(self, index: int) -> typing.Optional[str]:
-        display_item = self.items[index]
-        if isinstance(display_item, ProjectCounterDisplayItem):
-            return str(display_item.project_reference.project.storage_system_path if display_item.project_reference.project else _("Missing"))
-        return None
-
-    def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
-        display_item = self.items[index]
-        menu = self.__document_controller.create_context_menu()
-        project_reference = display_item.project_reference
-        if isinstance(project_reference, Profile.IndexProjectReference) and project_reference.project:
-            menu.add_menu_item(_(f"Open Project Location"), functools.partial(reveal_project, project_reference.project.storage_system_path))
-        elif isinstance(project_reference, Profile.FolderProjectReference):
-            menu.add_menu_item(_(f"Open Folder Location"), functools.partial(open_location, project_reference.project_folder_path))
-        menu.popup(gx, gy)
-        return True
-
-
-class ProjectsWidget(Widgets.CompositeWidgetBase):
-
-    def __init__(self, ui: UserInterface.UserInterface, document_controller: "DocumentController.DocumentController"):
-        super().__init__(ui.create_column_widget())
-
-        self.__document_controller = document_controller
-
-        column = self.content_widget
-
-        self.__document_model_counter = DocumentModelCounterDisplayItem(document_controller.document_model)
-
-        self.__project_counters : typing.List[ProjectCounterDisplayItem] = list()
-
-        project_selection = Selection.IndexedSelection(Selection.Style.single_or_none)
-
-        self.__projects_list_delegate = ProjectListCanvasItemDelegate(document_controller, project_selection)
-        self.__projects_list_widget = Widgets.ListWidget(ui, self.__projects_list_delegate, selection=project_selection, v_scroll_enabled=False, v_auto_resize=True)
-        self.__projects_list_widget.wants_drag_events = True
-
-        self.__projects_observer = None
-        self.__projects_filtered = True
-
-        self.__set_filtering(document_controller)
-
-        projects_column = ui.create_column_widget()
-        projects_column.add(self.__projects_list_widget)
-
-        projects_section = Widgets.SectionWidget(ui, _("Projects"), projects_column)
-        projects_section.expanded = True
-
-        filter_dark_icon_data = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/filter2_icon_20.png"))
-        filter_light_icon_data = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/filter3_icon_20.png"))
-
-        def toggle_filtering() -> None:
-            self.__projects_filtered = not self.__projects_filtered
-            self.__set_filtering(document_controller)
-            bitmap_button_canvas_item.set_rgba_bitmap_data(filter_dark_icon_data if self.__projects_filtered else filter_light_icon_data)
-
-        filter_button_widget = ui.create_canvas_widget(properties={"height": 20, "width": 20})
-        bitmap_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(filter_dark_icon_data)
-        filter_button_widget.canvas_item.add_canvas_item(bitmap_button_canvas_item)
-        bitmap_button_canvas_item.on_button_clicked = toggle_filtering
-
-        gear_button_widget = ui.create_canvas_widget(properties={"height": 20, "width": 20})
-        gear_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/gear_icon_20.png")))
-        gear_button_widget.canvas_item.add_canvas_item(gear_button_canvas_item)
-        gear_button_canvas_item.on_button_clicked = lambda: document_controller.perform_action("window.open_project_dialog")
-
-        projects_section.section_title_row.add(filter_button_widget)
-        projects_section.section_title_row.add_spacing(4)
-        projects_section.section_title_row.add(gear_button_widget)
-        projects_section.section_title_row.add_spacing(4)
-
-        # filter_button.on_clicked = lambda: print("CLICKED")
-
-        column.add(projects_section)
-
-        blocked = False
-
-        def selection_changed() -> None:
-            nonlocal blocked
-            if not blocked:
-                blocked = True
-                try:
-                    selected_project_references = list()
-                    for index in project_selection.indexes:
-                        if index >= 1:
-                            project_counter = self.__project_counters[index - 1]
-                            selected_project_references.append(project_counter.project_reference)
-                        document_controller.selected_project_references_model.value = selected_project_references
-                finally:
-                    blocked = False
-
-        self.__selection_changed_event_listener = project_selection.changed_event.listen(selection_changed)
-
-        def selected_project_references_model_changed(key: str) -> None:
-            nonlocal blocked
-            if not blocked:
-                blocked = True
-                try:
-                    selected_project_references = document_controller.selected_project_references
-                    if len(selected_project_references) == 1:
-                        selected_project_reference = selected_project_references[0]
-                        project_index = None
-                        for index, project_counter in enumerate(self.__project_counters):
-                            if project_counter.project_reference == selected_project_reference:
-                                project_index = index + 1
-                        if project_index is not None:
-                            project_selection.set(project_index)
-                        else:
-                            project_selection.set(0)
-                    else:
-                        project_selection.set(0)
-                finally:
-                    blocked = False
-
-        self.__selected_project_references_changed_listener = document_controller.selected_project_references_model.property_changed_event.listen(selected_project_references_model_changed)
-
-        selected_project_references_model_changed(str())
-
-        # for testing
-        self._project_selection = project_selection
-
-    def __set_filtering(self, document_controller: "DocumentController.DocumentController") -> None:
-        if self.__projects_observer:
-            self.__projects_observer.close()
-        # build an observer for the project property of project references and call projects changed upon changes.
-        # ideally we could pass project references having non-None projects, but there is currently no way to
-        # rebuild the project references when the state of the project property changes.
-        oo = Observer.ObserverBuilder()
-        oo.source(document_controller.document_model).prop("profile").ordered_sequence_from_array(
-            "project_references").map(oo.x.prop("project")).collect_list().action_fn(self.__projects_changed)
-        self.__projects_observer = oo.make_observable()
-
-    def close(self):
-        self.__projects_list_delegate.close()
-        self.__projects_list_delegate = None
-        self.__selected_project_references_changed_listener.close()
-        self.__selected_project_references_changed_listener = None
-        self.__selection_changed_event_listener.close()
-        self.__selection_changed_event_listener = None
-        self.__projects_observer.close()
-        self.__projects_observer = None
-        for project_counter in self.__project_counters:
-            project_counter.close()
-        self.__project_counters.clear()
-        self.__document_model_counter.close()
-        self.__document_model_counter = None
-        self.__document_controller = None
-        super().close()
-
-    def __project_counters_changed(self) -> None:
-        self.__projects_list_widget.items = [self.__document_model_counter] + self.__project_counters
-
-    def __projects_changed(self, item: Observer.ItemValue) -> None:
-        project_references = [pr for pr in self.__document_controller.document_model.profile.project_references if pr.project or not self.__projects_filtered]
-        for project_counter in self.__project_counters:
-            project_counter.close()
-        self.__project_counters.clear()
-        for project_reference in project_references:
-            project_counter = ProjectCounterDisplayItem(project_reference)
-            project_counter.on_title_changed = lambda t: self.__project_counters_changed()
-            self.__project_counters.append(project_counter)
-        self.__project_counters_changed()
 
 
 class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
@@ -995,18 +626,16 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         super().close()
 
 
-class ProjectPanel(Panel.Panel):
+class CollectionsPanel(Panel.Panel):
 
-    def __init__(self, document_controller, panel_id, properties):
-        super().__init__(document_controller, panel_id, _("Projects"))
+    def __init__(self, document_controller: DocumentController.DocumentController, panel_id, properties):
+        super().__init__(document_controller, panel_id, _("Collections"))
 
         ui = document_controller.ui
 
-        self._projects_section = ProjectsWidget(ui, document_controller)
         self._collections_section = CollectionsWidget(ui, document_controller)
 
         column = ui.create_column_widget()
-        column.add(self._projects_section)
         column.add(self._collections_section)
         column.add_stretch()
 
@@ -1020,20 +649,15 @@ class ProjectPanel(Panel.Panel):
     def _collection_selection(self) -> Selection.IndexedSelection:
         return self._collections_section._collection_selection
 
-    @property
-    def _projects_selection(self) -> Selection.IndexedSelection:
-        return self._projects_section._project_selection
-
 
 class ProjectDialog(Dialog.ActionDialog):
 
-    def __init__(self, document_controller):
-        ui = document_controller.ui
-        super().__init__(ui, _("Project Manager"), parent_window=document_controller, persistent_id="ProjectsDialog")
+    def __init__(self, ui: UserInterface.UserInterface, profile: Profile.Profile):
+        super().__init__(ui, _("Project Manager"), persistent_id="ProjectsDialog")
 
         self._create_menus()
 
-        projects_section = ProjectTreeWidget(ui, document_controller)
+        projects_section = ProjectTreeWidget(self, profile)
 
         column = ui.create_column_widget()
         column.add(projects_section)

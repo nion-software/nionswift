@@ -8,6 +8,7 @@ from nion.swift.model import Cache
 from nion.swift.model import DocumentModel
 from nion.swift.model import FileStorageSystem
 from nion.swift.model import Profile
+from nion.swift.model import Project
 from nion.ui import TestUI
 from nion.utils import Event
 
@@ -65,10 +66,9 @@ class MemoryProfileContext:
             profile = Profile.Profile(storage_system=storage_system, storage_cache=self.storage_cache)
             profile.storage_system = storage_system
             profile.profile_context = self
-            project_reference = add_project_memory(profile, self.project_uuid)
-            profile.target_project_reference_uuid = project_reference.uuid
-            profile.work_project_reference_uuid = project_reference.uuid
+            add_project_memory(profile, self.project_uuid)
             self.__profile = profile
+            self.__items_to_close.append(profile)
             return profile
         else:
             storage_system = self.__storage_system
@@ -76,20 +76,26 @@ class MemoryProfileContext:
             profile = Profile.Profile(storage_system=storage_system, storage_cache=self.storage_cache)
             profile.storage_system = storage_system
             profile.profile_context = self
+            self.__items_to_close.append(profile)
             return profile
 
     @property
     def profile(self) -> typing.Optional[Profile.Profile]:
         return self.__profile
 
-    def create_document_model(self, *, auto_close: bool = True) -> DocumentModel.DocumentModel:
-        document_model = DocumentModel.DocumentModel(profile=self.create_profile())
+    def create_document_model(self, *, project_index: int = 0, auto_close: bool = True) -> DocumentModel.DocumentModel:
+        profile = self.create_profile()
+        profile.read_profile()
+        project_reference = profile.project_references[project_index]
+        profile.read_project(project_reference)
+        document_model = project_reference.document_model
+        document_model._profile_for_test = profile
         if auto_close:
             self.__items_to_close.append(document_model)
         return document_model
 
     def create_document_controller(self, *, auto_close: bool = True) -> DocumentController.DocumentController:
-        document_model = DocumentModel.DocumentModel(profile=self.create_profile())
+        document_model = self.create_document_model(auto_close=False)
         document_controller = DocumentController.DocumentController(TestUI.UserInterface(), document_model, workspace_id="library")
         if auto_close:
             self.__items_to_close.append(document_controller)
@@ -103,8 +109,7 @@ class MemoryProfileContext:
 
     def create_document_controller_with_application(self) -> DocumentController.DocumentController:
         app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel(profile=self.create_profile())
-        # document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        document_model = self.create_document_model(auto_close=False)
         document_controller = app.create_document_controller(document_model, "library")
         self.__items_to_close.append(document_controller)
         self.__app = app  # hold a reference
@@ -118,7 +123,7 @@ class MemoryProfileContext:
         self.close()
 
     def close(self):
-        for item in self.__items_to_close:
+        for item in reversed(self.__items_to_close):
             item.close()
         self.__items_to_close = list()
         self.__app = None
