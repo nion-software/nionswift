@@ -100,13 +100,13 @@ class TestWorkspaceClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             DocumentController_test.construct_test_document(document_controller)
-            workspace_1x1 = document_controller.profile.workspaces[0]
+            workspace_1x1 = document_controller.project.workspaces[0]
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             workspace_3x1 = document_controller.workspace_controller.new_workspace(*get_layout("3x1"))
             workspace_2x2 = document_controller.workspace_controller.new_workspace(*get_layout("2x2"))
             workspace_3x2 = document_controller.workspace_controller.new_workspace(*get_layout("3x2"))
             workspace_1x2 = document_controller.workspace_controller.new_workspace(*get_layout("1x2"))
-            self.assertEqual(len(document_controller.profile.workspaces), 6)
+            self.assertEqual(len(document_controller.project.workspaces), 6)
             document_controller.workspace_controller.change_workspace(workspace_1x1)
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 1)
             document_controller.workspace_controller.change_workspace(workspace_1x1)
@@ -127,8 +127,7 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_basic_change_layout_results_in_image_panel_being_destructed(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
-            document_model = document_controller.document_model
-            workspace_1x1 = document_controller.profile.workspaces[0]
+            workspace_1x1 = document_controller.project.workspaces[0]
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_1x1)
             image_panel_weak_ref = weakref.ref(document_controller.workspace_controller.display_panels[0])
@@ -244,19 +243,19 @@ class TestWorkspaceClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             DocumentController_test.construct_test_document(document_controller)
-            workspace_1x1 = document_controller.profile.workspaces[0]
+            workspace_1x1 = document_controller.project.workspaces[0]
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
-            self.assertEqual(document_controller.profile.workspace_uuid, workspace_1x1.uuid)
+            self.assertEqual(document_controller.project.workspace_uuid, workspace_1x1.uuid)
             document_controller.workspace_controller.change_workspace(workspace_2x1)
-            self.assertEqual(document_controller.profile.workspace_uuid, workspace_2x1.uuid)
+            self.assertEqual(document_controller.project.workspace_uuid, workspace_2x1.uuid)
             document_controller.workspace_controller.change_workspace(workspace_1x1)
-            self.assertEqual(document_controller.profile.workspace_uuid, workspace_1x1.uuid)
+            self.assertEqual(document_controller.project.workspace_uuid, workspace_1x1.uuid)
 
     def test_workspace_change_records_workspace_data_item_contents(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            workspace_1x1 = document_controller.profile.workspaces[0]
+            workspace_1x1 = document_controller.project.workspaces[0]
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -279,13 +278,13 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller = profile_context.create_document_controller(auto_close=False)
             document_model = document_controller.document_model
             with contextlib.closing(document_controller):
-                workspace_1x1 = document_controller.profile.workspaces[0]
+                workspace_1x1 = document_controller.project.workspaces[0]
                 data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
                 document_model.append_data_item(data_item1)
                 document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
-            json_str = json.dumps(profile_context.profile_properties["workspaces"])
+            json_str = json.dumps(profile_context.project_properties["workspaces"])
             properties = json.loads(json_str)
-            self.assertEqual(properties, profile_context.profile_properties["workspaces"])
+            self.assertEqual(properties, profile_context.project_properties["workspaces"])
 
     def test_workspace_saves_contents_immediately_following_change(self):
         with create_memory_profile_context() as profile_context:
@@ -616,7 +615,7 @@ class TestWorkspaceClass(unittest.TestCase):
             display_panel = workspace_controller.display_panels[0]
             workspace_controller.insert_display_panel(display_panel, "bottom").close()
             # save info
-            self.assertEqual(1, len(document_controller.profile.workspaces))
+            self.assertEqual(1, len(document_controller.project.workspaces))
             old_workspace_uuid = document_controller.workspace_controller._workspace.uuid
             old_workspace_layout = workspace_controller._workspace_layout
             # perform create command
@@ -626,21 +625,21 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # check things
-            self.assertEqual(2, len(document_controller.profile.workspaces))
+            self.assertEqual(2, len(document_controller.project.workspaces))
             new_workspace_layout = workspace_controller._workspace_layout
             # undo
             document_controller.handle_undo()
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
-            self.assertEqual(1, len(document_controller.profile.workspaces))
+            self.assertEqual(1, len(document_controller.project.workspaces))
             self.assertEqual(old_workspace_uuid, document_controller.workspace_controller._workspace.uuid)
             # redo
             document_controller.handle_redo()
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
-            self.assertEqual(2, len(document_controller.profile.workspaces))
+            self.assertEqual(2, len(document_controller.project.workspaces))
 
     def test_rename_workspace_undo_and_redo_works_cleanly(self):
         with TestContext.create_memory_context() as test_context:
@@ -650,19 +649,19 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_controller = document_controller.workspace_controller
             # save info
-            old_name = document_controller.profile.workspaces[0].name
+            old_name = document_controller.project.workspaces[0].name
             # perform command
             command = Workspace.Workspace.RenameWorkspaceCommand(workspace_controller, "NEW")
             command.perform()
             document_controller.push_undo_command(command)
             # check things
-            self.assertEqual("NEW", document_controller.profile.workspaces[0].name)
+            self.assertEqual("NEW", document_controller.project.workspaces[0].name)
             # undo
             document_controller.handle_undo()
-            self.assertEqual(old_name, document_controller.profile.workspaces[0].name)
+            self.assertEqual(old_name, document_controller.project.workspaces[0].name)
             # redo
             document_controller.handle_redo()
-            self.assertEqual("NEW", document_controller.profile.workspaces[0].name)
+            self.assertEqual("NEW", document_controller.project.workspaces[0].name)
 
     def test_remove_workspace_undo_and_redo_works_cleanly(self):
         with TestContext.create_memory_context() as test_context:
@@ -678,7 +677,7 @@ class TestWorkspaceClass(unittest.TestCase):
             command.perform()
             document_controller.push_undo_command(command)
             # save info
-            self.assertEqual(2, len(document_controller.profile.workspaces))
+            self.assertEqual(2, len(document_controller.project.workspaces))
             old_workspace_layout = workspace_controller._workspace_layout
             # perform remove command
             command = Workspace.Workspace.RemoveWorkspaceCommand(workspace_controller)
@@ -687,7 +686,7 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # check things
-            self.assertEqual(1, len(document_controller.profile.workspaces))
+            self.assertEqual(1, len(document_controller.project.workspaces))
             # undo
             document_controller.handle_undo()
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -695,7 +694,7 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
             # redo
             document_controller.handle_redo()
-            self.assertEqual(1, len(document_controller.profile.workspaces))
+            self.assertEqual(1, len(document_controller.project.workspaces))
 
     def test_clone_workspace_undo_and_redo_works_cleanly(self):
         with TestContext.create_memory_context() as test_context:
@@ -707,7 +706,7 @@ class TestWorkspaceClass(unittest.TestCase):
             display_panel = workspace_controller.display_panels[0]
             workspace_controller.insert_display_panel(display_panel, "bottom").close()
             # save info
-            self.assertEqual(1, len(document_controller.profile.workspaces))
+            self.assertEqual(1, len(document_controller.project.workspaces))
             old_workspace_uuid = document_controller.workspace_controller._workspace.uuid
             old_workspace_layout = workspace_controller._workspace_layout
             # perform create command
@@ -717,7 +716,7 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # check things
-            self.assertEqual(2, len(document_controller.profile.workspaces))
+            self.assertEqual(2, len(document_controller.project.workspaces))
             # TODO: why is splitter incorrect? check children.
             self.assertEqual(old_workspace_layout["children"], workspace_controller._workspace_layout["children"])
             new_workspace_layout = workspace_controller._workspace_layout
@@ -726,21 +725,21 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
-            self.assertEqual(1, len(document_controller.profile.workspaces))
+            self.assertEqual(1, len(document_controller.project.workspaces))
             self.assertEqual(old_workspace_uuid, document_controller.workspace_controller._workspace.uuid)
             # redo
             document_controller.handle_redo()
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
-            self.assertEqual(2, len(document_controller.profile.workspaces))
+            self.assertEqual(2, len(document_controller.project.workspaces))
 
     def test_workspace_records_and_reloads_image_panel_contents(self):
         with create_memory_profile_context() as profile_context:
             document_controller = profile_context.create_document_controller(auto_close=False)
             document_model = document_controller.document_model
             with contextlib.closing(document_controller):
-                workspace_1x1 = document_controller.profile.workspaces[0]
+                workspace_1x1 = document_controller.project.workspaces[0]
                 data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
                 document_model.append_data_item(data_item1)
                 document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
@@ -748,7 +747,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller = profile_context.create_document_controller(auto_close=False)
             document_model = document_controller.document_model
             with contextlib.closing(document_controller):
-                workspace_1x1 = document_controller.profile.workspaces[0]
+                workspace_1x1 = document_controller.project.workspaces[0]
                 self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, document_model.data_items[0])
 
     def __test_drop_on_1x1(self, region):
@@ -1336,14 +1335,14 @@ class TestWorkspaceClass(unittest.TestCase):
                         workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
                         document_controller.workspace_controller.change_workspace(workspace_2x1)
                     # modify it to include a controller which raises an exception during init
-                    profile_context.profile_properties["workspaces"][1]["layout"]["children"][0]["controller_type"] = "error"
+                    profile_context.project_properties["workspaces"][1]["layout"]["children"][0]["controller_type"] = "error"
                     # create a new document based on the corrupt layout
                     document_controller = profile_context.create_document_controller(auto_close=False)
                     document_model = document_controller.document_model
                     with contextlib.closing(document_controller):
                         pass
                     # check to ensure that the exception didn't invalidate the entire layout
-                    self.assertEqual(2, len(profile_context.profile_properties["workspaces"][1].get("layout", dict()).get("children", list())))
+                    self.assertEqual(2, len(profile_context.project_properties["workspaces"][1].get("layout", dict()).get("children", list())))
             finally:
                 DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("error")
         finally:

@@ -168,7 +168,7 @@ class DocumentController(Window.Window):
         self._create_menus()
         if workspace_id:  # used only when testing reference counting
             self.__workspace_controller = Workspace.Workspace(self, workspace_id)
-            self.__workspace_controller.restore(self.profile.workspace_uuid)
+            self.__workspace_controller.restore(self.project.workspace_uuid)
 
         if app:
             for menu_handler in app.menu_handlers:  # use 'handler' to avoid name collision
@@ -436,6 +436,10 @@ class DocumentController(Window.Window):
     @property
     def profile(self) -> Profile.Profile:
         return self.document_model.profile
+
+    @property
+    def project(self) -> Project.Project:
+        return self.document_model._project
 
     @property
     def display_items_model(self):
@@ -1707,11 +1711,11 @@ class DocumentController(Window.Window):
         for dynamic_view_action in self.__dynamic_view_actions:
             menu.remove_action(dynamic_view_action)
         self.__dynamic_view_actions = []
-        for workspace in self.profile.workspaces:
+        for workspace in self.project.workspaces:
             def switch_to_workspace(workspace):
                 self.workspace_controller.change_workspace(workspace)
             action = menu.add_menu_item(workspace.name, functools.partial(switch_to_workspace, workspace))
-            action.checked = self.profile.workspace_uuid == workspace.uuid
+            action.checked = self.project.workspace_uuid == workspace.uuid
             self.__dynamic_view_actions.append(action)
 
     def __about_to_show_display_type_menu(self, menu: UserInterface.Menu) -> None:

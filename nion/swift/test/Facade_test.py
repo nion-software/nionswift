@@ -233,7 +233,7 @@ class TestFacadeClass(unittest.TestCase):
             document_controller = profile_context.create_document_controller_with_application()
             document_model = document_controller.document_model
             # configure workspace
-            workspace_1x1 = document_controller.profile.workspaces[0]
+            workspace_1x1 = document_controller.project.workspaces[0]
             document_controller.workspace_controller.change_workspace(workspace_1x1)
             display_panel = document_controller.selected_display_panel
 
@@ -251,7 +251,7 @@ class TestFacadeClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item2)
             # configure workspace
-            workspace_1x1 = document_controller.profile.workspaces[0]
+            workspace_1x1 = document_controller.project.workspaces[0]
             document_controller.workspace_controller.change_workspace(workspace_1x1)
             display_panel = document_controller.selected_display_panel
 
@@ -450,7 +450,7 @@ class TestFacadeClass(unittest.TestCase):
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
             # configure workspace
-            workspace_1x1 = document_controller.profile.workspaces[0]
+            workspace_1x1 = document_controller.project.workspaces[0]
             document_controller.workspace_controller.change_workspace(workspace_1x1)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_item(display_item1)

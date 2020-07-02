@@ -1,5 +1,4 @@
 # standard libraries
-import copy
 import functools
 import logging
 import pathlib
@@ -17,6 +16,8 @@ from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import FileStorageSystem
 from nion.swift.model import Persistence
+from nion.swift.model import WorkspaceLayout
+from nion.utils import Converter
 from nion.utils import ListModel
 from nion.utils import Observable
 
@@ -46,6 +47,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.define_relationship("data_structures", data_structure_factory, insert=self.__data_structure_inserted, remove=self.__data_structure_removed)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__connection_inserted, remove=self.__connection_removed)
         self.define_relationship("data_groups", DataGroup.data_group_factory, insert=self.__data_group_inserted, remove=self.__data_group_removed)
+        self.define_relationship("workspaces", WorkspaceLayout.factory)
+        self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
         self.define_property("mapped_items", list())  # list of item references, used for shortcut variables in scripts
 
@@ -273,6 +276,16 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 data_group.finish_reading()
                 if not self.get_item_by_uuid("data_groups", data_group.uuid):
                     self.load_item("data_groups", len(self.data_groups), data_group)
+            for item_d in properties.get("workspaces", list()):
+                workspace = WorkspaceLayout.factory(item_d.get)
+                workspace.begin_reading()
+                workspace.read_from_dict(item_d)
+                workspace.finish_reading()
+                if not self.get_item_by_uuid("workspaces", workspace.uuid):
+                    self.load_item("workspaces", len(self.workspaces), workspace)
+            workspace_uuid_str = properties.get("workspace_uuid", None)
+            if workspace_uuid_str:
+                self._set_persistent_property_value("workspace_uuid", uuid.UUID(workspace_uuid_str))
             self._set_persistent_property_value("data_item_references", properties.get("data_item_references", dict()))
             self._set_persistent_property_value("mapped_items", properties.get("mapped_items", dict()))
             self.__project_state = "loaded"

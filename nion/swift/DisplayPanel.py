@@ -980,10 +980,10 @@ class ReplaceDisplayPanelCommand(Undo.UndoableCommand):
         return self.__old_workspace_layout
 
     def _get_modified_state(self):
-        return self.__workspace_controller._profile.modified_state
+        return self.__workspace_controller._project.modified_state
 
     def _set_modified_state(self, modified_state) -> None:
-        self.__workspace_controller._profile.modified_state = modified_state
+        self.__workspace_controller._project.modified_state = modified_state
 
     def _undo(self) -> None:
         self.__new_workspace_layout = self.__workspace_controller.deconstruct()

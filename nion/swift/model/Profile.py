@@ -20,7 +20,6 @@ from nion.swift.model import Observer
 from nion.swift.model import Persistence
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
-from nion.swift.model import WorkspaceLayout
 from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Observable
@@ -219,9 +218,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         self.define_root_context()
         self.define_type("profile")
-        self.define_relationship("workspaces", WorkspaceLayout.factory)
         self.define_relationship("project_references", project_reference_factory, insert=self.__insert_project_reference, remove=self.__remove_project_reference)
-        self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("target_project_reference_uuid", converter=Converter.UuidToStringConverter(), changed=self.__property_changed)
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter(), changed=self.__property_changed)
         self.define_property("closed_items", list())

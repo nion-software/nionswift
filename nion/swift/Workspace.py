@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from __future__ import annotations
+
 # standard libraries
 import copy
 import functools
@@ -25,7 +27,6 @@ from nion.ui import UserInterface
 
 if typing.TYPE_CHECKING:
     from nion.swift import Panel
-    from nion.swift.model import Profile
 
 
 _ = gettext.gettext
@@ -139,8 +140,8 @@ class Workspace:
         return self.document_controller.document_model
 
     @property
-    def _profile(self) -> Profile.Profile:
-        return self.document_controller.profile
+    def _project(self) -> Project.Project:
+        return self.document_controller.project
 
     @property
     def _canvas_item(self):
@@ -167,7 +168,7 @@ class Workspace:
                     else:
                         dock_panel.hide()
 
-    def create_panel(self, document_controller, panel_id, title, positions, position, properties) -> "Panel.Panel":
+    def create_panel(self, document_controller, panel_id, title, positions, position, properties) -> Panel.Panel:
         try:
             panel = self.workspace_manager.create_panel_content(document_controller, panel_id, title, positions, position, properties)
             assert panel is not None, "panel is None [%s]" % panel_id
@@ -339,7 +340,7 @@ class Workspace:
                 self.__canvas_item.add_canvas_item(canvas_item)
                 self.image_row.add(canvas_widget)
         self.document_controller.selected_display_panel = selected_display_panel
-        self.document_controller.profile.workspace_uuid = workspace.uuid
+        self.document_controller.project.workspace_uuid = workspace.uuid
 
     def restore(self, workspace_uuid: uuid.UUID) -> None:
         """
@@ -347,29 +348,29 @@ class Workspace:
 
             If workspace_uuid is None then create a new workspace and use it.
         """
-        workspace = next((workspace for workspace in self._profile.workspaces if workspace.uuid == workspace_uuid), None)
+        workspace = next((workspace for workspace in self._project.workspaces if workspace.uuid == workspace_uuid), None)
         if workspace is None:
             workspace = self.new_workspace()
         self._change_workspace(workspace)
 
     def change_to_previous_workspace(self) -> None:
-        workspace_uuid = self.document_controller.profile.workspace_uuid
-        workspace = next((workspace for workspace in self._profile.workspaces if workspace.uuid ==workspace_uuid), None)
-        workspace_index = self._profile.workspaces.index(workspace)
-        workspace_index = (workspace_index - 1) % len(self._profile.workspaces)
-        self.change_workspace(self._profile.workspaces[workspace_index])
+        workspace_uuid = self.document_controller.project.workspace_uuid
+        workspace = next((workspace for workspace in self._project.workspaces if workspace.uuid ==workspace_uuid), None)
+        workspace_index = self._project.workspaces.index(workspace)
+        workspace_index = (workspace_index - 1) % len(self._project.workspaces)
+        self.change_workspace(self._project.workspaces[workspace_index])
 
     def change_to_next_workspace(self) -> None:
-        workspace_uuid = self.document_controller.profile.workspace_uuid
-        workspace = next((workspace for workspace in self._profile.workspaces if workspace.uuid == workspace_uuid), None)
-        workspace_index = self._profile.workspaces.index(workspace)
-        workspace_index = (workspace_index + 1) % len(self._profile.workspaces)
-        self.change_workspace(self._profile.workspaces[workspace_index])
+        workspace_uuid = self.document_controller.project.workspace_uuid
+        workspace = next((workspace for workspace in self._project.workspaces if workspace.uuid == workspace_uuid), None)
+        workspace_index = self._project.workspaces.index(workspace)
+        workspace_index = (workspace_index + 1) % len(self._project.workspaces)
+        self.change_workspace(self._project.workspaces[workspace_index])
 
     def new_workspace(self, name=None, layout=None, workspace_id=None, index=None) -> WorkspaceLayout.WorkspaceLayout:
         """ Create a new workspace, insert into document_model, and return it. """
         workspace = WorkspaceLayout.WorkspaceLayout()
-        self._profile.insert_item("workspaces", index if index is not None else len(self._profile.workspaces), workspace)
+        self._project.insert_item("workspaces", index if index is not None else len(self._project.workspaces), workspace)
         d = create_image_desc()
         d["selected"] = True
         workspace.layout = layout if layout is not None else d
@@ -383,13 +384,13 @@ class Workspace:
 
         If none is found, create a new one, add it, and change to it.
         """
-        workspace = next((workspace for workspace in self._profile.workspaces if workspace.workspace_id == workspace_id), None)
+        workspace = next((workspace for workspace in self._project.workspaces if workspace.workspace_id == workspace_id), None)
         if not workspace:
             workspace = self.new_workspace(name=name, layout=layout, workspace_id=workspace_id)
         self._change_workspace(workspace)
 
     def get_workspace_layout_by_uuid(self, workspace_layout_uuid: uuid.UUID) -> typing.Optional[WorkspaceLayout.WorkspaceLayout]:
-        for workspace_layout in self._profile.workspaces:
+        for workspace_layout in self._project.workspaces:
             if workspace_layout.uuid == workspace_layout_uuid:
                 return workspace_layout
         return None
@@ -405,10 +406,10 @@ class Workspace:
             self.initialize()
 
         def _get_modified_state(self):
-            return self.__workspace_controller._profile.modified_state
+            return self.__workspace_controller._project.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            self.__workspace_controller._profile.modified_state = modified_state
+            self.__workspace_controller._project.modified_state = modified_state
 
         def perform(self) -> None:
             new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
@@ -420,7 +421,7 @@ class Workspace:
             self.__new_layout = self.__workspace_controller._workspace.layout
             self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
             self.__workspace_controller._change_workspace(workspace_layout)
-            self.__workspace_controller._profile.remove_item("workspaces", new_workspace)
+            self.__workspace_controller._project.remove_item("workspaces", new_workspace)
 
         def _redo(self) -> None:
             self.perform()
@@ -432,20 +433,20 @@ class Workspace:
             self.__old_name = workspace_controller._workspace.name
             self.__old_layout = workspace_controller._workspace.layout
             self.__old_workspace_id = workspace_controller._workspace.workspace_id
-            self.__old_workspace_index = workspace_controller._profile.workspaces.index(workspace_controller._workspace)
+            self.__old_workspace_index = workspace_controller._project.workspaces.index(workspace_controller._workspace)
             self.initialize()
 
         def _get_modified_state(self):
-            return self.__workspace_controller._profile.modified_state
+            return self.__workspace_controller._project.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            self.__workspace_controller._profile.modified_state = modified_state
+            self.__workspace_controller._project.modified_state = modified_state
 
         def perform(self) -> None:
-            assert len(self.__workspace_controller._profile.workspaces) > 1
+            assert len(self.__workspace_controller._project.workspaces) > 1
             old_workspace = self.__workspace_controller._workspace
             self.__workspace_controller.change_to_previous_workspace()
-            self.__workspace_controller._profile.remove_item("workspaces", old_workspace)
+            self.__workspace_controller._project.remove_item("workspaces", old_workspace)
 
         def _undo(self) -> None:
             new_workspace = self.__workspace_controller.new_workspace(name=self.__old_name, layout=self.__old_layout, workspace_id=self.__old_workspace_id, index=self.__old_workspace_index)
@@ -463,10 +464,10 @@ class Workspace:
             self.initialize()
 
         def _get_modified_state(self):
-            return self.__workspace_controller._profile.modified_state
+            return self.__workspace_controller._project.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            self.__workspace_controller._profile.modified_state = modified_state
+            self.__workspace_controller._project.modified_state = modified_state
 
         def perform(self) -> None:
             self.__workspace_controller._workspace.name = self.__new_name
@@ -488,10 +489,10 @@ class Workspace:
             self.initialize()
 
         def _get_modified_state(self):
-            return self.__workspace_controller._profile.modified_state
+            return self.__workspace_controller._project.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            self.__workspace_controller._profile.modified_state = modified_state
+            self.__workspace_controller._project.modified_state = modified_state
 
         def perform(self) -> None:
             new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
@@ -503,7 +504,7 @@ class Workspace:
             self.__new_layout = self.__workspace_controller._workspace.layout
             self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
             self.__workspace_controller._change_workspace(workspace_layout)
-            self.__workspace_controller._profile.remove_item("workspaces", new_workspace)
+            self.__workspace_controller._project.remove_item("workspaces", new_workspace)
 
         def _redo(self) -> None:
             self.perform()
@@ -517,10 +518,10 @@ class Workspace:
             self.initialize()
 
         def _get_modified_state(self):
-            return self.__workspace_controller._profile.modified_state
+            return self.__workspace_controller._project.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            self.__workspace_controller._profile.modified_state = modified_state
+            self.__workspace_controller._project.modified_state = modified_state
 
         def perform(self) -> None:
             self.__workspace_controller._change_workspace(self.__new_workspace)
@@ -541,10 +542,10 @@ class Workspace:
             self.initialize()
 
         def _get_modified_state(self):
-            return self.__workspace_controller._profile.modified_state
+            return self.__workspace_controller._project.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
-            self.__workspace_controller._profile.modified_state = modified_state
+            self.__workspace_controller._project.modified_state = modified_state
 
         def _undo(self) -> None:
             self.__new_workspace_layout = self.__workspace_controller.deconstruct()
@@ -583,7 +584,7 @@ class Workspace:
         """ Pose a dialog to confirm removal then remove workspace. """
 
         def confirm_clicked():
-            if len(self._profile.workspaces) > 1:
+            if len(self._project.workspaces) > 1:
                 command = Workspace.RemoveWorkspaceCommand(self)
                 command.perform()
                 self.document_controller.push_undo_command(command)
@@ -836,11 +837,11 @@ class Workspace:
 
         def _get_modified_state(self):
             workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-            return workspace_layout.modified_state, self.__workspace_controller._profile.modified_state
+            return workspace_layout.modified_state, self.__workspace_controller._project.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
             workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-            workspace_layout.modified_state, self.__workspace_controller._profile.modified_state = modified_state
+            workspace_layout.modified_state, self.__workspace_controller._project.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
             # override to allow the undo command to track state; but only use part of the state for comparison
@@ -893,11 +894,11 @@ class Workspace:
 
         def _get_modified_state(self):
             workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-            return workspace_layout.modified_state, self.__workspace_controller._profile.modified_state
+            return workspace_layout.modified_state, self.__workspace_controller._project.modified_state
 
         def _set_modified_state(self, modified_state) -> None:
             workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-            workspace_layout.modified_state, self.__workspace_controller._profile.modified_state = modified_state
+            workspace_layout.modified_state, self.__workspace_controller._project.modified_state = modified_state
 
         def _compare_modified_states(self, state1, state2) -> bool:
             # override to allow the undo command to track state; but only use part of the state for comparison
@@ -914,7 +915,7 @@ class Workspace:
             self.__old_display_panel = old_display_panel
 
     def insert_display_panel(self, display_panel, region, display_item=None, d=None, new_uuid=None, new_splits=None) -> Undo.UndoableCommand:
-        modified_state = self.__workspace.modified_state, self._profile.modified_state
+        modified_state = self.__workspace.modified_state, self._project.modified_state
         old_splits, new_display_panel = self._insert_display_panel(display_panel, region, display_item, d, new_uuid, new_splits)
         return Workspace.SplitDisplayPanelCommand(self, self.__workspace, modified_state, display_panel, region, display_item, d, old_splits, new_display_panel)
 
@@ -962,7 +963,7 @@ class Workspace:
     def remove_display_panel(self, display_panel, splits=None) -> Undo.UndoableCommand:
         # save the old display panel
         d = display_panel.save_contents()
-        modified_state = self.__workspace.modified_state, self._profile.modified_state
+        modified_state = self.__workspace.modified_state, self._project.modified_state
         old_display_panel, old_splits, region_id = self._remove_display_panel(display_panel, splits)
         return Workspace.RemoveDisplayPanelCommand(self, self.__workspace, modified_state, old_display_panel, region_id, d, display_panel.uuid, old_splits)
 
@@ -1035,7 +1036,7 @@ class WorkspaceManager(metaclass=Utility.Singleton):
     def unregister_panel(self, panel_id):
         del self.__panel_tuples[panel_id]
 
-    def create_panel_content(self, document_controller, panel_id, title, positions, position, properties) -> typing.Optional["Panel.Panel"]:
+    def create_panel_content(self, document_controller, panel_id, title, positions, position, properties) -> typing.Optional[Panel.Panel]:
         if panel_id in self.__panel_tuples:
             tuple = self.__panel_tuples[panel_id]
             cls = tuple[0]
