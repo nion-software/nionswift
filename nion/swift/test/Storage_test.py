@@ -441,7 +441,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 self.save_document(document_controller)
-                document_model_uuid = document_controller.profile.uuid
+                document_model_uuid = document_controller.project.uuid
                 data_items_count = len(document_controller.document_model.data_items)
                 data_items_type = type(document_controller.document_model.data_items)
                 data_item0 = document_controller.document_model.data_items[0]
@@ -458,7 +458,7 @@ class TestStorageClass(unittest.TestCase):
                 new_data_item0 = typing.cast(DataItem.DataItem, document_model.resolve_item_specifier(data_item0_specifier))
                 new_data_item0_display_item = document_model.get_display_item_for_data_item(new_data_item0)
                 self.assertIsNotNone(new_data_item0)
-                self.assertEqual(document_model_uuid, document_controller.profile.uuid)
+                self.assertEqual(document_model_uuid, document_controller.project.uuid)
                 self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
                 self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
                 self.assertIsNotNone(new_data_item0_display_item.data_item.data)

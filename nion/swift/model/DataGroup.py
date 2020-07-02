@@ -17,7 +17,7 @@ from nion.utils import Event
 from nion.utils import Observable
 
 if typing.TYPE_CHECKING:
-    from nion.swift.model import Profile
+    from nion.swift.model import Project
 
 
 _ = gettext.gettext
@@ -103,16 +103,17 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         return self.title
 
     @property
-    def profile(self) -> "Profile.Profile":
-        container = self.container
-        return container.profile if hasattr(container, "profile") else container
+    def project(self) -> Project.Project:
+        if isinstance(self.container, self.__class__):
+            return self.container.project
+        return self.container
 
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
-        return self.profile.create_item_proxy(item=self)
+        return self.project.create_item_proxy(item=self)
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
-        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.profile.uuid)
+        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
 
     def __validate_title(self, value):
         return str(value) if value is not None else str()
