@@ -671,6 +671,8 @@ class ProjectsWidget(Widgets.CompositeWidgetBase):
     def __init__(self, ui: UserInterface.UserInterface, document_controller: "DocumentController.DocumentController"):
         super().__init__(ui.create_column_widget())
 
+        self.__document_controller = document_controller
+
         column = self.content_widget
 
         self.__document_model_counter = DocumentModelCounterDisplayItem(document_controller.document_model)
@@ -685,7 +687,7 @@ class ProjectsWidget(Widgets.CompositeWidgetBase):
         self.__projects_observer = None
         self.__projects_filtered = True
 
-        self.__set_filtering(document_controller, True)
+        self.__set_filtering(document_controller)
 
         projects_column = ui.create_column_widget()
         projects_column.add(self.__projects_list_widget)
@@ -697,7 +699,8 @@ class ProjectsWidget(Widgets.CompositeWidgetBase):
         filter_light_icon_data = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/filter3_icon_20.png"))
 
         def toggle_filtering() -> None:
-            self.__set_filtering(document_controller, not self.__projects_filtered)
+            self.__projects_filtered = not self.__projects_filtered
+            self.__set_filtering(document_controller)
             bitmap_button_canvas_item.set_rgba_bitmap_data(filter_dark_icon_data if self.__projects_filtered else filter_light_icon_data)
 
         filter_button_widget = ui.create_canvas_widget(properties={"height": 20, "width": 20})
@@ -765,14 +768,16 @@ class ProjectsWidget(Widgets.CompositeWidgetBase):
         # for testing
         self._project_selection = project_selection
 
-    def __set_filtering(self, document_controller: "DocumentController.DocumentController", enabled: bool) -> None:
+    def __set_filtering(self, document_controller: "DocumentController.DocumentController") -> None:
         if self.__projects_observer:
             self.__projects_observer.close()
+        # build an observer for the project property of project references and call projects changed upon changes.
+        # ideally we could pass project references having non-None projects, but there is currently no way to
+        # rebuild the project references when the state of the project property changes.
         oo = Observer.ObserverBuilder()
         oo.source(document_controller.document_model).prop("profile").ordered_sequence_from_array(
-            "project_references").filter(lambda pr: pr.project or not enabled).collect_list().action_fn(self.__projects_changed)
+            "project_references").map(oo.x.prop("project")).collect_list().action_fn(self.__projects_changed)
         self.__projects_observer = oo.make_observable()
-        self.__projects_filtered = enabled
 
     def close(self):
         self.__selected_project_references_changed_listener.close()
@@ -786,13 +791,14 @@ class ProjectsWidget(Widgets.CompositeWidgetBase):
         self.__project_counters.clear()
         self.__document_model_counter.close()
         self.__document_model_counter = None
+        self.__document_controller = None
         super().close()
 
     def __project_counters_changed(self) -> None:
         self.__projects_list_widget.items = [self.__document_model_counter] + self.__project_counters
 
     def __projects_changed(self, item: Observer.ItemValue) -> None:
-        project_references = typing.cast(typing.Sequence[Profile.ProjectReference], item)
+        project_references = [pr for pr in self.__document_controller.document_model.profile.project_references if pr.project or not self.__projects_filtered]
         for project_counter in self.__project_counters:
             project_counter.close()
         self.__project_counters.clear()

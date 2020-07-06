@@ -1108,10 +1108,10 @@ class TestDocumentControllerClass(unittest.TestCase):
         # is removed but the index of the item is still valid in the new list.
         with create_memory_profile_context() as profile_context:
             profile = profile_context.create_profile()
-            profile.add_project_memory()
-            profile.add_project_memory()
             document_model = DocumentModel.DocumentModel(profile=profile)
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            profile.set_project_reference_active(profile.add_project_memory(), True)
+            profile.set_project_reference_active(profile.add_project_memory(), True)
             with contextlib.closing(document_controller):
                 project_panel = document_controller.find_dock_panel("project-panel")
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
