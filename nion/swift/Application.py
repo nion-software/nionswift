@@ -212,7 +212,7 @@ class Application(UIApplication.BaseApplication):
         cache_path = profile_path.parent / pathlib.Path(profile_path.stem + " Cache").with_suffix(".nscache")
         logging.getLogger("loader").info(f"Using cache {cache_path}")
         storage_cache = Cache.DbStorageCache(cache_path)
-        return Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False), create_new_profile
+        return Profile.Profile(storage_system=storage_system, storage_cache=storage_cache), create_new_profile
 
     def _window_did_close(self, window: UIWindow.Window) -> None:
         # this will be called for _all_ windows, so check if the window is a document window
