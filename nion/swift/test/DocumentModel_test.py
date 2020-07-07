@@ -2248,6 +2248,17 @@ class TestDocumentModelClass(unittest.TestCase):
                 data_item_reference = document_model.get_data_item_reference("abc")
                 self.assertEqual(document_model.data_items[0], data_item_reference.data_item)
 
+    def test_data_item_reference_gets_connected_when_referenced_before_setting(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                document_model.get_data_item_reference("abc")
+                data_item = DataItem.DataItem(numpy.ones((2, 2)))
+                document_model.append_data_item(data_item)
+                document_model._update_data_item_reference("abc", data_item)
+                data_item_reference = document_model.get_data_item_reference("abc")
+                self.assertEqual(document_model.data_items[0], data_item_reference.data_item)
+
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)

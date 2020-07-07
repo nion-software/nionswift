@@ -677,7 +677,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # update the data item references
         data_item_references = self._project.data_item_references
         for key, data_item_specifier in data_item_references.items():
-            self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self._project, Persistence.PersistentObjectSpecifier.read(data_item_specifier)))
+            persistent_object_specifier = Persistence.PersistentObjectSpecifier.read(data_item_specifier)
+            if key in self.__data_item_references:
+                self.__data_item_references[key].set_data_item_specifier(self._project, persistent_object_specifier)
+            self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self._project, persistent_object_specifier))
 
     def __prune(self):
         self._project.prune()
@@ -1647,6 +1650,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         def close(self) -> None:
             self.__data_item_proxy.close()
             self.__data_item_proxy = None
+
+        def set_data_item_specifier(self, project: Project.Project, data_item_specifier: Persistence.PersistentObjectSpecifier) -> None:
+            self.__stop()  # data item is changing; close existing one.
+            self.__data_item_proxy.close()
+            self.__data_item_proxy = project.create_item_proxy(item_specifier=data_item_specifier)
 
         @property
         def __data_item(self) -> typing.Optional[DataItem.DataItem]:
