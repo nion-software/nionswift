@@ -1,5 +1,4 @@
 # standard libraries
-import contextlib
 import copy
 import logging
 import math
@@ -10,14 +9,15 @@ import numpy
 
 # local libraries
 from nion.swift.model import DataItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.test import TestContext
+
 
 class TestRegionClass(unittest.TestCase):
 
     def test_changing_point_region_updates_drawn_graphic(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -29,8 +29,8 @@ class TestRegionClass(unittest.TestCase):
             self.assertEqual(point_region.position, drawn_graphic.position)
 
     def test_changing_drawn_graphic_updates_point_region(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -42,8 +42,8 @@ class TestRegionClass(unittest.TestCase):
             self.assertEqual(point_region.position, drawn_graphic.position)
 
     def test_changing_region_properties_change_drawn_graphic_properties(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -81,8 +81,8 @@ class TestRegionClass(unittest.TestCase):
         self.assertIsNone(region_copy.label)
 
     def test_removing_region_from_data_source_closes_it(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -93,8 +93,8 @@ class TestRegionClass(unittest.TestCase):
             self.assertTrue(point_region._closed)
 
     def test_removing_data_item_closes_point_region(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)

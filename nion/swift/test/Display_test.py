@@ -1,8 +1,6 @@
 # standard libraries
 import contextlib
 import copy
-import functools
-import json
 import math
 import unittest
 
@@ -13,12 +11,11 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import Application
-from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift.model import DataItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
+from nion.swift.test import TestContext
 from nion.ui import TestUI
 
 
@@ -34,8 +31,8 @@ class TestDisplayClass(unittest.TestCase):
         pass
 
     def test_setting_inverted_display_limits_reverses_them(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -46,8 +43,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertIsNone(display_data_channel.display_limits)
 
     def test_setting_partial_display_limits_works(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -66,8 +63,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertIsNone(display_data_channel.display_limits)
 
     def test_display_range_with_partial_display_limits_is_complete(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.float64))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -83,24 +80,24 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_range, (2.0, 3.0))
 
     def test_display_produces_valid_preview_when_viewing_3d_data_set(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             self.assertIsNotNone(display_item.display_data_channels[0].get_calculated_display_values(True).display_data_and_metadata)
 
     def test_preview_2d_shape_of_3d_data_set_has_correct_dimensions(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((16, 16, 64), numpy.float64))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             self.assertEqual(display_item.display_data_channels[0].display_data_shape, (16, 16))
 
     def test_display_data_of_3d_data_set_has_correct_shape_and_calibrations(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             intensity_calibration = Calibration.Calibration(units="I")
             dim0_calibration = Calibration.Calibration(units="A")
             dim1_calibration = Calibration.Calibration(units="B")
@@ -117,8 +114,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_and_metadata.dimensional_calibrations[1], dim1_calibration)
 
     def test_changing_data_updates_display_range(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             irow, icol = numpy.ogrid[0:16, 0:16]
             data_item = DataItem.DataItem(icol)
             document_model.append_data_item(data_item)
@@ -131,8 +128,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.get_calculated_display_values(True).data_range, (4, 11))
 
     def test_changing_sequence_index_updates_display_range(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.zeros((3, 8, 8))
             data[1, ...] = 1
             data[2, ...] = 2
@@ -148,8 +145,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.get_calculated_display_values(True).data_range, (1, 1))
 
     def test_changing_data_notifies_data_and_display_range_change(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # this is used to update the inspector
             irow, icol = numpy.ogrid[0:16, 0:16]
             data_item = DataItem.DataItem(icol)
@@ -173,8 +170,8 @@ class TestDisplayClass(unittest.TestCase):
                 self.assertEqual(o.display_range, (4, 11))
 
     def test_data_item_copy_initialized_display_data_range(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             source_data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))
             data_item = copy.deepcopy(source_data_item)
             document_model.append_data_item(data_item)
@@ -182,8 +179,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertIsNotNone(display_item.display_data_channels[0].get_calculated_display_values(True).data_range)
 
     def test_data_item_setting_slice_width_validates_when_invalid(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((4, 4, 16), numpy.float64))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -197,8 +194,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.slice_width, 16)
 
     def test_data_item_setting_slice_center_validates_when_invalid(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((4, 4, 16), numpy.float64))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -221,9 +218,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.slice_center, 12)
 
     def test_data_item_setting_slice_validates_when_data_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.random.randn(4, 4, 12)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -243,9 +240,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.slice_width, 2)
 
     def test_setting_slice_interval_scales_to_correct_dimension(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.random.randn(4, 4, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -258,9 +255,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertTrue(19 <= display_data_channel.slice_width <= 21)
 
     def test_changing_slice_width_updates_data_range(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.zeros((8, 8, 4), numpy.uint32)
             for i in range(4):
                 d[..., i] = i
@@ -274,9 +271,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.get_calculated_display_values(True).data_range, (6, 6))
 
     def test_display_data_is_scalar_for_1d_complex(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.ones((16,), numpy.complex128)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -284,9 +281,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
 
     def test_display_data_is_scalar_for_2d_complex(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.ones((16, 16), numpy.complex128)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -294,9 +291,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
 
     def test_display_data_is_rgba_for_2d_rgba(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.ones((16, 16, 4), numpy.uint8)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -306,9 +303,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape[-1], 4)
 
     def test_create_rgba_sequence_should_work(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data = (numpy.random.rand(4, 64, 64, 3) * 255).astype(numpy.uint8)
             data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(data, data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)))
             document_model.append_data_item(data_item)
@@ -318,9 +315,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape[-1], 3)
 
     def test_display_data_is_2d_for_3d(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.ones((16, 16, 8), numpy.float64)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -330,9 +327,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
 
     def test_display_data_is_2d_scalar_for_3d_complex(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.ones((16, 16, 8), numpy.complex128)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -342,9 +339,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
 
     def test_image_with_no_data_displays_gracefully(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -355,8 +352,8 @@ class TestDisplayClass(unittest.TestCase):
             display_panel.display_canvas_item.layout_immediate((640, 480))
 
     def test_setting_color_map_id_to_none_works(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float64))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -366,8 +363,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertIsNotNone(display_data_channel.color_map_data)
 
     def test_setting_color_map_id_to_valid_value_works(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float64))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -377,8 +374,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertIsNotNone(display_data_channel.color_map_data)
 
     def test_setting_color_map_id_to_invalid_value_works(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float64))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -388,8 +385,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertIsNotNone(display_data_channel.color_map_data)
 
     def test_reset_display_limits_resets_display_limits_to_none(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -402,8 +399,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertIsNotNone(preview)
 
     def test_display_rgba_for_various_data_types_is_valid(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             dtypes = (numpy.uint16, numpy.int16, numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, numpy.float32, numpy.float64, numpy.complex64, numpy.complex128)
             for dtype in dtypes:
                 data_item = DataItem.DataItem(numpy.ones((16, 16), dtype))
@@ -416,8 +413,8 @@ class TestDisplayClass(unittest.TestCase):
                     self.assertTrue(display_rgba.dtype == numpy.uint32)
 
     def test_reset_display_limits_on_various_value_types_write_to_clean_json(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             dtypes = (numpy.float32, numpy.float64, numpy.complex64, numpy.complex128, numpy.int16, numpy.uint16, numpy.int32, numpy.uint32)
             for dtype in dtypes:
                 data_item = DataItem.DataItem(numpy.ones((16, 16), dtype))
@@ -427,8 +424,8 @@ class TestDisplayClass(unittest.TestCase):
                 Utility.clean_dict(data_item.properties)
 
     def test_reset_display_limits_on_complex_data_gives_reasonable_results(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.ones((16, 16), numpy.complex64)
             re, im = numpy.meshgrid(numpy.linspace(-0.8, 2.1, 16), numpy.linspace(-1.4, 1.4, 16))
             data[:, :] = re + 1j * im
@@ -444,8 +441,8 @@ class TestDisplayClass(unittest.TestCase):
                 display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data), display_range[1])
 
     def test_data_range_still_valid_after_reset_display_limits(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.ones((16, 16))
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -457,9 +454,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(data_range, display_data_channel.get_calculated_display_values(True).data_range)
 
     def test_auto_display_limits_works(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data = numpy.empty((100, 100))
             data[0:50, :] = 1
             data[50:100, :] = 2
@@ -477,8 +474,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertAlmostEqual(high, 3.0)
 
     def test_display_range_is_recalculated_with_new_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -490,8 +487,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_range, (1, 16))
 
     def test_display_range_is_correct_on_complex_data_display_as_absolute(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             complex_data = numpy.zeros((2, 2), numpy.complex64)
             complex_data[0, 0] = complex(4, 3)
             data_item = DataItem.DataItem(complex_data)
@@ -502,8 +499,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_range, (0, 5))
 
     def test_display_range_is_correct_on_complex_data_display_as_log_absolute(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             complex_data = numpy.array(range(10)).astype(numpy.complex)
             data_item = DataItem.DataItem(complex_data)
             document_model.append_data_item(data_item)
@@ -514,9 +511,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertAlmostEqual(display_data_channel.get_calculated_display_values(True).display_range[1], math.log(9))
 
     def test_display_data_is_2d_for_2d_sequence(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((4, 16, 16), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
             data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
             document_model.append_data_item(data_item)
@@ -528,9 +525,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.display_data_shape, (16, 16))
 
     def test_display_data_is_2d_for_2d_collection_with_2d_datum(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((2, 2, 8, 8), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
             data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
             document_model.append_data_item(data_item)
@@ -542,9 +539,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.display_data_shape, (8, 8))
 
     def test_display_data_is_2d_for_sequence_of_2d_collection_with_2d_datum(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((3, 2, 2, 8, 8), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 2, 2))
             data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
             document_model.append_data_item(data_item)
@@ -556,9 +553,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.display_data_shape, (8, 8))
 
     def test_display_data_is_2d_for_collection_of_1d_datum(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((2, 8), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 1))
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
@@ -569,9 +566,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.display_data_shape, (2, 8))
 
     def test_sequence_index_validates_when_data_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.random.randn(4, 3, 3)
             data_and_metadata = DataAndMetadata.new_data_and_metadata(d, data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
             data_item = DataItem.new_data_item(data_and_metadata)
@@ -588,9 +585,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(display_data2, d2[1, ...]))
 
     def test_collection_index_validates_when_data_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.random.randn(4, 4, 3, 3)
             data_and_metadata = DataAndMetadata.new_data_and_metadata(d, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
             data_item = DataItem.new_data_item(data_and_metadata)
@@ -607,9 +604,9 @@ class TestDisplayClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(display_data2, d2[1, 1, ...]))
 
     def test_exception_during_calculate_display_values_recovers_gracefully(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.random.randn(4, 4, 3, 3)
             data_and_metadata = DataAndMetadata.new_data_and_metadata(d, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
             data_item = DataItem.new_data_item(data_and_metadata)

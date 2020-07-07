@@ -13,13 +13,12 @@ import numpy
 # local imports
 from nion.data import Calibration
 from nion.swift import Application
-from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift import Inspector
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.test import TestContext
 from nion.ui import TestUI
 from nion.utils import Binding
 from nion.utils import Geometry
@@ -38,9 +37,9 @@ class TestInspectorClass(unittest.TestCase):
         pass
 
     def test_info_inspector_section_follows_title_change(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             data_item.title = "Title1"
             document_model.append_data_item(data_item)
@@ -57,9 +56,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(inspector_section.info_title_label.text, "Title2")
 
     def test_display_item_title_follows_title_change_in_inspector(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             data_item.title = "Title1"
             document_model.append_data_item(data_item)
@@ -70,9 +69,9 @@ class TestInspectorClass(unittest.TestCase):
                 self.assertEqual("Title2", display_item.title)
 
     def test_display_limits_inspector_should_bind_to_display_without_errors(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -82,9 +81,9 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.notify_focused_display_changed(None)
 
     def test_calibration_value_and_size_float_to_string_converter_works_with_display(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -94,9 +93,9 @@ class TestInspectorClass(unittest.TestCase):
             converter.convert(0.5)
 
     def test_adjusting_rectangle_width_should_keep_center_constant(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             rect_graphic = Graphics.RectangleGraphic()
             rect_graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
             center = rect_graphic.center
@@ -112,9 +111,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(center, rect_graphic.center)
 
     def test_calibration_inspector_section_binds(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -138,9 +137,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(units_field.text, u"mmm")
 
     def test_calibration_inspector_section_follows_spatial_calibration_change(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -159,9 +158,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(units_field.text, "mmm")
 
     def test_calibration_inspector_handles_deleted_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -175,9 +174,9 @@ class TestInspectorClass(unittest.TestCase):
                 document_controller.delete_display_items([display_item])
 
     def test_graphic_inspector_section_follows_spatial_calibration_change(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -196,9 +195,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(x_widget.text, "128.0 mmm")
 
     def test_changing_calibration_style_to_calibrated_displays_correct_values(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((100, 100), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -223,9 +222,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(point_graphic.position, (0.6, 0.45))
 
     def test_graphic_inspector_section_displays_sensible_units(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -255,9 +254,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(x_widget.text, "-18.10 mm")
 
     def test_graphic_inspector_display_calibrated_length_units(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((200, 100), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -277,9 +276,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(inspector_panel.widget.find_widget_by_id("length").text, "223.607 mm")  # sqrt(100*100 + 200*200)
 
     def test_graphic_inspector_sets_calibrated_length_units(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((200, 100), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -304,9 +303,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertAlmostEqual(line_region.end[1], 1.0, 3)
 
     def test_line_profile_inspector_display_calibrated_width_units(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((200, 100), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -327,9 +326,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(inspector_panel.widget.find_widget_by_id("width").text, "10.0 mm")
 
     def test_float_to_string_converter_strips_units(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -358,9 +357,9 @@ class TestInspectorClass(unittest.TestCase):
                 pass
 
     def test_inspector_handles_sliced_3d_data(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((32, 32, 16)))
             document_model.append_data_item(data_item)
@@ -378,9 +377,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
 
     def test_line_plot_with_one_data_item_displays_inspector(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((32, )))
             document_model.append_data_item(data_item)
@@ -393,9 +392,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertIn(Inspector.LinePlotDisplayInspectorSection, (type(i) for i in inspector_panel._get_inspector_sections()))
 
     def test_line_plot_with_two_data_items_displays_inspector(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((32, )))
             data_item2 = DataItem.DataItem(numpy.zeros((32, )))
@@ -411,9 +410,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertIn(Inspector.LinePlotDisplayInspectorSection, inspector_sections)
 
     def test_line_plot_with_data_item_with_two_rows_adds_display_layer_for_each_row(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((2, 32)))
             document_model.append_data_item(data_item)
@@ -428,9 +427,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(1, len(display_item.display_layers))
 
     def test_line_plot_with_data_item_with_three_rows_adds_display_layer_for_each_row(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((3, 32)))
             document_model.append_data_item(data_item)
@@ -443,9 +442,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(3, len({display_layer["fill_color"] for display_layer in display_item.display_layers}))
 
     def test_line_plot_with_one_data_items_and_two_rows_and_two_layers_displays_inspector(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((2, 32)))
             document_model.append_data_item(data_item)
@@ -458,9 +457,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertIn(Inspector.LinePlotDisplayInspectorSection, (type(i) for i in inspector_panel._get_inspector_sections()))
 
     def test_line_plot_with_two_data_items_interval_inspector(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((32, )))
             data_item2 = DataItem.DataItem(numpy.zeros((32, )))
@@ -478,9 +477,9 @@ class TestInspectorClass(unittest.TestCase):
             line_plot_canvas_item._mouse_dragged(0.3, 0.5)
 
     def test_slice_inspector_section_uses_correct_dimension(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((4, 4, 32), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -497,9 +496,9 @@ class TestInspectorClass(unittest.TestCase):
                 self.assertEqual(slice_inspector_section._slice_width_line_edit_widget.text, "4")
 
     def test_image_display_inspector_shows_empty_fields_for_none_display_limits(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -532,9 +531,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0000")
 
     def test_image_display_inspector_sets_display_limits_when_text_is_changed(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -556,9 +555,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(display_data_channel.display_limits, None)
 
     def test_inspector_handles_deleted_data(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((32, 32)))
             document_model.append_data_item(data_item)
             document_controller.periodic()
@@ -570,9 +569,9 @@ class TestInspectorClass(unittest.TestCase):
         # if the inspector doesn't watch for the item being deleted, and the inspector's update display
         # doesn't get called during periodic before the item is deleted (which will naturally happen sometimes),
         # then there will be a pending call using a data item that doesn't exist.
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
             document_controller.show_display_item(document_model.get_display_item_for_data_item(data_item))
@@ -581,9 +580,9 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
 
     def test_inspector_handles_empty_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -596,9 +595,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
 
     def test_inspector_handles_all_graphics_on_1d_data(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((1024, )))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -618,9 +617,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
 
     def test_inspector_handles_all_graphics_on_2d_data(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((256, 256)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -640,9 +639,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
 
     def test_inspector_handles_all_graphics_on_3d_data(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((5, 5, 5)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -662,9 +661,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
 
     def test_updating_display_limits_on_fft_does_not_enter_update_cycle(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.random.randn(16, 16)
             d = (d - numpy.min(d)) / (numpy.amax(d) - numpy.amin(d)).astype(numpy.complex128)
             data_item = DataItem.DataItem(d)
@@ -685,9 +684,9 @@ class TestInspectorClass(unittest.TestCase):
             property_changed_listener.close()
 
     def test_rectangle_dimensions_show_calibrated_units(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.full((256, 256, 37), 0, dtype=numpy.uint32))  # z, y, x
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -703,9 +702,9 @@ class TestInspectorClass(unittest.TestCase):
                 self.assertEqual(graphic_widget.find_widget_by_id("height").text, "128.00 mm")  # height
 
     def test_line_dimensions_show_calibrated_units(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.full((100, 100, 37), 0, dtype=numpy.uint32))  # z, y, x
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -724,9 +723,9 @@ class TestInspectorClass(unittest.TestCase):
                 self.assertEqual(graphic_widget.find_widget_by_id("y1").text, "40.00 mm")  # y1
 
     def test_point_dimensions_show_calibrated_units(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.full((256, 256, 37), 0, dtype=numpy.uint32))  # z, y, x
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -740,9 +739,9 @@ class TestInspectorClass(unittest.TestCase):
                 self.assertEqual(graphic_widget.find_widget_by_id("y").text, "64.00 mm")  # y
 
     def test_point_dimensions_show_calibrated_units_on_4d(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.full((16, 16, 24, 24), 0, dtype=numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -758,9 +757,9 @@ class TestInspectorClass(unittest.TestCase):
                 self.assertEqual("24.0 nm", graphic_widget.find_widget_by_id("x").text)  # x
 
     def test_pixel_center_rounding_correct_on_odd_dimensioned_image(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.full((139, 89), 0, dtype=numpy.uint32))  # y, x
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -779,9 +778,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(inspector_panel.widget.find_widget_by_id("y").text, "0.0")  # y
 
     def test_editing_pixel_width_on_rectangle_adjusts_rectangle_properly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.full((100, 50), 0, dtype=numpy.uint32))  # y, x
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -806,9 +805,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(inspector_panel.widget.find_widget_by_id("height").text, "100.0")  # height
 
     def test_interval_dimensions_show_calibrated_units_on_single_spectrum(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.full((100, ), 0, dtype=numpy.uint32))  # time, energy
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -824,9 +823,9 @@ class TestInspectorClass(unittest.TestCase):
                 self.assertEqual("80.0 eV", graphic_widget.find_widget_by_id("end").text)  # energy
 
     def test_interval_dimensions_show_calibrated_units_on_sequence_of_spectra(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.full((3, 100), 0, dtype=numpy.uint32))  # time, energy
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -843,9 +842,9 @@ class TestInspectorClass(unittest.TestCase):
                 self.assertEqual("80.0 eV", graphic_widget.find_widget_by_id("end").text)  # energy
 
     def test_interval_dimensions_show_calibrated_units_on_composite_line_plot(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.full((100, ), 0, dtype=numpy.uint32))  # time, energy
             data_item2 = DataItem.DataItem(numpy.full((100, ), 1, dtype=numpy.uint32))  # time, energy
             document_model.append_data_item(data_item)
@@ -865,9 +864,9 @@ class TestInspectorClass(unittest.TestCase):
                 self.assertEqual("80.0 eV", graphic_widget.find_widget_by_id("end").text)  # energy
 
     def test_calibration_inspector_updates_for_when_data_shape_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((10, 10, 10)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -881,9 +880,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertNotIn(Inspector.SliceInspectorSection, (type(i) for i in inspector_panel._get_inspector_sections()))
 
     def test_calibration_inspector_updates_for_when_empty_data_item_displayed_as_line_plot_gets_data(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -896,9 +895,9 @@ class TestInspectorClass(unittest.TestCase):
             data_item.set_data(numpy.zeros((10, )))
 
     def test_inspector_updates_for_new_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             # configure workspace
             d = {"type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [
                 {"type": "image", "uuid": "0569ca31-afd7-48bd-ad54-5e2bb9f21102", "identifier": "a", "selected": True},
@@ -927,9 +926,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(expected_inspector_section_count, actual_inspector_section_count)
 
     def test_data_item_with_no_data_displays_as_line_plot(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
@@ -941,9 +940,9 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
 
     def test_inspector_updates_when_graphic_associated_with_pick_is_deleted(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((16, 16, 64)))
             document_model.append_data_item(data_item)
@@ -969,9 +968,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(expected_inspector_section_count, actual_inspector_section_count)
 
     def test_spot_graphic_inspector_updates_without_exception(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((16, 16)))
             document_model.append_data_item(data_item)
@@ -985,9 +984,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertIsNotNone(inspector_panel.column.find_widget_by_id("spot_inspector"))
 
     def test_band_pass_graphic_inspector_updates_without_exception(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((16, 16)))
             document_model.append_data_item(data_item)
@@ -1001,9 +1000,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertIsNotNone(inspector_panel.column.find_widget_by_id("ring_inspector"))
 
     def test_wedge_graphic_inspector_updates_without_exception(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((16, 16)))
             document_model.append_data_item(data_item)
@@ -1018,9 +1017,9 @@ class TestInspectorClass(unittest.TestCase):
 
     def test_graphic_inspector_updates_for_when_data_shape_changes(self):
         # change from 2d item with a rectangle to a 1d item. what happens?
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((16, 16)))
             document_model.append_data_item(data_item)
@@ -1037,9 +1036,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertNotIn(Inspector.LinePlotDisplayInspectorSection, (type(i) for i in inspector_panel._get_inspector_sections()))
 
     def test_calibration_inspector_shows_correct_labels_for_1d(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, )))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1053,9 +1052,9 @@ class TestInspectorClass(unittest.TestCase):
                 self.assertEqual(label.text, "Channel")
 
     def test_calibration_inspector_shows_correct_labels_for_2d(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1068,9 +1067,9 @@ class TestInspectorClass(unittest.TestCase):
                 self.assertEqual(content_section.children[1].find_widget_by_id("label").text, "X")
 
     def test_calibration_inspector_shows_correct_labels_for_3d(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, 8, 16)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1084,9 +1083,9 @@ class TestInspectorClass(unittest.TestCase):
                 self.assertEqual(content_section.children[2].find_widget_by_id("label").text, "2")
 
     def test_computation_inspector_updates_when_computation_variable_type_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
             computation = document_model.create_computation()
@@ -1108,9 +1107,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(x.value, 1.1)
 
     def test_computation_inspector_handles_computation_variable_checkbox_and_undo_redo_cycle(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1133,9 +1132,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertTrue(computation.get_input_value("do_transpose"))
 
     def test_computation_inspector_handles_computation_variable_slider_and_undo_redo_cycle(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1158,9 +1157,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(0, computation.get_input_value("sigma"))
 
     def test_computation_inspector_handles_computation_variable_int_and_undo_redo_cycle(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1183,9 +1182,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(100, computation.get_input_value("bins"))
 
     def test_computation_inspector_handles_computation_variable_specifier_and_undo_redo_cycle(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1205,9 +1204,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertIsNone(computation.get_input("src"))
 
     def test_change_property_command_multiple_undo(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             document_model.append_data_item(data_item)
             session_metadata = data_item.session_metadata
@@ -1240,9 +1239,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual({"site": "SS", "instrument": "II", "task": "TT"}, data_item.session_metadata)
 
     def test_change_property_command_with_different_properties_multiple_undo(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             document_model.append_data_item(data_item)
             command = Inspector.ChangePropertyCommand(document_model, data_item, "title", "T")
@@ -1258,9 +1257,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(0, document_controller._undo_stack._undo_count)
 
     def test_change_intensity_calibration_command(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             document_model.append_data_item(data_item)
             command = Inspector.ChangeIntensityCalibrationCommand(document_model, data_item, Calibration.Calibration(scale=3))
@@ -1273,9 +1272,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(Calibration.Calibration(scale=3), data_item.intensity_calibration)
 
     def test_change_dimensional_calibrations_command(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             document_model.append_data_item(data_item)
             command = Inspector.ChangeDimensionalCalibrationsCommand(document_model, data_item, [Calibration.Calibration(scale=2), Calibration.Calibration(scale=3)])
@@ -1288,9 +1287,9 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual([Calibration.Calibration(scale=2), Calibration.Calibration(scale=3)], data_item.dimensional_calibrations)
 
     def test_change_display_type_command(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((2, 256)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)

@@ -1,5 +1,4 @@
 # standard libraries
-import contextlib
 import logging
 import unittest
 
@@ -8,10 +7,9 @@ import numpy
 
 # local libraries
 from nion.swift import Application
-from nion.swift import DocumentController
 from nion.swift import FilterPanel
 from nion.swift.model import DataItem
-from nion.swift.model import DocumentModel
+from nion.swift.test import TestContext
 from nion.ui import TestUI
 
 
@@ -55,9 +53,9 @@ class TestFilterPanelClass(unittest.TestCase):
         self.assertEqual(self.t.children[0].key, "1969")
 
     def test_setting_text_filter_updates_filter_display_items(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item1 = DataItem.DataItem(numpy.random.randn(4, 4))
             data_item1.title = "abc"
             document_model.append_data_item(data_item1)

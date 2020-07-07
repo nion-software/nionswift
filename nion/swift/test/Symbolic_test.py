@@ -23,6 +23,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
+from nion.swift.test import TestContext
 from nion.ui import TestUI
 from nion.utils import Geometry
 
@@ -39,8 +40,8 @@ class TestSymbolicClass(unittest.TestCase):
         pass
 
     def test_unary_inversion_returns_inverted_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.zeros((8, 8), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
@@ -52,8 +53,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, -d)
 
     def test_binary_addition_returns_added_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d1 = numpy.zeros((8, 8), dtype=numpy.uint32)
             d1[:] = random.randint(1, 100)
             data_item1 = DataItem.DataItem(d1)
@@ -70,8 +71,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, d1 + d2)
 
     def test_binary_multiplication_with_scalar_returns_multiplied_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.zeros((8, 8), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
@@ -88,8 +89,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data2, d * 5)
 
     def test_subtract_min_returns_subtracted_min(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.zeros((8, 8), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
@@ -101,8 +102,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, d - numpy.amin(d))
 
     def test_ability_to_take_slice(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.zeros((4, 8, 8), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
@@ -114,8 +115,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, d[:,4,4])
 
     def test_ability_to_take_slice_on_1d_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(8)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -126,8 +127,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, d[2:6])
 
     def test_slice_with_empty_dimension_produces_error(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.zeros((4, 8, 8), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
@@ -137,8 +138,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertIsNone(DocumentModel.evaluate_data(computation))
 
     def test_ability_to_take_slice_with_ellipses_produces_correct_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.zeros((4, 8, 8), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
@@ -150,8 +151,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, d[2, ...])
 
     def test_ability_to_take_slice_with_ellipses_produces_correct_calibration(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.zeros((4, 8, 8), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
@@ -166,8 +167,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual("nm", data_and_metadata.dimensional_calibrations[1].units)
 
     def test_ability_to_take_slice_with_newaxis(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.zeros((8, 8), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
@@ -179,8 +180,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, d[numpy.newaxis, ...])
 
     def test_ability_to_take_1d_slice_with_newaxis(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.zeros((8,), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
@@ -192,8 +193,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, d[..., numpy.newaxis])
 
     def test_slice_sum_sums_correct_slices(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(4, 4, 16)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -204,8 +205,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, numpy.sum(d[..., 1:7], -1))
 
     def test_reshape_1d_to_2d_produces_correct_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(4)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -226,8 +227,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, numpy.reshape(d, (-1, 4)))
 
     def test_reshape_1d_to_2d_preserves_calibration(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(4)
             data_item = DataItem.DataItem(d)
             data_item.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m")])
@@ -246,8 +247,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual("m", data_and_metadata.dimensional_calibrations[1].units)
 
     def test_reshape_2d_n_x_1_to_1d_preserves_calibration(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(4, 1)
             data_item = DataItem.DataItem(d)
             data_item.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration()])
@@ -260,8 +261,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual("m", data_and_metadata.dimensional_calibrations[0].units)
 
     def test_reshape_to_match_another_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(4)
             d2 = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(d)
@@ -276,8 +277,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, numpy.reshape(d, (2, 2)))
 
     def test_concatenate_two_images(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(4, 4)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -288,8 +289,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, numpy.concatenate((d[0:2, 0:2], d[2:4, 2:4])))
 
     def test_concatenate_keeps_calibrations_in_non_axis_dimensions(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(4, 4)
             data_item = DataItem.DataItem(d)
             data_item.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
@@ -304,8 +305,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual("", data_and_metadata.dimensional_calibrations[1].units)
 
     def test_concatenate_along_alternate_axis_images(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(4)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -316,8 +317,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, numpy.concatenate((numpy.reshape(d, (1, -1)), numpy.reshape(d, (1, -1))), 0))
 
     def test_concatenate_three_images_along_second_axis(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(4, 4)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -328,8 +329,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, numpy.concatenate((d[0:2, 0:2], d[1:3, 1:3], d[2:4, 2:4]), 1))
 
     def test_ability_to_write_read_basic_nodes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
             src_data[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(src_data)
@@ -350,9 +351,9 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, data2)
 
     def test_make_operation_works_without_exception_and_produces_correct_data(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.zeros((8, 8), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
@@ -364,8 +365,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, -d / numpy.average(d) * 5)
 
     def test_fft_returns_complex_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(64, 64)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -376,8 +377,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, scipy.fftpack.fftshift(numpy.fft.fft2(d) * 1.0 / numpy.sqrt(d.shape[1] * d.shape[0])))
 
     def test_gaussian_blur_handles_scalar_argument(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(64, 64)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -388,8 +389,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, scipy.ndimage.gaussian_filter(d, sigma=4.0))
 
     def test_transpose_flip_handles_args(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(30, 60)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -400,8 +401,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, numpy.flipud(d))
 
     def test_crop_handles_args(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(64, 64)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -418,8 +419,8 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, d[9:42, 19:45])
 
     def test_evaluate_computation_gives_correct_value(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -430,8 +431,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data_and_metadata.data, -data))
 
     def test_computation_fires_needs_update_event_when_data_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -448,8 +449,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(needs_update_ref[0])
 
     def test_computation_fires_needs_update_event_when_display_data_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = ((numpy.random.randn(2, 2, 2, 2) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -468,8 +469,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data[1, 1, ...], computed_data_item.data))
 
     def test_computation_fires_needs_update_event_when_metadata_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -487,8 +488,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(needs_update_ref[0])
 
     def test_computation_does_not_update_when_graphic_changes_on_source(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -505,8 +506,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertFalse(needs_update_ref[0])
 
     def test_computation_fires_needs_update_event_when_object_property(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.random.randn(64, 64)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -528,8 +529,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(needs_update_ref[0])
 
     def test_computation_fires_needs_update_event_when_variable_or_object_added(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.random.randn(64, 64)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -550,9 +551,9 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(needs_update_ref[0])
 
     def test_computation_handles_data_lookups(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = self.app.create_document_controller(document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            document_controller = self.app.create_document_controller(document_model, workspace_id="library")
             d = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -561,9 +562,9 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data_and_metadata.data, -d)
 
     def test_computation_handles_region_lookups(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = self.app.create_document_controller(document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            document_controller = self.app.create_document_controller(document_model, workspace_id="library")
             d = numpy.random.randn(100, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -579,9 +580,9 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data_and_metadata.data, d[20:80, 30:70])
 
     def test_computation_does_not_copy_metadata_during_computation(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.zeros((8, 8), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
@@ -598,9 +599,9 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(data_and_metadata.dimensional_calibrations, data_item.dimensional_calibrations)
 
     def test_remove_data_item_with_computation_succeeds(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.ones((8, 8), dtype=numpy.uint32)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -610,8 +611,8 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.remove_data_item(new_data_item)
 
     def test_evaluate_corrupt_computation_gives_sensible_response(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -621,8 +622,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertIsNone(data_and_metadata)
 
     def test_evaluate_computation_with_invalid_source_gives_sensible_response(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -632,9 +633,9 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertIsNone(data_and_metadata)
 
     def test_evaluate_computation_with_invalid_function_in_document_fails_cleanly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -643,8 +644,8 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
 
     def test_computation_changed_updates_evaluated_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -658,9 +659,9 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data_and_metadata.data, -data*2))
 
     def test_changing_computation_updates_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -673,8 +674,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computed_data_item.data, -data * 2))
 
     def test_unary_functions_return_correct_dimensions(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -685,8 +686,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(len(data_and_metadata.dimensional_calibrations), 2)
 
     def test_computation_stores_original_text(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -696,8 +697,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(computation.expression, data_expression)
 
     def test_computation_stores_error_and_original_text(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -710,8 +711,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(computation.expression, xdata_expression)
 
     def test_computation_reloads_missing_scalar_function(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
             src_data[:] = random.randint(0, 100)
             data_item = DataItem.DataItem(src_data)
@@ -725,8 +726,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertIsNone(DocumentModel.evaluate_data(computation2))
 
     def test_computation_can_extract_item_from_scalar_tuple(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = ((numpy.random.randn(4, 2) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -737,8 +738,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data_and_metadata.data, data + 6))
 
     def test_columns_and_rows_and_radius_functions_return_correct_values(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -750,8 +751,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data_and_metadata.data, icol + irow + numpy.sqrt(pow(icol, 2) + pow(irow, 2))))
 
     def test_copying_data_item_with_computation_copies_computation(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -767,8 +768,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(document_model.get_data_item_computation(computed_data_item).expression, document_model.get_data_item_computation(copied_data_item).expression)
 
     def test_changing_computation_source_data_updates_computation(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -786,8 +787,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computed_data_item.data, -data_item.data))
 
     def test_computation_is_live_after_copying_data_item_with_computation(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.int32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -805,8 +806,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(copied_data_item.data, -data_item.data))
 
     def test_computation_extracts_data_property_of_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -819,8 +820,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computed_data_item.data, data_item.data))
 
     def test_resample_produces_correct_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -833,8 +834,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computed_data_item.data, Image.scaled(data_item.data, (5, 4))))
 
     def test_resample_with_data_shape_produces_correct_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -851,8 +852,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computed_data_item.data, Image.scaled(data_item.data, (5, 4))))
 
     def test_computation_extracts_display_data_property_of_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -874,9 +875,9 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, data2)
 
     def test_evaluation_with_variable_produces_correct_data(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -888,9 +889,9 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(data, d + 5)
 
     def test_evaluation_with_two_variables_produces_correct_data(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -902,9 +903,9 @@ class TestSymbolicClass(unittest.TestCase):
             assert numpy.array_equal(DocumentModel.evaluate_data(computation).data, src_data)
 
     def test_changing_variable_value_updates_computation(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             src_data = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -921,9 +922,9 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computed_data_item.data, src_data + 8))
 
     def test_changing_region_property_updates_computation(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             src_data = numpy.random.randn(20, 20)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -945,9 +946,9 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computed_data_item.data, Core.function_line_profile(data_item.xdata, line_region.vector, 1.0).data))
 
     def test_changing_variable_name_has_no_effect_on_computation(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             src_data = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -964,8 +965,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computed_data_item.data, src_data + 5))
 
     def test_computation_with_variable_reloads(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1001,8 +1002,8 @@ class TestSymbolicClass(unittest.TestCase):
         variable.variable_type = "graphic"
 
     def test_computation_reparsing_keeps_variables(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1015,8 +1016,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(computation).data, src_data + 5))
 
     def test_computation_using_object_parses_and_evaluates(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1027,8 +1028,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(computation).data, src_data + 5))
 
     def test_computation_using_object_updates_when_data_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1050,8 +1051,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(read_computation).data, src_data2 + 5))
 
     def test_computation_using_object_updates_efficiently_when_region_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.abs(numpy.random.randn(12, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1076,8 +1077,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computed_data_item.data, src_data[0:6, 0:4]))
 
     def test_computation_updates_efficiently_when_variable_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.abs(numpy.random.randn(12, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1099,8 +1100,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(computation._evaluation_count_for_test - evaluation_count, 1)
 
     def test_computation_updates_efficiently_when_variable_added_or_removed(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.abs(numpy.random.randn(12, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1126,8 +1127,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(computation._evaluation_count_for_test - evaluation_count, 2)
 
     def test_computation_updates_efficiently_when_expression_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.abs(numpy.random.randn(12, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1150,8 +1151,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(computation._evaluation_count_for_test - evaluation_count, 1)
 
     def test_computation_with_object_writes_and_reads(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1164,8 +1165,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(read_computation.variables[0].specifier, a_specifier)
 
     def test_computation_with_object_reloads(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1185,8 +1186,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(computation2).data, src_data + 5))
 
     def test_computation_with_object_evaluates_correctly_after_changing_the_variable_name(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1200,8 +1201,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(computation).data, src_data + 5))
 
     def test_computation_with_object_evaluates_correctly_after_changing_the_specifier(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data1 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item1 = DataItem.DataItem(src_data1)
@@ -1218,8 +1219,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(computation).data, src_data2 + 1))
 
     def test_computation_fires_needs_update_event_when_specifier_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data1 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item1 = DataItem.DataItem(src_data1)
@@ -1239,8 +1240,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(needs_update_ref[0])
 
     def test_computation_in_document_recomputes_when_specifier_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data1 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item1 = DataItem.DataItem(src_data1)
@@ -1260,8 +1261,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computed_data_item.data, src_data2 + 1))
 
     def test_computation_in_document_is_still_live_when_region_specifier_uuid_str_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.abs(numpy.random.randn(10, 10)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1291,8 +1292,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computed_data_item.data, src_data[0:5, 0:5]))
 
     def test_computation_with_raw_reference_copies(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1307,8 +1308,8 @@ class TestSymbolicClass(unittest.TestCase):
             copy.deepcopy(computation)
 
     def test_evaluation_error_recovers_gracefully(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.abs(numpy.random.randn(12, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1328,8 +1329,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(len(computed_data_item.data.shape), 1)  # computed data
 
     def test_various_expressions_produces_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1361,8 +1362,8 @@ class TestSymbolicClass(unittest.TestCase):
                     self.assertTrue(numpy.array_equal(computed_data_item.data, data))
 
     def test_conversion_to_int(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.float64)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1387,8 +1388,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.int64)))
 
     def test_conversion_to_uint(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.float64)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1413,8 +1414,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.uint64)))
 
     def test_conversion_to_float(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.int32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1431,8 +1432,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.float64)))
 
     def test_conversion_to_complex(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.int32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1449,8 +1450,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.complex128)))
 
     def test_data_descriptor_is_maintained_during_evaluate(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data1 = ((numpy.abs(numpy.random.randn(10,)) + 1) * 10).astype(numpy.int32)
             data_item1 = DataItem.DataItem(src_data1)
             document_model.append_data_item(data_item1)
@@ -1467,19 +1468,19 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(data_and_metadata.datum_dimension_count, 1)
 
     def test_computation_evaluates_on_thread(self):
-        document_model = DocumentModel.DocumentModel()
-        # in order to make this test go fast, attach the call_soon event here
-        # and handle it, setting the continue event at the same time.
-        # this must go before the document controller is created since call_soon
-        # is a 'fire_any' style event, meaning that only the first handler takes
-        # it. we return False to let the document controller eventually handle it.
-        continue_event = threading.Event()
-        def do_call_soon():
-            continue_event.set()
-            return False
-        listener = document_model.call_soon_event.listen(do_call_soon)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            # in order to make this test go fast, attach the call_soon event here
+            # and handle it, setting the continue event at the same time.
+            # this must go before the document controller is created since call_soon
+            # is a 'fire_any' style event, meaning that only the first handler takes
+            # it. we return False to let the document controller eventually handle it.
+            continue_event = threading.Event()
+            def do_call_soon():
+                continue_event.set()
+                return False
+            listener = document_model.call_soon_event.listen(do_call_soon)
             src_data = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1496,9 +1497,9 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computed_data_item.data, -src_data))
 
     def test_computation_on_deleted_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             src_data = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1511,9 +1512,9 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
 
     def test_computation_updates_timezone(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             try:
                 src_data = numpy.random.randn(2, 2)
                 data_item = DataItem.DataItem(src_data)
@@ -1537,9 +1538,9 @@ class TestSymbolicClass(unittest.TestCase):
                 Utility.local_utcoffset_override = None
 
     def test_deleting_one_variable_on_bound_computation_rebinds_properly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             src_data = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
@@ -1562,19 +1563,19 @@ class TestSymbolicClass(unittest.TestCase):
 
     def test_computation_error_is_handled_in_main_thread(self):
         Symbolic.register_computation_type("compute_error", self.ComputeExecError)
-        document_model = DocumentModel.DocumentModel()
-        # in order to make this test go fast, attach the call_soon event here
-        # and handle it, setting the continue event at the same time.
-        # this must go before the document controller is created since call_soon
-        # is a 'fire_any' style event, meaning that only the first handler takes
-        # it. we return False to let the document controller eventually handle it.
-        continue_event = threading.Event()
-        def do_call_soon():
-            continue_event.set()
-            return False
-        listener = document_model.call_soon_event.listen(do_call_soon)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            # in order to make this test go fast, attach the call_soon event here
+            # and handle it, setting the continue event at the same time.
+            # this must go before the document controller is created since call_soon
+            # is a 'fire_any' style event, meaning that only the first handler takes
+            # it. we return False to let the document controller eventually handle it.
+            continue_event = threading.Event()
+            def do_call_soon():
+                continue_event.set()
+                return False
+            listener = document_model.call_soon_event.listen(do_call_soon)
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             computation1 = document_model.create_computation()
@@ -1588,8 +1589,8 @@ class TestSymbolicClass(unittest.TestCase):
 
     def test_computation_error_clear_initial_computation_flag(self):
         Symbolic.register_computation_type("compute_error", self.ComputeExecError)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             computation1 = document_model.create_computation()
@@ -1601,8 +1602,8 @@ class TestSymbolicClass(unittest.TestCase):
 
     def test_removing_computation_unbinds(self):
         Symbolic.register_computation_type("compute_error", self.ComputeExecError)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.random.randn(2, 2))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1613,8 +1614,8 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(computation._closed)
 
     def test_removing_data_item_source_data_item_from_library_is_possible(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata"))
@@ -1625,9 +1626,9 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(computation._closed)
 
     def test_adjusting_interval_on_line_profile_does_not_trigger_recompute(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1646,8 +1647,8 @@ class TestSymbolicClass(unittest.TestCase):
 
     def test_data_source_watches_correct_graphics(self):
         # this failed at one point due to improper use of local variable
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)

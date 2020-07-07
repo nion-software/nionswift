@@ -18,6 +18,7 @@ from nion.swift.model import Utility
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import Facade
+from nion.swift.test import TestContext
 from nion.ui import DrawingContext
 from nion.ui import TestUI
 from nion.utils import Geometry
@@ -26,8 +27,8 @@ from nion.utils import Geometry
 Facade.initialize()
 
 
-def create_memory_profile_context():
-    return Profile.MemoryProfileContext()
+def create_memory_profile_context() -> TestContext.MemoryProfileContext:
+    return TestContext.MemoryProfileContext()
 
 
 class SimpleAcquisitionTask(HardwareSource.AcquisitionTask):
@@ -505,43 +506,64 @@ class TestHardwareSourceClass(unittest.TestCase):
         hardware_source.start_recording(sync_timeout=3.0)
         document_controller.periodic()
 
-    def __setup_simple_hardware_source(self, profile_context=None):
-        if profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-        else:
-            document_model = DocumentModel.DocumentModel(profile=Profile.Profile(auto_project=True))
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = SimpleHardwareSource()
-        hardware_source.exposure = 0.01
-        HardwareSource.HardwareSourceManager().register_hardware_source(hardware_source)
-        return document_controller, document_model, hardware_source
+    def __simple_test_context(self):
 
-    def __setup_summed_hardware_source(self, storage_system=None):
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system, auto_project=True))
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = SummedHardwareSource()
-        hardware_source.exposure = 0.01
-        HardwareSource.HardwareSourceManager().register_hardware_source(hardware_source)
-        return document_controller, document_model, hardware_source
+        class SimpleTestContext(TestContext.MemoryProfileContext):
+            def __init__(self):
+                super().__init__()
+                self.document_controller = self.create_document_controller(auto_close=False)
+                self.document_model = self.document_controller.document_model
+                self.hardware_source = SimpleHardwareSource()
+                self.hardware_source.exposure = 0.01
+                HardwareSource.HardwareSourceManager().register_hardware_source(self.hardware_source)
 
-    def __setup_line_plot_hardware_source(self, shape, processed=False, storage_system=None):
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(storage_system=storage_system, auto_project=True))
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = LinePlotHardwareSource(shape, processed)
-        hardware_source.exposure = 0.01
-        HardwareSource.HardwareSourceManager().register_hardware_source(hardware_source)
-        return document_controller, document_model, hardware_source
+            def close(self):
+                self.document_controller.close()
+                super().close()
 
-    def __setup_scan_hardware_source(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = ScanHardwareSource()
-        hardware_source.exposure = 0.01
-        hardware_source.stages_per_frame = 2
-        hardware_source.blanked = False
-        hardware_source.positioned = False
-        HardwareSource.HardwareSourceManager().register_hardware_source(hardware_source)
-        return document_controller, document_model, hardware_source
+        return SimpleTestContext()
+
+    def __summed_test_context(self):
+
+        class SummedTestContext(TestContext.MemoryProfileContext):
+            def __init__(self):
+                super().__init__()
+                self.document_controller = self.create_document_controller()
+                self.document_model = self.document_controller.document_model
+                self.hardware_source = SummedHardwareSource()
+                self.hardware_source.exposure = 0.01
+                HardwareSource.HardwareSourceManager().register_hardware_source(self.hardware_source)
+
+        return SummedTestContext()
+
+    def __line_plot_test_context(self, shape, processed=False):
+
+        class LinePlotTestContext(TestContext.MemoryProfileContext):
+            def __init__(self):
+                super().__init__()
+                self.document_controller = self.create_document_controller()
+                self.document_model = self.document_controller.document_model
+                self.hardware_source = LinePlotHardwareSource(shape, processed)
+                self.hardware_source.exposure = 0.01
+                HardwareSource.HardwareSourceManager().register_hardware_source(self.hardware_source)
+
+        return LinePlotTestContext()
+
+    def __scan_test_context(self):
+
+        class ScanTestContext(TestContext.MemoryProfileContext):
+            def __init__(self):
+                super().__init__()
+                self.document_controller = self.create_document_controller()
+                self.document_model = self.document_controller.document_model
+                self.hardware_source = ScanHardwareSource()
+                self.hardware_source.exposure = 0.01
+                self.hardware_source.stages_per_frame = 2
+                self.hardware_source.blanked = False
+                self.hardware_source.positioned = False
+                HardwareSource.HardwareSourceManager().register_hardware_source(self.hardware_source)
+
+        return ScanTestContext()
 
     def test_registering_and_unregistering_works_as_expected(self):
         hardware_source_manager = HardwareSource.HardwareSourceManager()
@@ -570,99 +592,115 @@ class TestHardwareSourceClass(unittest.TestCase):
     # Search for the tag above when adding tests to this section.
 
     def test_acquiring_frames_with_generator_produces_correct_frame_numbers(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
             _test_acquiring_frames_with_generator_produces_correct_frame_numbers(self, hardware_source, document_controller)
 
     def test_acquiring_frames_as_partials_with_generator_produces_correct_frame_numbers(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
             _test_acquiring_frames_with_generator_produces_correct_frame_numbers(self, hardware_source, document_controller)
 
     def test_acquire_multiple_frames_reuses_same_data_item(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
             _test_acquire_multiple_frames_reuses_same_data_item(self, hardware_source, document_controller)
 
     def test_acquire_multiple_frames_as_partials_reuses_same_data_item(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
             _test_acquire_multiple_frames_reuses_same_data_item(self, hardware_source, document_controller)
 
     def test_simple_hardware_start_and_stop_actually_stops_acquisition(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
             _test_simple_hardware_start_and_stop_actually_stops_acquisition(self, hardware_source, document_controller)
 
     def test_simple_hardware_start_and_abort_works_as_expected(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
             _test_simple_hardware_start_and_abort_works_as_expected(self, hardware_source, document_controller)
 
     def test_record_only_acquires_one_item(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
             _test_record_only_acquires_one_item(self, hardware_source, document_controller)
 
     def test_record_during_view_records_one_item_and_keeps_viewing(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
             _test_record_during_view_records_one_item_and_keeps_viewing(self, hardware_source, document_controller)
 
     def test_abort_record_during_view_returns_to_view(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
             _test_abort_record_during_view_returns_to_view(self, hardware_source, document_controller)
 
     def test_view_reuses_single_data_item(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
             _test_view_reuses_single_data_item(self, hardware_source, document_controller)
 
     def test_get_next_data_elements_to_finish_returns_full_frames(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
             _test_get_next_data_elements_to_finish_returns_full_frames(self, hardware_source, document_controller)
 
     def test_exception_during_view_halts_playback(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
             _test_exception_during_view_halts_playback(self, hardware_source, hardware_source.sleep)
 
     def test_exception_during_record_halts_playback(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
             _test_exception_during_record_halts_playback(self, hardware_source, hardware_source.sleep)
 
     def test_able_to_restart_view_after_exception(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
             _test_able_to_restart_view_after_exception(self, hardware_source, hardware_source.sleep)
 
     def test_exception_during_view_halts_scan(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
             _test_exception_during_view_halts_playback(self, hardware_source, hardware_source.sleep)
 
     def test_exception_during_record_halts_scan(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
             _test_exception_during_record_halts_playback(self, hardware_source, hardware_source.sleep)
 
     def test_able_to_restart_scan_after_exception_scan(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
             _test_able_to_restart_view_after_exception(self, hardware_source, hardware_source.sleep)
 
     def test_record_starts_and_finishes_in_reasonable_time(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
             _test_record_starts_and_finishes_in_reasonable_time(self, hardware_source, hardware_source.sleep)
 
     def test_view_updates_a_single_data_item_when_multiple_document_controllers_exist(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
-            document_controller2 = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
+            document_controller2 = simple_test_context.create_secondary_document_controller(document_model, auto_close=False)
             with contextlib.closing(document_controller2):
                 self.__acquire_one(document_controller, hardware_source)
                 document_controller2.periodic()
@@ -672,8 +710,10 @@ class TestHardwareSourceClass(unittest.TestCase):
 
     def test_processing_after_acquire_twice_works(self):
         # tests out a problem with 'live' attribute and thumbnails
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
             display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
             display_panel.set_display_panel_display_item(document_model.display_items[0])
@@ -683,8 +723,9 @@ class TestHardwareSourceClass(unittest.TestCase):
             document_model.data_items[0].set_data(numpy.zeros((4, 4)))
 
     def test_record_scan_during_view_suspends_the_view(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
             # first start playing
             hardware_source.start_playing(sync_timeout=3.0)
             try:
@@ -708,8 +749,10 @@ class TestHardwareSourceClass(unittest.TestCase):
                 hardware_source.abort_playing(sync_timeout=3.0)
 
     def test_view_reuses_externally_configured_item(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
             hardware_source_id = hardware_source.hardware_source_id
             self.assertEqual(len(document_model.data_items), 0)
             data_item = DataItem.DataItem(numpy.ones(256) + 1)
@@ -725,8 +768,9 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertAlmostEqual(document_model.data_items[1].data[0], 2.0)
 
     def test_setup_channel_configures_tags_correctly(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_model = simple_test_context.document_model
             hardware_source_id = hardware_source.hardware_source_id
             channel_id = "aaa"
             self.assertEqual(len(document_model.data_items), 0)
@@ -738,8 +782,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(data_item, data_item_reference.data_item)
 
     def test_partial_acquisition_only_updates_sub_area(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
+            document_model = scan_test_context.document_model
             data = numpy.zeros((256, 256)) + 16
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -761,8 +807,8 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertTrue(isinstance(data_item.metadata.get("hardware_source"), dict))
 
     def test_updating_existing_data_item_updates_creation_even_if_an_updated_date_is_not_supplied(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_element = ScanAcquisitionTask(False, 0).make_data_element()
             data_item = ImportExportManager.create_data_item_from_data_element(data_element)
             data_item.created = datetime.datetime(2000, 6, 30)
@@ -771,8 +817,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(data_item.created.year, datetime.datetime.utcnow().year)
 
     def test_channel_id_and_name_and_index_are_empty_for_simple_hardware_source(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
             self.__acquire_one(document_controller, hardware_source)
             data_item0 = document_model.data_items[0]
             hardware_source_metadata = data_item0.metadata.get("hardware_source", dict())
@@ -782,8 +830,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertIsNone(hardware_source_metadata.get("channel_name"))
 
     def test_channel_id_and_name_and_index_are_correct_for_view(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
+            document_model = scan_test_context.document_model
             self.__acquire_one(document_controller, hardware_source)
             data_item0 = document_model.data_items[0]
             hardware_source_metadata = data_item0.metadata.get("hardware_source", dict())
@@ -793,8 +843,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(hardware_source_metadata.get("channel_name"), "A")
 
     def test_channel_id_and_name_and_index_are_correct_for_multiview(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
+            document_model = scan_test_context.document_model
             hardware_source.channel_enabled_list = (True, True)
             self.__acquire_one(document_controller, hardware_source)
             data_item0 = document_model.data_items[0]
@@ -811,8 +863,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(hardware_source_metadata1.get("channel_name"), "B")
 
     def test_multiview_reuse_second_channel_by_id_not_index(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
+            document_model = scan_test_context.document_model
             hardware_source.channel_enabled_list = (True, True)
             self.__acquire_one(document_controller, hardware_source)
             data_item0 = document_model.data_items[0]
@@ -829,8 +883,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertAlmostEqual(data_item1.data[-1, -1], 4.0)
 
     def test_restarting_view_in_same_session_preserves_dependent_data_connections(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
             self.__acquire_one(document_controller, hardware_source)
             new_data_item = document_model.get_invert_new(document_model.display_items[0], None)
             document_controller.periodic()
@@ -850,8 +906,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(value, -acq_value)
 
     def test_restarting_view_after_reload_preserves_dependent_data_connections(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
             self.__acquire_one(document_controller, hardware_source)
             new_data_item = document_model.get_invert_new(document_model.display_items[0], None)
             document_controller.periodic()
@@ -871,27 +929,28 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(value, -acq_value0)
 
     def test_reloading_restarted_view_after_size_change_produces_data_item_with_unique_uuid(self):
-        with create_memory_profile_context() as profile_context:
-            document_controller, document_model, hardware_source = self.__setup_simple_hardware_source(profile_context=profile_context)
-            with contextlib.closing(document_controller):
-                document_model.session_id = "20000630-150200"
-                self.__acquire_one(document_controller, hardware_source)
-                self.assertEqual(len(document_model.data_items), 1)
-                new_data_item = copy.deepcopy(document_model.data_items[0])
-                document_model.append_data_item(new_data_item)
-                document_model.session_id = "20000630-150201"
-                self.__acquire_one(document_controller, hardware_source)
-                self.assertEqual(len(document_model.data_items), 2)
-            # reload
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
-                self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
-                self.assertEqual(len(document_model.data_items), 2)
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
+            document_model.session_id = "20000630-150200"
+            self.__acquire_one(document_controller, hardware_source)
+            self.assertEqual(len(document_model.data_items), 1)
+            new_data_item = copy.deepcopy(document_model.data_items[0])
+            document_model.append_data_item(new_data_item)
+            document_model.session_id = "20000630-150201"
+            self.__acquire_one(document_controller, hardware_source)
+            self.assertEqual(len(document_model.data_items), 2)
+        # reload
+        document_model = simple_test_context.create_document_model()
+        self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
+        self.assertEqual(len(document_model.data_items), 2)
 
     def test_single_frame_acquisition_generates_single_canvas_repaint_event_for_image(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
             hardware_source.image = numpy.ones((4, 4))
             display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
@@ -905,8 +964,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(display_panel.display_canvas_item._repaint_count, repaint_count + 1)
 
     def test_single_frame_acquisition_generates_single_canvas_update_event_for_image(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
             hardware_source.image = numpy.ones((4, 4))
             display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
@@ -920,8 +981,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(new_update_count, update_count + 2)
 
     def test_partial_frame_acquisition_generates_single_canvas_update_event_for_each_segment(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
+            document_model = scan_test_context.document_model
             hardware_source.image = numpy.ones((4, 4))
             display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
@@ -939,8 +1002,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(display_panel.display_canvas_item._repaint_count, repaint_count + 2)
 
     def test_single_frame_acquisition_generates_single_canvas_update_event_for_line_plot(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
             hardware_source.image = numpy.ones((4, ))
             display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
@@ -951,8 +1016,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(display_panel.display_canvas_item._repaint_count, repaint_count + 1)
 
     def test_partial_frame_acquisition_avoids_unnecessary_merges(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
+            document_model = scan_test_context.document_model
             hardware_source.image = numpy.ones((4, 4))
             display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
@@ -966,20 +1033,24 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(document_model._get_pending_data_item_updates_count(), 1)
 
     def test_two_acquisitions_succeed(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
             self.__acquire_one(document_controller, hardware_source)
             self.__acquire_one(document_controller, hardware_source)
 
     def test_two_scan_acquisitions_succeed(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__scan_test_context() as scan_test_context:
+            hardware_source = scan_test_context.hardware_source
+            document_controller = scan_test_context.document_controller
             self.__acquire_one(document_controller, hardware_source)
             self.__acquire_one(document_controller, hardware_source)
 
     def test_deleting_data_item_during_acquisition_recovers_correctly(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
             hardware_source.start_playing()
             start_time = time.time()
             while not hardware_source.is_playing:
@@ -1000,8 +1071,8 @@ class TestHardwareSourceClass(unittest.TestCase):
             document_controller.periodic()
 
     def test_data_generator_generates_ndarrays(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
             hardware_source.start_playing()
             try:
                 with HardwareSource.get_data_generator_by_id(hardware_source.hardware_source_id) as data_generator:
@@ -1011,8 +1082,10 @@ class TestHardwareSourceClass(unittest.TestCase):
                 hardware_source.abort_playing(sync_timeout=3.0)
 
     def test_hardware_source_api_data_item_setup(self):
-        document_controller, document_model, _hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            _hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
             library = Facade.Library(document_model)  # hack to build Facade.Library directly
             hardware_source = Facade.HardwareSource(_hardware_source)
             self.assertIsNone(library.get_data_item_for_hardware_source(hardware_source))
@@ -1038,8 +1111,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertIsNotNone(document_model.data_items[0].data)
 
     def test_hardware_source_grabs_data_with_correct_descriptor(self):
-        document_controller, document_model, hardware_source = self.__setup_line_plot_hardware_source((16, 2))
-        with contextlib.closing(document_controller):
+        with self.__line_plot_test_context((16, 2)) as line_plot_test_context:
+            hardware_source = line_plot_test_context.hardware_source
+            document_controller = line_plot_test_context.document_controller
+            document_model = line_plot_test_context.document_model
             self.__acquire_one(document_controller, hardware_source)
             xdata = document_model.data_items[0].xdata
             self.assertEqual(len(xdata.dimensional_shape), 2)
@@ -1047,8 +1122,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(xdata.datum_dimension_count, 1)
 
     def test_hardware_source_grabs_data_with_correct_session_metadata(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
             ApplicationData.get_session_metadata_model().microscopist = "Ned Flanders"
             self.__acquire_one(document_controller, hardware_source)
             data_item = document_model.data_items[0]
@@ -1056,8 +1133,10 @@ class TestHardwareSourceClass(unittest.TestCase):
 
     def test_hardware_source_grabs_summed_1d_data(self):
         # really an error case, 1d acquisition + summed processing
-        document_controller, document_model, hardware_source = self.__setup_line_plot_hardware_source((16, ), processed=True)
-        with contextlib.closing(document_controller):
+        with self.__line_plot_test_context((16, ), processed=True) as line_plot_test_context:
+            hardware_source = line_plot_test_context.hardware_source
+            document_controller = line_plot_test_context.document_controller
+            document_model = line_plot_test_context.document_model
             self.__acquire_one(document_controller, hardware_source)
             xdata = document_model.data_items[0].xdata
             self.assertEqual(len(xdata.dimensional_shape), 1)
@@ -1068,8 +1147,10 @@ class TestHardwareSourceClass(unittest.TestCase):
 
     def test_hardware_source_grabs_summed_1xn_data(self):
         # really an error case, 1d acquisition + summed processing
-        document_controller, document_model, hardware_source = self.__setup_line_plot_hardware_source((1, 16), processed=True)
-        with contextlib.closing(document_controller):
+        with self.__line_plot_test_context((1, 16), processed=True) as line_plot_test_context:
+            hardware_source = line_plot_test_context.hardware_source
+            document_controller = line_plot_test_context.document_controller
+            document_model = line_plot_test_context.document_model
             self.__acquire_one(document_controller, hardware_source)
             xdata = document_model.data_items[0].xdata
             self.assertEqual(len(xdata.dimensional_shape), 2)
@@ -1079,8 +1160,8 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(xdata.datum_dimension_count, 1)
 
     def test_hardware_source_api_grabs_summed_data(self):
-        document_controller, document_model, _hardware_source = self.__setup_summed_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__summed_test_context() as summed_test_context:
+            _hardware_source = summed_test_context.hardware_source
             hardware_source = Facade.HardwareSource(_hardware_source)
             hardware_source.start_playing()
             try:
@@ -1092,8 +1173,8 @@ class TestHardwareSourceClass(unittest.TestCase):
                 hardware_source.abort_playing()
 
     def test_hardware_source_api_records_on_thread(self):
-        document_controller, document_model, _hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            _hardware_source = simple_test_context.hardware_source
             hardware_source = Facade.HardwareSource(_hardware_source)
             done_event = threading.Event()
             def do_record():
@@ -1108,8 +1189,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             done_event.wait(3.0)
 
     def test_hardware_source_updates_timezone_during_acquisition(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        with contextlib.closing(document_controller):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
             try:
                 hardware_source_id = hardware_source.hardware_source_id
                 Utility.local_timezone_override = [None]

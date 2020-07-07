@@ -139,6 +139,8 @@ class CollectionDisplayItemCounter:
         self.__count_observer.close()
         self.__count_observer = None
         self.__data_group = None
+        self.document_controller = None
+        self.document_model = None
 
     @property
     def title(self) -> str:
@@ -681,7 +683,8 @@ class ProjectsWidget(Widgets.CompositeWidgetBase):
 
         project_selection = Selection.IndexedSelection(Selection.Style.single_or_none)
 
-        self.__projects_list_widget = Widgets.ListWidget(ui, ProjectListCanvasItemDelegate(document_controller, project_selection), selection=project_selection, v_scroll_enabled=False, v_auto_resize=True)
+        self.__projects_list_delegate = ProjectListCanvasItemDelegate(document_controller, project_selection)
+        self.__projects_list_widget = Widgets.ListWidget(ui, self.__projects_list_delegate, selection=project_selection, v_scroll_enabled=False, v_auto_resize=True)
         self.__projects_list_widget.wants_drag_events = True
 
         self.__projects_observer = None
@@ -780,6 +783,8 @@ class ProjectsWidget(Widgets.CompositeWidgetBase):
         self.__projects_observer = oo.make_observable()
 
     def close(self):
+        self.__projects_list_delegate.close()
+        self.__projects_list_delegate = None
         self.__selected_project_references_changed_listener.close()
         self.__selected_project_references_changed_listener = None
         self.__selection_changed_event_listener.close()
@@ -878,6 +883,13 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         live_items_controller = CollectionDisplayItemCounter(_("Live"), None, "temporary", document_controller)
         latest_items_controller = CollectionDisplayItemCounter(_("Latest Session"), None, "latest-session", document_controller)
 
+        self.__item_controllers = [
+            all_items_controller,
+            persistent_items_controller,
+            live_items_controller,
+            latest_items_controller
+        ]
+
         self.__data_group_controllers = list()
 
         collection_selection = Selection.IndexedSelection(Selection.Style.single_or_none)
@@ -971,6 +983,9 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         for controller in self.__data_group_controllers:
             controller.close()
         self.__data_group_controllers.clear()
+        for item_controller in self.__item_controllers:
+            item_controller.close()
+        self.__item_controllers.clear()
         self.__filter_changed_event_listener.close()
         self.__filter_changed_event_listener = None
         self.__document_model_item_inserted_listener.close()

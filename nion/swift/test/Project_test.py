@@ -15,16 +15,16 @@ from nion.swift.model import Connection
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Profile
 from nion.swift.model import Project
+from nion.swift.test import TestContext
 from nion.ui import TestUI
 
 
 Facade.initialize()
 
 
-def create_memory_profile_context():
-    return Profile.MemoryProfileContext()
+def create_memory_profile_context() -> TestContext.MemoryProfileContext:
+    return TestContext.MemoryProfileContext()
 
 
 class TestProjectClass(unittest.TestCase):
@@ -37,9 +37,9 @@ class TestProjectClass(unittest.TestCase):
 
     def test_display_item_is_added_to_same_project_as_data_item(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item, project=profile.projects[0])
@@ -47,7 +47,7 @@ class TestProjectClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item, project=profile.projects[1])
                 document_model.append_display_item(DisplayItem.DisplayItem(data_item=data_item))
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(2, len(document_model.data_items))
                 self.assertEqual(4, len(document_model.display_items))
@@ -56,9 +56,9 @@ class TestProjectClass(unittest.TestCase):
 
     def test_add_data_structure_to_project_reloads(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item, project=profile.projects[0])
@@ -70,7 +70,7 @@ class TestProjectClass(unittest.TestCase):
                 data_struct = document_model.create_data_structure()
                 data_struct.set_referenced_object("master", data_item)
                 document_model.append_data_structure(data_struct)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(2, len(document_model.data_items))
                 self.assertEqual(2, len(document_model.data_structures))
@@ -79,9 +79,9 @@ class TestProjectClass(unittest.TestCase):
 
     def test_computation_added_to_same_project_as_inputs(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
                 document_model.append_data_item(data_item, project=profile.projects[0])
@@ -96,7 +96,7 @@ class TestProjectClass(unittest.TestCase):
                 self.assertEqual(4, len(document_model.display_items))
                 self.assertEqual(2, len(document_model.projects[0].display_items))
                 self.assertEqual(2, len(document_model.projects[1].display_items))
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(4, len(document_model.data_items))
                 self.assertEqual(2, len(document_model.computations))
@@ -108,9 +108,9 @@ class TestProjectClass(unittest.TestCase):
 
     def test_connection_added_to_same_project_as_inputs(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             with contextlib.closing(document_model):
                 # make 1st connection between two data items
                 data_item1 = DataItem.DataItem(numpy.ones((4, 4)))
@@ -138,7 +138,7 @@ class TestProjectClass(unittest.TestCase):
                 self.assertEqual(4, len(document_model.display_items))
                 self.assertEqual(2, len(document_model.projects[0].display_items))
                 self.assertEqual(2, len(document_model.projects[1].display_items))
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 # check after reload
                 self.assertEqual(4, len(document_model.data_items))
@@ -151,9 +151,9 @@ class TestProjectClass(unittest.TestCase):
 
     def test_items_with_duplicate_uuid_are_loaded_properly(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item, project=profile.projects[0])
@@ -162,7 +162,7 @@ class TestProjectClass(unittest.TestCase):
             profile_context.x_data_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_map[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]] = copy.deepcopy(profile_context.x_project_properties[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]]["uuid"] = str(project_keys[1])
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(2, len(document_model.projects))
                 self.assertEqual(2, len(document_model.data_items))
@@ -174,26 +174,26 @@ class TestProjectClass(unittest.TestCase):
 
     def test_projects_with_duplicate_uuid_are_not_loaded(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item, project=profile.projects[0])
                 # add a project reference; it won't be loaded until we reload below
-                profile.add_project_memory(profile.projects[0].uuid)
+                TestContext.add_project_memory(profile, profile.projects[0].uuid)
                 self.assertEqual(1, len(profile.projects))
             # reload; will try to load two projects with same uuid
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             with contextlib.closing(document_model):
                 self.assertEqual(1, len(profile.projects))
                 self.assertEqual(1, len(profile.projects[0].data_items))
 
     def test_display_items_between_items_with_duplicated_uuids_are_connected_per_project(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 1), numpy.float))
                 document_model.append_data_item(data_item, project=profile.projects[0])
@@ -205,7 +205,7 @@ class TestProjectClass(unittest.TestCase):
             profile_context.x_data_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_map[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]] = copy.deepcopy(profile_context.x_project_properties[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]]["uuid"] = str(project_keys[1])
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 project0 = document_model.projects[0]
                 project1 = document_model.projects[1]
@@ -222,9 +222,9 @@ class TestProjectClass(unittest.TestCase):
 
     def test_connections_between_items_with_duplicated_uuids_are_connected_per_project(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             with contextlib.closing(document_model):
                 data_item1 = DataItem.DataItem(numpy.ones((4, 4)))
                 document_model.append_data_item(data_item1, project=profile.projects[0])
@@ -239,7 +239,7 @@ class TestProjectClass(unittest.TestCase):
             profile_context.x_data_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_map[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]] = copy.deepcopy(profile_context.x_project_properties[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]]["uuid"] = str(project_keys[1])
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 project0 = document_model.projects[0]
                 project1 = document_model.projects[1]
@@ -257,9 +257,9 @@ class TestProjectClass(unittest.TestCase):
 
     def test_computations_between_items_with_duplicated_uuids_are_connected_per_project(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
                 document_model.append_data_item(data_item, project=profile.projects[0])
@@ -273,7 +273,7 @@ class TestProjectClass(unittest.TestCase):
             profile_context.x_project_properties[project_keys[0]]["computations"][0]["variables"][0]["specifier"].pop("context_uuid")
             profile_context.x_project_properties[project_keys[1]]["computations"][0]["variables"][0]["specifier"].pop("context_uuid")
             # now reload and make sure everything gets resolved properly
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 project0 = document_model.projects[0]
                 project1 = document_model.projects[1]
@@ -288,9 +288,9 @@ class TestProjectClass(unittest.TestCase):
 
     def test_undo_restores_item_with_proper_project(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
                 document_model.append_data_item(data_item, project=profile.projects[0])
@@ -299,7 +299,7 @@ class TestProjectClass(unittest.TestCase):
             profile_context.x_data_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_map[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]] = copy.deepcopy(profile_context.x_project_properties[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]]["uuid"] = str(project_keys[1])
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 project0 = document_model.projects[0]
                 project1 = document_model.projects[1]
@@ -334,9 +334,9 @@ class TestProjectClass(unittest.TestCase):
 
     def test_new_computation_is_bound_to_proper_project(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
                 document_model.append_data_item(data_item, project=profile.projects[0])
@@ -345,7 +345,7 @@ class TestProjectClass(unittest.TestCase):
             profile_context.x_data_map[project_keys[1]] = copy.deepcopy(profile_context.x_data_map[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]] = copy.deepcopy(profile_context.x_project_properties[project_keys[0]])
             profile_context.x_project_properties[project_keys[1]]["uuid"] = str(project_keys[1])
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 project0 = document_model.projects[0]
                 project1 = document_model.projects[1]
@@ -358,9 +358,9 @@ class TestProjectClass(unittest.TestCase):
 
     def test_data_item_in_computation_is_bound_to_its_own_project(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             item_uuid = uuid.uuid4()
             with contextlib.closing(document_model):
                 data_item0 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid)
@@ -379,8 +379,8 @@ class TestProjectClass(unittest.TestCase):
                 self.assertEqual(1, len(profile.projects[1].computations))
                 self.assertEqual(data_item0, list(profile.projects[0].computations[0].input_items)[0])
                 self.assertEqual(data_item1, list(profile.projects[1].computations[0].input_items)[0])
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             data_item0 = document_model.data_items[0]
             data_item1 = document_model.data_items[2]
             with contextlib.closing(document_model):
@@ -394,9 +394,9 @@ class TestProjectClass(unittest.TestCase):
 
     def test_data_item_in_computation_is_not_bound_to_another_project(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             item_uuid = uuid.uuid4()
             with contextlib.closing(document_model):
                 data_item0 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid)
@@ -415,8 +415,8 @@ class TestProjectClass(unittest.TestCase):
                 self.assertEqual(1, len(profile.projects[1].computations))
                 self.assertEqual(data_item0, list(profile.projects[0].computations[0].input_items)[0])
                 self.assertEqual(data_item1, list(profile.projects[1].computations[0].input_items)[0])
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             data_item0 = document_model.data_items[0]
             data_item1 = document_model.data_items[2]
             with contextlib.closing(document_model):
@@ -430,58 +430,57 @@ class TestProjectClass(unittest.TestCase):
 
     def test_project_reloads_with_same_uuid(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 project_uuid = document_model.projects[0].uuid
                 project_specifier = document_model.projects[0].item_specifier
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             with contextlib.closing(document_model):
                 self.assertEqual(project_uuid, document_model.projects[0].uuid)
                 self.assertEqual(document_model.projects[0], profile.persistent_object_context.get_registered_object(project_specifier))
 
     def test_memory_project_opens_with_same_uuid(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 project_uuid = document_model.projects[0].uuid
                 project_specifier = document_model.projects[0].item_specifier
             profile_context.reset_profile()
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             with contextlib.closing(document_model):
-                profile.add_project_memory(project_uuid)
+                TestContext.add_project_memory(profile, project_uuid)
                 self.assertEqual(project_uuid, document_model.projects[1].uuid)
                 self.assertEqual(document_model.projects[1], profile.persistent_object_context.get_registered_object(project_specifier))
 
     def test_memory_project_with_wrong_uuid_does_not_load(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 project_uuid = document_model.projects[0].uuid
             profile_context.project_properties["uuid"] = str(uuid.uuid4())
             profile_context.reset_profile()
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             with contextlib.closing(document_model):
-                profile.add_project_memory(project_uuid)
+                TestContext.add_project_memory(profile, project_uuid)
                 self.assertEqual(2, len(profile.project_references))
                 self.assertEqual(1, len(document_model.projects))
 
     def test_partial_uuid_is_not_bound_to_items_in_another_project(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             item_uuid_0_src = uuid.uuid4()
             item_uuid_0_dst = uuid.uuid4()
             item_uuid_1_src = uuid.uuid4()
@@ -499,7 +498,7 @@ class TestProjectClass(unittest.TestCase):
                 data_item_1_dst.source = data_item_1_src
             # make the source in first project point to the data item in the other project. should not load.
             list(profile_context.x_data_properties_map.values())[0][str(item_uuid_0_dst)]["source_uuid"] = str(item_uuid_1_dst)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(4, len(document_model.data_items))
                 self.assertIsNone(document_model.data_items[1].source)
@@ -509,10 +508,10 @@ class TestProjectClass(unittest.TestCase):
         # create two data items in different projects. select the two items in the data panel
         # and create a computation from the two inputs. compute and make sure no errors occur.
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             with contextlib.closing(document_controller):
                 data1 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
                 data2 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
@@ -533,12 +532,12 @@ class TestProjectClass(unittest.TestCase):
         # create two data items in different projects. select the two items in the data panel
         # and create a computation from the two inputs. compute and make sure no errors occur.
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             with contextlib.closing(document_controller):
-                project_reference = Profile.MemoryProjectReference()
+                project_reference = TestContext.MemoryProjectReference()
                 project_reference.project_uuid = document_model.projects[0].uuid
                 with self.assertRaises(Exception):
                     profile.append_project_reference(project_reference)

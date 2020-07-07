@@ -19,21 +19,20 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Profile
 from nion.swift.model import Symbolic
+from nion.swift.test import TestContext
 from nion.ui import TestUI
 
 
 Facade.initialize()
 
 
-def create_memory_profile_context():
-    return Profile.MemoryProfileContext()
+def create_memory_profile_context() -> TestContext.MemoryProfileContext:
+    return TestContext.MemoryProfileContext()
 
 
-def construct_test_document(app, workspace_id=None):
-    document_model = DocumentModel.DocumentModel()
-    document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id=workspace_id)
+def construct_test_document(document_controller: DocumentController.DocumentController) -> None:
+    document_model = document_controller.document_model
     data_group1 = DataGroup.DataGroup()
     document_model.append_data_group(data_group1)
     data_item1a = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -57,7 +56,6 @@ def construct_test_document(app, workspace_id=None):
     data_item2b1a = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
     document_model.append_data_item(data_item2b1a)
     data_group2b1.append_display_item(document_model.get_display_item_for_data_item(data_item2b1a))
-    return document_controller
 
 class TestDocumentControllerClass(unittest.TestCase):
 
@@ -68,28 +66,27 @@ class TestDocumentControllerClass(unittest.TestCase):
         pass
 
     def test_delete_document_controller(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
-        document_model = None
-        weak_document_model = weakref.ref(document_controller.document_model)
-        weak_document_window = weakref.ref(document_controller._document_window)
-        weak_document_controller = weakref.ref(document_controller)
-        self.assertIsNotNone(weak_document_controller())
-        self.assertIsNotNone(weak_document_window())
-        self.assertIsNotNone(weak_document_model())
-        document_controller.request_close()
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            weak_document_model = weakref.ref(document_controller.document_model)
+            weak_document_window = weakref.ref(document_controller._document_window)
+            weak_document_controller = weakref.ref(document_controller)
+            self.assertIsNotNone(weak_document_controller())
+            self.assertIsNotNone(weak_document_window())
+            self.assertIsNotNone(weak_document_model())
         document_controller = None
+        gc.collect()
         self.assertIsNone(weak_document_controller())
         self.assertIsNone(weak_document_window())
         self.assertIsNone(weak_document_model())
 
     def test_document_controller_releases_document_model(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        document_model.append_data_item(data_item)
-        weak_document_model = weakref.ref(document_model)
-        document_controller.close()
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            weak_document_model = weakref.ref(document_model)
         document_controller = None
         data_item = None
         document_model = None
@@ -97,12 +94,12 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertIsNone(weak_document_model())
 
     def test_document_controller_releases_workspace_controller(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        document_model.append_data_item(data_item)
-        weak_workspace_controller = weakref.ref(document_controller.workspace_controller)
-        document_controller.close()
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            weak_workspace_controller = weakref.ref(document_controller.workspace_controller)
         document_controller = None
         data_item = None
         document_model = None
@@ -110,12 +107,12 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertIsNone(weak_workspace_controller())
 
     def test_document_controller_releases_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        document_model.append_data_item(data_item)
-        weak_data_item = weakref.ref(data_item)
-        document_controller.close()
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            weak_data_item = weakref.ref(data_item)
         document_controller = None
         data_item = None
         document_model = None
@@ -123,17 +120,17 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertIsNone(weak_data_item())
 
     def test_display_panel_releases_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        document_model.append_data_item(data_item)
-        display_item = document_model.get_display_item_for_data_item(data_item)
-        weak_data_item = weakref.ref(data_item)
-        display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
-        display_panel.set_display_panel_display_item(display_item)
-        self.assertIsNotNone(weak_data_item())
-        display_panel.close()
-        document_controller.close()
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            weak_data_item = weakref.ref(data_item)
+            display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
+            display_panel.set_display_panel_display_item(display_item)
+            self.assertIsNotNone(weak_data_item())
+            display_panel.close()
         document_controller = None
         data_item = None
         display_item = None
@@ -146,12 +143,12 @@ class TestDocumentControllerClass(unittest.TestCase):
         i = 0
         try:
             for i in range(100):
-                document_model = DocumentModel.DocumentModel()
-                document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-                weak_document_controller = weakref.ref(document_controller)
-                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
-                document_controller.periodic()
-                document_controller.close()
+                with TestContext.create_memory_context() as test_context:
+                    document_controller = test_context.create_document_controller()
+                    document_model = document_controller.document_model
+                    weak_document_controller = weakref.ref(document_controller)
+                    document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+                    document_controller.periodic()
                 document_controller = None
                 gc.collect()
                 self.assertIsNone(weak_document_controller())
@@ -160,8 +157,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             raise
 
     def test_flat_data_groups(self):
-        document_controller = construct_test_document(self.app)
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            construct_test_document(document_controller)
             self.assertEqual(len(list(document_controller.document_model.get_flat_data_group_generator())), 7)
             self.assertEqual(len(document_controller.document_model.data_items), 3)
             self.assertEqual(document_controller.document_model.display_items[0], document_controller.document_model.data_groups[0].display_items[0])
@@ -169,9 +167,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(document_controller.document_model.display_items[2], document_controller.document_model.data_groups[1].data_groups[1].data_groups[0].display_items[0])
 
     def test_receive_files_should_put_files_into_document_model_at_end(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item1.title = "data_item1"
             document_model.append_data_item(data_item1)
@@ -185,9 +183,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
 
     def test_receive_files_should_put_files_into_document_model_at_index(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item1.title = "data_item1"
             document_model.append_data_item(data_item1)
@@ -201,9 +199,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(document_model.data_items.index(new_data_items[0]), 2)
 
     def test_receive_files_should_put_files_into_data_group_at_index(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_group = DataGroup.DataGroup()
             document_model.append_data_group(data_group)
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -223,9 +221,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(data_group.display_items.index(document_model.get_display_item_for_data_item(new_data_items[0])), 2)
 
     def test_remove_graphic_removes_it_from_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -244,9 +242,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(len(display_item.graphics), 0)
 
     def test_remove_line_profile_does_not_remove_data_item_itself(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -267,9 +265,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertTrue(data_item in document_model.data_items)
 
     def test_remove_line_profile_removes_associated_child_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             # add a data item
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -293,22 +291,23 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertFalse(line_profile_data_item in document_model.data_items)
 
     def test_document_model_closed_only_after_all_document_controllers_closed(self):
-        document_model = DocumentModel.DocumentModel()
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        document_model.append_data_item(data_item)
-        document_controller1 = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        document_controller2 = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with data_item.data_item_changes():
-            pass  # triggers usage of 'processors' which gets set to null when closed
-        document_controller1.close()
-        with data_item.data_item_changes():
-            pass  # triggers usage of 'processors' which gets set to null when closed
-        document_controller2.close()  # this would fail even if processors part didn't fail
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model(auto_close=False)
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            document_controller1 = test_context.create_secondary_document_controller(document_model, auto_close=False)
+            document_controller2 = test_context.create_secondary_document_controller(document_model, auto_close=False)
+            with data_item.data_item_changes():
+                pass  # triggers usage of 'processors' which gets set to null when closed
+            document_controller1.close()
+            with data_item.data_item_changes():
+                pass  # triggers usage of 'processors' which gets set to null when closed
+            document_controller2.close()  # this would fail even if processors part didn't fail
 
     def test_processing_on_crop_region_constructs_composite_operation(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             h, w = 8, 8
             data_item = DataItem.DataItem(numpy.ones((h, w), numpy.float32))
             document_model.append_data_item(data_item)
@@ -325,41 +324,41 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertAlmostEqual(new_data_item.data[h//4, w//4], -1.0)
 
     def test_processing_on_crop_region_connects_region_to_operation(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
-        document_model.append_data_item(data_item)
-        crop_region = Graphics.RectangleGraphic()
-        crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
-        display_item = document_model.get_display_item_for_data_item(data_item)
-        display_item.add_graphic(crop_region)
-        new_data_item = document_model.get_invert_new(display_item, crop_region)
-        self.assertEqual(crop_region.bounds, document_model.get_data_item_computation(new_data_item).get_input("src").graphic.bounds)
-        crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-        self.assertEqual(crop_region.bounds, document_model.get_data_item_computation(new_data_item).get_input("src").graphic.bounds)
-        document_controller.close()
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.add_graphic(crop_region)
+            new_data_item = document_model.get_invert_new(display_item, crop_region)
+            self.assertEqual(crop_region.bounds, document_model.get_data_item_computation(new_data_item).get_input("src").graphic.bounds)
+            crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
+            self.assertEqual(crop_region.bounds, document_model.get_data_item_computation(new_data_item).get_input("src").graphic.bounds)
 
     def test_processing_on_crop_region_recomputes_when_bounds_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
-        document_model.append_data_item(data_item)
-        crop_region = Graphics.RectangleGraphic()
-        crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
-        display_item = document_model.get_display_item_for_data_item(data_item)
-        display_item.add_graphic(crop_region)
-        cropped_data_item = document_model.get_invert_new(display_item, crop_region)
-        document_model.recompute_all()
-        cropped_display_item = document_model.get_data_item_computation(cropped_data_item)
-        self.assertFalse(cropped_display_item.needs_update)
-        crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-        self.assertTrue(cropped_display_item.needs_update)
-        document_controller.close()
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.add_graphic(crop_region)
+            cropped_data_item = document_model.get_invert_new(display_item, crop_region)
+            document_model.recompute_all()
+            cropped_display_item = document_model.get_data_item_computation(cropped_data_item)
+            self.assertFalse(cropped_display_item.needs_update)
+            crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
+            self.assertTrue(cropped_display_item.needs_update)
 
     def test_creating_with_variable_produces_valid_computation(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data = ((numpy.random.randn(2, 2) + 1) * 10).astype(numpy.int32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -369,9 +368,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computed_data_item.data, data*2))
 
     def test_extra_variables_in_computation_get_purged(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data = ((numpy.random.randn(2, 2) + 1) * 10).astype(numpy.int32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -389,9 +388,9 @@ class TestDocumentControllerClass(unittest.TestCase):
 
     def test_deleting_processed_data_item_and_then_recomputing_works(self):
         # processed data item should be removed from recomputing queue
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
@@ -405,9 +404,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.recompute_all()
 
     def test_delete_source_region_of_computation_deletes_target_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
@@ -417,9 +416,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertNotIn(target_data_item, document_model.data_items)
 
     def test_delete_source_data_item_of_computation_deletes_target_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
@@ -429,9 +428,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertNotIn(target_data_item, document_model.data_items)
 
     def test_delete_target_data_item_of_computation_deletes_source_region(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
@@ -443,9 +442,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertNotIn(target_data_item, document_model.data_items)
 
     def test_delete_data_item_with_source_region_also_cascade_deletes_target(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
@@ -465,9 +464,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertNotIn(target_data_item, document_model.data_items)
 
     def test_delete_graphic_with_sibling_and_data_item_dependent_on_both_also_cascade_deletes_target(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
@@ -492,9 +491,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertNotIn(interval_region2, intermediate_display_item.graphics)
 
     def test_delete_graphic_with_two_dependencies_deletes_both_dependencies(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
@@ -509,9 +508,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertNotIn(target_data_item2, document_model.data_items)
 
     def test_delete_target_data_item_with_source_region_with_another_target_does_not_delete_source_region(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
@@ -532,9 +531,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertNotIn(crop_region, source_display_item.graphics)
 
     def test_crop_new_works_with_no_rectangle_graphic(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
@@ -542,9 +541,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertIsNotNone(data_item)
 
     def test_processing_duplicate_does_copy(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -553,9 +552,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_controller.processing_duplicate()
 
     def test_processing_duplicate_with_region_does_copy(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
@@ -566,9 +565,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_controller.processing_duplicate()
 
     def test_processing_duplicate_with_computation_copies_it_but_has_same_data_source(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
@@ -586,9 +585,9 @@ class TestDocumentControllerClass(unittest.TestCase):
                              document_model.get_data_item_computation(data_item).get_input("src").data_item)
 
     def test_fixing_display_limits_works_for_all_data_types(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_size = (8, 8)
             document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size, numpy.int16)))
             document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size, numpy.int32)))
@@ -610,9 +609,9 @@ class TestDocumentControllerClass(unittest.TestCase):
                 self.assertEqual(len(display_data_channel.display_limits), 2)
 
     def test_context_menu_succeeds_with_no_display_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -623,9 +622,9 @@ class TestDocumentControllerClass(unittest.TestCase):
                 pass
 
     def test_delete_by_context_menu_actually_deletes_item_from_library(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
@@ -636,9 +635,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 0)
 
     def test_delete_by_display_panel_context_menu_only_deletes_data_item_in_display_panel(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
@@ -654,9 +653,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(len(document_controller.selection.indexes), 1)
 
     def test_delete_by_data_panel_context_menu_only_deletes_all_selected_data_items(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
@@ -672,9 +671,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(len(document_controller.selection.indexes), 0)
 
     def test_putting_data_item_in_selected_empty_display_updates_selected_data_item_binding(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
@@ -683,9 +682,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(document_controller.focused_data_item, data_item)
 
     def test_creating_r_var_on_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -695,19 +694,18 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(data_item.r_var, "r01")
 
     def test_display_data_channel_when_it_is_immediately_filtered(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             document_controller.set_filter("none")
             document_controller.show_display_item(document_model.get_display_item_for_data_item(data_item))
 
     def test_snapshot_of_display_is_added_to_all(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -721,10 +719,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(2, len(document_controller.filtered_display_items_model.items))
 
     def test_snapshot_of_live_display_is_added_to_all(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             data_item.category = "temporary"
             document_model.append_data_item(data_item)
@@ -739,9 +736,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(1, len(document_controller.filtered_display_items_model.items))
 
     def test_cut_paste_undo_redo(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -775,10 +772,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertIsInstance(display_item.graphics[1], Graphics.EllipseGraphic)
 
     def test_snapshot_undo_redo_cycle(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -816,10 +812,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(document_model.data_items[1], display_panel.data_item)
 
     def test_insert_data_items_undo_redo_cycle(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
             data_item3 = DataItem.DataItem(numpy.zeros((2, 2)))
@@ -846,10 +841,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertListEqual(data_item_uuids, [data_item.uuid for data_item in document_model.data_items])
 
     def test_remove_display_items_undo_redo_cycle(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
@@ -886,10 +880,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.display_items[1].display_data_channels))
 
     def test_remove_one_of_two_display_items_undo_redo_cycle(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -908,10 +901,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.get_display_items_for_data_item(data_item)))
 
     def test_add_line_profile_undo_redo_cycle(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -934,10 +926,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(2, len(document_model.display_items))
 
     def test_adding_display_data_channel_to_displayed_line_plot_handles_display_ref_counts(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item1 = DataItem.DataItem(numpy.zeros((2,)))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((2,)))
@@ -950,10 +941,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_item1.append_display_data_channel_for_data_item(data_item2)
 
     def test_remove_computation_triggering_removing_display_data_channels_is_undoable(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item1 = DataItem.DataItem(numpy.zeros((2,)))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((2,2)))
@@ -1008,11 +998,9 @@ class TestDocumentControllerClass(unittest.TestCase):
 
     def test_remove_computation_graphic_from_list_is_undoable(self):
         Symbolic.register_computation_type("add_g", self.AddGraphics)
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1042,10 +1030,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(result_data_item.data, numpy.full((4, 4), 2)))
 
     def test_remove_line_profile_graphic_in_composite_line_plot_undoes_layers(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((2,2)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1086,45 +1073,43 @@ class TestDocumentControllerClass(unittest.TestCase):
 
     def test_profile_selected_projects_updated_when_one_deleted(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
-                project_panel = document_controller.find_dock_panel("project-panel")
-                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-                document_model.append_data_item(data_item, project=profile.projects[0])
-                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-                document_model.append_data_item(data_item, project=profile.projects[1])
-                project_panel._projects_selection.set(1)  # 0 is 'all'
-                self.assertEqual(1, len(document_controller.selected_project_references))
-                self.assertIn(profile.project_references[0], document_controller.selected_project_references)
-                profile.remove_project_reference(profile.project_references[1])  # note: cannot remove project 0, since it is work project
-                self.assertEqual(1, len(document_controller.selected_project_references))
-                self.assertIn(profile.project_references[0], document_controller.selected_project_references)
+            document_controller = profile_context.create_document_controller()
+            document_model = document_controller.document_model
+            profile = profile_context.profile
+            TestContext.add_project_memory(profile)
+            project_panel = document_controller.find_dock_panel("project-panel")
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item, project=profile.projects[0])
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item, project=profile.projects[1])
+            project_panel._projects_selection.set(1)  # 0 is 'all'
+            self.assertEqual(1, len(document_controller.selected_project_references))
+            self.assertIn(profile.project_references[0], document_controller.selected_project_references)
+            profile.remove_project_reference(profile.project_references[1])  # note: cannot remove project 0, since it is work project
+            self.assertEqual(1, len(document_controller.selected_project_references))
+            self.assertIn(profile.project_references[0], document_controller.selected_project_references)
 
     def test_profile_selected_projects_updated_when_middle_one_deleted(self):
         # this test ensures that the project selection is updated properly when an item
         # is removed but the index of the item is still valid in the new list.
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            profile.set_project_reference_active(profile.add_project_memory(), True)
-            profile.set_project_reference_active(profile.add_project_memory(), True)
-            with contextlib.closing(document_controller):
-                project_panel = document_controller.find_dock_panel("project-panel")
-                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-                document_model.append_data_item(data_item, project=profile.projects[0])
-                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-                document_model.append_data_item(data_item, project=profile.projects[1])
-                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-                document_model.append_data_item(data_item, project=profile.projects[2])
-                project_panel._projects_selection.set(2)  # 0 is 'all'
-                self.assertEqual(1, len(document_controller.selected_project_references))
-                self.assertIn(profile.project_references[1], document_controller.selected_project_references)
-                profile.remove_project_reference(profile.project_references[1])  # note: cannot remove project 0, since it is work project
-                self.assertEqual(0, len(document_controller.selected_project_references))
+            document_controller = profile_context.create_document_controller()
+            document_model = document_controller.document_model
+            profile = profile_context.profile
+            TestContext.add_project_memory(profile)
+            TestContext.add_project_memory(profile)
+            project_panel = document_controller.find_dock_panel("project-panel")
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item, project=profile.projects[0])
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item, project=profile.projects[1])
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item, project=profile.projects[2])
+            project_panel._projects_selection.set(2)  # 0 is 'all'
+            self.assertEqual(1, len(document_controller.selected_project_references))
+            self.assertIn(profile.project_references[1], document_controller.selected_project_references)
+            profile.remove_project_reference(profile.project_references[1])  # note: cannot remove project 0, since it is work project
+            self.assertEqual(0, len(document_controller.selected_project_references))
 
 
 if __name__ == '__main__':

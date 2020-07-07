@@ -1,5 +1,4 @@
 # standard libraries
-import contextlib
 import logging
 import math
 import unittest
@@ -11,12 +10,11 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import Application
-from nion.swift import DocumentController
 from nion.swift import LineGraphCanvasItem
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.test import TestContext
 from nion.ui import DrawingContext
 from nion.ui import TestUI
 
@@ -101,9 +99,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
 
     def test_tool_returns_to_pointer_after_but_not_during_creating_interval(self):
         # setup
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((100,)))
             document_model.append_data_item(data_item)
@@ -123,9 +121,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
 
     def test_pointer_tool_makes_intervals(self):
         # setup
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((100,)))
             document_model.append_data_item(data_item)
@@ -140,9 +138,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertTrue(interval_region.end > interval_region.start)
 
     def test_pointer_tool_makes_intervals_when_other_intervals_exist(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((100,)))
             document_model.append_data_item(data_item)
@@ -161,9 +159,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertTrue(interval_region.end > interval_region.start)
 
     def test_nudge_interval(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((100,)))
             document_model.append_data_item(data_item)
@@ -185,9 +183,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertAlmostEqual(interval_region.end - interval_region.start, 0.8)
 
     def test_line_plot_auto_scales_uncalibrated_y_axis(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data = numpy.zeros((100,))
             data[50] = 75
@@ -203,9 +201,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertAlmostEqual(axes.uncalibrated_data_max, 80.0)
 
     def test_line_plot_auto_scales_calibrated_y_axis(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data = numpy.zeros((10,))
             data[5] = 75
@@ -222,9 +220,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertAlmostEqual(axes.uncalibrated_data_max, 80.0)
 
     def test_line_plot_handle_calibrated_x_axis_with_negative_scale(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data = numpy.random.randn(100)
             data_item = DataItem.DataItem(data)
@@ -243,9 +241,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertGreater(len(drawing_context.commands), 100)
 
     def test_line_plot_handles_data_below_one_in_log_scale(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data = numpy.random.rand(100)
             data_item = DataItem.DataItem(data)
@@ -267,9 +265,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertGreater(len(drawing_context.commands), 100)
 
     def test_line_plot_with_no_data_displays_gracefully(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -280,9 +278,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.display_canvas_item.layout_immediate((640, 480))
 
     def test_line_plot_calculates_calibrated_vs_uncalibrated_display_y_values(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((8, )), intensity_calibration=Calibration.Calibration(offset=0, scale=10, units="nm")))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -296,9 +294,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.data, numpy.ones((8, ))))
 
     def test_line_plot_handles_calibrated_vs_uncalibrated_display(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((8, )), dimensional_calibrations=[Calibration.Calibration(offset=0, scale=10, units="nm")]))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -312,9 +310,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertFalse(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units)
 
     def test_line_plot_with_no_data_handles_clicks(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_item = DisplayItem.DisplayItem()
             document_model.append_display_item(display_item)
             display_item.display_type = "line_plot"

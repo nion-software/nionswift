@@ -1,5 +1,4 @@
 # standard libraries
-import contextlib
 import copy
 import unittest
 
@@ -11,7 +10,7 @@ from nion.swift import Application
 from nion.swift import Facade
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
-from nion.swift.model import DocumentModel
+from nion.swift.test import TestContext
 from nion.ui import TestUI
 
 
@@ -27,8 +26,8 @@ class TestDisplayItemClass(unittest.TestCase):
         pass
 
     def test_display_item_with_multiple_display_data_channels_has_sensible_properties(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -43,8 +42,8 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertIsNotNone(display_item.used_display_type)
 
     def test_display_item_snapshot_and_copy_preserve_display_type(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -55,8 +54,8 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual("line_plot", copy_display_item.display_type)
 
     def test_appending_display_data_channel_does_nothing_if_display_data_channel_already_exists(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
@@ -69,8 +68,8 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual(2, len(display_item.display_data_channels))
 
     def test_appending_display_data_channel_adds_layer(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
@@ -81,8 +80,8 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual(2, len(display_item.display_data_channels))
 
     def test_removing_data_item_updates_display_layer_data_indexes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
@@ -100,8 +99,8 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual("B", display_item.get_display_layer_property(0, "ref"))
 
     def test_inserting_display_data_channel_updates_display_layer_data_indexes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
@@ -123,8 +122,8 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual("B", display_item.get_display_layer_property(1, "ref"))
 
     def test_copy_display_item_should_copy_all_display_data_channels_and_layers(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
             data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -143,8 +142,8 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual(display_item.display_layers, display_item_copy.display_layers)
 
     def test_snapshot_display_item_with_data_item_and_multiple_display_layers(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((3, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -166,8 +165,8 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual(display_item.display_layers, display_item_copy.display_layers)
 
     def test_add_layer_to_line_plot_with_auto_layer_color_sets_both_colors(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
             data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -183,8 +182,8 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertIn("fill_color", display_item.display_layers[1])
 
     def test_second_layer_to_line_plot_enables_caption(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
             data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
             data_item3 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
@@ -206,8 +205,8 @@ class TestDisplayItemClass(unittest.TestCase):
         # notifications should not be sent during closing, otherwise the computation
         # will try to update its dependencies using the item being destructed.
         # this test only failed in that it printed a stack trace.
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)

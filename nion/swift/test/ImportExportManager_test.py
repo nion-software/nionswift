@@ -1,6 +1,4 @@
 # standard libraries
-import contextlib
-import copy
 import datetime
 import json
 import logging
@@ -15,10 +13,9 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift.model import DataItem
-from nion.swift.model import DisplayItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
+from nion.swift.test import TestContext
 
 
 class TestImportExportManagerClass(unittest.TestCase):
@@ -54,8 +51,8 @@ class TestImportExportManagerClass(unittest.TestCase):
         self.assertIsNotNone(data_item.created_local_as_string)
 
     def test_sub_area_size_change(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_element = dict()
             data_element["version"] = 1
             data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
@@ -75,8 +72,8 @@ class TestImportExportManagerClass(unittest.TestCase):
             self.assertEqual(data_item.data_dtype, numpy.float)
 
     def test_ndata_write_to_then_read_from_temp_file(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             current_working_directory = os.getcwd()
             file_path = os.path.join(current_working_directory, "__file.ndata")
             handler = ImportExportManager.NDataImportExportHandler("ndata1-io-handler", "ndata", ["ndata"])
@@ -93,8 +90,8 @@ class TestImportExportManagerClass(unittest.TestCase):
                 os.remove(file_path)
 
     def test_npy_write_to_then_read_from_temp_file(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             current_working_directory = os.getcwd()
             file_path_npy = os.path.join(current_working_directory, "__file.npy")
             file_path_json = os.path.join(current_working_directory, "__file.json")
@@ -242,8 +239,8 @@ class TestImportExportManagerClass(unittest.TestCase):
         self.assertEqual("2013-11-18 14:05:04.000001", str(data_item.created))
 
     def test_csv1_exporter_handles_multi_layer_display_item_with_same_calibration(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.full((50, ), 0, dtype=numpy.uint32))
             data_item.intensity_calibration = Calibration.Calibration(offset=10, scale=2)
             data_item2 = DataItem.DataItem(numpy.full((100, ), 1, dtype=numpy.uint32))
@@ -268,8 +265,8 @@ class TestImportExportManagerClass(unittest.TestCase):
                 os.remove(file_path)
 
     def test_csv1_exporter_handles_multi_layer_display_item_with_different_calibration(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.full((50, ), 0, dtype=numpy.uint32))
             data_item.dimensional_calibrations = [Calibration.Calibration(offset=0, scale=1, units="eV")]
             data_item.intensity_calibration = Calibration.Calibration(offset=10, scale=2)
@@ -315,8 +312,8 @@ class TestImportExportManagerClass(unittest.TestCase):
         self.assertTrue(data_item.large_format)
 
     def test_importing_large_numpy_file_sets_large_format_flag(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             current_working_directory = os.getcwd()
             file_path_npy = os.path.join(current_working_directory, "__file.npy")
             numpy.save(file_path_npy, numpy.zeros((4, 4, 4)))

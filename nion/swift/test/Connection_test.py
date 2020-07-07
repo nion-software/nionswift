@@ -13,13 +13,13 @@ from nion.swift.model import Connection
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Profile
 from nion.swift.model import Symbolic
+from nion.swift.test import TestContext
 from nion.ui import TestUI
 
 
-def create_memory_profile_context():
-    return Profile.MemoryProfileContext()
+def create_memory_profile_context() -> TestContext.MemoryProfileContext:
+    return TestContext.MemoryProfileContext()
 
 
 class TestConnectionClass(unittest.TestCase):
@@ -32,8 +32,8 @@ class TestConnectionClass(unittest.TestCase):
 
     def test_connection_updates_target_when_source_changes(self):
         # setup document model
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item_3d = DataItem.DataItem(numpy.zeros((8, 8, 32), numpy.uint32))
             data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
             document_model.append_data_item(data_item_3d)
@@ -50,8 +50,8 @@ class TestConnectionClass(unittest.TestCase):
 
     def test_connection_updates_source_when_target_changes(self):
         # setup document model
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item_3d = DataItem.DataItem(numpy.zeros((8, 8, 32), numpy.uint32))
             data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
             document_model.append_data_item(data_item_3d)
@@ -70,7 +70,7 @@ class TestConnectionClass(unittest.TestCase):
     def test_connection_saves_and_restores(self):
         # setup document
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item_3d = DataItem.DataItem(numpy.zeros((8, 8, 32), numpy.uint32))
                 data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
@@ -83,7 +83,7 @@ class TestConnectionClass(unittest.TestCase):
                 connection = Connection.PropertyConnection(display_item_3d.display_data_channels[0], "slice_center", interval, "start", parent=data_item_1d)
                 document_model.append_connection(connection)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 # verify it read back
                 data_item_3d = document_model.data_items[0]
@@ -100,8 +100,8 @@ class TestConnectionClass(unittest.TestCase):
                 self.assertEqual(display_data_channel_3d.slice_center, 7)
 
     def test_connection_closed_when_removed_from_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item_3d = DataItem.DataItem(numpy.zeros((32, 8, 8), numpy.uint32))
             data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
             document_model.append_data_item(data_item_3d)
@@ -117,8 +117,8 @@ class TestConnectionClass(unittest.TestCase):
             self.assertTrue(connection._closed)
 
     def test_connection_closed_when_data_item_removed_from_model(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item_3d = DataItem.DataItem(numpy.zeros((32, 8, 8), numpy.uint32))
             data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
             document_model.append_data_item(data_item_3d)
@@ -134,9 +134,9 @@ class TestConnectionClass(unittest.TestCase):
             self.assertTrue(connection._closed)
 
     def test_connection_updates_interval_descriptors_on_line_profile_graphic_from_source(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -155,9 +155,9 @@ class TestConnectionClass(unittest.TestCase):
             self.assertEqual(0, len(line_profile_graphic.interval_descriptors))
 
     def test_connection_updates_interval_descriptors_when_interval_mutates(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -174,8 +174,8 @@ class TestConnectionClass(unittest.TestCase):
             self.assertEqual(interval_descriptors[0]["interval"], interval)
 
     def test_connection_establishes_transaction_on_source(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item_src = DataItem.DataItem(numpy.zeros((1000, )))
             data_item_dst = DataItem.DataItem(numpy.zeros((1000, )))
             document_model.append_data_item(data_item_src)
@@ -198,8 +198,8 @@ class TestConnectionClass(unittest.TestCase):
             self.assertEqual(0, document_model.transaction_count)
 
     def test_connection_establishes_transaction_on_parallel_source_connection(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item_src = DataItem.DataItem(numpy.zeros((1000, )))
             data_item_dst1 = DataItem.DataItem(numpy.zeros((1000, )))
             data_item_dst2 = DataItem.DataItem(numpy.zeros((1000, )))
@@ -230,8 +230,8 @@ class TestConnectionClass(unittest.TestCase):
             self.assertEqual(0, document_model.transaction_count)
 
     def test_connection_between_data_structures(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             data_struct1 = document_model.create_data_structure()
@@ -250,8 +250,8 @@ class TestConnectionClass(unittest.TestCase):
             self.assertEqual("T2", data_struct2.get_property_value("title"))
 
     def test_connection_establishes_transaction_on_target_data_structure(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item1)
@@ -283,8 +283,8 @@ class TestConnectionClass(unittest.TestCase):
             self.assertEqual(0, document_model.transaction_count)
 
     def test_connection_establishes_transaction_on_target_data_structure_dependent(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((20, )))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -309,8 +309,8 @@ class TestConnectionClass(unittest.TestCase):
             self.assertEqual(0, document_model.transaction_count)
 
     def test_connection_to_graphic_puts_data_item_under_transaction(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((20, )))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -327,8 +327,8 @@ class TestConnectionClass(unittest.TestCase):
                 self.assertTrue(document_model.is_in_transaction_state(display_item))
 
     def test_removing_graphic_as_connection_source_results_in_consistent_state(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((20, )))
             data_item2 = DataItem.DataItem(numpy.zeros((20, )))
             document_model.append_data_item(data_item1)
@@ -348,8 +348,8 @@ class TestConnectionClass(unittest.TestCase):
                 pass
 
     def test_removing_graphic_as_connection_target_results_in_consistent_state(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((20, )))
             data_item2 = DataItem.DataItem(numpy.zeros((20, )))
             document_model.append_data_item(data_item1)
@@ -370,9 +370,9 @@ class TestConnectionClass(unittest.TestCase):
 
     def test_line_profile_graphic_is_part_transaction_for_line_plot_intervals(self):
         # this is essential for good performance while dragging intervals on a line plot
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)

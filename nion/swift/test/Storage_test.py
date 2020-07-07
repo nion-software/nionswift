@@ -37,6 +37,7 @@ from nion.swift.model import NDataHandler
 from nion.swift.model import Persistence
 from nion.swift.model import Profile
 from nion.swift.model import Symbolic
+from nion.swift.test import TestContext
 from nion.ui import TestUI
 
 
@@ -67,6 +68,7 @@ class TempProfileContext:
         Cache.db_make_directory_if_needed(self.projects_dir)
         self.__profile = None
         self.__no_remove = no_remove
+        self.__items_to_close = list()
 
     def create_profile(self, *, profile_name: str = None, project_name: str = None, project_data_name: str = None) -> Profile.Profile:
         if not self.__profile:
@@ -80,7 +82,7 @@ class TempProfileContext:
             storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
             storage_system.load_properties()
             storage_cache = Cache.DbStorageCache(self.profiles_dir / "ProfileCache.cache")
-            profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
+            profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache)
             project_reference = profile.add_project_index(project_path)
             profile.work_project_reference_uuid = project_reference.uuid
             profile.target_project_reference_uuid = project_reference.uuid
@@ -91,8 +93,24 @@ class TempProfileContext:
             storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
             storage_system.load_properties()
             storage_cache = Cache.DbStorageCache(self.profiles_dir / "ProfileCache.cache")
-            profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache, auto_project=False)
+            profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache)
             return profile
+
+    def create_document_model(self, auto_close: bool = False, clear_work: bool = False, project_name: str = None, project_data_name: str = None) -> DocumentModel.DocumentModel:
+        profile = self.create_profile(project_name=project_name, project_data_name=project_data_name)
+        if clear_work:
+            profile.work_project_reference_uuid = None
+        document_model = DocumentModel.DocumentModel(profile=profile)
+        if auto_close:
+            self.__items_to_close.append(document_model)
+        return document_model
+
+    def create_document_controller(self, *, auto_close: bool = True) -> DocumentController.DocumentController:
+        document_model = DocumentModel.DocumentModel(profile=self.create_profile())
+        document_controller = DocumentController.DocumentController(TestUI.UserInterface(), document_model, workspace_id="library")
+        if auto_close:
+            self.__items_to_close.append(document_controller)
+        return document_controller
 
     def reset_profile(self):
         self.__profile = None
@@ -105,6 +123,12 @@ class TempProfileContext:
         return self
 
     def __exit__(self, type_, value, traceback):
+        self.close()
+
+    def close(self):
+        for item in self.__items_to_close:
+            item.close()
+        self.__items_to_close = list()
         if self.__no_remove:
             import logging
             logging.debug("rmtree %s", self.workspace_dir)
@@ -116,8 +140,8 @@ def create_temp_profile_context(no_remove: bool = False) -> TempProfileContext:
     return TempProfileContext(pathlib.Path.cwd(), no_remove=no_remove)
 
 
-def create_memory_profile_context() -> Profile.MemoryProfileContext:
-    return Profile.MemoryProfileContext()
+def create_memory_profile_context() -> TestContext.MemoryProfileContext:
+    return TestContext.MemoryProfileContext()
 
 
 class TestStorageClass(unittest.TestCase):
@@ -206,18 +230,18 @@ class TestStorageClass(unittest.TestCase):
     def test_write_read_empty_data_item(self):
         # basic test (redundant, but useful for debugging)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8)))
                 document_model.append_data_item(data_item)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(1, len(document_model.data_items))
 
     def test_set_data_item_data(self):
         # basic test (redundant, but useful for debugging)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.zeros((2, 2)))
                 document_model.append_data_item(data_item)
@@ -227,22 +251,18 @@ class TestStorageClass(unittest.TestCase):
 
     def test_save_document(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
-                self.save_document(document_controller)
+            document_controller = profile_context.create_document_controller()
+            self.save_document(document_controller)
 
     def test_save_load_document(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
             with contextlib.closing(document_controller):
                 self.save_document(document_controller)
                 data_items_count = len(document_controller.document_model.data_items)
                 data_items_type = type(document_controller.document_model.data_items)
             # # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
             with contextlib.closing(document_controller):
                 self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
                 self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
@@ -255,13 +275,13 @@ class TestStorageClass(unittest.TestCase):
 
     def test_storage_cache_validates_data_range_upon_reading(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 data_range = display_item.display_data_channels[0].get_calculated_display_values(True).data_range
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
@@ -270,8 +290,8 @@ class TestStorageClass(unittest.TestCase):
     def test_thumbnail_does_not_get_invalidated_upon_reading(self):
         # tests caching on display
         with create_temp_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -279,8 +299,8 @@ class TestStorageClass(unittest.TestCase):
                 profile.storage_cache.set_cached_value(display_item, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
                 self.assertFalse(profile.storage_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
             # read it back
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
@@ -291,7 +311,7 @@ class TestStorageClass(unittest.TestCase):
         # tests caching on display
         with create_memory_profile_context() as profile_context:
             storage_cache = profile_context.storage_cache
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -301,7 +321,7 @@ class TestStorageClass(unittest.TestCase):
                 with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)) as thumbnail_source:
                     thumbnail_source.recompute_data()
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
@@ -312,14 +332,14 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reload_data_item_initializes_display_data_range(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
                 self.assertIsNotNone(display_item.display_data_channels[0].get_calculated_display_values(True).data_range)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
                 self.assertIsNotNone(display_item.display_data_channels[0].get_calculated_display_values(True).data_range)
@@ -328,7 +348,7 @@ class TestStorageClass(unittest.TestCase):
     def test_reload_data_item_does_not_recalculate_display_data_range(self):
         with create_memory_profile_context() as profile_context:
             storage_cache = profile_context.storage_cache
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -336,7 +356,7 @@ class TestStorageClass(unittest.TestCase):
             # read it back
             data_range = 1, 4
             storage_cache.cache[display_item_uuid]["data_range"] = data_range
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
                 self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).data_range, data_range)
@@ -344,7 +364,7 @@ class TestStorageClass(unittest.TestCase):
     def test_reload_data_item_does_not_load_actual_data(self):
         # reloading data from disk should not have to load the data, otherwise bad performance ensues
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -354,13 +374,13 @@ class TestStorageClass(unittest.TestCase):
                 data_read_count_ref[0] += 1
             listener = profile_context._test_data_read_event.listen(data_read)
             with contextlib.closing(listener):
-                document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-                with contextlib.closing(document_model):
+                document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
                     self.assertEqual(data_read_count_ref[0], 0)
 
     def test_reload_data_item_initializes_display_slice(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.zeros((4, 4, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -369,7 +389,7 @@ class TestStorageClass(unittest.TestCase):
                 display_data_channel.slice_center = 5
                 display_data_channel.slice_width = 3
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
                 display_data_channel = display_item.display_data_channels[0]
@@ -378,7 +398,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reload_data_item_validates_display_slice_and_has_valid_data_and_stats(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data = numpy.zeros((4, 4, 8), numpy.uint32)
                 data[..., 7] = 1
@@ -392,7 +412,7 @@ class TestStorageClass(unittest.TestCase):
             # make the slice_center be out of bounds
             profile_context.project_properties["display_items"][0]["display_data_channels"][0]["slice_center"] = 20
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
                 display_data_channel = display_item.display_data_channels[0]
@@ -403,23 +423,22 @@ class TestStorageClass(unittest.TestCase):
 
     def test_save_load_document_to_files(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
             with contextlib.closing(document_controller):
                 self.save_document(document_controller)
                 data_items_count = len(document_controller.document_model.data_items)
                 data_items_type = type(document_controller.document_model.data_items)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_model):
                 self.assertEqual(data_items_count, len(document_model.data_items))
                 self.assertEqual(data_items_type, type(document_model.data_items))
 
     def test_db_storage(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 self.save_document(document_controller)
                 document_model_uuid = document_controller.profile.uuid
@@ -433,8 +452,8 @@ class TestStorageClass(unittest.TestCase):
                 data_item0_calibration_len = len(data_item0_display_item.data_item.dimensional_calibrations)
                 data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(data_item1))
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 new_data_item0 = typing.cast(DataItem.DataItem, document_model.resolve_item_specifier(data_item0_specifier))
                 new_data_item0_display_item = document_model.get_display_item_for_data_item(new_data_item0)
@@ -456,7 +475,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_dependencies_are_correct_when_dependent_read_before_source(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 src_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 src_data_item.category = "temporary"
@@ -467,7 +486,7 @@ class TestStorageClass(unittest.TestCase):
                 dst_data_item.created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
                 src_data_item_specifier = src_data_item.project.create_specifier(src_data_item, allow_partial=False)
                 dst_data_item_specifier = dst_data_item.project.create_specifier(dst_data_item, allow_partial=False)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 src_data_item = typing.cast(DataItem.DataItem, document_model.resolve_item_specifier(src_data_item_specifier))
                 dst_data_item = typing.cast(DataItem.DataItem, document_model.resolve_item_specifier(dst_data_item_specifier))
@@ -482,7 +501,7 @@ class TestStorageClass(unittest.TestCase):
         # this makes one dependency (86d982d1) load before the main item (71ab9215) and one (7d3b374e) load after.
         # this tests the get_dependent_data_items after reading data.
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item1 = DataItem.DataItem(item_uuid=uuid.UUID('86d982d1-6d81-46fa-b19e-574e904902de'))
                 data_item2 = DataItem.DataItem(item_uuid=uuid.UUID('71ab9215-c6ae-4c36-aaf5-92ce78db02b6'))
@@ -499,7 +518,7 @@ class TestStorageClass(unittest.TestCase):
             profile_context.data_properties_map["86d982d1-6d81-46fa-b19e-574e904902de"]["created"] = "2015-01-22T17:16:12.421290"
             profile_context.data_properties_map["71ab9215-c6ae-4c36-aaf5-92ce78db02b6"]["created"] = "2015-01-22T17:16:12.219730"
             profile_context.data_properties_map["7d3b374e-e48b-460f-91de-7ff4e1a1a63c"]["created"] = "2015-01-22T17:16:12.308003"
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 new_data_item1_specifier = Persistence.PersistentObjectSpecifier(item_uuid=uuid.UUID("71ab9215-c6ae-4c36-aaf5-92ce78db02b6"),
                                                                                  context_uuid=document_model._project.uuid)
@@ -509,7 +528,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_dependencies_load_correctly_for_data_item_with_multiple_displays(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -518,7 +537,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.get_display_item_copy_new(display_item)
                 self.assertEqual(1, len(document_model.get_dependent_data_items(data_item)))
                 self.assertEqual(document_model.data_items[1], document_model.get_dependent_data_items(data_item)[0])
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = document_model.data_items[0]
                 self.assertEqual(1, len(document_model.get_dependent_data_items(data_item)))
@@ -527,8 +546,8 @@ class TestStorageClass(unittest.TestCase):
     # test whether we can update master_data and have it written to the db
     def test_db_storage_write_data(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data1 = numpy.zeros((16, 16), numpy.uint32)
                 data1[0,0] = 1
@@ -542,8 +561,8 @@ class TestStorageClass(unittest.TestCase):
                 data2[0,0] = 2
                 display_item.data_item.set_data(data2)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data_item = document_controller.document_model.data_items[0]
                 display_item = document_model.get_display_item_for_data_item(data_item)
@@ -552,8 +571,8 @@ class TestStorageClass(unittest.TestCase):
     # test whether we can update the db from a thread
     def test_db_storage_write_on_thread(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data1 = numpy.zeros((16, 16), numpy.uint32)
                 data1[0,0] = 1
@@ -576,8 +595,8 @@ class TestStorageClass(unittest.TestCase):
                 thread.join()
                 document_controller.periodic()
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 read_data_item = document_controller.document_model.data_items[0]
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
@@ -585,31 +604,29 @@ class TestStorageClass(unittest.TestCase):
 
     def test_storage_insert_items(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
-                self.save_document(document_controller)
-                # insert and append items
-                data_group1 = DataGroup.DataGroup()
-                data_group2 = DataGroup.DataGroup()
-                data_group3 = DataGroup.DataGroup()
-                document_controller.document_model.data_groups[0].append_data_group(data_group1)
-                document_controller.document_model.data_groups[0].insert_data_group(0, data_group2)
-                document_controller.document_model.data_groups[0].append_data_group(data_group3)
-                self.assertEqual(len(profile_context.profile_properties["data_groups"][0]["data_groups"]), 3)
-                # delete items to generate key error unless primary keys handled carefully. need to delete an item that is at index >= 2 to test for this problem.
-                data_group4 = DataGroup.DataGroup()
-                data_group5 = DataGroup.DataGroup()
-                document_controller.document_model.data_groups[0].insert_data_group(1, data_group4)
-                document_controller.document_model.data_groups[0].insert_data_group(1, data_group5)
-                document_controller.document_model.data_groups[0].remove_data_group(document_controller.document_model.data_groups[0].data_groups[2])
-                # make sure indexes are in sequence still
-                self.assertEqual(len(profile_context.profile_properties["data_groups"][0]["data_groups"]), 4)
+            document_controller = profile_context.create_document_controller()
+            self.save_document(document_controller)
+            # insert and append items
+            data_group1 = DataGroup.DataGroup()
+            data_group2 = DataGroup.DataGroup()
+            data_group3 = DataGroup.DataGroup()
+            document_controller.document_model.data_groups[0].append_data_group(data_group1)
+            document_controller.document_model.data_groups[0].insert_data_group(0, data_group2)
+            document_controller.document_model.data_groups[0].append_data_group(data_group3)
+            self.assertEqual(len(profile_context.profile_properties["data_groups"][0]["data_groups"]), 3)
+            # delete items to generate key error unless primary keys handled carefully. need to delete an item that is at index >= 2 to test for this problem.
+            data_group4 = DataGroup.DataGroup()
+            data_group5 = DataGroup.DataGroup()
+            document_controller.document_model.data_groups[0].insert_data_group(1, data_group4)
+            document_controller.document_model.data_groups[0].insert_data_group(1, data_group5)
+            document_controller.document_model.data_groups[0].remove_data_group(document_controller.document_model.data_groups[0].data_groups[2])
+            # make sure indexes are in sequence still
+            self.assertEqual(len(profile_context.profile_properties["data_groups"][0]["data_groups"]), 4)
 
     def test_copy_data_group(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_group1 = DataGroup.DataGroup()
             document_controller.document_model.append_data_group(data_group1)
             data_group1a = DataGroup.DataGroup()
@@ -627,9 +644,9 @@ class TestStorageClass(unittest.TestCase):
             data_group2_copy = copy.deepcopy(data_group2)
 
     def test_adding_data_item_to_document_model_twice_raises_exception(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             self.save_document(document_controller)
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -637,9 +654,9 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
 
     def test_adding_data_item_to_data_group_twice_raises_exception(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             self.save_document(document_controller)
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -649,7 +666,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reading_data_group_with_duplicate_data_items_discards_duplicates(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
                 document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
@@ -660,13 +677,13 @@ class TestStorageClass(unittest.TestCase):
                 data_group.append_display_item(document_model.display_items[1])
                 document_model.append_data_group(data_group)
             profile_context.profile_properties['data_groups'][0]['display_item_references'][1] = profile_context.profile_properties['data_groups'][0]['display_item_references'][0]
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(1, len(document_model.data_groups[0].display_items))
 
     def test_insert_item_with_transaction(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_group = DataGroup.DataGroup()
                 document_model.append_data_group(data_group)
@@ -678,7 +695,7 @@ class TestStorageClass(unittest.TestCase):
                     document_model.append_data_item(data_item)
                     data_group.append_display_item(document_model.get_display_item_for_data_item(data_item))
             # make sure it reloads
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item1 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
                 data_item2 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
@@ -697,21 +714,21 @@ class TestStorageClass(unittest.TestCase):
     def test_data_item_modification_should_not_change_when_reading(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
                 document_model.append_data_item(data_item)
                 data_item._set_modified(modified)
             # make sure it reloads
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(document_model.data_items[0].modified, modified)
 
     def test_data_item_should_store_modifications_within_transactions(self):
         created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
@@ -719,14 +736,14 @@ class TestStorageClass(unittest.TestCase):
                 with document_model.item_transaction(data_item):
                     data_item.created = created
             # make sure it reloads
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(document_model.data_items[0].created, created)
 
     def test_data_writes_to_and_reloads_from_file(self):
         with create_temp_profile_context() as profile_context:
             data = numpy.random.randn(16, 16)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
@@ -737,7 +754,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertTrue(os.path.exists(data_file_path))
                 self.assertTrue(os.path.isfile(data_file_path))
             # make sure the data reloads
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 self.assertTrue(numpy.array_equal(read_data_item.data, data))
@@ -749,7 +766,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_rewrites_to_same_file(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
@@ -758,15 +775,15 @@ class TestStorageClass(unittest.TestCase):
                 data_file_path = data_item._test_get_file_path()
             new_data_file_path = pathlib.Path(data_file_path).parents[4] / pathlib.Path(data_file_path).name
             shutil.move(data_file_path, new_data_file_path)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_data_file_path = pathlib.Path(read_data_item._test_get_file_path())
                 self.assertEqual(new_data_file_path, read_data_file_path)
 
     def test_delete_and_undelete_from_memory_storage_system_restores_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((16, 16)))
             document_model.append_data_item(data_item)
             data_item_uuid = data_item.uuid
@@ -778,13 +795,13 @@ class TestStorageClass(unittest.TestCase):
 
     def test_delete_and_undelete_from_memory_storage_system_restores_data_item_after_reload(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16)))
                 document_model.append_data_item(data_item)
                 data_item_uuid = data_item.uuid
                 document_model.remove_data_item(data_item, safe=True)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(0, len(document_model.data_items))
                 document_model.restore_data_item(document_model.projects[0], data_item_uuid)
@@ -793,7 +810,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_delete_and_undelete_from_file_storage_system_restores_data_item(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16)))
                 document_model.append_data_item(data_item)
@@ -807,14 +824,14 @@ class TestStorageClass(unittest.TestCase):
     def test_deleted_file_removed_from_file_storage_system_restores_data_item_after_reload(self):
         # is established for restoring items in the trash.
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16)))
                 document_model.append_data_item(data_item)
                 data_item_uuid = data_item.uuid
                 document_model.remove_data_item(data_item, safe=True)
             # # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(list(document_model.projects[0].project_storage_system._trash_dir.rglob("*"))), 0)
 
@@ -822,14 +839,14 @@ class TestStorageClass(unittest.TestCase):
         # this test is disabled for now; launching the application empties the trash until a user interface
         # is established for restoring items in the trash.
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16)))
                 document_model.append_data_item(data_item)
                 data_item_uuid = data_item.uuid
                 document_model.remove_data_item(data_item, safe=True)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(0, len(document_model.data_items))
                 document_model.restore_data_item(document_model.projects[0], data_item_uuid)
@@ -840,15 +857,15 @@ class TestStorageClass(unittest.TestCase):
         with create_temp_profile_context() as profile_context:
             zeros = numpy.zeros((8, 8), numpy.uint32)
             ones = numpy.ones((8, 8), numpy.uint32)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(ones)
                 data_item.large_format = True
                 document_model.append_data_item(data_item)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.data_items[0].set_data(zeros)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertTrue(numpy.array_equal(document_model.data_items[0].data, zeros))
 
@@ -856,7 +873,7 @@ class TestStorageClass(unittest.TestCase):
         with create_temp_profile_context() as profile_context:
             zeros = numpy.zeros((8, 8), numpy.uint32)
             ones = numpy.ones((8, 8), numpy.uint32)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.large_format = True
@@ -867,17 +884,17 @@ class TestStorageClass(unittest.TestCase):
                                                   DataAndMetadata.new_data_and_metadata(ones), (slice(0,8), slice(0, 8)),
                                                   (slice(0,8), slice(0, 8)))
                 self.assertTrue(numpy.array_equal(ones, data_item.data))
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertTrue(numpy.array_equal(document_model.data_items[0].data, ones))
                 document_model.data_items[0].set_data(zeros)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertTrue(numpy.array_equal(document_model.data_items[0].data, zeros))
 
     def test_writing_empty_data_item_returns_expected_values(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
@@ -893,7 +910,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_writing_data_item_with_no_data_sources_returns_expected_values(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 document_model.append_data_item(data_item)
@@ -905,7 +922,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_writes_to_file_after_transaction(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
@@ -927,7 +944,7 @@ class TestStorageClass(unittest.TestCase):
     def test_begin_end_transaction_with_no_change_should_not_write(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -950,7 +967,7 @@ class TestStorageClass(unittest.TestCase):
         # converse of previous test
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -966,7 +983,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_begin_end_transaction_with_non_data_change_should_not_write_data(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -978,7 +995,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_begin_end_transaction_with_data_change_should_write_data(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -990,7 +1007,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_begin_end_transaction_with_data_change_should_write_display_item(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -1009,7 +1026,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_removes_file_after_original_date_and_session_change(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
@@ -1031,8 +1048,8 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloading_data_item_with_display_builds_graphics_properly(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 self.save_document(document_controller)
                 read_data_item = document_model.data_items[0]
@@ -1040,8 +1057,8 @@ class TestStorageClass(unittest.TestCase):
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
                 self.assertEqual(len(read_display_item.graphics), 9)  # verify assumptions
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 read_data_item = typing.cast(DataItem.DataItem, document_model.resolve_item_specifier(read_data_item_specifier))
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
@@ -1051,8 +1068,8 @@ class TestStorageClass(unittest.TestCase):
     def test_writing_empty_data_item_followed_by_writing_data_adds_correct_calibrations(self):
         # this failed due to a key aliasing issue.
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 # create empty data item
                 data_item = DataItem.DataItem()
@@ -1063,8 +1080,8 @@ class TestStorageClass(unittest.TestCase):
                     display_item.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                 self.assertEqual(len(display_item.data_item.dimensional_calibrations), 2)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 read_data_item = document_controller.document_model.data_items[0]
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
@@ -1073,20 +1090,19 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloading_data_item_establishes_display_connection_to_storage(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
             with contextlib.closing(document_controller):
                 pass
 
     def test_reloaded_line_profile_operation_binds_to_roi(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -1094,7 +1110,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.get_line_profile_new(display_item)
                 display_item.graphics[0].vector = (0.1, 0.2), (0.3, 0.4)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = document_model.data_items[0]
                 data_item2 = document_model.data_items[1]
@@ -1109,7 +1125,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloaded_line_plot_has_valid_calibration_style(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -1117,7 +1133,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual("calibrated", display_item.calibration_style_id)
                 self.assertEqual("calibrated", display_item.calibration_style.calibration_style_id)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = document_model.data_items[0]
                 display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1126,8 +1142,8 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloaded_graphics_load_properly(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -1136,8 +1152,8 @@ class TestStorageClass(unittest.TestCase):
                 rect_graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
                 display_item.add_graphic(rect_graphic)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 read_data_item = document_model.data_items[0]
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
@@ -1146,7 +1162,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_unknown_graphics_load_properly(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -1156,13 +1172,13 @@ class TestStorageClass(unittest.TestCase):
                 display_item.add_graphic(rect_graphic)
             profile_context.project_properties["display_items"][0]["graphics"][0]["type"] = "magical-graphic"
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             document_model.close()
 
     def test_reloaded_regions_load_properly(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -1171,8 +1187,8 @@ class TestStorageClass(unittest.TestCase):
                 point_region_uuid = point_region.uuid
                 document_model.get_display_item_for_data_item(data_item).add_graphic(point_region)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 read_data_item = document_controller.document_model.data_items[0]
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
@@ -1183,21 +1199,20 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloaded_empty_data_groups_load_properly(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data_group = DataGroup.DataGroup()
                 document_model.append_data_group(data_group)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
             with contextlib.closing(document_controller):
                 pass
 
     def test_new_data_item_stores_uuid_and_data_info_in_properties_immediately(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             self.assertTrue("data_shape" in data_item.properties)
@@ -1207,7 +1222,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_deleting_dependent_after_deleting_source_succeeds(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.ensure_data_source()
@@ -1227,7 +1242,7 @@ class TestStorageClass(unittest.TestCase):
             # delete the original file
             os.remove(data_file_path)
             # read it back the library
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertTrue(os.path.isfile(data2_file_path))
@@ -1238,7 +1253,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_properties_are_able_to_be_cleared_and_reloaded(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((8, 8)))
                 document_model.append_data_item(data_item)
@@ -1246,40 +1261,40 @@ class TestStorageClass(unittest.TestCase):
                 display_item.display_type = "image"
                 display_item.display_type = None
             # make sure it reloads without changing modification
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
                 self.assertIsNone(display_item.display_type)
 
     def test_properties_with_no_data_reloads(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 document_model.append_data_item(data_item)
                 data_item.title = "TitleX"
             # read it back the library
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.data_items[0].title, "TitleX")
 
     def test_resized_data_reloads(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(data=numpy.zeros((16, 16)))
                 document_model.append_data_item(data_item)
                 data_item.set_data(numpy.zeros((32, 32)))
             # read it back the library
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.data_items[0].data.shape, (32, 32))
 
     def test_resized_data_reclaims_space(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(data=numpy.zeros((32, 32)))
                 document_model.append_data_item(data_item)
@@ -1290,15 +1305,15 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloaded_display_has_correct_storage_cache(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
-                document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
                 read_data_item = document_model.data_items[0]
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
                 # check storage caches
@@ -1306,22 +1321,22 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_written_with_newer_version_get_ignored(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
                 # increment the version on the data item
                 list(profile_context.data_properties_map.values())[0]["version"] = DataItem.DataItem.writer_version + 1
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 # check it
                 self.assertEqual(len(document_model.data_items), 0)
 
     def test_reloading_composite_operation_reconnects_when_reloaded(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
                 document_model.append_data_item(data_item)
@@ -1332,8 +1347,9 @@ class TestStorageClass(unittest.TestCase):
                 display_panel = document_controller.selected_display_panel
                 display_panel.set_display_panel_display_item(display_item)
                 new_data_item = document_model.get_invert_new(display_item, crop_region)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
                 read_data_item = document_model.data_items[0]
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
                 computation_bounds = document_model.get_data_item_computation(document_model.data_items[1]).get_input("src").graphic.bounds
@@ -1344,7 +1360,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_inverted_data_item_does_not_need_recompute_when_reloaded(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
                 document_model.append_data_item(data_item)
@@ -1352,7 +1368,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.get_invert_new(display_item)
                 document_model.recompute_all()
             # reload and check inverted data item does not need recompute
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 read_data_item2 = document_model.data_items[1]
                 read_display_item2 = document_model.get_display_item_for_data_item(read_data_item2)
@@ -1360,7 +1376,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_item_with_persistent_r_value_does_not_need_recompute_when_reloaded(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
                 document_model.append_data_item(data_item)
@@ -1369,7 +1385,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.recompute_all()
                 document_model.assign_variable_to_data_item(data_item)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 read_data_item2 = document_model.data_items[1]
                 read_display_item2 = document_model.get_display_item_for_data_item(read_data_item2)
@@ -1377,7 +1393,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_computations_with_id_update_to_latest_version_when_reloaded(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             modifieds = dict()
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
@@ -1399,7 +1415,7 @@ class TestStorageClass(unittest.TestCase):
                     computation_dict["original_expression"] = "incorrect"
                     original_expressions[data_item_uuid] = original_expression
             # reload and check inverted data item has updated original expression, does not need recompute, and has not been modified
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 for data_item_uuid in original_expressions.keys():
                     data_item_specifier = Persistence.PersistentObjectSpecifier(item_uuid=uuid.UUID(data_item_uuid))
@@ -1410,7 +1426,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_line_profile_with_intervals_does_not_recompute_when_reloaded(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
                 document_model.append_data_item(data_item)
@@ -1421,13 +1437,13 @@ class TestStorageClass(unittest.TestCase):
                 document_model.recompute_all()
                 self.assertFalse(document_model.get_data_item_computation(document_model.data_items[1]).needs_update)
             # reload and check data item does not need recompute
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertFalse(document_model.get_data_item_computation(document_model.data_items[1]).needs_update)
 
     def test_cropped_data_item_with_region_does_not_need_recompute_when_reloaded(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
                 document_model.append_data_item(data_item)
@@ -1440,13 +1456,13 @@ class TestStorageClass(unittest.TestCase):
                 read_display_item2 = document_model.get_display_item_for_data_item(read_data_item2)
                 self.assertFalse(document_model.get_data_item_computation(read_display_item2.data_item).needs_update)
             # reload and check inverted data item does not need recompute
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertFalse(document_model.get_data_item_computation(document_model.data_items[1]).needs_update)
 
     def test_cropped_data_item_with_region_still_updates_when_reloaded(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
                 document_model.append_data_item(data_item)
@@ -1461,7 +1477,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertFalse(document_model.get_data_item_computation(read_display_item2.data_item).needs_update)
                 self.assertEqual(read_display_item2.data_item.data_shape, (4, 4))
             # reload and check inverted data item does not need recompute
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.recompute_all()  # shouldn't be necessary unless other tests fail
                 read_data_item = document_model.data_items[0]
@@ -1484,7 +1500,7 @@ class TestStorageClass(unittest.TestCase):
             data_item_dict["version"] = 1
             profile_context.data_map["A"] = numpy.zeros((8, 8), numpy.uint32)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check it
@@ -1514,7 +1530,7 @@ class TestStorageClass(unittest.TestCase):
             data_item_dict["version"] = 2
             profile_context.data_map["A"] = numpy.zeros((8, 8), numpy.uint32)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check it
@@ -1538,7 +1554,7 @@ class TestStorageClass(unittest.TestCase):
             data_item_dict["version"] = 3
             profile_context.data_map["A"] = numpy.zeros((8, 8), numpy.uint32)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check it
@@ -1565,7 +1581,7 @@ class TestStorageClass(unittest.TestCase):
             data_item_dict["version"] = 4
             profile_context.data_map["A"] = numpy.zeros((8, 8), numpy.uint32)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check it
@@ -1597,7 +1613,7 @@ class TestStorageClass(unittest.TestCase):
             data_item2_dict["datetime_original"] = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
             data_item2_dict["version"] = 5
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check it
@@ -1646,7 +1662,7 @@ class TestStorageClass(unittest.TestCase):
             data_item2_dict["datetime_original"] = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
             data_item3_dict["version"] = 6
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check it
@@ -1692,7 +1708,7 @@ class TestStorageClass(unittest.TestCase):
             new_metadata = {"instrument": "a big screwdriver", "autostem": { "high_tension_v": 42}, "extra_high_tension": 42 }
             data_item_dict["hardware_source"] = metadata
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -1740,7 +1756,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_source_dict["data_source"] = dst_reference
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -1811,7 +1827,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
 
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -1882,7 +1898,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_source_dict["data_source"] = dst_reference
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -1941,7 +1957,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_source_dict["data_source"] = dst_reference
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -1995,7 +2011,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_source_dict["data_source"] = dst_reference
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2052,7 +2068,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_source_dict["data_source"] = dst_reference
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2121,7 +2137,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_source_dict["data_source"] = dst_reference
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2194,7 +2210,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_source_dict["data_source"] = dst_reference
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2252,7 +2268,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_source_dict["data_source"] = dst_reference
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2309,7 +2325,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_source_dict["data_source"] = dst_reference
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2372,7 +2388,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_source_dict["data_source"] = dst_reference
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2431,7 +2447,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_source_dict["data_source"] = dst_reference
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2471,7 +2487,7 @@ class TestStorageClass(unittest.TestCase):
             ]
             data_item_dict["data_sources"] = [data_source_dict]
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2560,7 +2576,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["connections"] = [{"source_uuid": dst_data_source_uuid, "target_uuid": line_uuid_str, "type": "interval-list-connection", "uuid": str(uuid.uuid4())}]
 
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2595,7 +2611,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_item_dict["data_sources"] = [src_data_source_dict]
 
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 self.assertEqual(document_model.data_items[0].created.date(), DataItem.DatetimeToStringConverter().convert_back(created_str).date())
@@ -2639,7 +2655,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
 
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2696,7 +2712,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
 
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2769,7 +2785,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_sources"] = [dst_data_source_dict]
 
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2829,7 +2845,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_source"] = dst_data_source_dict
 
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2887,7 +2903,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_source"] = dst_data_source_dict
 
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 # check metadata transferred to data source
@@ -2940,7 +2956,7 @@ class TestStorageClass(unittest.TestCase):
             dst_data_item_dict["data_source"] = dst_data_source_dict
 
             # make sure it reloads twice
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 self.assertEqual(1, len(document_model.computations))
@@ -2973,7 +2989,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_item_dict["connections"] = []
 
             # make sure it reloads twice
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 data_item = document_model.data_items[0]
@@ -3027,7 +3043,7 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # read workspace
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 file_path = document_model.data_items[0]._test_get_file_path()
@@ -3047,7 +3063,7 @@ class TestStorageClass(unittest.TestCase):
             with library_path.open("w") as fp:
                 json.dump({}, fp)
             # read workspace
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
             # verify
@@ -3083,7 +3099,7 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # read workspace
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
             # verify
@@ -3120,7 +3136,7 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # auto migrate workspace
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 self.assertEqual(len(document_model.data_items), 1)
@@ -3155,7 +3171,7 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # auto migrate workspace
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 self.assertEqual(len(document_model.data_items), 1)
@@ -3188,14 +3204,14 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # make new library
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 new_data_item_specifier = data_item.project.create_specifier(data_item, allow_partial=False)
             # auto migrate workspace
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             # this migrate is not allowed since it is already migrated.
             # in the future, maybe there will be a "migrate_data_items" but it doesn't exist yet. it's currently all or nothing.
             # document_model.projects[0].migrate_to_latest()
@@ -3233,7 +3249,7 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # auto migrate workspace
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 self.assertEqual(len(document_model.data_items), 0)
@@ -3276,7 +3292,7 @@ class TestStorageClass(unittest.TestCase):
                     handler.write_properties(data_item.write_to_dict(), datetime.datetime.utcnow())
                     handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # read the document and migrate
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 self.assertEqual(len(document_model.data_items), 1)
@@ -3315,7 +3331,7 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # auto migrate workspace
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 self.assertEqual(len(document_model.data_items), 1)
@@ -3323,25 +3339,26 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_reference_is_reloaded(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 self.assertEqual(len(document_model.data_items), 0)
                 data_item = DataItem.DataItem(numpy.zeros((256, 256)))
                 document_model.append_data_item(data_item)
                 document_model.setup_channel("key", data_item)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
                 self.assertEqual(document_model.data_items[0], document_model.get_data_item_reference('key').data_item)
 
     def test_data_reference_is_reloaded_with_multiple_projects(self):
         # test a data item reference pointing to a data item in the non-initial project that gets reloaded
         # resolves its reference.
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             with contextlib.closing(document_controller):
                 profile.set_work_project_reference(profile.project_references[1])
                 self.assertEqual(len(document_model.data_items), 0)
@@ -3350,14 +3367,15 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.zeros((256, 256)))
                 document_model.append_data_item(data_item, project=profile.projects[1])
                 document_model.setup_channel("key", data_item)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
                 self.assertEqual(document_model.data_items[1], document_model.get_data_item_reference('key').data_item)
 
     def test_data_item_with_connected_crop_region_should_not_update_modification_when_loading(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -3371,7 +3389,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(document_model.data_items[0].modified, modified)
                 self.assertEqual(document_model.data_items[1].modified, modified)
             # make sure it reloads without changing modification
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(document_model.data_items[0].modified, modified)
                 self.assertEqual(document_model.data_items[1].modified, modified)
@@ -3382,20 +3400,20 @@ class TestStorageClass(unittest.TestCase):
     def test_data_modified_property_is_persistent(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 data_item.data_modified = modified
                 document_model.append_data_item(data_item)
             # make sure it reloads without changing modification
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(modified, document_model.data_items[0].data_modified)
 
     def test_copy_retains_data_modified_property(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 data_item.data_modified = modified
@@ -3406,7 +3424,7 @@ class TestStorageClass(unittest.TestCase):
     def test_snapshot_retains_data_modified_property(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 data_item.data_modified = modified
@@ -3417,7 +3435,7 @@ class TestStorageClass(unittest.TestCase):
     def test_data_modified_and_modified_are_updated_when_modifying_data(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 data_item.created = modified
@@ -3432,7 +3450,7 @@ class TestStorageClass(unittest.TestCase):
     def test_only_modified_are_updated_when_modifying_metadata(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 data_item.created = modified
@@ -3472,12 +3490,12 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # auto migrate workspace
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 self.assertEqual(len(document_model.data_items), 1)
             # ensure it imports twice
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.projects[0].migrate_to_latest()
                 self.assertEqual(len(document_model.data_items), 1)
@@ -3486,7 +3504,7 @@ class TestStorageClass(unittest.TestCase):
     def test_storage_cache_disabled_during_transaction(self):
         with create_memory_profile_context() as profile_context:
             storage_cache = profile_context.storage_cache
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -3527,7 +3545,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_writing_properties_with_numpy_float32_succeeds(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -3536,14 +3554,14 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_structure_reloads_basic_value_types(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_structure = document_model.create_data_structure(structure_type="nada")
                 data_structure.set_property_value("title", "Title")
                 data_structure.set_property_value("width", 8.5)
                 document_model.append_data_structure(data_structure)
                 data_structure.set_property_value("interval", (0.5, 0.2))
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_structures), 1)
                 self.assertEqual(document_model.data_structures[0].get_property_value("title"), "Title")
@@ -3553,7 +3571,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_attached_data_structure_reconnects_after_reload(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((2, 2)))
                 document_model.append_data_item(data_item)
@@ -3561,7 +3579,7 @@ class TestStorageClass(unittest.TestCase):
                 data_structure.set_property_value("title", "Title")
                 document_model.append_data_structure(data_structure)
                 document_model.attach_data_structure(data_structure, data_item)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_structures), 1)
                 self.assertEqual(document_model.data_structures[0].source, document_model.data_items[0])
@@ -3570,7 +3588,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_connected_data_structure_reconnects_after_reload(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.zeros((2, 2)))
                 document_model.append_data_item(data_item)
@@ -3582,7 +3600,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_structure(data_struct2)
                 connection = Connection.PropertyConnection(data_struct1, "title", data_struct2, "title", parent=data_item)
                 document_model.append_connection(connection)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_struct1 = document_model.data_structures[0]
                 data_struct2 = document_model.data_structures[1]
@@ -3595,20 +3613,20 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_structure_references_reconnect_after_reload(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.zeros((2, 2)))
                 document_model.append_data_item(data_item)
                 data_struct = document_model.create_data_structure()
                 data_struct.set_referenced_object("master", data_item)
                 document_model.append_data_structure(data_struct)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(document_model.data_items[0], document_model.data_structures[0].get_referenced_object("master"))
 
     def test_data_structure_reloads_after_computation(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.zeros((2, 2)))
                 document_model.append_data_item(data_item)
@@ -3620,7 +3638,7 @@ class TestStorageClass(unittest.TestCase):
                 computed_data_item = DataItem.DataItem()
                 document_model.append_data_item(computed_data_item)
                 document_model.set_data_item_computation(computed_data_item, computation)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(2, len(document_model.data_items))
                 self.assertEqual(1, len(document_model.data_structures))
@@ -3628,7 +3646,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_item_sources_reconnect_after_reload(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
                 data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
@@ -3638,7 +3656,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item3)
                 data_item1.source = data_item2
                 data_item3.source = data_item2
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(3, len(document_model.data_items))
                 document_model.remove_data_item(document_model.data_items[1])
@@ -3646,7 +3664,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_computation_reconnects_after_reload(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data = numpy.ones((2, 2), numpy.double)
                 data_item = DataItem.DataItem(data)
@@ -3658,7 +3676,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.set_data_item_computation(computed_data_item, computation)
                 document_model.recompute_all()
                 assert numpy.array_equal(-document_model.data_items[0].data, document_model.data_items[1].data)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 read_computation = document_model.get_data_item_computation(document_model.data_items[1])
                 self.assertIsNotNone(read_computation)
@@ -3669,7 +3687,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_computation_does_not_recompute_on_reload(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data = numpy.ones((2, 2), numpy.double)
                 data_item = DataItem.DataItem(data)
@@ -3681,7 +3699,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.set_data_item_computation(computed_data_item, computation)
                 document_model.recompute_all()
                 assert numpy.array_equal(-document_model.data_items[0].data, document_model.data_items[1].data)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 changed_ref = [False]
                 def changed():
@@ -3694,7 +3712,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_computation_with_optional_none_parameters_reloads(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data = numpy.ones((2, 2), numpy.double)
                 data_item = DataItem.DataItem(data)
@@ -3705,7 +3723,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(computed_data_item)
                 document_model.set_data_item_computation(computed_data_item, computation)
                 document_model.recompute_all()
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 read_computation = document_model.get_data_item_computation(document_model.data_items[1])
                 with document_model.data_items[0].data_ref() as data_ref:
@@ -3714,7 +3732,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_computation_slice_reloads(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data = numpy.ones((8, 4, 4), numpy.double)
                 data_item = DataItem.DataItem(data)
@@ -3726,7 +3744,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.set_data_item_computation(computed_data_item, computation)
                 document_model.recompute_all()
                 data_shape = computed_data_item.data_shape
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 computed_data_item = document_model.data_items[1]
                 with document_model.data_items[0].data_ref() as data_ref:
@@ -3736,7 +3754,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_computation_pick_and_display_interval_reloads(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data = numpy.ones((8, 4, 100), numpy.double)
                 data_item = DataItem.DataItem(data)
@@ -3747,7 +3765,7 @@ class TestStorageClass(unittest.TestCase):
                 # check assumptions
                 self.assertEqual((0.05, 0.15), document_model.get_display_item_for_data_item(document_model.data_items[0]).display_data_channels[0].slice_interval)
                 self.assertEqual((0.05, 0.15), document_model.get_display_item_for_data_item(document_model.data_items[1]).graphics[0].interval)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 # check initial assumptions
                 self.assertEqual(len(document_model.data_items), 2)
@@ -3764,7 +3782,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_computation_corrupt_variable_reloads(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data = numpy.ones((8, 4, 4), numpy.double)
                 data_item = DataItem.DataItem(data)
@@ -3777,7 +3795,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.set_data_item_computation(computed_data_item, computation)
                 x.value_type = "integral"
                 x.value = 6
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 read_computation = document_model.get_data_item_computation(document_model.data_items[1])
                 self.assertEqual(read_computation.variables[1].name, "x")
@@ -3785,7 +3803,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_computation_missing_variable_reloads(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data = numpy.ones((8, 4, 4), numpy.double)
                 data_item = DataItem.DataItem(data)
@@ -3799,7 +3817,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.set_data_item_computation(computed_data_item, computation)
             del profile_context.project_properties["computations"][0]["variables"][0]
             profile_context.project_properties["computations"][0]["variables"][0]["uuid"] = str(uuid.uuid4())
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             document_model.close()
 
     computation1_eval_count = 0
@@ -3820,7 +3838,7 @@ class TestStorageClass(unittest.TestCase):
         TestStorageClass.computation1_eval_count = 0
         Symbolic.register_computation_type("computation1", self.Computation1)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((2, 2)))
                 document_model.append_data_item(data_item)
@@ -3834,7 +3852,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.recompute_all()
                 assert numpy.array_equal(-document_model.data_items[0].data, document_model.data_items[1].data)
                 self.assertEqual(len(document_model.computations), 1)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.computations), 1)
                 document_model.data_items[0].set_data(numpy.random.randn(3, 3))
@@ -3846,7 +3864,7 @@ class TestStorageClass(unittest.TestCase):
         TestStorageClass.computation1_eval_count = 0
         Symbolic.register_computation_type("computation1", self.Computation1)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((2, 2)))
                 document_model.append_data_item(data_item)
@@ -3858,7 +3876,7 @@ class TestStorageClass(unittest.TestCase):
                 computation.create_output_item("dst", Symbolic.make_item(dst_data_item))
                 document_model.append_computation(computation)
                 document_model.recompute_all()
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = document_model.data_items[0]
                 dst_data_item = document_model.data_items[1]
@@ -3873,7 +3891,7 @@ class TestStorageClass(unittest.TestCase):
         TestStorageClass.computation1_eval_count = 0
         Symbolic.register_computation_type("computation1", self.Computation1)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((2, 2)))
                 document_model.append_data_item(data_item)
@@ -3887,7 +3905,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.recompute_all()
             profile_context.project_properties["computations"][0]["variables"][0]["specifier"]["uuid"] = str(uuid.uuid4())
             self.computation1_eval_count = 0
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.data_items[0].set_data(numpy.random.randn(3, 3))
                 document_model.recompute_all()
@@ -3912,7 +3930,7 @@ class TestStorageClass(unittest.TestCase):
     def test_library_computation_with_list_input_reloads(self):
         Symbolic.register_computation_type("add_n", self.AddN)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.app._set_document_model(document_model)  # required to allow API to find document model
                 data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
@@ -3927,7 +3945,7 @@ class TestStorageClass(unittest.TestCase):
                 computation.processing_id = "add_n"
                 document_model.append_computation(computation)
                 document_model.recompute_all()
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.data_items[0].set_data(numpy.full((2, 2), 3))
                 document_model.recompute_all()
@@ -3936,7 +3954,7 @@ class TestStorageClass(unittest.TestCase):
     def test_library_computation_with_list_input_with_missing_reloads_and_library_remove_data_item_still_functions(self):
         Symbolic.register_computation_type("add_n", self.AddN)
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.app._set_document_model(document_model)  # required to allow API to find document model
                 data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
@@ -3952,18 +3970,18 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_computation(computation)
                 document_model.recompute_all()
             profile_context.project_properties["computations"][0]["variables"][0]["object_specifiers"][0]["uuid"] = str(uuid.uuid4())
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.remove_data_item(document_model.data_items[0])
 
     def test_data_item_with_corrupt_created_still_loads(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 src_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(src_data_item)
             profile_context.data_properties_map[str(src_data_item.uuid)]["created"] = "todaytodaytodaytodaytoday0"
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 # for corrupt/missing created dates, a new one matching todays date should be assigned
                 self.assertIsNotNone(document_model.data_items[0].created)
@@ -3971,7 +3989,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_loading_library_with_two_copies_of_same_uuid_ignores_second_copy(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -3979,13 +3997,13 @@ class TestStorageClass(unittest.TestCase):
             file_path_base, file_path_ext = os.path.splitext(file_path)
             shutil.copyfile(file_path, file_path_base + "_" + file_path_ext)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
 
     def test_snapshot_copies_storage_format(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item1 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 data_item2 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
@@ -3993,7 +4011,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item1)
                 document_model.append_data_item(data_item2)
             # read it back
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item1 = document_model.data_items[0]
                 data_item2 = document_model.data_items[1]
@@ -4025,37 +4043,35 @@ class TestStorageClass(unittest.TestCase):
 
     def test_pending_data_on_new_data_item_updates_properly(self):
         with create_temp_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
-                data_item = DataItem.DataItem()
-                with document_model.item_transaction(data_item):
-                    document_model.append_data_item(data_item)
-                    data_item.set_data(numpy.ones((2, 2)))
-                    # simulate situation in the histogram panel where xdata is stored and used later
-                    data_and_metadata = data_item.data_and_metadata  # this xdata contains ability to reload from data item
-                    data_item.set_data(numpy.ones((2, 2)))  # but it is overwritten here and may be unloaded
-                    self.assertIsNotNone(data_and_metadata.data)  # ensure that it isn't actually unloaded
+            document_controller = profile_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem()
+            with document_model.item_transaction(data_item):
+                document_model.append_data_item(data_item)
+                data_item.set_data(numpy.ones((2, 2)))
+                # simulate situation in the histogram panel where xdata is stored and used later
+                data_and_metadata = data_item.data_and_metadata  # this xdata contains ability to reload from data item
+                data_item.set_data(numpy.ones((2, 2)))  # but it is overwritten here and may be unloaded
+                self.assertIsNotNone(data_and_metadata.data)  # ensure that it isn't actually unloaded
 
     def test_undo_redo_is_written_to_storage(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
-                data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-                command = DocumentController.DocumentController.InsertDataItemsCommand(document_controller, [data_item], 0)
-                command.perform()
-                document_controller.push_undo_command(command)
-                self.assertEqual(1, len(profile_context.data_properties_map.keys()))
-                document_controller.handle_undo()
-                self.assertEqual(0, len(profile_context.data_properties_map.keys()))
-                document_controller.handle_redo()
-                self.assertEqual(1, len(profile_context.data_properties_map.keys()))
+            document_controller = profile_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            command = DocumentController.DocumentController.InsertDataItemsCommand(document_controller, [data_item], 0)
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual(1, len(profile_context.data_properties_map.keys()))
+            document_controller.handle_undo()
+            self.assertEqual(0, len(profile_context.data_properties_map.keys()))
+            document_controller.handle_redo()
+            self.assertEqual(1, len(profile_context.data_properties_map.keys()))
 
     def test_undo_graphic_move_is_written_to_storage(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -4071,14 +4087,15 @@ class TestStorageClass(unittest.TestCase):
                 document_controller.handle_undo()
                 self.assertEqual(old_bounds, crop_region.bounds)
             # make sure it reloads with the OLD bounds
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
                 self.assertEqual(old_bounds, document_model.display_items[0].graphics[0].bounds)
 
     def test_undo_computation_edit_is_written_to_storage(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -4092,15 +4109,16 @@ class TestStorageClass(unittest.TestCase):
                 document_controller.handle_undo()
                 self.assertEqual("DEF", document_model.computations[0].label)
             # make sure it reloads with the OLD bounds
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
                 self.assertEqual("DEF", document_model.computations[0].label)
 
     def test_undo_display_item_is_written_to_storage(self):
         # this bug was caused because restoring data items didn't remove the data item from data item deletions.
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data_item = DataItem.DataItem(numpy.zeros((2, )))
                 document_model.append_data_item(data_item)
@@ -4117,14 +4135,15 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(1, len(document_model.display_items[0].data_items))
                 self.assertEqual(document_model.data_items[0], document_model.display_items[0].data_items[0])
             # make sure it reloads with the OLD bounds
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
                 self.assertEqual(1, len(document_model.display_items[0].data_items))
                 self.assertEqual(document_model.data_items[0], document_model.display_items[0].data_items[0])
 
     def test_display_item_display_layers_reload_with_same_data_indexes(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item1 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
                 document_model.append_data_item(data_item1)
@@ -4137,7 +4156,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(2, len(display_item.display_data_channels))
                 self.assertEqual(0, display_item.get_display_layer_property(0, "data_index"))
                 self.assertEqual(1, display_item.get_display_layer_property(1, "data_index"))
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 display_item = document_model.display_items[0]
                 self.assertEqual(2, len(display_item.display_data_channels))
@@ -4146,9 +4165,8 @@ class TestStorageClass(unittest.TestCase):
 
     def test_work_project_is_created_if_not_found(self):
         with create_temp_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.work_project_reference_uuid = None
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False, clear_work=True)
+            profile = document_model.profile
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -4157,9 +4175,8 @@ class TestStorageClass(unittest.TestCase):
     def test_work_project_is_created_if_not_valid(self):
         with create_temp_profile_context() as profile_context:
             # create a normal profile
-            profile = profile_context.create_profile()
-            profile.work_project_reference_uuid = None
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False, clear_work=True)
+            profile = document_model.profile
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -4168,9 +4185,8 @@ class TestStorageClass(unittest.TestCase):
             work_project_data_json = json.dumps({"version": 2, "uuid": str(uuid.uuid4())})
             work_project_path.write_text(work_project_data_json, "utf-8")
             # load normal profile
-            profile = profile_context.create_profile()
-            profile.work_project_reference_uuid = None
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False, clear_work=True)
+            profile = document_model.profile
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -4179,8 +4195,8 @@ class TestStorageClass(unittest.TestCase):
 
     def test_file_project_opens_with_same_uuid(self):
         with create_temp_profile_context() as profile_context:
-            profile = profile_context.create_profile(project_name="Project2", project_data_name="Data2")
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False, project_name="Project2", project_data_name="Data2")
+            profile = document_model.profile
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -4188,8 +4204,8 @@ class TestStorageClass(unittest.TestCase):
                 project_specifier = document_model.projects[0].item_specifier
                 project_path = profile.project_references[0].project_path
             profile_context.reset_profile()
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             with contextlib.closing(document_model):
                 profile.add_project_index(project_path)
                 self.assertEqual(project_uuid, document_model.projects[1].uuid)
@@ -4197,22 +4213,22 @@ class TestStorageClass(unittest.TestCase):
 
     def test_missing_project_does_not_prevent_other_projects_from_loading(self):
         with create_temp_profile_context() as profile_context:
-            profile = profile_context.create_profile()
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             # create a 2nd project
             project_path = profile_context.projects_dir / pathlib.Path("Project2").with_suffix(".nsproj")
             project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": ["Data2"]})
             project_path.write_text(project_data_json, "utf-8")
             profile.add_project_index(project_path)
             # first load document normally
-            document_model = DocumentModel.DocumentModel(profile=profile)
             with contextlib.closing(document_model):
                 self.assertEqual(2, len(document_model.projects))
                 self.assertEqual("loaded", document_model.projects[0].project_state)
                 self.assertEqual("loaded", document_model.projects[1].project_state)
             # now load with missing 2nd project
             project_path.unlink()
-            profile = profile_context.create_profile()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             with contextlib.closing(document_model):
                 self.assertEqual(1, len(document_model.projects))
                 self.assertEqual("loaded", document_model.projects[0].project_state)
@@ -4220,14 +4236,14 @@ class TestStorageClass(unittest.TestCase):
 
     def test_importing_project_twice_only_enables_existing_version(self):
         with create_temp_profile_context() as profile_context:
-            profile = profile_context.create_profile()
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
             # create a 2nd project
             project_path = profile_context.projects_dir / pathlib.Path("Project2").with_suffix(".nsproj")
             project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(uuid.uuid4()), "project_data_folders": ["Data2"]})
             project_path.write_text(project_data_json, "utf-8")
             profile.add_project_index(project_path)
             # first load document normally
-            document_model = DocumentModel.DocumentModel(profile=profile)
             with contextlib.closing(document_model):
                 self.assertEqual(2, len(document_model.projects))
                 profile.unload_project_reference(profile.project_references[1])
@@ -4238,9 +4254,9 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_item_variable_reloads(self):
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
+            document_model = profile_context.create_document_model(auto_close=False)
+            profile = document_model.profile
+            TestContext.add_project_memory(profile)
             with contextlib.closing(document_model):
                 item_uuid = uuid.uuid4()
                 data_item0 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid)
@@ -4251,7 +4267,7 @@ class TestStorageClass(unittest.TestCase):
                 key1 = document_model.assign_variable_to_data_item(data_item1)
                 self.assertEqual(key0, document_model.data_items[0].r_var)
                 self.assertEqual(key1, document_model.data_items[1].r_var)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 variable_to_data_item_map = document_model.variable_to_data_item_map()
                 self.assertEqual(key0, document_model.data_items[0].r_var)
@@ -4259,16 +4275,16 @@ class TestStorageClass(unittest.TestCase):
 
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        document_controller.close()
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
         gc.collect()
         self.assertEqual(threading.activeCount(), thread_count)
 
     def disabled_test_document_controller_leaks_no_memory(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(data=numpy.zeros((8, 8)))
             document_model.append_data_item(data_item)
 
@@ -4278,8 +4294,8 @@ class TestStorageClass(unittest.TestCase):
         data.min(), data.max()
         # test memory usage
         memory_start = memory_usage_resource()
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(data=data)
             document_model.append_data_item(data_item)
             data_item = None

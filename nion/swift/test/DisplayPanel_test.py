@@ -22,7 +22,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Profile
+from nion.swift.test import TestContext
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import TestUI
@@ -33,8 +33,8 @@ from nion.utils import Geometry
 Facade.initialize()
 
 
-def create_memory_profile_context():
-    return Profile.MemoryProfileContext()
+def create_memory_profile_context() -> TestContext.MemoryProfileContext:
+    return TestContext.MemoryProfileContext()
 
 
 class TestGraphicSelectionClass(unittest.TestCase):
@@ -77,9 +77,9 @@ class TestDisplayPanel:
 class TestDisplayPanelClass(unittest.TestCase):
 
     def setUp(self):
-        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
-        self.document_model = DocumentModel.DocumentModel()
-        self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
+        self.test_context = TestContext.create_memory_context()
+        self.document_controller = self.test_context.create_document_controller_with_application()
+        self.document_model = self.document_controller.document_model
         self.display_panel = self.document_controller.selected_display_panel
         self.data_item = DataItem.DataItem(numpy.zeros((10, 10)))
         self.document_model.append_data_item(self.data_item)
@@ -89,7 +89,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
 
     def tearDown(self):
-        self.document_controller.close()
+        self.test_context.close()
 
     def setup_line_plot(self, canvas_shape=None, data_min=0.0, data_max=1.0):
         canvas_shape = canvas_shape if canvas_shape else (480, 640)  # yes I know these are backwards
@@ -118,14 +118,13 @@ class TestDisplayPanelClass(unittest.TestCase):
         return self.display_panel.display_canvas_item
 
     def test_image_panel_gets_destructed(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
             display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
             # add some extra refs for fun
             container = CanvasItem.SplitterCanvasItem()
             container.add_canvas_item(display_panel)
-            canvas_widget = self.app.ui.create_canvas_widget()
+            canvas_widget = self.document_controller.ui.create_canvas_widget()
             with contextlib.closing(canvas_widget):
                 canvas_widget.canvas_item.add_canvas_item(container)
                 # now take the weakref
@@ -300,24 +299,24 @@ class TestDisplayPanelClass(unittest.TestCase):
         # select it
         self.display_item.graphic_selection.set(0)
         # move it left
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("left"))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.200, 0.199))
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("left", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.200, 0.189))
         # move it up
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("up"))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("up"))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.199, 0.189))
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("up", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("up", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.189, 0.189))
         # move it right
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("right"))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("right"))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.189, 0.190))
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("right", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("right", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.189, 0.200))
         # move it down
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("down"))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("down"))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.190, 0.200))
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("down", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("down", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.200, 0.200))
 
     def test_nudge_rect(self):
@@ -326,24 +325,24 @@ class TestDisplayPanelClass(unittest.TestCase):
         # select it
         self.display_item.graphic_selection.set(0)
         # move it left
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("left"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.249))
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("left", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.239))
         # move it up
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("up"))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("up"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.249, 0.239))
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("up", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("up", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.239, 0.239))
         # move it right
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("right"))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("right"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.239, 0.240))
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("right", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("right", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.239, 0.250))
         # move it down
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("down"))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("down"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.240, 0.250))
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("down", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("down", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.250))
 
     def test_nudge_ellipse(self):
@@ -352,24 +351,24 @@ class TestDisplayPanelClass(unittest.TestCase):
         # select it
         self.display_item.graphic_selection.set(0)
         # move it left
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("left"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.249))
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("left", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.239))
         # move it up
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("up"))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("up"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.249, 0.239))
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("up", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("up", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.239, 0.239))
         # move it right
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("right"))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("right"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.239, 0.240))
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("right", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("right", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.239, 0.250))
         # move it down
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("down"))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("down"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.240, 0.250))
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("down", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("down", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.250))
 
     def test_drag_point_moves_the_point_graphic(self):
@@ -517,9 +516,9 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNotNone(self.display_panel.data_item)
 
     def test_default_display_for_1xN_data_is_line_plot(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((1, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1027,7 +1026,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(line_plot_display_item.graphics), 1)
         self.assertEqual(len(line_plot_display_item.graphic_selection.indexes), 1)
         # hit the delete key
-        self.display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("delete"))
+        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("delete"))
         self.assertEqual(len(line_plot_display_item.graphics), 0)
 
     def test_key_gets_dispatched_to_image_canvas_item(self):
@@ -1083,7 +1082,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # display panel should not have any display_canvas_item now since data is not valid
         self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDataCanvasItem)
         # thumbnails and processors
-        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, self.display_item)) as thumbnail_source:
+        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.document_controller.ui, self.display_item)) as thumbnail_source:
             thumbnail_source.recompute_data()
             self.assertIsNotNone(thumbnail_source.thumbnail_data)
         self.document_controller.periodic()
@@ -1094,7 +1093,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # display panel should not have any display_canvas_item now since data is not valid
         self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDataCanvasItem)
         # thumbnails and processors
-        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, self.display_item)) as thumbnail_source:
+        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.document_controller.ui, self.display_item)) as thumbnail_source:
             thumbnail_source.recompute_data()
         self.document_controller.periodic()
         self.document_controller.document_model.recompute_all()
@@ -1158,10 +1157,9 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertAlmostEqual(region.end[1], 0.25)
 
     def test_dragging_to_add_line_profile_works_when_line_profile_is_filtered_from_data_panel(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = {"type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [
                 {"type": "image", "uuid": "0569ca31-afd7-48bd-ad54-5e2bb9f21102", "identifier": "a", "selected": True},
                 {"type": "image", "uuid": "acd77f9f-2f6f-4fbf-af5e-94330b73b997", "identifier": "b"}]}
@@ -1350,10 +1348,9 @@ class TestDisplayPanelClass(unittest.TestCase):
         display_canvas_item.mouse_released(10, 10, CanvasItem.KeyboardModifiers())
 
     def test_display_graphics_update_after_changing_display_type(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             document_model.append_data_item(data_item)
@@ -1374,10 +1371,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel._handle_key_pressed(TestUI.Key(None, "up", None))
 
     def test_display_2d_updates_display_values_after_changing_display_type(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
@@ -1393,10 +1389,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertIsNotNone(display_panel.display_canvas_item._display_values)
 
     def test_display_2d_update_with_no_data(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item1 = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             document_model.append_data_item(data_item1)
@@ -1410,10 +1405,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.periodic()
 
     def test_display_2d_collection_with_2d_datum_displays_image(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem()
             data_item.ensure_data_source()
@@ -1427,10 +1421,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
 
     def test_image_display_canvas_item_only_updates_if_display_data_changes(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8, 8))
             document_model.append_data_item(data_item)
@@ -1445,10 +1438,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
     def test_image_display_canvas_item_only_updates_once_if_data_changes(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8, 8))
             document_model.append_data_item(data_item)
@@ -1462,10 +1454,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_image_display_canvas_item_only_updates_once_if_graphic_changes(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8, 8))
             document_model.append_data_item(data_item)
@@ -1481,10 +1472,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_image_display_canvas_item_only_updates_once_if_color_map_changes(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((4, 4)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1499,10 +1489,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_line_plot_image_display_canvas_item_only_updates_if_display_data_changes(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
@@ -1518,10 +1507,9 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_focused_data_item_changes_when_display_changed_directly_in_content(self):
         # this capability is only used in the camera plug-in when switching image to summed and back.
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1536,10 +1524,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(data_item2, document_controller.focused_data_item)
 
     def test_dependency_icons_updated_properly_when_one_of_two_dependents_are_removed(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((100, )))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1555,10 +1542,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(1, len(display_panel._related_icons_canvas_item._dependent_thumbnails.canvas_items))
 
     def test_dragging_to_create_interval_undo_redo_cycle(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
@@ -1589,10 +1575,9 @@ class TestDisplayPanelClass(unittest.TestCase):
                 self.assertFalse(document_controller._undo_stack.can_redo)
 
     def test_dragging_to_change_interval_undo_redo_cycle(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
@@ -1634,10 +1619,9 @@ class TestDisplayPanelClass(unittest.TestCase):
                 self.assertFalse(document_controller._undo_stack.can_redo)
 
     def test_display_undo_invalidated_with_external_change(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1671,10 +1655,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(0, document_controller._undo_stack._redo_count)
 
     def test_dragging_to_create_and_change_interval_undo_redo_cycle(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
@@ -1727,10 +1710,9 @@ class TestDisplayPanelClass(unittest.TestCase):
                 self.assertFalse(document_controller._undo_stack.can_redo)
 
     def test_display_undo_display_changes_command_merges_repeated_commands(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1750,10 +1732,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(y_max, display_item.get_display_property("y_max"))
 
     def test_remove_graphics_undo_redo_cycle(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1786,10 +1767,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(0, len(display_item.graphics))
 
     def test_remove_graphics_with_dependent_data_item_display_undo_redo_cycle(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.random.randn(4, 4))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1822,10 +1802,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(None, display_panel.data_item)
 
     def test_remove_data_item_with_dependent_data_item_display_undo_redo_cycle(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.random.randn(4, 4))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1858,9 +1837,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(None, display_panel.data_item)
 
     def test_line_plot_with_two_data_items_interval_inspector(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((32, )))
             data_item2 = DataItem.DataItem(numpy.zeros((32, )))
@@ -1878,9 +1857,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             line_plot_canvas_item._mouse_dragged(0.3, 0.5)
 
     def test_removing_interval_from_line_plot_with_two_data_items_succeeds(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((32, )))
             data_item2 = DataItem.DataItem(numpy.zeros((32, )))
             document_model.append_data_item(data_item)
@@ -1896,9 +1875,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.remove_selected_graphics()
 
     def test_image_data_from_processing_initially_displays(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1915,9 +1894,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertFalse(display_panel.display_canvas_item._display_values_dirty)
 
     def test_line_plot_data_from_processing_initially_displays(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1933,9 +1912,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertTrue(display_panel.display_canvas_item._has_valid_drawn_graph_data)
 
     def test_line_plot_data_displays_after_delete_then_undo(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((8, )))
             data_item.dimensional_calibrations = [Calibration.Calibration(units="miles")]
             document_model.append_data_item(data_item)
@@ -1958,9 +1937,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertTrue(display_panel.display_canvas_item._has_valid_drawn_graph_data)
 
     def test_image_and_line_plot_produce_svg(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item1 = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.ones((10, )))
@@ -1976,8 +1955,8 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_line_plot_display_item_with_missing_data_item_fails_gracefully(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data_item1 = DataItem.DataItem(numpy.ones((2,)))
                 document_model.append_data_item(data_item1)
@@ -1993,8 +1972,8 @@ class TestDisplayPanelClass(unittest.TestCase):
                 display_panel.display_canvas_item.prepare_display()  # force layout
                 display_panel.display_canvas_item.refresh_layout_immediate()
             profile_context.project_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 display_panel = document_controller.selected_display_panel
                 display_panel.root_container.layout_immediate(Geometry.IntSize(200, 200))
@@ -2003,8 +1982,8 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_image_display_item_with_missing_data_item_fails_gracefully(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data_item1 = DataItem.DataItem(numpy.ones((2, 2)))
                 document_model.append_data_item(data_item1)
@@ -2020,8 +1999,8 @@ class TestDisplayPanelClass(unittest.TestCase):
                 display_panel.display_canvas_item.prepare_display()  # force layout
                 display_panel.display_canvas_item.refresh_layout_immediate()
             profile_context.project_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 display_panel = document_controller.selected_display_panel
                 display_panel.root_container.layout_immediate(Geometry.IntSize(200, 200))
@@ -2029,10 +2008,9 @@ class TestDisplayPanelClass(unittest.TestCase):
                 display_panel.display_canvas_item.refresh_layout_immediate()
 
     def test_append_display_data_channel_undo_redo_cycle(self):
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
             data_item2 = DataItem.DataItem(numpy.random.randn(8))
@@ -2070,9 +2048,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(new_display_layers, display_item.display_layers)
 
     def test_setting_display_panel_data_item_to_none_clears_the_display(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -2085,9 +2063,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(None, display_panel.data_item)
 
     def test_setting_display_panel_data_item_reference_updates_when_data_item_set_before_added_to_library(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             data_item_reference = DocumentModel.DocumentModel.DataItemReference(document_model, "abc", document_model._project)
             with contextlib.closing(data_item_reference):
@@ -2103,9 +2081,9 @@ class TestDisplayPanelClass(unittest.TestCase):
                 self.assertEqual(data_item, display_panel.data_item)
 
     def test_move_display_layer_undo_redo(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item1 = DataItem.DataItem(numpy.ones(8, ))
             data_item2 = DataItem.DataItem(numpy.ones(8, ))
             data_item3 = DataItem.DataItem(numpy.ones(8, ))

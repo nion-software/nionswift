@@ -1,5 +1,4 @@
 # standard libraries
-import contextlib
 import logging
 import operator
 import random
@@ -12,8 +11,8 @@ import numpy
 
 # local libraries
 from nion.swift.model import DataItem
-from nion.swift.model import DocumentModel
 from nion.swift import Facade
+from nion.swift.test import TestContext
 from nion.utils import ListModel
 from nion.utils import Selection
 
@@ -132,8 +131,8 @@ class TestDataItemsModelModule(unittest.TestCase):
         def sort_by_date_key(data_item):
             """ A sort key to for the modification date field of a data item. """
             return data_item.is_live, data_item.created
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
             filtered_data_items.container = document_model
             filtered_data_items.sort_key = sort_by_date_key
@@ -149,8 +148,8 @@ class TestDataItemsModelModule(unittest.TestCase):
     def test_sorted_filtered_model_updates_when_data_item_enters_filter(self):
         def sort_by_date_key(data_item):
             return data_item.created
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
             filtered_data_items.container = document_model
             filtered_data_items.filter = ListModel.EqFilter("is_live", True)
@@ -168,8 +167,8 @@ class TestDataItemsModelModule(unittest.TestCase):
                     self.assertTrue(filtered_data_items.items.index(document_model.data_items[0]) < filtered_data_items.items.index(document_model.data_items[2]))
 
     def test_unsorted_filtered_model_updates_when_data_item_enters_filter(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
             filtered_data_items.container = document_model
             filtered_data_items.filter = ListModel.EqFilter("is_live", True)
@@ -187,8 +186,8 @@ class TestDataItemsModelModule(unittest.TestCase):
     def test_sorted_filtered_model_updates_when_data_item_exits_filter(self):
         def sort_by_date_key(data_item):
             return data_item.created
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
             filtered_data_items.container = document_model
             filtered_data_items.filter = ListModel.NotFilter(ListModel.EqFilter("is_live", True))
@@ -202,8 +201,8 @@ class TestDataItemsModelModule(unittest.TestCase):
                 self.assertEqual(len(filtered_data_items.items), 3)
 
     def test_filtered_model_updates_when_source_model_has_data_item_that_updates(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
             filtered_data_items.container = document_model
             for _ in range(4):
@@ -280,8 +279,8 @@ class TestDataItemsModelModule(unittest.TestCase):
             filtered_data_items.close()
 
     def test_data_items_sorted_by_data_modified_date(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
             filtered_data_items.container = document_model
             filtered_data_items.sort_key = DataItem.sort_by_date_key
@@ -296,8 +295,8 @@ class TestDataItemsModelModule(unittest.TestCase):
             self.assertEqual([document_model.data_items[1], document_model.data_items[2], document_model.data_items[3], document_model.data_items[0]], filtered_data_items.items)
 
     def test_processed_data_items_sorted_by_source_data_modified_date(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
             filtered_data_items.container = document_model
             filtered_data_items.sort_key = DataItem.sort_by_date_key

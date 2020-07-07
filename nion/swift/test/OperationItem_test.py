@@ -11,13 +11,10 @@ import numpy
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
-from nion.swift import Application
-from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift.model import DataItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.ui import TestUI
+from nion.swift.test import TestContext
 from nion.utils import Geometry
 
 
@@ -27,9 +24,9 @@ Facade.initialize()
 class TestProcessingClass(unittest.TestCase):
 
     def setUp(self):
-        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
-        self.document_model = DocumentModel.DocumentModel()
-        self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
+        self.test_context = TestContext.create_memory_context()
+        self.document_controller = self.test_context.create_document_controller_with_application()
+        self.document_model = self.document_controller.document_model
         self.display_panel = self.document_controller.selected_display_panel
         self.data_item = DataItem.DataItem(numpy.zeros((10, 10)))
         self.display_item = self.document_model.get_display_item_for_data_item(self.data_item)
@@ -37,7 +34,7 @@ class TestProcessingClass(unittest.TestCase):
         self.display_panel.set_display_panel_display_item(self.display_item)
 
     def tearDown(self):
-        self.document_controller.close()
+        self.test_context.close()
 
     # test processing against 1d data. doesn't test for correctness of the processing.
     def test_processing_1d(self):
@@ -426,8 +423,8 @@ class TestProcessingClass(unittest.TestCase):
                     self.assertEqual(display_item.data_item.dimensional_calibrations, [])
 
     def test_crop_2d_processing_returns_correct_dimensional_shape_and_data_shape(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((20,10), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -443,8 +440,8 @@ class TestProcessingClass(unittest.TestCase):
                 self.assertEqual(data_real_accessor.data.shape, (10, 5))
 
     def test_fft_2d_dtype(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.float64))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -456,8 +453,8 @@ class TestProcessingClass(unittest.TestCase):
                 self.assertEqual(fft_data_ref.data.dtype, numpy.dtype(numpy.complex128))
 
     def test_convert_complex128_to_scalar_results_in_float64(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.complex128))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -468,8 +465,8 @@ class TestProcessingClass(unittest.TestCase):
                 self.assertEqual(scalar_data_ref.data.dtype, numpy.dtype(numpy.float64))
 
     def test_rgba_invert_processing_should_retain_alpha(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             rgba_data_item = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))
             document_model.append_data_item(rgba_data_item)
             rgba_display_item = document_model.get_display_item_for_data_item(rgba_data_item)
@@ -487,8 +484,8 @@ class TestProcessingClass(unittest.TestCase):
                 self.assertEqual(pixel[3], 100)
 
     def test_deepcopy_of_crop_processing_should_copy_roi(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item_rgba = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))
             document_model.append_data_item(data_item_rgba)
             crop_region = Graphics.RectangleGraphic()
@@ -501,8 +498,8 @@ class TestProcessingClass(unittest.TestCase):
             self.assertNotEqual(document_model.get_data_item_computation(data_item_rgba2), document_model.get_data_item_computation(data_item_rgba2_copy))
 
     def test_snapshot_of_processing_should_copy_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item_rgba = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))
             document_model.append_data_item(data_item_rgba)
             display_item_rgba = document_model.get_display_item_for_data_item(data_item_rgba)
@@ -512,8 +509,8 @@ class TestProcessingClass(unittest.TestCase):
             self.assertTrue(data_item_rgba2_ss.has_data)
 
     def test_snapshot_empty_data_item_should_produce_empty_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem()
             data_item.ensure_data_source()
             document_model.append_data_item(data_item)
@@ -529,8 +526,8 @@ class TestProcessingClass(unittest.TestCase):
             self.assertIsNone(snapshot_display_item.data_item.data_shape)
 
     def test_snapshot_of_processing_should_copy_calibrations_not_dimensional_calibrations(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -558,8 +555,8 @@ class TestProcessingClass(unittest.TestCase):
             self.assertEqual(snapshot_data_item.intensity_calibration.units, u"ll")
 
     def test_crop_2d_processing_on_calibrated_data_results_in_calibration_with_correct_offset(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((20, 10), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -587,8 +584,8 @@ class TestProcessingClass(unittest.TestCase):
             self.assertEqual(data_item2.dimensional_calibrations[1].units, "cats")
 
     def test_projection_2d_processing_on_calibrated_data_results_in_calibration_with_correct_offset(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((20, 10), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -613,88 +610,86 @@ class TestProcessingClass(unittest.TestCase):
         self.assertFalse(True)
 
     def test_crop_works_on_selected_region_without_exception(self):
-        document_model = DocumentModel.DocumentModel()
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        document_model.append_data_item(data_item)
-        display_item = document_model.get_display_item_for_data_item(data_item)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        display_panel = document_controller.selected_display_panel
-        display_panel.set_display_panel_display_item(display_item)
-        self.assertEqual(len(display_item.graphics), 0)
-        crop_region = Graphics.RectangleGraphic()
-        crop_region.center = (0.5, 0.5)
-        crop_region.size = (0.5, 1.0)
-        display_item.add_graphic(crop_region)
-        display_item.graphic_selection.set(0)
-        document_controller.processing_crop().data_item
-        document_controller.close()
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            self.assertEqual(len(display_item.graphics), 0)
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.center = (0.5, 0.5)
+            crop_region.size = (0.5, 1.0)
+            display_item.add_graphic(crop_region)
+            display_item.graphic_selection.set(0)
+            document_controller.processing_crop().data_item
 
     def test_remove_graphic_for_crop_removes_processed_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        document_model.append_data_item(data_item)
-        display_item = document_model.get_display_item_for_data_item(data_item)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        display_panel = document_controller.selected_display_panel
-        display_panel.set_display_panel_display_item(display_item)
-        self.assertEqual(len(display_item.graphics), 0)
-        crop_region = Graphics.RectangleGraphic()
-        crop_region.center = (0.5, 0.5)
-        crop_region.size = (0.5, 1.0)
-        display_item.add_graphic(crop_region)
-        display_item.graphic_selection.set(0)
-        cropped_data_item = document_controller.processing_crop().data_item
-        document_controller.periodic()  # TODO: remove need to let the inspector catch up
-        self.assertEqual(len(display_item.graphics), 1)
-        self.assertTrue(cropped_data_item in document_model.data_items)
-        display_item.graphic_selection.clear()
-        display_item.graphic_selection.add(0)
-        # make sure assumptions are correct
-        self.assertEqual(document_model.get_source_data_items(cropped_data_item)[0], data_item)
-        self.assertTrue(cropped_data_item in document_model.data_items)
-        # remove the graphic and make sure things are as expected
-        display_panel.set_display_panel_display_item(display_item)
-        document_controller.remove_selected_graphics()
-        self.assertEqual(len(display_item.graphics), 0)
-        self.assertEqual(len(display_item.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
-        self.assertFalse(cropped_data_item in document_model.data_items)
-        # clean up
-        document_controller.close()
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            self.assertEqual(len(display_item.graphics), 0)
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.center = (0.5, 0.5)
+            crop_region.size = (0.5, 1.0)
+            display_item.add_graphic(crop_region)
+            display_item.graphic_selection.set(0)
+            cropped_data_item = document_controller.processing_crop().data_item
+            document_controller.periodic()  # TODO: remove need to let the inspector catch up
+            self.assertEqual(len(display_item.graphics), 1)
+            self.assertTrue(cropped_data_item in document_model.data_items)
+            display_item.graphic_selection.clear()
+            display_item.graphic_selection.add(0)
+            # make sure assumptions are correct
+            self.assertEqual(document_model.get_source_data_items(cropped_data_item)[0], data_item)
+            self.assertTrue(cropped_data_item in document_model.data_items)
+            # remove the graphic and make sure things are as expected
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.remove_selected_graphics()
+            self.assertEqual(len(display_item.graphics), 0)
+            self.assertEqual(len(display_item.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
+            self.assertFalse(cropped_data_item in document_model.data_items)
 
     def test_remove_graphic_for_crop_combined_with_another_processing_removes_processed_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        document_model.append_data_item(data_item)
-        display_item = document_model.get_display_item_for_data_item(data_item)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        display_panel = document_controller.selected_display_panel
-        display_panel.set_display_panel_display_item(display_item)
-        self.assertEqual(len(display_item.graphics), 0)
-        crop_region = Graphics.RectangleGraphic()
-        crop_region.center = (0.5, 0.5)
-        crop_region.size = (0.5, 1.0)
-        display_item.add_graphic(crop_region)
-        display_item.graphic_selection.set(0)
-        projection_data_item = document_controller.processing_projection().data_item
-        document_controller.periodic()
-        self.assertTrue(projection_data_item in document_model.data_items)
-        display_item.graphic_selection.clear()
-        display_item.graphic_selection.add(0)
-        # make sure assumptions are correct
-        self.assertEqual(document_model.get_source_data_items(projection_data_item)[0], data_item)
-        self.assertTrue(projection_data_item in document_model.data_items)
-        # remove the graphic and make sure things are as expected
-        display_panel.set_display_panel_display_item(display_item)
-        document_controller.remove_selected_graphics()
-        self.assertEqual(len(display_item.graphics), 0)
-        self.assertEqual(len(display_item.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
-        self.assertFalse(projection_data_item in document_model.data_items)
-        # clean up
-        document_controller.close()
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            self.assertEqual(len(display_item.graphics), 0)
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.center = (0.5, 0.5)
+            crop_region.size = (0.5, 1.0)
+            display_item.add_graphic(crop_region)
+            display_item.graphic_selection.set(0)
+            projection_data_item = document_controller.processing_projection().data_item
+            document_controller.periodic()
+            self.assertTrue(projection_data_item in document_model.data_items)
+            display_item.graphic_selection.clear()
+            display_item.graphic_selection.add(0)
+            # make sure assumptions are correct
+            self.assertEqual(document_model.get_source_data_items(projection_data_item)[0], data_item)
+            self.assertTrue(projection_data_item in document_model.data_items)
+            # remove the graphic and make sure things are as expected
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.remove_selected_graphics()
+            self.assertEqual(len(display_item.graphics), 0)
+            self.assertEqual(len(display_item.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
+            self.assertFalse(projection_data_item in document_model.data_items)
 
     def test_modifying_processing_results_in_data_computation(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # set up the data items
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -719,8 +714,8 @@ class TestProcessingClass(unittest.TestCase):
                     self.assertTrue(display_changed_ref[0])
 
     def test_modifying_processing_region_results_in_data_computation(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # set up the data items
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -748,8 +743,8 @@ class TestProcessingClass(unittest.TestCase):
                     self.assertTrue(display_changed_ref[0])
 
     def test_changing_region_does_not_trigger_fft_recompute(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -766,8 +761,8 @@ class TestProcessingClass(unittest.TestCase):
             self.assertFalse(document_model.get_data_item_computation(fft_data_item).needs_update)
 
     def test_removing_source_of_cross_correlation_does_not_throw_exception(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item1)
@@ -781,8 +776,8 @@ class TestProcessingClass(unittest.TestCase):
 
     def test_crop_of_slice_of_3d_handles_dimensions(self):
         # the bug was that slice processing returned the wrong number of dimensions
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((32, 32, 16), numpy.float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -797,8 +792,8 @@ class TestProcessingClass(unittest.TestCase):
 
     def test_projection_of_2d_by_2d_sums_first_datum_dimension(self):
         # the bug was that slice processing returned the wrong number of dimensions
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.random.randn(4, 4, 3, 3)
             data_and_metadata = DataAndMetadata.new_data_and_metadata(d, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
             data_item = DataItem.new_data_item(data_and_metadata)
@@ -809,9 +804,9 @@ class TestProcessingClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(numpy.sum(d, 2), slice_data_item.xdata.data))
 
     def test_cross_correlate_works_in_1d(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data = ((numpy.abs(numpy.random.randn(8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -821,9 +816,9 @@ class TestProcessingClass(unittest.TestCase):
             document_controller.perform_action("processing.cross_correlate")
 
     def test_cross_correlate_works_in_2d(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -833,9 +828,9 @@ class TestProcessingClass(unittest.TestCase):
             document_controller.perform_action("processing.cross_correlate")
 
     def test_get_two_data_sources_handles_no_selection(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             self.assertIsNone(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
@@ -843,9 +838,9 @@ class TestProcessingClass(unittest.TestCase):
             self.assertIsNone(document_controller._get_two_data_sources())
 
     def test_get_two_data_sources_handles_one_selected_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             self.assertIsNone(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
@@ -861,9 +856,9 @@ class TestProcessingClass(unittest.TestCase):
             self.assertEqual(data_sources[1][1], None)
 
     def test_get_two_data_sources_handles_two_selected_data_items(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             self.assertIsNone(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8)) + 1) * 10).astype(numpy.uint32)
             data_item1 = DataItem.DataItem(data)
@@ -879,9 +874,9 @@ class TestProcessingClass(unittest.TestCase):
             self.assertEqual(data_sources[1][1], None)
 
     def test_get_two_data_sources_handles_three_selected_data_items(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_items = list()
             for i in range(3):
                 data_item = DataItem.DataItem(numpy.random.randn(8))
@@ -890,9 +885,9 @@ class TestProcessingClass(unittest.TestCase):
             self.assertIsNone(document_controller._get_two_data_sources())
 
     def test_get_two_data_sources_handles_one_selected_data_item_and_one_crop_graphic(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             self.assertIsNone(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
@@ -912,9 +907,9 @@ class TestProcessingClass(unittest.TestCase):
             self.assertEqual(data_sources[1][1], crop_region)
 
     def test_get_two_data_sources_handles_one_selected_data_item_and_two_crop_graphics(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             self.assertIsNone(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
@@ -939,9 +934,9 @@ class TestProcessingClass(unittest.TestCase):
             self.assertEqual(data_sources[1][1], crop_region2)
 
     def test_get_two_data_sources_handles_one_selected_data_item_and_three_crop_graphics(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             self.assertIsNone(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
@@ -959,9 +954,9 @@ class TestProcessingClass(unittest.TestCase):
             self.assertEqual(data_sources[1][1], None)
 
     def test_crop_handles_1d_case_with_existing_interval(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data = ((numpy.abs(numpy.random.randn(8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -977,9 +972,9 @@ class TestProcessingClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(cropped_data_item.data, data_item.data[4:8]))
 
     def test_crop_handles_2d_case_with_existing_rectangle(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -996,9 +991,9 @@ class TestProcessingClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(cropped_data_item.data, data_item.data[2:6, 0:8]))
 
     def test_basic_redimension_command_works(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data = numpy.zeros((2, 2, 2))
             data_descriptor = DataAndMetadata.DataDescriptor(False, 2, 1)
             dimensional_calibrations = [
@@ -1017,9 +1012,9 @@ class TestProcessingClass(unittest.TestCase):
             self.assertEqual(redim_data_item.xdata.dimensional_calibrations, [Calibration.Calibration(1), Calibration.Calibration(2), Calibration.Calibration(3)])
 
     def test_squeeze_removes_proper_dimensions(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data = numpy.zeros((1, 2, 1, 1))
             data_descriptor = DataAndMetadata.DataDescriptor(True, 2, 1)
             dimensional_calibrations = [
@@ -1039,9 +1034,9 @@ class TestProcessingClass(unittest.TestCase):
             self.assertEqual(squeezed_data_item.xdata.dimensional_calibrations, [Calibration.Calibration(2), Calibration.Calibration(4)])
 
     def test_squeeze_removes_proper_dimensions_when_both_datum_is_1(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data = numpy.zeros((1, 2, 1, 1, 1))
             data_descriptor = DataAndMetadata.DataDescriptor(True, 2, 2)
             dimensional_calibrations = [
@@ -1062,17 +1057,17 @@ class TestProcessingClass(unittest.TestCase):
             self.assertEqual(squeezed_data_item.xdata.dimensional_calibrations, [Calibration.Calibration(2), Calibration.Calibration(5)])
 
     def test_invalid_processing_produces_no_output(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((3, 3)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             document_controller._perform_processing(display_item, None, document_model.get_pick_new)
 
     def test_mapped_sum_is_registered_and_functional(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.zeros((8, 8, 4, 4))
             data[0:4, 0:4, ...] = 1
             data_item = DataItem.DataItem(data)

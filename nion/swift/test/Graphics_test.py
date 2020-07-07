@@ -1,6 +1,4 @@
 # standard libraries
-import collections
-import contextlib
 import copy
 import logging
 import math
@@ -13,11 +11,10 @@ import numpy
 from nion.data import Calibration
 from nion.swift import Application
 from nion.swift import DisplayPanel
-from nion.swift import DocumentController
 from nion.swift import ImageCanvasItem
 from nion.swift.model import DataItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.test import TestContext
 from nion.ui import CanvasItem
 from nion.ui import TestUI
 from nion.utils import Geometry
@@ -101,9 +98,9 @@ class TestGraphicsClass(unittest.TestCase):
         self.assertIsNone(spot_graphic.test(mapping, ui_settings, Geometry.FloatPoint(), move_only=False)[0])
 
     def test_create_all_graphic_by_dragging(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             t = [
                 ("line", Graphics.LineGraphic),
                 ("rectangle", Graphics.RectangleGraphic),
@@ -175,812 +172,810 @@ class TestGraphicsClass(unittest.TestCase):
         self.assertTrue(Geometry.distance(r1[0], r2[0]) < e and Geometry.distance(r1[1], r2[1]) < e)
 
     def test_dragging_regions(self):
-        # make the document controller
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        display_panel = document_controller.selected_display_panel
-        data_item = DataItem.DataItem(numpy.zeros((10, 10)))
-        document_model.append_data_item(data_item)
-        display_item = document_model.get_display_item_for_data_item(data_item)
-        display_panel.set_display_panel_display_item(display_item)
-        header_height = display_panel.header_canvas_item.header_height
-        display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
 
-        def get_extended_attr(object, extended_name):
-            initial_value = object
-            for sub_property in extended_name.split("."):
-                initial_value = getattr(initial_value, sub_property)
-            return initial_value
+            def get_extended_attr(object, extended_name):
+                initial_value = object
+                for sub_property in extended_name.split("."):
+                    initial_value = getattr(initial_value, sub_property)
+                return initial_value
 
-        def map_string(s, m1, m2):
-            for k, v in m1.items():
-                s = s.replace(k, v)
-            for k, v in m2.items():
-                s = s.replace(k, v)
-            return s
+            def map_string(s, m1, m2):
+                for k, v in m1.items():
+                    s = s.replace(k, v)
+                for k, v in m2.items():
+                    s = s.replace(k, v)
+                return s
 
-        class ScalarCoordinate(object):
+            class ScalarCoordinate(object):
 
-            def __init__(self, v_value=None, h_value=None):
-                self.v_value = v_value
-                self.h_value = h_value
+                def __init__(self, v_value=None, h_value=None):
+                    self.v_value = v_value
+                    self.h_value = h_value
 
-            @property
-            def value(self):
-                return self.v_value if self.v_value is not None else self.h_value
+                @property
+                def value(self):
+                    return self.v_value if self.v_value is not None else self.h_value
 
-        def reflect_rect(r, v, h):
-            if v and not h:
-                return Geometry.FloatRect(Geometry.FloatPoint(1.0 - r.bottom, r.left), r.size)
-            elif v and h:
-                return Geometry.FloatRect(Geometry.FloatPoint(1.0 - r.bottom, 1.0 - r.right), r.size)
-            elif not v and h:
-                return Geometry.FloatRect(Geometry.FloatPoint(r.top, 1.0 - r.right), r.size)
-            else:
-                return r
-
-        def reflect_point(p, v, h):
-            y = 1.0 - p.y if v else p.y
-            x = 1.0 - p.x if h else p.x
-            return Geometry.FloatPoint(y, x)
-
-        def reflect_size(s, v, h):
-            height = 1.0 - s.height if v else s.height
-            width = 1.0 - s.width if h else s.width
-            return Geometry.FloatSize(height, width)
-
-        def reflect_scalar(s, v, h):
-            v_value = 1.0 - s.v_value if s.v_value is not None and v else s.v_value
-            h_value = 1.0 - s.h_value if s.h_value is not None and h else s.h_value
-            return ScalarCoordinate(v_value, h_value)
-
-        def reflect_value(value, v, h, mapping_v1, mapping_v2, mapping_h1, mapping_h2):
-            if isinstance(value, Geometry.FloatRect):
-                return reflect_rect(value, v, h)
-            elif isinstance(value, Geometry.FloatPoint):
-                return reflect_point(value, v, h)
-            elif isinstance(value, Geometry.FloatSize):
-                return reflect_size(value, v, h)
-            elif isinstance(value, ScalarCoordinate):
-                return reflect_scalar(value, v, h)
-            elif isinstance(value, str):
-                if v:
-                    value = map_string(value, mapping_v1, mapping_v2)
-                if h:
-                    value = map_string(value, mapping_h1, mapping_h2)
-                return value
-            elif isinstance(value, float):
-                return value
-            raise Exception("Unknown value type %s", type(value))
-            return None
-
-        def reflect(d, v, h):
-            d = copy.deepcopy(d)
-            mapping_v1 = {"top": "was_top", "bottom": "was_bottom"}
-            mapping_v2 = {"was_top": "bottom", "was_bottom": "top"}
-            mapping_h1 = {"left": "was_left", "right": "was_right"}
-            mapping_h2 = {"was_left": "right", "was_right": "left"}
-            # name
-            if v:
-                d["name"] = map_string(d["name"], mapping_v1, mapping_v2)
-            if h:
-                d["name"] = map_string(d["name"], mapping_h1, mapping_h2)
-            # input
-            old_input = d["input"]["properties"]
-            new_input = dict()
-            for property, expected_value in old_input.items():
-                if v:
-                    property = map_string(property, mapping_v1, mapping_v2)
-                if h:
-                    property = map_string(property, mapping_h1, mapping_h2)
-                new_input[property] = reflect_value(expected_value, v, h, mapping_v1, mapping_v2, mapping_h1, mapping_h2)
-            d["input"]["properties"] = new_input
-            # drag
-            drag = d["drag"]
-            c0, c1 = drag[0:2]
-            if v:
-                c0 = 1000 - c0[0], c0[1]
-                c1 = 1000 - c1[0], c1[1]
-            if h:
-                c0 = c0[0], 1000 - c0[1]
-                c1 = c1[0], 1000 - c1[1]
-            new_drag = list((c0, c1))
-            new_drag.extend(drag[2:])
-            d["drag"] = tuple(new_drag)
-            # output
-            old_output = d["output"]["properties"]
-            new_output = dict()
-            for property, expected_value in old_output.items():
-                if v:
-                    property = map_string(property, mapping_v1, mapping_v2)
-                if h:
-                    property = map_string(property, mapping_h1, mapping_h2)
-                new_output[property] = reflect_value(expected_value, v, h, mapping_v1, mapping_v2, mapping_h1, mapping_h2)
-            d["output"]["properties"] = new_output
-            return d
-
-        def do_drag_test(d, e=0.00001):
-            # logging.debug("test %s", d["name"])
-            region = Graphics.factory(lambda t: d["input"]["type"])
-            for property, initial_value in d["input"]["properties"].items():
-                setattr(region, property, initial_value)
-            initial_values = dict()
-            for property, expected_value in d["output"]["properties"].items():
-                if isinstance(expected_value, str):
-                    initial_values[expected_value] = get_extended_attr(region, expected_value)
-            for constraint in d["input"].get("constraints", list()):
-                if constraint == "bounds":
-                    region.is_bounds_constrained = True
-                elif constraint == "shape":
-                    region.is_shape_locked = True
-                elif constraint == "position":
-                    region.is_position_locked = True
-            display_item.add_graphic(region)
-            display_item.graphic_selection.set(0)
-            display_panel.display_canvas_item.simulate_drag(*d["drag"])
-            for property, expected_value in d["output"]["properties"].items():
-                actual_value = get_extended_attr(region, property)
-                # logging.debug("%s: %s == %s ?", property, actual_value, expected_value)
-                if isinstance(expected_value, str):
-                    if isinstance(actual_value, Geometry.FloatRect):
-                        self.assertAlmostEqualRect(actual_value, initial_values[expected_value], e)
-                    elif isinstance(actual_value, Geometry.FloatPoint):
-                        self.assertAlmostEqualPoint(actual_value, initial_values[expected_value], e)
-                    elif isinstance(actual_value, Geometry.FloatSize):
-                        self.assertAlmostEqualSize(actual_value, initial_values[expected_value], e)
-                    elif isinstance(actual_value, ScalarCoordinate):
-                        self.assertAlmostEqual(actual_value.value, initial_values[expected_value])
-                    else:
-                        raise Exception("Unknown value type %s", type(actual_value))
+            def reflect_rect(r, v, h):
+                if v and not h:
+                    return Geometry.FloatRect(Geometry.FloatPoint(1.0 - r.bottom, r.left), r.size)
+                elif v and h:
+                    return Geometry.FloatRect(Geometry.FloatPoint(1.0 - r.bottom, 1.0 - r.right), r.size)
+                elif not v and h:
+                    return Geometry.FloatRect(Geometry.FloatPoint(r.top, 1.0 - r.right), r.size)
                 else:
-                    if isinstance(actual_value, Geometry.FloatRect):
-                        self.assertAlmostEqualRect(actual_value, expected_value, e)
-                    elif isinstance(actual_value, Geometry.FloatPoint):
-                        self.assertAlmostEqualPoint(actual_value, expected_value, e)
-                    elif isinstance(actual_value, Geometry.FloatSize):
-                        self.assertAlmostEqualSize(actual_value, expected_value, e)
-                    elif isinstance(actual_value, float):
-                        self.assertAlmostEqual(actual_value, expected_value.value)
+                    return r
+
+            def reflect_point(p, v, h):
+                y = 1.0 - p.y if v else p.y
+                x = 1.0 - p.x if h else p.x
+                return Geometry.FloatPoint(y, x)
+
+            def reflect_size(s, v, h):
+                height = 1.0 - s.height if v else s.height
+                width = 1.0 - s.width if h else s.width
+                return Geometry.FloatSize(height, width)
+
+            def reflect_scalar(s, v, h):
+                v_value = 1.0 - s.v_value if s.v_value is not None and v else s.v_value
+                h_value = 1.0 - s.h_value if s.h_value is not None and h else s.h_value
+                return ScalarCoordinate(v_value, h_value)
+
+            def reflect_value(value, v, h, mapping_v1, mapping_v2, mapping_h1, mapping_h2):
+                if isinstance(value, Geometry.FloatRect):
+                    return reflect_rect(value, v, h)
+                elif isinstance(value, Geometry.FloatPoint):
+                    return reflect_point(value, v, h)
+                elif isinstance(value, Geometry.FloatSize):
+                    return reflect_size(value, v, h)
+                elif isinstance(value, ScalarCoordinate):
+                    return reflect_scalar(value, v, h)
+                elif isinstance(value, str):
+                    if v:
+                        value = map_string(value, mapping_v1, mapping_v2)
+                    if h:
+                        value = map_string(value, mapping_h1, mapping_h2)
+                    return value
+                elif isinstance(value, float):
+                    return value
+                raise Exception("Unknown value type %s", type(value))
+                return None
+
+            def reflect(d, v, h):
+                d = copy.deepcopy(d)
+                mapping_v1 = {"top": "was_top", "bottom": "was_bottom"}
+                mapping_v2 = {"was_top": "bottom", "was_bottom": "top"}
+                mapping_h1 = {"left": "was_left", "right": "was_right"}
+                mapping_h2 = {"was_left": "right", "was_right": "left"}
+                # name
+                if v:
+                    d["name"] = map_string(d["name"], mapping_v1, mapping_v2)
+                if h:
+                    d["name"] = map_string(d["name"], mapping_h1, mapping_h2)
+                # input
+                old_input = d["input"]["properties"]
+                new_input = dict()
+                for property, expected_value in old_input.items():
+                    if v:
+                        property = map_string(property, mapping_v1, mapping_v2)
+                    if h:
+                        property = map_string(property, mapping_h1, mapping_h2)
+                    new_input[property] = reflect_value(expected_value, v, h, mapping_v1, mapping_v2, mapping_h1, mapping_h2)
+                d["input"]["properties"] = new_input
+                # drag
+                drag = d["drag"]
+                c0, c1 = drag[0:2]
+                if v:
+                    c0 = 1000 - c0[0], c0[1]
+                    c1 = 1000 - c1[0], c1[1]
+                if h:
+                    c0 = c0[0], 1000 - c0[1]
+                    c1 = c1[0], 1000 - c1[1]
+                new_drag = list((c0, c1))
+                new_drag.extend(drag[2:])
+                d["drag"] = tuple(new_drag)
+                # output
+                old_output = d["output"]["properties"]
+                new_output = dict()
+                for property, expected_value in old_output.items():
+                    if v:
+                        property = map_string(property, mapping_v1, mapping_v2)
+                    if h:
+                        property = map_string(property, mapping_h1, mapping_h2)
+                    new_output[property] = reflect_value(expected_value, v, h, mapping_v1, mapping_v2, mapping_h1, mapping_h2)
+                d["output"]["properties"] = new_output
+                return d
+
+            def do_drag_test(d, e=0.00001):
+                # logging.debug("test %s", d["name"])
+                region = Graphics.factory(lambda t: d["input"]["type"])
+                for property, initial_value in d["input"]["properties"].items():
+                    setattr(region, property, initial_value)
+                initial_values = dict()
+                for property, expected_value in d["output"]["properties"].items():
+                    if isinstance(expected_value, str):
+                        initial_values[expected_value] = get_extended_attr(region, expected_value)
+                for constraint in d["input"].get("constraints", list()):
+                    if constraint == "bounds":
+                        region.is_bounds_constrained = True
+                    elif constraint == "shape":
+                        region.is_shape_locked = True
+                    elif constraint == "position":
+                        region.is_position_locked = True
+                display_item.add_graphic(region)
+                display_item.graphic_selection.set(0)
+                display_panel.display_canvas_item.simulate_drag(*d["drag"])
+                for property, expected_value in d["output"]["properties"].items():
+                    actual_value = get_extended_attr(region, property)
+                    # logging.debug("%s: %s == %s ?", property, actual_value, expected_value)
+                    if isinstance(expected_value, str):
+                        if isinstance(actual_value, Geometry.FloatRect):
+                            self.assertAlmostEqualRect(actual_value, initial_values[expected_value], e)
+                        elif isinstance(actual_value, Geometry.FloatPoint):
+                            self.assertAlmostEqualPoint(actual_value, initial_values[expected_value], e)
+                        elif isinstance(actual_value, Geometry.FloatSize):
+                            self.assertAlmostEqualSize(actual_value, initial_values[expected_value], e)
+                        elif isinstance(actual_value, ScalarCoordinate):
+                            self.assertAlmostEqual(actual_value.value, initial_values[expected_value])
+                        else:
+                            raise Exception("Unknown value type %s", type(actual_value))
                     else:
-                        raise Exception("Unknown value type %s", type(actual_value))
-            display_item.remove_graphic(region)
+                        if isinstance(actual_value, Geometry.FloatRect):
+                            self.assertAlmostEqualRect(actual_value, expected_value, e)
+                        elif isinstance(actual_value, Geometry.FloatPoint):
+                            self.assertAlmostEqualPoint(actual_value, expected_value, e)
+                        elif isinstance(actual_value, Geometry.FloatSize):
+                            self.assertAlmostEqualSize(actual_value, expected_value, e)
+                        elif isinstance(actual_value, float):
+                            self.assertAlmostEqual(actual_value, expected_value.value)
+                        else:
+                            raise Exception("Unknown value type %s", type(actual_value))
+                display_item.remove_graphic(region)
 
-        def rotate(p, o, angle):
-            origin = Geometry.FloatPoint.make(o)
-            point = Geometry.FloatPoint.make(p)
-            delta = point - origin
-            angle_sin = math.sin(angle)
-            angle_cos = math.cos(angle)
-            return origin + Geometry.FloatPoint(x=delta.x * angle_cos + delta.y * angle_sin, y=delta.y * angle_cos - delta.x * angle_sin)
+            def rotate(p, o, angle):
+                origin = Geometry.FloatPoint.make(o)
+                point = Geometry.FloatPoint.make(p)
+                delta = point - origin
+                angle_sin = math.sin(angle)
+                angle_cos = math.cos(angle)
+                return origin + Geometry.FloatPoint(x=delta.x * angle_cos + delta.y * angle_sin, y=delta.y * angle_cos - delta.x * angle_sin)
 
-        def round1000(p):
-            return Geometry.FloatPoint(y=int(p.y * 1000) / 1000, x=int(p.x * 1000) / 1000)
+            def round1000(p):
+                return Geometry.FloatPoint(y=int(p.y * 1000) / 1000, x=int(p.x * 1000) / 1000)
 
-        # rectangle top-left
-
-        d = {
-            "name": "drag top-left corner outside of bounds with no constraints",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect(origin=(0.21, 0.22), size=(0.31, 0.32)) }
-            },
-            "drag": [(210, 220), (-190, -180)],
-            "output": {
-                "properties": {
-                    "_bounds.top_left": Geometry.FloatPoint(y=-0.19, x=-0.18),
-                    "_bounds.bottom_right": "_bounds.bottom_right"
-                },
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        for rotation in (2 * math.pi / 8, -2 * math.pi / 8):
+            # rectangle top-left
 
             d = {
-                "name": "drag rotated top-left corner outside of bounds with no constraints",
+                "name": "drag top-left corner outside of bounds with no constraints",
                 "input": {
                     "type": "rect-graphic",
-                    "properties": { "_bounds": Geometry.FloatRect(origin=(0.4, 0.3), size=(0.2, 0.4)), "rotation": rotation }
+                    "properties": { "_bounds": Geometry.FloatRect(origin=(0.21, 0.22), size=(0.31, 0.32)) }
                 },
-                "drag": [rotate((400, 300), (500, 500), rotation), rotate((450, 250), (500, 500), rotation)],
+                "drag": [(210, 220), (-190, -180)],
                 "output": {
                     "properties": {
-                        "_rotated_top_left": rotate((0.45, 0.25), (0.5, 0.5), rotation),
-                        "_rotated_bottom_right": "_rotated_bottom_right"
+                        "_bounds.top_left": Geometry.FloatPoint(y=-0.19, x=-0.18),
+                        "_bounds.bottom_right": "_bounds.bottom_right"
                     },
                 }
             }
 
-            # rotation odd reflections are not valid
-            do_drag_test(reflect(d, False, False), e=0.001)
-            do_drag_test(reflect(d, True, True), e=0.001)
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            for rotation in (2 * math.pi / 8, -2 * math.pi / 8):
+
+                d = {
+                    "name": "drag rotated top-left corner outside of bounds with no constraints",
+                    "input": {
+                        "type": "rect-graphic",
+                        "properties": { "_bounds": Geometry.FloatRect(origin=(0.4, 0.3), size=(0.2, 0.4)), "rotation": rotation }
+                    },
+                    "drag": [rotate((400, 300), (500, 500), rotation), rotate((450, 250), (500, 500), rotation)],
+                    "output": {
+                        "properties": {
+                            "_rotated_top_left": rotate((0.45, 0.25), (0.5, 0.5), rotation),
+                            "_rotated_bottom_right": "_rotated_bottom_right"
+                        },
+                    }
+                }
+
+                # rotation odd reflections are not valid
+                do_drag_test(reflect(d, False, False), e=0.001)
+                do_drag_test(reflect(d, True, True), e=0.001)
+
+                d = {
+                    "name": "drag rotated top-right corner outside of bounds with no constraints",
+                    "input": {
+                        "type": "rect-graphic",
+                        "properties": { "_bounds": Geometry.FloatRect(origin=(0.4, 0.3), size=(0.2, 0.4)), "rotation": rotation }
+                    },
+                    "drag": [rotate((400, 700), (500, 500), rotation), rotate((450, 750), (500, 500), rotation)],
+                    "output": {
+                        "properties": {
+                            "_rotated_top_right": rotate((0.45, 0.75), (0.5, 0.5), rotation),
+                            "_rotated_bottom_left": "_rotated_bottom_left"
+                        },
+                    }
+                }
+
+                # rotation odd reflections are not valid
+                do_drag_test(reflect(d, False, False), e=0.001)
+                do_drag_test(reflect(d, True, True), e=0.001)
+
+                d = {
+                    "name": "drag rotated top-left corner outside of bounds from center",
+                    "input": {
+                        "type": "rect-graphic",
+                        "properties": { "_bounds": Geometry.FloatRect(origin=(0.4, 0.3), size=(0.2, 0.4)), "rotation": rotation }
+                    },
+                    "drag": [rotate((400, 300), (500, 500), rotation), rotate((450, 250), (500, 500), rotation), CanvasItem.KeyboardModifiers(alt=True)],
+                    "output": {
+                        "properties": {
+                            "_rotated_top_left": rotate((0.45, 0.25), (0.5, 0.5), rotation),
+                            "_bounds.center": "_bounds.center"
+                        },
+                    }
+                }
+
+                # rotation odd reflections are not valid
+                do_drag_test(reflect(d, False, False), e=0.001)
+                do_drag_test(reflect(d, True, True), e=0.001)
+
+                d = {
+                    "name": "drag rotated top-right corner outside of bounds from center",
+                    "input": {
+                        "type": "rect-graphic",
+                        "properties": { "_bounds": Geometry.FloatRect(origin=(0.4, 0.3), size=(0.2, 0.4)), "rotation": rotation }
+                    },
+                    "drag": [rotate((400, 700), (500, 500), rotation), rotate((450, 750), (500, 500), rotation), CanvasItem.KeyboardModifiers(alt=True)],
+                    "output": {
+                        "properties": {
+                            "_rotated_top_right": rotate((0.45, 0.75), (0.5, 0.5), rotation),
+                            "_bounds.center": "_bounds.center"
+                        },
+                    }
+                }
+
+                # rotation odd reflections are not valid
+                do_drag_test(reflect(d, False, False), e=0.001)
+                do_drag_test(reflect(d, True, True), e=0.001)
 
             d = {
-                "name": "drag rotated top-right corner outside of bounds with no constraints",
+                "name": "drag top-left corner outside of bounds with bounds constraint",
                 "input": {
                     "type": "rect-graphic",
-                    "properties": { "_bounds": Geometry.FloatRect(origin=(0.4, 0.3), size=(0.2, 0.4)), "rotation": rotation }
+                    "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
+                    "constraints": ["bounds"]
                 },
-                "drag": [rotate((400, 700), (500, 500), rotation), rotate((450, 750), (500, 500), rotation)],
+                "drag": [(210, 220), (-190, -180)],
                 "output": {
                     "properties": {
-                        "_rotated_top_right": rotate((0.45, 0.75), (0.5, 0.5), rotation),
-                        "_rotated_bottom_left": "_rotated_bottom_left"
-                    },
+                        "_bounds.top_left": Geometry.FloatPoint(),
+                        "_bounds.bottom_right": "_bounds.bottom_right"
+                    }
                 }
             }
 
-            # rotation odd reflections are not valid
-            do_drag_test(reflect(d, False, False), e=0.001)
-            do_drag_test(reflect(d, True, True), e=0.001)
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
 
             d = {
-                "name": "drag rotated top-left corner outside of bounds from center",
+                "name": "drag top-left corner from center towards top left with bounds constraint",
                 "input": {
                     "type": "rect-graphic",
-                    "properties": { "_bounds": Geometry.FloatRect(origin=(0.4, 0.3), size=(0.2, 0.4)), "rotation": rotation }
+                    "properties": { "_bounds": Geometry.FloatRect((0.25, 0.25), (0.5, 0.5)) },
+                    "constraints": ["bounds"]
                 },
-                "drag": [rotate((400, 300), (500, 500), rotation), rotate((450, 250), (500, 500), rotation), CanvasItem.KeyboardModifiers(alt=True)],
+                "drag": [(250, 250), (150, 140), CanvasItem.KeyboardModifiers(alt=True)],
                 "output": {
                     "properties": {
-                        "_rotated_top_left": rotate((0.45, 0.25), (0.5, 0.5), rotation),
-                        "_bounds.center": "_bounds.center"
-                    },
+                        "_bounds.center": "_bounds.center",
+                        "_bounds.top_left": Geometry.FloatPoint(0.15, 0.14),
+                    }
                 }
             }
 
-            # rotation odd reflections are not valid
-            do_drag_test(reflect(d, False, False), e=0.001)
-            do_drag_test(reflect(d, True, True), e=0.001)
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
 
             d = {
-                "name": "drag rotated top-right corner outside of bounds from center",
+                "name": "drag top-left corner from center towards top left with position constraint",
                 "input": {
                     "type": "rect-graphic",
-                    "properties": { "_bounds": Geometry.FloatRect(origin=(0.4, 0.3), size=(0.2, 0.4)), "rotation": rotation }
+                    "properties": { "_bounds": Geometry.FloatRect((0.25, 0.25), (0.5, 0.5)) },
+                    "constraints": ["position"]
                 },
-                "drag": [rotate((400, 700), (500, 500), rotation), rotate((450, 750), (500, 500), rotation), CanvasItem.KeyboardModifiers(alt=True)],
+                "drag": [(250, 250), (150, 140), CanvasItem.KeyboardModifiers()],
                 "output": {
                     "properties": {
-                        "_rotated_top_right": rotate((0.45, 0.75), (0.5, 0.5), rotation),
-                        "_bounds.center": "_bounds.center"
+                        "_bounds.center": "_bounds.center",
+                        "_bounds.top_left": Geometry.FloatPoint(0.15, 0.14),
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "drag top-left corner from center outside of bounds to the top left with bounds constraint",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
+                    "constraints": ["bounds"]
+                },
+                "drag": [(210, 220), (-190, -180), CanvasItem.KeyboardModifiers(alt=True)],
+                "output": {
+                    "properties": {
+                        "_bounds.center": "_bounds.center",
+                        "_bounds.top_left": Geometry.FloatPoint(),
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "drag top-left corner from center outside of bounds to the bottom with bounds constraint",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
+                    "constraints": ["bounds"]
+                },
+                "drag": [(210, 220), (1500, 220), CanvasItem.KeyboardModifiers(alt=True)],
+                "output": {
+                    "properties": {
+                        "_bounds.center": "_bounds.center",
+                        "_bounds.top": ScalarCoordinate(v_value=0.0),
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "drag top-left corner from center outside of bounds to the right with bounds constraint",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
+                    "constraints": ["bounds"]
+                },
+                "drag": [(210, 220), (210, 1500), CanvasItem.KeyboardModifiers(alt=True)],
+                "output": {
+                    "properties": {
+                        "_bounds.center": "_bounds.center",
+                        "_bounds.left": ScalarCoordinate(h_value=0.0),
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "drag squared top-left corner from outside of bounds to the bottom right with bounds constraint",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect((0.2, 0.3), (0.4, 0.5)) },
+                    "constraints": ["bounds"]
+                },
+                "drag": [(200, 300), (1500, 1500), CanvasItem.KeyboardModifiers(shift=True)],
+                "output": {
+                    "properties": {
+                        "_bounds.top_left": "_bounds.bottom_right",
+                        "_bounds.bottom": ScalarCoordinate(v_value=0.8),
+                        "_bounds.right": ScalarCoordinate(h_value=1.0),
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "drag squared top-left corner from in one direction",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect((0.4, 0.4), (0.2, 0.2)) },  # center 0.5, 0.5
+                    "constraints": ["bounds"]
+                },
+                "drag": [(400, 400), (200, 400), CanvasItem.KeyboardModifiers(shift=True)],
+                "output": {
+                    "properties": {
+                        "_bounds.bottom_right": "_bounds.bottom_right",
+                        "_bounds.top_left": Geometry.FloatPoint(0.2, 0.2),
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "drag squared top-left corner from outside of bounds to the bottom right with bounds constraint",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect((0.1, 0.3), (0.2, 0.2)) },  # center 0.2, 0.4
+                    "constraints": ["bounds"]
+                },
+                "drag": [(100, 300), (-200, -200), CanvasItem.KeyboardModifiers(shift=True, alt=True)],
+                "output": {
+                    "properties": {
+                        "_bounds.center": "_bounds.center",
+                        "_bounds.left": ScalarCoordinate(h_value=0.2),
+                        "_bounds.top": ScalarCoordinate(v_value=0.0),
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "drag squared top-left corner with bounds, center, square constraint",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect((0.4, 0.4), (0.2, 0.2)) },  # center 0.5, 0.5
+                    "constraints": ["bounds"]
+                },
+                "drag": [(400, 400), (300, 200), CanvasItem.KeyboardModifiers(shift=True, alt=True)],
+                "output": {
+                    "properties": {
+                        "_bounds.center": "_bounds.center",
+                        "_bounds.top_left": Geometry.FloatPoint(0.3, 0.3),
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "drag squared top-left corner with bounds, center, square constraint",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect((0.7, 0.7), (0.2, 0.2)) },  # center 0.8, 0.8
+                    "constraints": ["bounds"]
+                },
+                "drag": [(700, 700), (0, 0), CanvasItem.KeyboardModifiers(shift=True, alt=True)],
+                "output": {
+                    "properties": {
+                        "_bounds.center": "_bounds.center",
+                        "_bounds.right": ScalarCoordinate(h_value=1.0),
+                        "_bounds.bottom": ScalarCoordinate(v_value=1.0),
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "drag top-left to top-left with shape constraint",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
+                    "constraints": ["shape"]
+                },
+                "drag": [(300, 200), (-100, -100), CanvasItem.KeyboardModifiers()],
+                "output": {
+                    "properties": {
+                        "_bounds.center": Geometry.FloatPoint(),
+                        "_bounds.size": "_bounds.size",
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "drag all to top-left with no constraint",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
+                },
+                "drag": [(400, 300), (0, 0), CanvasItem.KeyboardModifiers()],
+                "output": {
+                    "properties": {
+                        "_bounds.center": Geometry.FloatPoint(),
+                        "_bounds.size": "_bounds.size",
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "drag all top-left with bounds constraint",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
+                    "constraints": ["bounds"]
+                },
+                "drag": [(400, 300), (0, 0), CanvasItem.KeyboardModifiers()],
+                "output": {
+                    "properties": {
+                        "_bounds.center": Geometry.FloatPoint(0.1, 0.1),
+                        "_bounds.size": "_bounds.size",
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "drag all bottom-right with bounds constraint",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
+                    "constraints": ["bounds"]
+                },
+                "drag": [(400, 300), (1000, 1000), CanvasItem.KeyboardModifiers()],
+                "output": {
+                    "properties": {
+                        "_bounds.center": Geometry.FloatPoint(0.9, 0.9),
+                        "_bounds.size": "_bounds.size",
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "drag all with restrict constraint",
+                "input": {
+                    "type": "rect-graphic",
+                    "properties": { "_bounds": Geometry.FloatRect((0.4, 0.4), (0.2, 0.2)) },  # center 0.5, 0.5
+                },
+                "drag": [(500, 500), (800, 600), CanvasItem.KeyboardModifiers(shift=True)],
+                "output": {
+                    "properties": {
+                        "_bounds.center": Geometry.FloatPoint(0.8, 0.5),
+                        "_bounds.size": "_bounds.size",
+                    }
+                }
+            }
+
+            # vertical reflections not valid
+            for h in (False, True):
+                do_drag_test(reflect(d, False, h))
+
+            # point
+
+            d = {
+                "name": "point drag with no constraint",
+                "input": {
+                    "type": "point-graphic",
+                    "properties": { "_position": Geometry.FloatPoint(0.2, 0.3) },
+                    # "constraints": ["bounds"]
+                },
+                "drag": [(200, 300), (-100, -100), CanvasItem.KeyboardModifiers()],
+                "output": {
+                    "properties": {
+                        "_position": Geometry.FloatPoint(-0.1, -0.1),
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "point drag with bounds constraint",
+                "input": {
+                    "type": "point-graphic",
+                    "properties": { "_position": Geometry.FloatPoint(0.2, 0.3) },
+                    "constraints": ["bounds"]
+                },
+                "drag": [(200, 300), (-100, -100), CanvasItem.KeyboardModifiers()],
+                "output": {
+                    "properties": {
+                        "_position": Geometry.FloatPoint(),
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            d = {
+                "name": "point drag with restrict",
+                "input": {
+                    "type": "point-graphic",
+                    "properties": { "_position": Geometry.FloatPoint(0.2, 0.3) },
+                    "constraints": ["bounds"]
+                },
+                "drag": [(200, 300), (100, 100), CanvasItem.KeyboardModifiers(shift=True)],
+                "output": {
+                    "properties": {
+                        "_position": Geometry.FloatPoint(0.2, 0.1),
+                    }
+                }
+            }
+
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
+
+            # line regions
+
+            d = {
+                "name": "line drag with no constraints",
+                "input": {
+                    "type": "line-graphic",
+                    "properties": {
+                        "_start": Geometry.FloatPoint(0.2, 0.3),
+                        "_end": Geometry.FloatPoint(0.6, 0.5),
                     },
-                }
-            }
-
-            # rotation odd reflections are not valid
-            do_drag_test(reflect(d, False, False), e=0.001)
-            do_drag_test(reflect(d, True, True), e=0.001)
-
-        d = {
-            "name": "drag top-left corner outside of bounds with bounds constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
-                "constraints": ["bounds"]
-            },
-            "drag": [(210, 220), (-190, -180)],
-            "output": {
-                "properties": {
-                    "_bounds.top_left": Geometry.FloatPoint(),
-                    "_bounds.bottom_right": "_bounds.bottom_right"
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag top-left corner from center towards top left with bounds constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.25, 0.25), (0.5, 0.5)) },
-                "constraints": ["bounds"]
-            },
-            "drag": [(250, 250), (150, 140), CanvasItem.KeyboardModifiers(alt=True)],
-            "output": {
-                "properties": {
-                    "_bounds.center": "_bounds.center",
-                    "_bounds.top_left": Geometry.FloatPoint(0.15, 0.14),
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag top-left corner from center towards top left with position constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.25, 0.25), (0.5, 0.5)) },
-                "constraints": ["position"]
-            },
-            "drag": [(250, 250), (150, 140), CanvasItem.KeyboardModifiers()],
-            "output": {
-                "properties": {
-                    "_bounds.center": "_bounds.center",
-                    "_bounds.top_left": Geometry.FloatPoint(0.15, 0.14),
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag top-left corner from center outside of bounds to the top left with bounds constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
-                "constraints": ["bounds"]
-            },
-            "drag": [(210, 220), (-190, -180), CanvasItem.KeyboardModifiers(alt=True)],
-            "output": {
-                "properties": {
-                    "_bounds.center": "_bounds.center",
-                    "_bounds.top_left": Geometry.FloatPoint(),
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag top-left corner from center outside of bounds to the bottom with bounds constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
-                "constraints": ["bounds"]
-            },
-            "drag": [(210, 220), (1500, 220), CanvasItem.KeyboardModifiers(alt=True)],
-            "output": {
-                "properties": {
-                    "_bounds.center": "_bounds.center",
-                    "_bounds.top": ScalarCoordinate(v_value=0.0),
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag top-left corner from center outside of bounds to the right with bounds constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
-                "constraints": ["bounds"]
-            },
-            "drag": [(210, 220), (210, 1500), CanvasItem.KeyboardModifiers(alt=True)],
-            "output": {
-                "properties": {
-                    "_bounds.center": "_bounds.center",
-                    "_bounds.left": ScalarCoordinate(h_value=0.0),
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag squared top-left corner from outside of bounds to the bottom right with bounds constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.2, 0.3), (0.4, 0.5)) },
-                "constraints": ["bounds"]
-            },
-            "drag": [(200, 300), (1500, 1500), CanvasItem.KeyboardModifiers(shift=True)],
-            "output": {
-                "properties": {
-                    "_bounds.top_left": "_bounds.bottom_right",
-                    "_bounds.bottom": ScalarCoordinate(v_value=0.8),
-                    "_bounds.right": ScalarCoordinate(h_value=1.0),
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag squared top-left corner from in one direction",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.4, 0.4), (0.2, 0.2)) },  # center 0.5, 0.5
-                "constraints": ["bounds"]
-            },
-            "drag": [(400, 400), (200, 400), CanvasItem.KeyboardModifiers(shift=True)],
-            "output": {
-                "properties": {
-                    "_bounds.bottom_right": "_bounds.bottom_right",
-                    "_bounds.top_left": Geometry.FloatPoint(0.2, 0.2),
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag squared top-left corner from outside of bounds to the bottom right with bounds constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.1, 0.3), (0.2, 0.2)) },  # center 0.2, 0.4
-                "constraints": ["bounds"]
-            },
-            "drag": [(100, 300), (-200, -200), CanvasItem.KeyboardModifiers(shift=True, alt=True)],
-            "output": {
-                "properties": {
-                    "_bounds.center": "_bounds.center",
-                    "_bounds.left": ScalarCoordinate(h_value=0.2),
-                    "_bounds.top": ScalarCoordinate(v_value=0.0),
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag squared top-left corner with bounds, center, square constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.4, 0.4), (0.2, 0.2)) },  # center 0.5, 0.5
-                "constraints": ["bounds"]
-            },
-            "drag": [(400, 400), (300, 200), CanvasItem.KeyboardModifiers(shift=True, alt=True)],
-            "output": {
-                "properties": {
-                    "_bounds.center": "_bounds.center",
-                    "_bounds.top_left": Geometry.FloatPoint(0.3, 0.3),
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag squared top-left corner with bounds, center, square constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.7, 0.7), (0.2, 0.2)) },  # center 0.8, 0.8
-                "constraints": ["bounds"]
-            },
-            "drag": [(700, 700), (0, 0), CanvasItem.KeyboardModifiers(shift=True, alt=True)],
-            "output": {
-                "properties": {
-                    "_bounds.center": "_bounds.center",
-                    "_bounds.right": ScalarCoordinate(h_value=1.0),
-                    "_bounds.bottom": ScalarCoordinate(v_value=1.0),
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag top-left to top-left with shape constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
-                "constraints": ["shape"]
-            },
-            "drag": [(300, 200), (-100, -100), CanvasItem.KeyboardModifiers()],
-            "output": {
-                "properties": {
-                    "_bounds.center": Geometry.FloatPoint(),
-                    "_bounds.size": "_bounds.size",
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag all to top-left with no constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
-            },
-            "drag": [(400, 300), (0, 0), CanvasItem.KeyboardModifiers()],
-            "output": {
-                "properties": {
-                    "_bounds.center": Geometry.FloatPoint(),
-                    "_bounds.size": "_bounds.size",
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag all top-left with bounds constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
-                "constraints": ["bounds"]
-            },
-            "drag": [(400, 300), (0, 0), CanvasItem.KeyboardModifiers()],
-            "output": {
-                "properties": {
-                    "_bounds.center": Geometry.FloatPoint(0.1, 0.1),
-                    "_bounds.size": "_bounds.size",
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag all bottom-right with bounds constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
-                "constraints": ["bounds"]
-            },
-            "drag": [(400, 300), (1000, 1000), CanvasItem.KeyboardModifiers()],
-            "output": {
-                "properties": {
-                    "_bounds.center": Geometry.FloatPoint(0.9, 0.9),
-                    "_bounds.size": "_bounds.size",
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "drag all with restrict constraint",
-            "input": {
-                "type": "rect-graphic",
-                "properties": { "_bounds": Geometry.FloatRect((0.4, 0.4), (0.2, 0.2)) },  # center 0.5, 0.5
-            },
-            "drag": [(500, 500), (800, 600), CanvasItem.KeyboardModifiers(shift=True)],
-            "output": {
-                "properties": {
-                    "_bounds.center": Geometry.FloatPoint(0.8, 0.5),
-                    "_bounds.size": "_bounds.size",
-                }
-            }
-        }
-
-        # vertical reflections not valid
-        for h in (False, True):
-            do_drag_test(reflect(d, False, h))
-
-        # point
-
-        d = {
-            "name": "point drag with no constraint",
-            "input": {
-                "type": "point-graphic",
-                "properties": { "_position": Geometry.FloatPoint(0.2, 0.3) },
-                # "constraints": ["bounds"]
-            },
-            "drag": [(200, 300), (-100, -100), CanvasItem.KeyboardModifiers()],
-            "output": {
-                "properties": {
-                    "_position": Geometry.FloatPoint(-0.1, -0.1),
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "point drag with bounds constraint",
-            "input": {
-                "type": "point-graphic",
-                "properties": { "_position": Geometry.FloatPoint(0.2, 0.3) },
-                "constraints": ["bounds"]
-            },
-            "drag": [(200, 300), (-100, -100), CanvasItem.KeyboardModifiers()],
-            "output": {
-                "properties": {
-                    "_position": Geometry.FloatPoint(),
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        d = {
-            "name": "point drag with restrict",
-            "input": {
-                "type": "point-graphic",
-                "properties": { "_position": Geometry.FloatPoint(0.2, 0.3) },
-                "constraints": ["bounds"]
-            },
-            "drag": [(200, 300), (100, 100), CanvasItem.KeyboardModifiers(shift=True)],
-            "output": {
-                "properties": {
-                    "_position": Geometry.FloatPoint(0.2, 0.1),
-                }
-            }
-        }
-
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        # line regions
-
-        d = {
-            "name": "line drag with no constraints",
-            "input": {
-                "type": "line-graphic",
-                "properties": {
-                    "_start": Geometry.FloatPoint(0.2, 0.3),
-                    "_end": Geometry.FloatPoint(0.6, 0.5),
+                    # "constraints": ["bounds"]
                 },
-                # "constraints": ["bounds"]
-            },
-            "drag": [(400, 400), (600, 700), CanvasItem.KeyboardModifiers()],
-            "output": {
-                "properties": {
-                    "_start": Geometry.FloatPoint(0.4, 0.6),
-                    "_end": Geometry.FloatPoint(0.8, 0.8),
+                "drag": [(400, 400), (600, 700), CanvasItem.KeyboardModifiers()],
+                "output": {
+                    "properties": {
+                        "_start": Geometry.FloatPoint(0.4, 0.6),
+                        "_end": Geometry.FloatPoint(0.8, 0.8),
+                    }
                 }
             }
-        }
 
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
 
-        d = {
-            "name": "line start drag with restrict",
-            "input": {
-                "type": "line-graphic",
-                "properties": {
-                    "_start": Geometry.FloatPoint(0.2, 0.3),
-                    "_end": Geometry.FloatPoint(0.6, 0.5),
+            d = {
+                "name": "line start drag with restrict",
+                "input": {
+                    "type": "line-graphic",
+                    "properties": {
+                        "_start": Geometry.FloatPoint(0.2, 0.3),
+                        "_end": Geometry.FloatPoint(0.6, 0.5),
+                    },
+                    "constraints": ["shape"]
                 },
-                "constraints": ["shape"]
-            },
-            "drag": [(200, 300), (400, 600), CanvasItem.KeyboardModifiers()],
-            "output": {
-                "properties": {
-                    "_start": Geometry.FloatPoint(0.4, 0.6),
-                    "_end": Geometry.FloatPoint(0.8, 0.8),
+                "drag": [(200, 300), (400, 600), CanvasItem.KeyboardModifiers()],
+                "output": {
+                    "properties": {
+                        "_start": Geometry.FloatPoint(0.4, 0.6),
+                        "_end": Geometry.FloatPoint(0.8, 0.8),
+                    }
                 }
             }
-        }
 
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
 
-        d = {
-            "name": "line drag with bounds constraint",
-            "input": {
-                "type": "line-graphic",
-                "properties": {
-                    "_start": Geometry.FloatPoint(0.2, 0.3),
-                    "_end": Geometry.FloatPoint(0.6, 0.5),
+            d = {
+                "name": "line drag with bounds constraint",
+                "input": {
+                    "type": "line-graphic",
+                    "properties": {
+                        "_start": Geometry.FloatPoint(0.2, 0.3),
+                        "_end": Geometry.FloatPoint(0.6, 0.5),
+                    },
+                    "constraints": ["bounds"]
                 },
-                "constraints": ["bounds"]
-            },
-            "drag": [(400, 400), (1000, 1000), CanvasItem.KeyboardModifiers()],
-            "output": {
-                "properties": {
-                    "_start": Geometry.FloatPoint(0.6, 0.8),
-                    "_end": Geometry.FloatPoint(1.0, 1.0),
+                "drag": [(400, 400), (1000, 1000), CanvasItem.KeyboardModifiers()],
+                "output": {
+                    "properties": {
+                        "_start": Geometry.FloatPoint(0.6, 0.8),
+                        "_end": Geometry.FloatPoint(1.0, 1.0),
+                    }
                 }
             }
-        }
 
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
 
-        d = {
-            "name": "line start drag with no constraints",
-            "input": {
-                "type": "line-graphic",
-                "properties": {
-                    "_start": Geometry.FloatPoint(0.2, 0.3),
-                    "_end": Geometry.FloatPoint(0.6, 0.5),
+            d = {
+                "name": "line start drag with no constraints",
+                "input": {
+                    "type": "line-graphic",
+                    "properties": {
+                        "_start": Geometry.FloatPoint(0.2, 0.3),
+                        "_end": Geometry.FloatPoint(0.6, 0.5),
+                    },
+                    # "constraints": ["bounds"]
                 },
-                # "constraints": ["bounds"]
-            },
-            "drag": [(200, 300), (600, 700), CanvasItem.KeyboardModifiers()],
-            "output": {
-                "properties": {
-                    "_start": Geometry.FloatPoint(0.6, 0.7),
-                    "_end": Geometry.FloatPoint(0.6, 0.5),
+                "drag": [(200, 300), (600, 700), CanvasItem.KeyboardModifiers()],
+                "output": {
+                    "properties": {
+                        "_start": Geometry.FloatPoint(0.6, 0.7),
+                        "_end": Geometry.FloatPoint(0.6, 0.5),
+                    }
                 }
             }
-        }
 
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
 
-        d = {
-            "name": "line start drag with bounds constraint",
-            "input": {
-                "type": "line-graphic",
-                "properties": {
-                    "_start": Geometry.FloatPoint(0.2, 0.3),
-                    "_end": Geometry.FloatPoint(0.6, 0.5),
+            d = {
+                "name": "line start drag with bounds constraint",
+                "input": {
+                    "type": "line-graphic",
+                    "properties": {
+                        "_start": Geometry.FloatPoint(0.2, 0.3),
+                        "_end": Geometry.FloatPoint(0.6, 0.5),
+                    },
+                    "constraints": ["bounds"]
                 },
-                "constraints": ["bounds"]
-            },
-            "drag": [(200, 300), (-100, 300), CanvasItem.KeyboardModifiers()],
-            "output": {
-                "properties": {
-                    "_start": Geometry.FloatPoint(0.0, 0.3),
-                    "_end": Geometry.FloatPoint(0.6, 0.5),
+                "drag": [(200, 300), (-100, 300), CanvasItem.KeyboardModifiers()],
+                "output": {
+                    "properties": {
+                        "_start": Geometry.FloatPoint(0.0, 0.3),
+                        "_end": Geometry.FloatPoint(0.6, 0.5),
+                    }
                 }
             }
-        }
 
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
 
-        d = {
-            "name": "line start drag with shape constraint",
-            "input": {
-                "type": "line-graphic",
-                "properties": {
-                    "_start": Geometry.FloatPoint(0.2, 0.3),
-                    "_end": Geometry.FloatPoint(0.6, 0.5),
+            d = {
+                "name": "line start drag with shape constraint",
+                "input": {
+                    "type": "line-graphic",
+                    "properties": {
+                        "_start": Geometry.FloatPoint(0.2, 0.3),
+                        "_end": Geometry.FloatPoint(0.6, 0.5),
+                    },
+                    "constraints": ["bounds"]
                 },
-                "constraints": ["bounds"]
-            },
-            "drag": [(200, 300), (500, 500), CanvasItem.KeyboardModifiers(shift=True)],
-            "output": {
-                "properties": {
-                    "_start": Geometry.FloatPoint(0.5, 0.5),
-                    "_end": Geometry.FloatPoint(0.6, 0.5),
+                "drag": [(200, 300), (500, 500), CanvasItem.KeyboardModifiers(shift=True)],
+                "output": {
+                    "properties": {
+                        "_start": Geometry.FloatPoint(0.5, 0.5),
+                        "_end": Geometry.FloatPoint(0.6, 0.5),
+                    }
                 }
             }
-        }
 
-        for v in (False, True):
-            for h in (False, True):
-                do_drag_test(reflect(d, v, h))
-
-        document_controller.close()
+            for v in (False, True):
+                for h in (False, True):
+                    do_drag_test(reflect(d, v, h))
 
     def test_selected_graphics_get_priority_when_dragging_middles(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
@@ -1003,9 +998,9 @@ class TestGraphicsClass(unittest.TestCase):
 
     def test_removing_graphic_from_display_closes_it(self):
         # make the document controller
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
@@ -1019,9 +1014,9 @@ class TestGraphicsClass(unittest.TestCase):
 
     def test_removing_data_item_closes_graphic_attached_to_display(self):
         # make the document controller
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
@@ -1034,8 +1029,8 @@ class TestGraphicsClass(unittest.TestCase):
             self.assertTrue(graphic._closed)
 
     def test_removing_region_closes_associated_drawn_graphic(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1047,8 +1042,8 @@ class TestGraphicsClass(unittest.TestCase):
             self.assertTrue(drawn_graphic._closed)
 
     def test_removing_data_item_closes_associated_drawn_graphic(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1060,8 +1055,8 @@ class TestGraphicsClass(unittest.TestCase):
             self.assertTrue(drawn_graphic._closed)
 
     def test_removing_graphic_with_dependent_data_removes_dependent_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1073,8 +1068,8 @@ class TestGraphicsClass(unittest.TestCase):
             self.assertNotIn(cropped_data_item, document_model.data_items)
 
     def test_removing_one_of_two_graphics_with_dependent_data_only_removes_the_one(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1090,9 +1085,9 @@ class TestGraphicsClass(unittest.TestCase):
             self.assertIn(crop_region2, display_item.graphics)
 
     def test_changing_data_length_does_not_update_graphics(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((100, ), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1104,9 +1099,9 @@ class TestGraphicsClass(unittest.TestCase):
             self.assertEqual(interval_graphic.interval, (0.25, 0.75))
 
     def test_changing_data_scale_does_not_update_graphics(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((100, ), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1118,9 +1113,9 @@ class TestGraphicsClass(unittest.TestCase):
             self.assertEqual(interval_graphic.interval, (0.25, 0.75))
 
     def test_setting_interval_to_non_floats_throws_execption(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((100, ), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)

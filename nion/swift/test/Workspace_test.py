@@ -17,15 +17,14 @@ from nion.swift import MimeTypes
 from nion.swift import Workspace
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Profile
-from nion.swift.test import DocumentController_test
+from nion.swift.test import DocumentController_test, TestContext
 from nion.ui import CanvasItem
 from nion.ui import TestUI
 from nion.utils import Geometry
 
 
-def create_memory_profile_context():
-    return Profile.MemoryProfileContext()
+def create_memory_profile_context() -> TestContext.MemoryProfileContext:
+    return TestContext.MemoryProfileContext()
 
 
 def get_layout(layout_id):
@@ -98,8 +97,9 @@ class TestWorkspaceClass(unittest.TestCase):
         pass
 
     def test_basic_change_layout_results_in_correct_image_panel_count(self):
-        document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            DocumentController_test.construct_test_document(document_controller)
             workspace_1x1 = document_controller.profile.workspaces[0]
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             workspace_3x1 = document_controller.workspace_controller.new_workspace(*get_layout("3x1"))
@@ -125,9 +125,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 1)
 
     def test_basic_change_layout_results_in_image_panel_being_destructed(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             workspace_1x1 = document_controller.profile.workspaces[0]
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_1x1)
@@ -137,9 +137,9 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_image_panel_focused_when_clicked(self):
         # setup
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -173,9 +173,9 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_empty_image_panel_focused_when_clicked(self):
         # setup
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
@@ -193,9 +193,9 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_changed_image_panel_focused_when_clicked(self):
         # setup
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
@@ -228,9 +228,9 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_workspace_construct_and_deconstruct_result_in_matching_descriptions(self):
         # setup
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -241,8 +241,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(desc1, desc2)
 
     def test_workspace_change_records_workspace_uuid(self):
-        document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            DocumentController_test.construct_test_document(document_controller)
             workspace_1x1 = document_controller.profile.workspaces[0]
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             self.assertEqual(document_controller.profile.workspace_uuid, workspace_1x1.uuid)
@@ -252,9 +253,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.profile.workspace_uuid, workspace_1x1.uuid)
 
     def test_workspace_change_records_workspace_data_item_contents(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             workspace_1x1 = document_controller.profile.workspaces[0]
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -275,8 +276,8 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_workspace_records_json_compatible_content_when_closing_document(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 workspace_1x1 = document_controller.profile.workspaces[0]
                 data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -288,8 +289,8 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_workspace_saves_contents_immediately_following_change(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
                 root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
@@ -300,16 +301,16 @@ class TestWorkspaceClass(unittest.TestCase):
                 profile_properties = copy.deepcopy(profile_context.profile_properties)
             profile_context.profile_properties = profile_properties
             # reload with the storage copied before the document closes
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 workspace_controller = document_controller.workspace_controller
                 self.assertEqual(2, len(workspace_controller.display_panels))
 
     def test_workspace_saves_contents_immediately_following_adjustment(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 workspace_controller = document_controller.workspace_controller
                 workspace_2x1 = workspace_controller.new_workspace(*get_layout("2x1"))
@@ -321,8 +322,8 @@ class TestWorkspaceClass(unittest.TestCase):
                 display_panel.container.splits = [0.4, 0.6]
                 display_panel.container.on_splits_changed()
             # reload with the storage copied before the document closes
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 workspace_controller = document_controller.workspace_controller
                 display_panel = workspace_controller.display_panels[0]
@@ -334,8 +335,8 @@ class TestWorkspaceClass(unittest.TestCase):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
         try:
             with create_memory_profile_context() as profile_context:
-                document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-                document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+                document_controller = profile_context.create_document_controller(auto_close=False)
+                document_model = document_controller.document_model
                 with contextlib.closing(document_controller):
                     workspace_controller = document_controller.workspace_controller
                     root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -344,8 +345,8 @@ class TestWorkspaceClass(unittest.TestCase):
                     d = {"type": "image", "controller_type": "test"}
                     display_panel.change_display_panel_content(d)
                 # reload with the storage copied before the document closes
-                document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-                document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+                document_controller = profile_context.create_document_controller(auto_close=False)
+                document_model = document_controller.document_model
                 with contextlib.closing(document_controller):
                     workspace_controller = document_controller.workspace_controller
                     display_panel = workspace_controller.display_panels[0]
@@ -357,8 +358,8 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_workspace_saves_contents_immediately_following_view_change(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 workspace_controller = document_controller.workspace_controller
                 root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -367,8 +368,8 @@ class TestWorkspaceClass(unittest.TestCase):
                 d = {"type": "image", "display-panel-type": "browser-display-panel"}
                 display_panel.change_display_panel_content(d)
             # reload with the storage copied before the document closes
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 workspace_controller = document_controller.workspace_controller
                 display_panel = workspace_controller.display_panels[0]
@@ -377,9 +378,9 @@ class TestWorkspaceClass(unittest.TestCase):
                 self.assertEqual("grid", display_panel.save_contents()["browser_type"])
 
     def test_workspace_insert_into_no_splitter_undo_and_redo_works_cleanly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_controller = document_controller.workspace_controller
@@ -404,9 +405,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
 
     def test_workspace_insert_into_splitter_undo_and_redo_works_cleanly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_controller = document_controller.workspace_controller
@@ -433,9 +434,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
 
     def test_workspace_remove_from_splitter_with_two_items_undo_and_redo_works_cleanly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_controller = document_controller.workspace_controller
@@ -466,9 +467,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
 
     def test_workspace_remove_from_splitter_with_three_items_undo_and_redo_works_cleanly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_controller = document_controller.workspace_controller
@@ -500,9 +501,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
 
     def test_workspace_replace_display_panel_undo_and_redo_works_cleanly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((4, 4)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -532,9 +533,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
 
     def test_workspace_swap_display_panel_undo_and_redo_works_cleanly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((4, 4)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -573,9 +574,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
 
     def test_workspace_change_splitter_undo_and_redo_works_cleanly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((4, 4)))
             document_model.append_data_item(data_item)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -606,9 +607,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(new_splits, splitter_canvas_item.splits)
 
     def test_create_workspace_undo_and_redo_works_cleanly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_controller = document_controller.workspace_controller
@@ -642,9 +643,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(2, len(document_controller.profile.workspaces))
 
     def test_rename_workspace_undo_and_redo_works_cleanly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_controller = document_controller.workspace_controller
@@ -664,9 +665,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual("NEW", document_controller.profile.workspaces[0].name)
 
     def test_remove_workspace_undo_and_redo_works_cleanly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_controller = document_controller.workspace_controller
@@ -697,9 +698,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(1, len(document_controller.profile.workspaces))
 
     def test_clone_workspace_undo_and_redo_works_cleanly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_controller = document_controller.workspace_controller
@@ -736,24 +737,24 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_workspace_records_and_reloads_image_panel_contents(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 workspace_1x1 = document_controller.profile.workspaces[0]
                 data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
                 document_model.append_data_item(data_item1)
                 document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
             # reload
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 workspace_1x1 = document_controller.profile.workspaces[0]
                 self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, document_model.data_items[0])
 
     def __test_drop_on_1x1(self, region):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -792,9 +793,9 @@ class TestWorkspaceClass(unittest.TestCase):
         self.__test_drop_on_1x1("bottom")
 
     def test_drop_empty_on_1x1_top(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -813,9 +814,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item)
 
     def test_horizontal_browser_on_1x1_top(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -834,9 +835,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item)
 
     def test_grid_browser_on_1x1_top(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -855,9 +856,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item)
 
     def test_horizontal_browser_with_data_item_on_1x1_top(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -876,9 +877,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item, display_item)
 
     def test_workspace_splits_when_new_item_dropped_on_non_axis_edge_of_2x1_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -916,9 +917,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[2].canvas_rect.height, 480)
 
     def test_removing_left_item_in_2x1_results_in_a_single_top_level_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -937,9 +938,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item2)
 
     def test_removing_left_item_in_1x2x2_results_in_correct_layout(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("1x2x2"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -960,9 +961,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_rect, Geometry.IntRect.from_tlbr(240, 0, 480, 640))
 
     def test_removing_middle_item_in_3x1_results_in_sensible_splits(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             d = { "type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [ { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "image", "selected": True }, { "type": "image" } ] }, { "type": "image" } ] }
             workspace_3x1 = document_controller.workspace_controller.new_workspace("layout", d)
             document_controller.workspace_controller.change_workspace(workspace_3x1)
@@ -990,9 +991,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(root_canvas_item.canvas_items[0].canvas_items[0].splits, splits)
 
     def test_close_button_in_header_works(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -1007,9 +1008,9 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.display_panels[0].header_canvas_item.simulate_click((12, 308))
 
     def test_dragging_header_to_swap_works(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -1035,9 +1036,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item.data_item, data_item1)
 
     def test_clicking_in_header_selects_and_focuses_display_panel(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -1060,9 +1061,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertTrue(document_controller.workspace_controller.display_panels[1].content_canvas_item.focused)
 
     def test_creating_invalid_workspace_fails_gracefully(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             workspace_bad = document_controller.workspace_controller.new_workspace(layout={"type": "bad_component_type"})
             document_controller.workspace_controller.change_workspace(workspace_bad)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -1072,9 +1073,9 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(panel_0_dict, {'selected': True, 'type': 'image'})
 
     def test_dropping_on_unfocused_display_panel_focuses(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
@@ -1100,9 +1101,9 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def test_browser_does_not_reset_selected_display_item_when_root_loses_focus(self):
         # make sure the inspector doesn't disappear when focus changes to one of its fields
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
@@ -1157,9 +1158,9 @@ class TestWorkspaceClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory(data_item))
         try:
-            document_model = DocumentModel.DocumentModel()
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -1179,9 +1180,9 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_switch_from_layout_with_controller_with_footer_works(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
         try:
-            document_model = DocumentModel.DocumentModel()
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
                 data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
                 document_model.append_data_item(data_item)
                 workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
@@ -1196,9 +1197,9 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_closing_display_panel_with_display_controller_shuts_down_controller_correctly(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
         try:
-            document_model = DocumentModel.DocumentModel()
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
                 data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
                 document_model.append_data_item(data_item)
                 d = {"type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [
@@ -1220,9 +1221,9 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_switching_display_panel_with_display_controller_shuts_down_controller_correctly(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
         try:
-            document_model = DocumentModel.DocumentModel()
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
                 data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
                 document_model.append_data_item(data_item)
                 workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
@@ -1241,9 +1242,9 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_switch_workspace_closes_display_panel_controller(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
         try:
-            document_model = DocumentModel.DocumentModel()
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
                 data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
                 document_model.append_data_item(data_item)
                 workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
@@ -1259,9 +1260,9 @@ class TestWorkspaceClass(unittest.TestCase):
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
     def test_closing_data_item_display_after_closing_browser_detaches_browser_delegate(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             data_item1 = DataItem.DataItem(numpy.zeros((16, 16), numpy.double))
@@ -1276,9 +1277,9 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_restore_panel_like_drag_and_drop_closes_display_panel_controller(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
         try:
-            document_model = DocumentModel.DocumentModel()
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
                 data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
                 document_model.append_data_item(data_item)
                 workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
@@ -1296,9 +1297,9 @@ class TestWorkspaceClass(unittest.TestCase):
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
     def test_processing_puts_new_data_into_empty_display_panel_if_possible(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
@@ -1314,9 +1315,9 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_data_display_panel_with_controller_not_treated_as_potential_result_panel(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
         try:
-            document_model = DocumentModel.DocumentModel()
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
                 workspace = document_controller.workspace_controller.new_workspace("1", {"type": "image", "controller_type": "test"})
                 document_controller.workspace_controller.change_workspace(workspace)
                 self.assertIsNone(document_controller.next_result_display_panel())
@@ -1329,17 +1330,16 @@ class TestWorkspaceClass(unittest.TestCase):
             DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("error", TestWorkspaceClass.DisplayPanelControllerFactory())
             try:
                 with create_memory_profile_context() as profile_context:
-                    document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-                    document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-                    # first create a workspace
+                    document_controller = profile_context.create_document_controller(auto_close=False)
+                    document_model = document_controller.document_model
                     with contextlib.closing(document_controller):
                         workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
                         document_controller.workspace_controller.change_workspace(workspace_2x1)
                     # modify it to include a controller which raises an exception during init
                     profile_context.profile_properties["workspaces"][1]["layout"]["children"][0]["controller_type"] = "error"
                     # create a new document based on the corrupt layout
-                    document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-                    document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+                    document_controller = profile_context.create_document_controller(auto_close=False)
+                    document_model = document_controller.document_model
                     with contextlib.closing(document_controller):
                         pass
                     # check to ensure that the exception didn't invalidate the entire layout
@@ -1353,9 +1353,9 @@ class TestWorkspaceClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((8, 8)))
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory(data_item))
         try:
-            document_model = DocumentModel.DocumentModel()
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_item_copy = document_model.get_display_item_copy_new(display_item)

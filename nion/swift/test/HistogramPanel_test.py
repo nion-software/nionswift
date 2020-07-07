@@ -7,21 +7,18 @@ import numpy
 
 # local libraries
 from nion.data import DataAndMetadata
-from nion.swift import Application
-from nion.swift import DocumentController
 from nion.swift import HistogramPanel
 from nion.swift.model import DataItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.ui import TestUI
+from nion.swift.test import TestContext
 
 
 class TestHistogramPanelClass(unittest.TestCase):
 
     def setUp(self):
-        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
-        self.document_model = DocumentModel.DocumentModel()
-        self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
+        self.test_context = TestContext.create_memory_context()
+        self.document_controller = self.test_context.create_document_controller_with_application()
+        self.document_model = self.document_controller.document_model
         data = numpy.full((10, 10), 200, dtype=numpy.uint32)
         data[5, 5] = 650
         self.data_item = DataItem.DataItem(data)
@@ -34,7 +31,7 @@ class TestHistogramPanelClass(unittest.TestCase):
 
     def tearDown(self):
         self.histogram_panel.close()
-        self.document_controller.close()
+        self.test_context.close()
 
     def test_drag_to_set_limits(self):
         display_data_channel = self.display_item.display_data_channels[0]

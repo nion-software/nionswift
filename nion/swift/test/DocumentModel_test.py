@@ -6,6 +6,7 @@ import random
 import time
 import unittest
 import uuid
+import weakref
 
 # third party libraries
 import numpy
@@ -20,8 +21,8 @@ from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Profile
 from nion.swift.model import Symbolic
+from nion.swift.test import TestContext
 from nion.ui import TestUI
 from nion.utils import Recorder
 
@@ -29,8 +30,8 @@ from nion.utils import Recorder
 Facade.initialize()
 
 
-def create_memory_profile_context():
-    return Profile.MemoryProfileContext()
+def create_memory_profile_context() -> TestContext.MemoryProfileContext:
+    return TestContext.MemoryProfileContext()
 
 
 class TestDocumentModelClass(unittest.TestCase):
@@ -42,8 +43,8 @@ class TestDocumentModelClass(unittest.TestCase):
         pass
 
     def test_remove_data_items_on_document_model(self):
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(auto_project=True))
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem()
             data_item1.title = 'title'
             data_item2 = DataItem.DataItem()
@@ -58,8 +59,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(data_item2 in document_model.data_items)
 
     def test_removing_data_item_should_remove_from_groups_too(self):
-        document_model = DocumentModel.DocumentModel(profile=Profile.Profile(auto_project=True))
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem()
             data_item1.title = 'title'
             data_item2 = DataItem.DataItem()
@@ -80,7 +81,7 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_loading_document_with_duplicated_data_items_ignores_earlier_ones(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -92,16 +93,15 @@ class TestDocumentModelClass(unittest.TestCase):
             profile_context.data_map[new_data_key] = copy.deepcopy(profile_context.data_map[old_data_key])
             profile_context.data_properties_map[new_properties_key] = copy.deepcopy(profile_context.data_properties_map[old_properties_key])
             # reload and verify
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
                 self.assertEqual(len(document_model.data_items), 1)
 
     def test_document_model_releases_data_item(self):
         # test memory usage
-        document_model = DocumentModel.DocumentModel()
-        import weakref
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(data=numpy.zeros((2, 2)))
             data_item_weak_ref = weakref.ref(data_item)
             document_model.append_data_item(data_item)
@@ -111,8 +111,8 @@ class TestDocumentModelClass(unittest.TestCase):
         self.assertIsNone(data_item_weak_ref())
 
     def test_processing_line_profile_configures_intervals_connection(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.zeros((8, 8), dtype=numpy.float)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
@@ -127,8 +127,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(display_item.graphics[0].interval_descriptors[0]["interval"], interval.interval)
 
     def test_processing_pick_configures_in_and_out_regions_and_connection(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = (100 * numpy.random.randn(8, 8, 64)).astype(numpy.int)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -156,8 +156,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(pick_display_item.graphics[0].interval, interval2)
 
     def test_recompute_after_data_item_deleted_does_not_update_data_on_deleted_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = (100 * numpy.random.randn(4, 4)).astype(numpy.int)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -167,8 +167,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
 
     def test_recompute_after_computation_cleared_does_not_update_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = (100 * numpy.random.randn(4, 4)).astype(numpy.int)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -183,8 +183,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(inverted_data_item.data, -d))
 
     def test_data_item_recording(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((16, 16)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -204,16 +204,16 @@ class TestDocumentModelClass(unittest.TestCase):
                 self.assertEqual(new_display_item.graphics[0].position, point_graphic.position)
 
     def test_creating_r_var_on_data_items(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             data_item_r = document_model.assign_variable_to_data_item(data_item)
             self.assertEqual(data_item_r, "r01")
 
     def test_transaction_handles_added_graphic(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((100, )))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -223,8 +223,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, document_model.transaction_count)
 
     def test_transaction_handles_removed_graphic(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((100, )))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -235,8 +235,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, document_model.transaction_count)
 
     def test_transaction_handles_added_dependent_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -249,8 +249,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, document_model.transaction_count)
 
     def test_transaction_handles_removed_dependent_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -263,8 +263,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, document_model.transaction_count)
 
     def test_transaction_propagates_to_data_structure_referenced_objects(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             data_struct = document_model.create_data_structure()
@@ -275,8 +275,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, document_model.transaction_count)
 
     def test_transaction_propogates_to_data_structure_referenced_objects_added_during_transaction(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             data_struct = document_model.create_data_structure()
@@ -287,8 +287,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, document_model.transaction_count)
 
     def test_transaction_handles_nested_transaction_with_dependent_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((100, )))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -303,37 +303,35 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_display_item_associated_with_data_item_should_be_under_transaction(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-                document_model.append_data_item(data_item)
-                display_item = document_model.get_display_item_for_data_item(data_item)
-                with document_model.item_transaction(data_item):
-                    self.assertTrue(data_item.in_transaction_state)
-                    self.assertTrue(display_item.in_transaction_state)
-                self.assertFalse(data_item.in_transaction_state)
-                self.assertFalse(display_item.in_transaction_state)
-                self.assertEqual(0, document_model.transaction_count)
+            document_model = profile_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            with document_model.item_transaction(data_item):
+                self.assertTrue(data_item.in_transaction_state)
+                self.assertTrue(display_item.in_transaction_state)
+            self.assertFalse(data_item.in_transaction_state)
+            self.assertFalse(display_item.in_transaction_state)
+            self.assertEqual(0, document_model.transaction_count)
 
     def test_display_item_associated_with_dependent_data_items_should_be_under_transaction(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-                document_model.append_data_item(data_item)
-                display_item = document_model.get_display_item_for_data_item(data_item)
-                line_profile_data_item = document_model.get_line_profile_new(display_item)
-                line_profile_display_item = document_model.get_display_item_for_data_item(line_profile_data_item)
-                with document_model.item_transaction(data_item):
-                    self.assertTrue(line_profile_data_item.in_transaction_state)
-                    self.assertTrue(line_profile_display_item.in_transaction_state)
-                self.assertFalse(line_profile_data_item.in_transaction_state)
-                self.assertFalse(line_profile_display_item.in_transaction_state)
-                self.assertEqual(0, document_model.transaction_count)
+            document_model = profile_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            line_profile_data_item = document_model.get_line_profile_new(display_item)
+            line_profile_display_item = document_model.get_display_item_for_data_item(line_profile_data_item)
+            with document_model.item_transaction(data_item):
+                self.assertTrue(line_profile_data_item.in_transaction_state)
+                self.assertTrue(line_profile_display_item.in_transaction_state)
+            self.assertFalse(line_profile_data_item.in_transaction_state)
+            self.assertFalse(line_profile_display_item.in_transaction_state)
+            self.assertEqual(0, document_model.transaction_count)
 
     def test_data_item_with_associated_data_structure_deletes_when_data_item_deleted(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item)
             data_structure = document_model.create_data_structure()
@@ -349,8 +347,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_structures), 0)
 
     def test_computation_creates_dependency_between_data_source_graphic_and_target(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -385,8 +383,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_into_existing_result_graphic(self):
         Symbolic.register_computation_type("find_max", self.FindMax)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.zeros((2, 2), numpy.int)
             d[1, 0] = 1
             data_item = DataItem.DataItem(d)
@@ -404,8 +402,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_into_new_result_graphic(self):
         Symbolic.register_computation_type("find_max", self.FindMax)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.zeros((2, 2), numpy.int)
             d[1, 0] = 1
             data_item = DataItem.DataItem(d)
@@ -421,8 +419,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_into_new_and_then_existing_result_graphic(self):
         Symbolic.register_computation_type("find_max", self.FindMax)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.zeros((2, 2), numpy.int)
             d[1, 0] = 1
             data_item = DataItem.DataItem(d)
@@ -445,8 +443,8 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_new_computation_into_new_and_result_graphic_only_evaluates_once(self):
         TestDocumentModelClass.find_max_eval_count = 0
         Symbolic.register_computation_type("find_max", self.FindMax)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             d = numpy.zeros((2, 2), numpy.int)
             d[1, 0] = 1
             data_item = DataItem.DataItem(d)
@@ -476,8 +474,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_variable(self):
         Symbolic.register_computation_type("set_const", self.SetConst)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
             document_model.append_data_item(data_item)
@@ -506,8 +504,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_data_structure(self):
         Symbolic.register_computation_type("set_const_struct", self.SetConstDataStruct)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
             document_model.append_data_item(data_item)
@@ -529,8 +527,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_data_structure_property(self):
         Symbolic.register_computation_type("set_const", self.SetConst)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
             document_model.append_data_item(data_item)
@@ -552,8 +550,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_computation_creates_dependency_between_data_structure_and_target(self):
         Symbolic.register_computation_type("set_const", self.SetConst)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
             document_model.append_data_item(data_item)
@@ -594,8 +592,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_optional_result(self):
         Symbolic.register_computation_type("optional_graphic", self.OptionalGraphic)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -618,8 +616,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_optional_result_updates_dependencies(self):
         Symbolic.register_computation_type("optional_graphic", self.OptionalGraphic)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -659,8 +657,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_list_result(self):
         Symbolic.register_computation_type("n_graphics", self.NGraphics)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -678,8 +676,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_list_result_updates_dependencies(self):
         Symbolic.register_computation_type("n_graphics", self.NGraphics)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -703,9 +701,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_creates_dependency_when_result_created_during_computation(self):
         Symbolic.register_computation_type("set_const", self.SetConst)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
             computation = document_model.create_computation()
@@ -723,9 +721,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_creates_dependency_when_result_created_before_computation(self):
         Symbolic.register_computation_type("set_const", self.SetConst)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
             document_model.append_data_item(data_item)
@@ -746,8 +744,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_deletes_computation_and_result_data_item_when_input_data_item_deleted(self):
         Symbolic.register_computation_type("set_const", self.SetConst)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
             document_model.append_data_item(data_item)
@@ -781,8 +779,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_keeps_computation_until_last_input_deleted(self):
         Symbolic.register_computation_type("add2", self.Add2)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item2 = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item3 = DataItem.DataItem()
@@ -812,8 +810,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_becomes_unresolved_when_data_item_input_is_removed_from_document(self):
         Symbolic.register_computation_type("add2", self.Add2)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item2 = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item3 = DataItem.DataItem()
@@ -836,8 +834,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_becomes_unresolved_when_data_source_input_is_removed_from_document(self):
         Symbolic.register_computation_type("add2", self.Add2)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item2 = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item3 = DataItem.DataItem()
@@ -861,8 +859,8 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document(self):
         Symbolic.register_computation_type("add2", self.Add2)
         for t in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
-            document_model = DocumentModel.DocumentModel()
-            with contextlib.closing(document_model):
+            with TestContext.create_memory_context() as test_context:
+                document_model = test_context.create_document_model()
                 data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
                 data_item2 = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
                 data_item3 = DataItem.DataItem()
@@ -885,8 +883,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_becomes_unresolved_when_data_structure_input_is_removed_from_document(self):
         Symbolic.register_computation_type("set_const_struct", self.SetConstDataStruct)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
             document_model.append_data_item(data_item)
@@ -910,8 +908,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_becomes_unresolved_when_graphic_input_is_removed_from_document(self):
         Symbolic.register_computation_type("set_const_graphic", self.SetConstGraphic)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
             document_model.append_data_item(data_item)
@@ -936,8 +934,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_deletes_computation_when_result_data_item_deleted(self):
         Symbolic.register_computation_type("add2", self.Add2)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item2 = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item3 = DataItem.DataItem()
@@ -962,8 +960,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_deleting_computation_deletes_all_results(self):
         Symbolic.register_computation_type("add2", self.Add2)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item2 = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item3 = DataItem.DataItem()
@@ -988,8 +986,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_deleting_computation_deletes_all_result_lists(self):
         Symbolic.register_computation_type("n_graphics", self.NGraphics)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1011,8 +1009,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_deleting_result_on_computation_with_multiple_results_deletes_all_results_and_computation(self):
         Symbolic.register_computation_type("n_graphics", self.NGraphics)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1034,9 +1032,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_deletes_auto_created_result_data_item_when_input_data_item_deleted(self):
         Symbolic.register_computation_type("set_const", self.SetConst)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
             computation = document_model.create_computation()
@@ -1069,9 +1067,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_allows_list_of_data_item_inputs(self):
         Symbolic.register_computation_type("add_n", self.AddN)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -1091,9 +1089,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_treats_list_of_data_item_inputs_as_inputs(self):
         Symbolic.register_computation_type("add_n", self.AddN)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -1110,9 +1108,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_multiple_inputs_unbinds_result_when_one_input_is_removed_and_causes_result_to_be_removed(self):
         Symbolic.register_computation_type("add2", self.Add2)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
@@ -1134,9 +1132,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_list_of_data_item_inputs_does_not_remove_outputs_when_item_in_list_is_removed(self):
         Symbolic.register_computation_type("add_n", self.AddN)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -1157,9 +1155,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_reevaluates_when_list_of_data_item_inputs_changes(self):
         Symbolic.register_computation_type("add_n", self.AddN)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -1186,9 +1184,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_reevaluates_when_referenced_item_in_list_of_inputs_is_removed(self):
         Symbolic.register_computation_type("add_n", self.AddN)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -1212,9 +1210,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_unresolved_list_prevents_recomputation(self):
         Symbolic.register_computation_type("add_n", self.AddN)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -1237,9 +1235,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_recomputes_when_list_element_changes(self):
         Symbolic.register_computation_type("add_n", self.AddN)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
@@ -1271,9 +1269,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_cannot_result_in_parallel_dependency(self):
         Symbolic.register_computation_type("copy_data", self.CopyData)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             data_item2 = DataItem.DataItem()
             document_model.append_data_item(data_item)
@@ -1292,9 +1290,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_cannot_result_in_immediate_circular_dependency(self):
         Symbolic.register_computation_type("copy_data", self.CopyData)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
             with self.assertRaises(Exception):
@@ -1306,9 +1304,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_cannot_result_in_secondary_circular_dependency(self):
         Symbolic.register_computation_type("copy_data", self.CopyData)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
             document_model.append_data_item(data_item)
@@ -1328,8 +1326,8 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_new_computation_with_missing_input_does_not_recompute(self):
         TestDocumentModelClass.add2_eval_count = 0
         Symbolic.register_computation_type("add2", self.Add2)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item2 = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item3 = DataItem.DataItem()
@@ -1353,8 +1351,8 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_new_computation_with_missing_input_recomputes_when_missing_input_supplied(self):
         TestDocumentModelClass.add2_eval_count = 0
         Symbolic.register_computation_type("add2", self.Add2)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item2 = DataItem.DataItem(numpy.ones((2, 2), numpy.int))  # NOT INITIALLY ADDED TO DOCUMENT
             data_item3 = DataItem.DataItem()
@@ -1375,8 +1373,8 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_new_computation_with_initially_missing_input_fails_gracefully(self):
         TestDocumentModelClass.add2_eval_count = 0
         Symbolic.register_computation_type("add2", self.Add2)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item3 = DataItem.DataItem()
             document_model.append_data_item(data_item)
@@ -1401,8 +1399,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_missing_output_does_not_evaluate(self):
         Symbolic.register_computation_type("pass_thru", self.PassThru)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item3 = DataItem.DataItem()
             document_model.append_data_item(data_item)
@@ -1417,8 +1415,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_missing_input_which_subsequently_appears_does_evaluate(self):
         Symbolic.register_computation_type("pass_thru", self.PassThru)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item3 = DataItem.DataItem()
             # document_model.append_data_item(data_item)  # purposely not added
@@ -1434,8 +1432,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_missing_output_which_subsequently_appears_does_evaluate(self):
         Symbolic.register_computation_type("pass_thru", self.PassThru)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item3 = DataItem.DataItem()
             document_model.append_data_item(data_item)
@@ -1451,8 +1449,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_missing_data_struct_input_which_subsequently_appears_does_evaluate(self):
         Symbolic.register_computation_type("set_const_struct", self.SetConstDataStruct)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
             document_model.append_data_item(data_item)
@@ -1482,8 +1480,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_missing_graphic_input_which_subsequently_appears_does_evaluate(self):
         Symbolic.register_computation_type("set_const_graphic", self.SetConstGraphic)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
             document_model.append_data_item(data_item)
@@ -1518,9 +1516,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_dependency_from_graphic_to_data_item_establishes_cleanly(self):
         Symbolic.register_computation_type("genzero", self.GenerateZero)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1559,8 +1557,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_computation_can_depend_on_xdata(self):
         Symbolic.register_computation_type("crop_half", self.CropHalf)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.random.randn(12, 12))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
@@ -1579,8 +1577,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_computation_can_depend_on_display_xdata(self):
         Symbolic.register_computation_type("crop_half", self.CropHalf)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.random.randn(12, 12, 4))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
@@ -1603,8 +1601,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_computation_can_depend_on_cropped_xdata(self):
         Symbolic.register_computation_type("crop_half", self.CropHalf)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.random.randn(24, 24))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
@@ -1630,8 +1628,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_computation_can_depend_on_cropped_display_xdata(self):
         Symbolic.register_computation_type("crop_half", self.CropHalf)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.random.randn(24, 24, 4))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
@@ -1660,8 +1658,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_computation_can_depend_on_filter_xdata(self):
         Symbolic.register_computation_type("pass_thru", self.PassThru)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.full((20, 20), 5))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
@@ -1690,8 +1688,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_computation_can_depend_on_filtered_xdata(self):
         Symbolic.register_computation_type("pass_thru", self.PassThru)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.full((20, 20), 5, dtype=numpy.complex128))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
@@ -1720,8 +1718,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_computation_sequence_evaluates(self):
         Symbolic.register_computation_type("pass_thru", self.PassThru)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
             data_item2 = DataItem.DataItem()
             data_item3 = DataItem.DataItem()
@@ -1744,8 +1742,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_computation_deletes_when_source_deletes(self):
         Symbolic.register_computation_type("pass_thru", self.PassThru)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
             data_item2 = DataItem.DataItem()
             data_item3 = DataItem.DataItem()
@@ -1776,9 +1774,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_computation_deletes_when_source_cycle_deletes(self):
         Symbolic.register_computation_type("source_cycle_test", self.SourceCycleTest)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.zeros((2, )))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -1807,8 +1805,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_computation_deletes_when_triggered_by_both_inputs_and_source_deletion(self):
         Symbolic.register_computation_type("pass_thru", self.PassThru)
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
             data_item2 = DataItem.DataItem()
             data_item3 = DataItem.DataItem()
@@ -1833,8 +1831,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.computations))
 
     def test_new_computation_with_missing_processor_fails_gracefully(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item3 = DataItem.DataItem()
             document_model.append_data_item(data_item)
@@ -1848,8 +1846,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(computation.error_text.startswith("Missing computation"))
 
     def test_undelete_data_structure(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_structure = document_model.create_data_structure()
             data_structure.set_property_value("amount", 1)
             document_model.append_data_structure(data_structure)
@@ -1878,9 +1876,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_undelete_computation(self):
         Symbolic.register_computation_type("negate", self.Negate)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((4, 4)))
             document_model.append_data_item(data_item)
@@ -1924,9 +1922,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_undelete_data_item_with_double_computation(self):
         Symbolic.register_computation_type("negate", self.Negate)
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((4, 4)))
             document_model.append_data_item(data_item)
@@ -1970,9 +1968,9 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(numpy.full((2, 2), -2), document_model.data_items[2].data))
 
     def test_undelete_connection(self):
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item1 = DataItem.DataItem(numpy.ones((4, 4)))
             document_model.append_data_item(data_item1)
@@ -2008,9 +2006,9 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(display_item1.title, display_item2.title)
 
     def test_undeleted_connection_is_properly_restored_into_persistent_object_context(self):
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((4, 4, 100)))
             document_model.append_data_item(data_item)
@@ -2030,9 +2028,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.remove_data_item(pick_data_item, safe=True)
 
     def test_undelete_graphic(self):
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
@@ -2061,9 +2059,9 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(numpy.zeros((5, )), line_profile_data_item.data))
 
     def test_undeleted_graphic_is_properly_restored_into_persistent_object_context(self):
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
@@ -2077,9 +2075,9 @@ class TestDocumentModelClass(unittest.TestCase):
             display_item.remove_graphic(display_item.graphics[0], safe=True)
 
     def test_undelete_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
@@ -2093,9 +2091,9 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(numpy.ones((8, 8)), document_model.data_items[0].data))
 
     def test_undelete_data_item_with_graphic(self):
-        document_model = DocumentModel.DocumentModel()
-        self.app._set_document_model(document_model)  # required to allow API to find document model
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            self.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
@@ -2128,8 +2126,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.display_items[0].graphics))
 
     def test_snapshot_has_unique_title(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -2137,8 +2135,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertNotEqual(display_item.displayed_title, snapshot_display_item.displayed_title)
 
     def test_snapshot_snapshots_display(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -2147,8 +2145,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(1, len(snapshot_display_item.graphics))
 
     def test_new_display_makes_another_display_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -2157,8 +2155,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(2, len(document_model.get_display_items_for_data_item(data_item)))
 
     def test_able_to_make_new_data_item_by_processing_existing_data_item_with_multiple_displays(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -2171,7 +2169,7 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_delete_display_item_with_missing_data_item_reference(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item1 = DataItem.DataItem(numpy.ones((2, 2)))
                 document_model.append_data_item(data_item1)
@@ -2182,13 +2180,13 @@ class TestDocumentModelClass(unittest.TestCase):
                 display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item1))
                 display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
             profile_context.project_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 document_model.remove_display_item(document_model.display_items[-1])
 
     def test_delete_one_data_item_from_multi_data_item_display(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.ones((2,)))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.ones((2,)))
@@ -2201,8 +2199,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(1, len(display_item.display_data_channels))
 
     def test_deleting_last_display_item_for_data_item_also_deletes_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # make two data items and add display for 2nd to first
             # this results in two display items, the first with both data items;
             # the second with just the 2nd data item.
@@ -2225,8 +2223,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(2, len(document_model.get_display_items_for_data_item(data_item2)))
 
     def test_modified_property_is_updated_when_child_item_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2,)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -2239,12 +2237,12 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_data_item_reference_gets_reconnected_when_reloading(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((2, 2)))
                 document_model.append_data_item(data_item)
                 document_model._update_data_item_reference("abc", data_item)
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
+            document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 data_item_reference = document_model.get_data_item_reference("abc")
                 self.assertEqual(document_model.data_items[0], data_item_reference.data_item)

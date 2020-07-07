@@ -25,9 +25,9 @@ from nion.swift import Thumbnails
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
+from nion.swift.test import TestContext
 from nion.ui import TestUI
 from nion.utils import Recorder
 
@@ -35,8 +35,8 @@ from nion.utils import Recorder
 Facade.initialize()
 
 
-def create_memory_profile_context():
-    return Profile.MemoryProfileContext()
+def create_memory_profile_context() -> TestContext.MemoryProfileContext:
+    return TestContext.MemoryProfileContext()
 
 
 class TestDataItemClass(unittest.TestCase):
@@ -56,8 +56,8 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_copy_data_item(self):
         # NOTE: does not test computation, which is tested elsewhere
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             h, w = 8, 8
             data = numpy.zeros((h, w), numpy.uint32)
             data[h//2, w//2] = 1000  # data range (0, 1000)
@@ -108,8 +108,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertNotEqual(display_item.graphics[0], display_item2.graphics[0])
 
     def test_setting_title_on_data_item_sets_title_on_data_source(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             data_item.title = "123"
             data_item.caption = "234"
@@ -119,8 +119,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual("345", data_item.description)
 
     def test_setting_title_on_data_item_with_no_data_source_works_after_adding_data_source(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem()
             data_item.title = "123"
             self.assertEqual("123", data_item.title)
@@ -129,8 +129,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual("456", data_item.title)
 
     def test_data_item_with_existing_computation_initializes_dependencies(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
@@ -144,8 +144,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
 
     def test_removing_data_item_with_computation_deinitializes_dependencies(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
@@ -164,8 +164,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(len(document_model.get_dependent_data_items(data_item2)), 0)
 
     def test_removing_source_for_data_item_with_computation_deinitializes_dependencies(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
@@ -183,8 +183,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(len(document_model.get_source_data_items(data_item2a)), 0)
 
     def test_removing_data_item_removes_associated_computation(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # setup by adding data item and a dependent data item
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -203,8 +203,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(len(document_model.get_dependent_data_items(data_item)), 0)
 
     def test_copy_data_item_properly_copies_computation(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
@@ -221,8 +221,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertIn(data_item2a_copy, document_model.get_dependent_data_items(data_item2))
 
     def test_copy_data_item_properly_copies_data_source_and_connects_it(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item2)  # add this first
@@ -235,8 +235,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(document_model.get_data_item_computation(data_item2a_copy).get_input("src").data_item, data_item2)
 
     def test_copy_data_item_with_crop(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             source_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(source_data_item)
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
@@ -251,8 +251,8 @@ class TestDataItemClass(unittest.TestCase):
                              document_model.get_data_item_computation(data_item).get_input("src").graphic)
 
     def test_copy_data_item_with_transaction(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
             document_model.append_data_item(data_item)
             with document_model.item_transaction(data_item):
@@ -269,21 +269,20 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_data_item_in_transaction_is_not_unloadable(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
-                with document_model.item_transaction(data_item):
-                    document_model.append_data_item(data_item)
-                    # under transaction, data should not be unloadable
-                    self.assertFalse(data_item.data_and_metadata.unloadable)
-                    self.assertTrue(data_item.data_and_metadata.is_data_valid)
-                # no longer under transaction, data should not be unloadable
-                self.assertTrue(data_item.data_and_metadata.unloadable)
-                self.assertFalse(data_item.data_and_metadata.is_data_valid)
+            document_model = profile_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
+            with document_model.item_transaction(data_item):
+                document_model.append_data_item(data_item)
+                # under transaction, data should not be unloadable
+                self.assertFalse(data_item.data_and_metadata.unloadable)
+                self.assertTrue(data_item.data_and_metadata.is_data_valid)
+            # no longer under transaction, data should not be unloadable
+            self.assertTrue(data_item.data_and_metadata.unloadable)
+            self.assertFalse(data_item.data_and_metadata.is_data_valid)
 
     def test_clear_thumbnail_when_data_item_changed(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -297,8 +296,8 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertTrue(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
 
     def test_thumbnail_2d_handles_small_dimension_without_producing_invalid_thumbnail(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((1, 300), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -308,8 +307,8 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertTrue(functools.reduce(lambda x, y: x * y, thumbnail_data.shape) > 0)
 
     def test_thumbnail_2d_handles_nan_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.zeros((16, 16), numpy.float)
             data[:] = numpy.nan
             data_item = DataItem.DataItem(data)
@@ -320,8 +319,8 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
     def test_thumbnail_2d_handles_inf_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.zeros((16, 16), numpy.float)
             data[:] = numpy.inf
             data_item = DataItem.DataItem(data)
@@ -332,8 +331,8 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
     def test_thumbnail_1d(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -342,8 +341,8 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
     def test_thumbnail_1d_handles_nan_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.zeros((256), numpy.float)
             data[:] = numpy.nan
             data_item = DataItem.DataItem(data)
@@ -354,8 +353,8 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
     def test_thumbnail_1d_handles_inf_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data = numpy.zeros((256), numpy.float)
             data[:] = numpy.inf
             data_item = DataItem.DataItem(data)
@@ -366,8 +365,8 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
     def test_thumbnail_marked_dirty_when_source_data_changed(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -387,15 +386,15 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertTrue(inverted_display_item._display_cache.is_cached_value_dirty(inverted_display_item, "thumbnail_data"))
 
     def test_thumbnail_widget_when_data_item_has_no_associated_display_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item_reference = document_model.get_data_item_reference(document_model.make_data_item_reference_key("abc"))
             with contextlib.closing(DataItemThumbnailWidget.DataItemReferenceThumbnailSource(self.app.ui, document_model, data_item_reference)):
                 data_item_reference.data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
 
     def test_delete_nested_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item2)  # add this first
@@ -408,8 +407,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 1)
 
     def test_copy_data_item_with_display_and_graphics_should_copy_graphics(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -440,8 +439,8 @@ class TestDataItemClass(unittest.TestCase):
         self.assertFalse(numpy.array_equal(data_item.data, data_item_snap.data))
 
     def test_copy_and_snapshot_should_copy_internal_title_caption_description(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             data_item.title = "123"
             data_item.caption = "234"
@@ -469,8 +468,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual("ccc", data_item_snapshot.description)
 
     def test_snapshot_data_item_should_not_copy_computation(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data1 = (numpy.random.randn(8, 8) * 100).astype(numpy.int32)
             data2 = (numpy.random.randn(8, 8) * 100).astype(numpy.int32)
             data_item = DataItem.DataItem(data1)
@@ -497,8 +496,8 @@ class TestDataItemClass(unittest.TestCase):
             copy.copy(data_item)
 
     def test_appending_data_item_should_trigger_recompute(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -508,8 +507,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertFalse(document_model.get_data_item_computation(inverted_display_item.data_item).needs_update)
 
     def test_data_range(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -530,8 +529,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(int(data_max*1e6), int(data_range[1]*1e6))
 
     def test_data_range_gets_updated_after_data_ref_data_updated(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -542,8 +541,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).data_range, (1, 1))
 
     def test_bool_data_has_int_display_range_and_limits(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.bool))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -552,8 +551,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(type(0), type(display_item.display_data_channels[0].get_calculated_display_values(True).data_range[0]))
 
     def test_removing_dependent_data_item_with_graphic(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -562,8 +561,8 @@ class TestDataItemClass(unittest.TestCase):
             # should remove properly when shutting down.
 
     def test_removing_derived_data_item_updates_dependency_info_on_source(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item1.title = "1"
             document_model.append_data_item(data_item1)
@@ -575,8 +574,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
 
     def test_recomputing_data_should_not_leave_it_loaded(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -586,8 +585,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertFalse(inverted_display_item.data_item.is_data_loaded)
 
     def test_loading_dependent_data_should_not_cause_source_data_to_load(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -601,8 +600,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertFalse(display_item.data_item.is_data_loaded)
 
     def test_modifying_source_data_should_trigger_data_changed_notification_from_dependent_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -619,8 +618,8 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertFalse(document_model.get_data_item_computation(inverted_display_item.data_item).needs_update)
 
     def test_modifying_source_data_should_trigger_data_item_stale_from_dependent_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -630,8 +629,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertTrue(document_model.get_data_item_computation(inverted_data_item).needs_update)
 
     def test_modifying_source_data_should_queue_recompute_in_document_model(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -644,8 +643,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertFalse(document_model.get_data_item_computation(inverted_display_item.data_item).needs_update)
 
     def test_is_data_stale_should_propagate_to_data_items_dependent_on_source(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.full((2, 2), 2, numpy.int32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -666,8 +665,8 @@ class TestDataItemClass(unittest.TestCase):
     def test_data_item_that_is_recomputed_notifies_listeners_of_a_single_data_change(self):
         # this test ensures that doing a recompute_data is efficient and doesn't produce
         # extra data_item_content_changed messages.
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -687,8 +686,8 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertEqual(data_changed_ref[0], 1)
 
     def test_adding_removing_data_item_with_crop_computation_updates_graphics(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -701,8 +700,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(len(display_item.graphics), 0)
 
     def disabled_test_adding_removing_crop_computation_to_existing_data_item_updates_graphics(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -719,8 +718,8 @@ class TestDataItemClass(unittest.TestCase):
         graphics_changed_ref = [False]
         def graphics_changed(s):
             graphics_changed_ref[0] = True
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
@@ -739,8 +738,8 @@ class TestDataItemClass(unittest.TestCase):
         graphics_changed_ref = [False]
         def graphics_changed(s):
             graphics_changed_ref[0] = True
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
@@ -777,8 +776,8 @@ class TestDataItemClass(unittest.TestCase):
         self.assertNotEqual("temporary", data_item_copy.category)
 
     def test_data_item_allows_adding_of_two_data_sources(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -788,8 +787,8 @@ class TestDataItemClass(unittest.TestCase):
             document_model.get_cross_correlate_new(display_item1, display_item2)
 
     def test_region_graphic_gets_added_to_existing_display(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -802,8 +801,8 @@ class TestDataItemClass(unittest.TestCase):
         graphics_changed_ref = [False]
         def graphics_changed(s):
             graphics_changed_ref[0] = True
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -820,8 +819,8 @@ class TestDataItemClass(unittest.TestCase):
         graphics_changed_ref = [False]
         def graphics_changed(s):
             graphics_changed_ref[0] = True
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8,)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -838,8 +837,8 @@ class TestDataItemClass(unittest.TestCase):
         graphics_changed_ref = [False]
         def graphics_changed(s):
             graphics_changed_ref[0] = True
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -857,8 +856,8 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertEqual((0.2, 0.3), line_profile_graphic.interval_descriptors[0]["interval"])
 
     def test_connecting_data_source_updates_dependent_data_items_property_on_source(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # configure the source item
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
@@ -869,8 +868,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(document_model.get_dependent_data_items(data_item), [data_item2])
 
     def test_begin_transaction_also_begins_transaction_for_dependent_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # configure the source item
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
@@ -885,8 +884,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertFalse(data_item2.in_transaction_state)
 
     def test_data_item_added_to_data_item_under_transaction_becomes_transacted_too(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # configure the source item
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
@@ -902,8 +901,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertFalse(data_item2.in_transaction_state)
 
     def test_data_item_added_to_data_item_under_transaction_configures_dependency(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # configure the source item
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             crop_region = Graphics.RectangleGraphic()
@@ -924,8 +923,8 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertAlmostEqual(bounds[1][1], 0.4)
 
     def test_data_item_under_transaction_added_to_document_does_write_delay(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # configure the source item
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             # begin the transaction
@@ -934,8 +933,8 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertTrue(data_item.is_write_delayed)
 
     def test_data_item_added_to_live_data_item_becomes_live_and_unlive_based_on_parent_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # configure the source item
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
@@ -949,8 +948,8 @@ class TestDataItemClass(unittest.TestCase):
     def slow_test_dependent_data_item_removed_while_live_data_item_becomes_unlive(self):
         # an intermittent race condition. run several times. see the changes that accompanied
         # the addition of this code.
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -967,8 +966,8 @@ class TestDataItemClass(unittest.TestCase):
     def test_changing_metadata_or_data_does_not_mark_the_data_as_stale(self):
         # changing metadata or data will override what has been computed
         # from the data sources, if there are any.
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(src_data_item)
             src_display_item = document_model.get_display_item_for_data_item(src_data_item)
@@ -983,8 +982,8 @@ class TestDataItemClass(unittest.TestCase):
     def test_changing_metadata_or_data_does_not_mark_the_data_as_stale_for_data_item_with_data_source(self):
         # changing metadata or data will override what has been computed
         # from the data sources, if there are any.
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -997,8 +996,8 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_removing_computation_should_not_mark_the_data_as_stale(self):
         # is this test valid any more?
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1010,8 +1009,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertIsNotNone(copied_data_item.data)
 
     def test_changing_computation_should_mark_the_data_as_stale(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1023,8 +1022,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertTrue(document_model.get_data_item_computation(copied_display_item.data_item).needs_update)
 
     def test_reloading_stale_data_should_still_be_stale(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1045,8 +1044,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertTrue(document_model.get_data_item_computation(inverted_display_item.data_item).needs_update)
 
     def test_recomputing_data_gives_correct_result(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1062,8 +1061,8 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_recomputing_data_after_cached_data_is_called_gives_correct_result(self):
         # verify that this works, the more fundamental test is in test_reloading_stale_data_should_still_be_stale
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1082,8 +1081,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertAlmostEqual(inverted_display_item.data_item.data[0, 0], -3.0)
 
     def test_modifying_data_item_modified_property_works(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
             modified = datetime.datetime(2000, 1, 1)
@@ -1091,8 +1090,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(data_item.modified, modified)
 
     def test_modifying_data_item_metadata_updates_modified(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
             data_item._set_modified(datetime.datetime(2000, 1, 1))
@@ -1102,8 +1101,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertGreater(data_item.modified, modified)
 
     def test_changing_property_on_display_updates_modified(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1117,8 +1116,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertGreater(display_item.modified, display_item_modified)
 
     def test_changing_data_on_data_item_updates_modified(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
             data_item._set_modified(datetime.datetime(2000, 1, 1))
@@ -1128,8 +1127,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertGreater(data_item.modified, modified)
 
     def test_changing_data_updates_xdata_timestamp(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             timestamp = datetime.datetime(2000, 1, 1)
             time.sleep(0.001)  # windows has a time resolution of 1ms. sleep to avoid duplicate.
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((2, 2)), timestamp=timestamp)
@@ -1140,50 +1139,47 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_data_item_in_transaction_does_not_write_until_end_of_transaction(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
-                with document_model.item_transaction(data_item):
-                    document_model.append_data_item(data_item)
-                    self.assertEqual(len(profile_context.data_map.keys()), 0)
-                self.assertEqual(len(profile_context.data_map.keys()), 1)
+            document_model = profile_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
+            with document_model.item_transaction(data_item):
+                document_model.append_data_item(data_item)
+                self.assertEqual(len(profile_context.data_map.keys()), 0)
+            self.assertEqual(len(profile_context.data_map.keys()), 1)
 
     def test_extra_changing_data_item_session_id_in_transaction_does_not_result_in_duplicated_data_items(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
-                with document_model.item_transaction(data_item):
-                    data_item.session_id = "20000630-150200"
-                    document_model.append_data_item(data_item)
-                    self.assertEqual(len(profile_context.data_map.keys()), 0)
-                    data_item.session_id = "20000630-150201"
-                self.assertEqual(len(profile_context.data_map.keys()), 1)
+            document_model = profile_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
+            with document_model.item_transaction(data_item):
+                data_item.session_id = "20000630-150200"
+                document_model.append_data_item(data_item)
+                self.assertEqual(len(profile_context.data_map.keys()), 0)
+                data_item.session_id = "20000630-150201"
+            self.assertEqual(len(profile_context.data_map.keys()), 1)
 
     def test_changing_data_item_session_id_in_transaction_does_not_result_in_duplicated_data_items(self):
         with create_memory_profile_context() as profile_context:
-            document_model = DocumentModel.DocumentModel(profile=profile_context.create_profile())
-            with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
-                with document_model.item_transaction(data_item):
-                    data_item.session_id = "20000630-150200"
-                    document_model.append_data_item(data_item)
-                self.assertEqual(len(profile_context.data_map.keys()), 1)
-                with document_model.item_transaction(data_item):
-                    data_item.session_id = "20000630-150201"
-                self.assertEqual(len(profile_context.data_map.keys()), 1)
+            document_model = profile_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
+            with document_model.item_transaction(data_item):
+                data_item.session_id = "20000630-150200"
+                document_model.append_data_item(data_item)
+            self.assertEqual(len(profile_context.data_map.keys()), 1)
+            with document_model.item_transaction(data_item):
+                data_item.session_id = "20000630-150201"
+            self.assertEqual(len(profile_context.data_map.keys()), 1)
 
     def test_data_item_added_to_library_gets_current_session(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2)))
             document_model.append_data_item(data_item)
             self.assertEqual(data_item.session_id, document_model.session_id)
 
     def test_data_item_gets_current_session_when_data_is_modified(self):
-        document_model = DocumentModel.DocumentModel()
-        document_model.session_id = '20000630-150200'
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            document_model.session_id = '20000630-150200'
             data_item = DataItem.DataItem(numpy.ones((2, 2)))
             data_item.category = 'temporary'
             document_model.append_data_item(data_item)
@@ -1193,9 +1189,9 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(data_item.session_id, document_model.session_id)
 
     def test_data_item_keeps_session_unmodified_when_metadata_is_changed(self):
-        document_model = DocumentModel.DocumentModel()
-        document_model.session_id = '20000630-150200'
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            document_model.session_id = '20000630-150200'
             data_item = DataItem.DataItem(numpy.ones((2, 2)))
             data_item.category = 'temporary'
             document_model.append_data_item(data_item)
@@ -1205,8 +1201,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(data_item.session_id, '20000630-150200')
 
     def test_data_item_copy_copies_session_info(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2)))
             session_metadata = data_item.session_metadata
             session_metadata['site'] = 'Home'
@@ -1218,8 +1214,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(data_item_copy.session_id, document_model.session_id)
 
     def test_data_item_session_id_independent_from_data_source_session_id(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2)))
             data_item.session_id = "20000630-150200"
             self.assertEqual("20000630-150200", data_item.session_id)
@@ -1227,8 +1223,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual("20000630-150201", data_item.session_id)
 
     def test_processed_data_item_has_source_data_modified_equal_to_sources_data_modifed(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
             document_model.append_data_item(src_data_item)
             src_display_item = document_model.get_display_item_for_data_item(src_data_item)
@@ -1239,8 +1235,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertGreaterEqual(data_item.data_modified, src_data_item.data_modified)
 
     def test_processed_data_item_has_source_data_modified_equal_to_sources_created_when_sources_data_modified_is_none(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             src_data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
             src_data_item.data_modified = None
             document_model.append_data_item(src_data_item)
@@ -1251,8 +1247,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertGreaterEqual(data_item.data_modified, src_data_item.created)
 
     def test_dependent_calibration(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1279,8 +1275,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(dimensional_calibrations[1].units, "1/x")
 
     def test_double_dependent_calibration(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1292,8 +1288,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertIsNotNone(display_item3.data_item.dimensional_calibrations)
 
     def test_spatial_calibration_on_rgb(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1302,8 +1298,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(len(display_item.data_item.dimensional_calibrations), 2)
 
     def test_metadata_is_valid_when_a_data_item_has_no_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1312,8 +1308,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertIsInstance(inverted_display_item.data_item.metadata, dict)
 
     def test_data_item_recorder_records_intensity_calibration_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.double))
             document_model.append_data_item(data_item)
             data_item_clone = data_item.clone()
@@ -1323,8 +1319,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(data_item.intensity_calibration.units, data_item_clone.intensity_calibration.units)
 
     def test_data_item_recorder_records_title_changes(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.double))
             document_model.append_data_item(data_item)
             data_item_clone = data_item.clone()
@@ -1334,8 +1330,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(data_item.title, data_item_clone.title)
 
     def test_timezone_is_stored_on_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             try:
                 Utility.local_timezone_override = ["Europe/Athens"]
                 Utility.local_utcoffset_override = [180]
@@ -1348,8 +1344,8 @@ class TestDataItemClass(unittest.TestCase):
                 Utility.local_utcoffset_override = None
 
     def test_timezone_is_encapsulated_in_data_and_metadata(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             try:
                 Utility.local_timezone_override = ["Europe/Athens"]
                 Utility.local_utcoffset_override = [180]
@@ -1369,8 +1365,8 @@ class TestDataItemClass(unittest.TestCase):
                 Utility.local_utcoffset_override = None
 
     def test_xdata_data_ref_counts_are_correct_after_setting_xdata_on_data_item_in_transaction(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((16, 16)))
             data_item_xdata = data_item.xdata
             self.assertEqual(0, data_item_xdata._data_ref_count)
@@ -1380,8 +1376,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(0, data_item_xdata._data_ref_count)
 
     def test_filter_xdata_returns_ones_when_no_graphics(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             # setup by adding data item and a dependent data item
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8)))

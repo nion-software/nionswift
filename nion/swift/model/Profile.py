@@ -33,6 +33,9 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
+ProfileContext = typing.TypeVar("ProfileContext")
+
+
 class ProjectReference(Observable.Observable, Persistence.PersistentObject):
 
     def __init__(self, type: str):
@@ -104,10 +107,10 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
     def project_reference_parts(self) -> typing.Tuple[str]:
         raise NotImplementedError()
 
-    def make_storage(self, profile_context: typing.Optional["MemoryProfileContext"]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         raise NotImplementedError()
 
-    def load_project(self, existing_projects: typing.Sequence[Project.Project], profile_context: typing.Optional["MemoryProfileContext"]) -> None:
+    def load_project(self, existing_projects: typing.Sequence[Project.Project], profile_context: typing.Optional[ProfileContext]) -> None:
         """Make this project active and read it if it isn't already active."""
         if not self.is_active:
             self.is_active = True
@@ -128,7 +131,7 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
             self.__project.close()
             self.__project = None
 
-    def read_project(self, existing_projects: typing.Sequence[Project.Project], profile_context: typing.Optional["MemoryProfileContext"] = None) -> None:
+    def read_project(self, existing_projects: typing.Sequence[Project.Project], profile_context: typing.Optional[ProfileContext] = None) -> None:
         """Read the project if it is active.
 
         The profile context is used during testing.
@@ -154,7 +157,7 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
                     self.__project.close()
                     self.__project = None
 
-    def read_project_uuid(self, profile_context: typing.Optional["MemoryProfileContext"] = None) -> typing.Optional[uuid.UUID]:
+    def read_project_uuid(self, profile_context: typing.Optional[ProfileContext] = None) -> typing.Optional[uuid.UUID]:
         project_storage_system = self.make_storage(profile_context)
         if project_storage_system:
             project_storage_system.load_properties()
@@ -176,7 +179,7 @@ class IndexProjectReference(ProjectReference):
     def project_reference_parts(self) -> typing.Tuple[str]:
         return self.project_path.parts if self.project_path else tuple()
 
-    def make_storage(self, profile_context: typing.Optional["MemoryProfileContext"]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         return FileStorageSystem.make_index_project_storage_system(self.project_path)
 
 
@@ -191,26 +194,13 @@ class FolderProjectReference(ProjectReference):
     def project_reference_parts(self) -> typing.Tuple[str]:
         return self.project_folder_path.parts if self.project_folder_path else tuple()
 
-    def make_storage(self, profile_context: typing.Optional["MemoryProfileContext"]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         if self.project_folder_path:
             return FileStorageSystem.make_folder_project_storage_system(self.project_folder_path)
         return None
 
 
-class MemoryProjectReference(ProjectReference):
-    type = "project_memory"
-
-    def __init__(self, d: typing.Dict = None):
-        super().__init__(self.__class__.type)
-        self.__d = d or dict()
-
-    @property
-    def project_reference_parts(self) -> typing.Tuple[str]:
-        return ("memory",)
-
-    def make_storage(self, profile_context: typing.Optional["MemoryProfileContext"]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
-        return FileStorageSystem.make_memory_project_storage_system(profile_context, self.project_uuid, self.__d)
-
+project_reference_factory_hook = None
 
 def project_reference_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[ProjectReference]:
     type = lookup_id("type")
@@ -218,14 +208,14 @@ def project_reference_factory(lookup_id: typing.Callable[[str], str]) -> typing.
         return IndexProjectReference()
     if type == FolderProjectReference.type:
         return FolderProjectReference()
-    if type == MemoryProjectReference.type:
-        return MemoryProjectReference()
+    if callable(project_reference_factory_hook):
+        return project_reference_factory_hook(type)
     return None
 
 
 class Profile(Observable.Observable, Persistence.PersistentObject):
 
-    def __init__(self, storage_system=None, storage_cache=None, *, auto_project: bool = True):
+    def __init__(self, storage_system=None, storage_cache=None, *, profile_context: typing.Optional[ProfileContext] = None):
         super().__init__()
 
         self.define_root_context()
@@ -258,8 +248,8 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         self.__is_read = False
 
-        if auto_project:
-            self.profile_context = MemoryProfileContext()
+        if profile_context:
+            self.profile_context = profile_context
             project_reference = self.add_project_memory()
             self.work_project_reference_uuid = project_reference.uuid
             self.target_project_reference_uuid = project_reference.uuid
@@ -600,7 +590,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             project_reference.unload_project()
             self.remove_item("project_references", project_reference)
 
-    def __add_project_reference(self, project_reference: ProjectReference, load: bool = True) -> ProjectReference:
+    def add_project_reference(self, project_reference: ProjectReference, load: bool = True) -> ProjectReference:
         # add the project reference if a project reference with the same project uuid
         # is not already present; otherwise activate the existing one.
         existing_project_reference = next(filter(lambda x: x.project_uuid == project_reference.project_uuid, self.project_references), None)
@@ -621,86 +611,10 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         project_reference = IndexProjectReference()
         project_reference.project_path = project_path
         project_reference.project_uuid = project_reference.read_project_uuid(self.profile_context)
-        return self.__add_project_reference(project_reference, load)
+        return self.add_project_reference(project_reference, load)
 
     def add_project_folder(self, project_folder_path: pathlib.Path, load: bool = True) -> ProjectReference:
         project_reference = FolderProjectReference()
         project_reference.project_folder_path = project_folder_path
         project_reference.project_uuid = project_reference.read_project_uuid(self.profile_context)
-        return self.__add_project_reference(project_reference, load)
-
-    def add_project_memory(self, _uuid: uuid.UUID = None, load: bool = True) -> ProjectReference:
-        project_reference = MemoryProjectReference()
-        project_reference.project_uuid = _uuid or uuid.uuid4()
-        return self.__add_project_reference(project_reference, load)
-
-
-class MemoryProfileContext:
-    # used for testing
-
-    def __init__(self):
-        self.storage_cache = Cache.DictStorageCache()
-
-        self.profile_properties = dict()
-        self.__storage_system = FileStorageSystem.MemoryPersistentStorageSystem(library_properties=self.profile_properties)
-        self.__storage_system.load_properties()
-
-        # these contain the data for each project.
-        self.x_project_properties = dict()
-        self.x_data_properties_map = dict()
-        self.x_data_map = dict()
-        self.x_trash_map = dict()
-
-        # these contain the data for the first created project. they also facilitate legacy project testing.
-        self.project_uuid = None
-        self.project_properties = None
-        self.data_properties_map = None
-        self.data_map = None
-        self.trash_map = None
-
-        self._test_data_read_event = Event.Event()
-        self.__profile = None
-
-    def reset_profile(self):
-        self.__profile = None
-        self.profile_properties.clear()
-        self.project_uuid = None
-        self.project_properties = None
-        self.data_properties_map = None
-        self.data_map = None
-        self.trash_map = None
-
-    def create_legacy_project(self) -> None:
-        """Create a legacy project."""
-        self.project_uuid = uuid.uuid4()
-        self.project_properties = self.x_project_properties[self.project_uuid] = {"uuid": str(self.project_uuid)}
-        self.data_properties_map = self.x_data_properties_map[self.project_uuid] = dict()
-        self.data_map = self.x_data_map[self.project_uuid] = dict()
-        self.trash_map = self.x_trash_map[self.project_uuid] = dict()
-
-    def create_profile(self) -> Profile:
-        if not self.__profile:
-            library_properties = {"version": FileStorageSystem.PROFILE_VERSION}
-            storage_system = self.__storage_system
-            storage_system.set_library_properties(library_properties)
-            profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
-            profile.storage_system = storage_system
-            profile.profile_context = self
-            project_reference = profile.add_project_memory(self.project_uuid)
-            profile.target_project_reference_uuid = project_reference.uuid
-            profile.work_project_reference_uuid = project_reference.uuid
-            self.__profile = profile
-            return profile
-        else:
-            storage_system = self.__storage_system
-            storage_system.load_properties()
-            profile = Profile(storage_system=storage_system, storage_cache=self.storage_cache, auto_project=False)
-            profile.storage_system = storage_system
-            profile.profile_context = self
-            return profile
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, type_, value, traceback):
-        pass
+        return self.add_project_reference(project_reference, load)

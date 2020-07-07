@@ -8,12 +8,10 @@ import numpy
 # local libraries
 from nion.data import DataAndMetadata
 from nion.swift import Application
-from nion.swift import DocumentController
-from nion.swift import Panel
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.test import TestContext
 from nion.ui import TestUI
 
 
@@ -26,8 +24,8 @@ class TestInfoPanelClass(unittest.TestCase):
         pass
 
     def test_cursor_over_1d_composite_image(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((32,)))
             data_item2 = DataItem.DataItem(numpy.zeros((32,)))
             document_model.append_data_item(data_item)
@@ -41,9 +39,9 @@ class TestInfoPanelClass(unittest.TestCase):
             self.assertEqual(v, "")
 
     def test_cursor_over_1d_data_displays_without_exception(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((1000, )))
             document_model.append_data_item(data_item)
@@ -56,9 +54,9 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.display_canvas_item.mouse_exited()
 
     def test_cursor_over_1d_data_displays_without_exception_when_not_displaying_calibration(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((1000, )))
             document_model.append_data_item(data_item)
@@ -72,8 +70,8 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.display_canvas_item.mouse_exited()
 
     def test_cursor_over_1d_multiple_data_displays_without_exception(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 1))
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
@@ -84,8 +82,8 @@ class TestInfoPanelClass(unittest.TestCase):
             self.assertEqual(v, "0")
 
     def test_cursor_over_1d_multiple_data_but_2_datum_dimensions_displays_without_exception(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
@@ -96,8 +94,8 @@ class TestInfoPanelClass(unittest.TestCase):
             self.assertEqual(v, "0")
 
     def test_cursor_over_1d_sequence_data_displays_without_exception(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 1))
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
@@ -108,8 +106,8 @@ class TestInfoPanelClass(unittest.TestCase):
             self.assertEqual(v, "0")
 
     def test_cursor_over_1d_image_without_exception(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((50,)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -119,8 +117,8 @@ class TestInfoPanelClass(unittest.TestCase):
             self.assertEqual(v, "0")
 
     def test_cursor_over_1d_image_without_exception_x(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
             data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 25)), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 1)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -130,9 +128,9 @@ class TestInfoPanelClass(unittest.TestCase):
             self.assertEqual(v, "0")
 
     def test_cursor_over_3d_data_displays_without_exception(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((10, 10, 4)))
             document_model.append_data_item(data_item)
@@ -145,9 +143,9 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.display_canvas_item.mouse_exited()
 
     def test_cursor_over_3d_data_displays_correct_ordering_of_indices(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.ones((100, 100, 20)))
             document_model.append_data_item(data_item)
@@ -166,9 +164,9 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.display_canvas_item.mouse_exited()
 
     def test_cursor_over_2d_data_sequence_displays_correct_ordering_of_indices(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((20, 100, 100), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
             data_item = DataItem.new_data_item(data_and_metadata)
@@ -190,9 +188,9 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.display_canvas_item.mouse_exited()
 
     def test_cursor_over_4d_data_displays_correctly(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data = (numpy.random.randn(100, 100, 20, 20) * 100).astype(numpy.int32)
             data_item = DataItem.DataItem(data)

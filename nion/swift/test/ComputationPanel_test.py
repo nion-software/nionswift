@@ -13,16 +13,16 @@ from nion.swift import Facade
 from nion.swift import MimeTypes
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Profile
 from nion.swift.model import Symbolic
+from nion.swift.test import TestContext
 from nion.ui import TestUI
 
 
 Facade.initialize()
 
 
-def create_memory_profile_context() -> Profile.MemoryProfileContext:
-    return Profile.MemoryProfileContext()
+def create_memory_profile_context() -> TestContext.MemoryProfileContext:
+    return TestContext.MemoryProfileContext()
 
 
 class TestComputationPanelClass(unittest.TestCase):
@@ -34,9 +34,9 @@ class TestComputationPanelClass(unittest.TestCase):
         pass
 
     def test_expression_updates_when_node_is_changed(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
@@ -53,9 +53,9 @@ class TestComputationPanelClass(unittest.TestCase):
             self.assertNotEqual(text2, text1)
 
     def test_clearing_computation_clears_text_and_unbinds_or_whatever(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
@@ -73,9 +73,9 @@ class TestComputationPanelClass(unittest.TestCase):
             self.assertFalse(text2)
 
     def test_invalid_expression_shows_error_and_clears_it(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
@@ -109,9 +109,9 @@ class TestComputationPanelClass(unittest.TestCase):
 
     def test_error_text_cleared_after_invalid_script_becomes_valid(self):
         # similar to test_invalid_expression_shows_error_and_clears_it except periodic occurs before recompute at end
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
@@ -144,9 +144,9 @@ class TestComputationPanelClass(unittest.TestCase):
             self.assertIsNone(panel._error_label_for_testing.text)
 
     def test_variables_get_updates_when_switching_data_items(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
@@ -167,9 +167,9 @@ class TestComputationPanelClass(unittest.TestCase):
                     self.assertEqual(len(panel1._sections_for_testing), 0)
 
     def test_change_variable_command_resulting_in_error_undo_redo(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             # setup
             data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item1)
@@ -210,9 +210,9 @@ class TestComputationPanelClass(unittest.TestCase):
             self.assertIsNotNone(computation.error_text)
 
     def test_change_variable_command_resulting_in_creating_data_item_undo_redo(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             # setup
             data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item1)
@@ -258,33 +258,31 @@ class TestComputationPanelClass(unittest.TestCase):
         # create the computation with the first two. then simulate a drag and drop from
         # the second project. recompute and make sure no error occur.
         with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.add_project_memory()
-            document_model = DocumentModel.DocumentModel(profile=profile)
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            with contextlib.closing(document_controller):
-                data1 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
-                data2 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
-                data3 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
-                data_item1 = DataItem.DataItem(data1)
-                data_item2 = DataItem.DataItem(data2)
-                data_item3 = DataItem.DataItem(data3)
-                document_model.append_data_item(data_item1, project=document_model.projects[0])
-                document_model.append_data_item(data_item2, project=document_model.projects[0])
-                document_model.append_data_item(data_item3, project=document_model.projects[1])
-                display_item1 = document_model.get_display_item_for_data_item(data_item1)
-                display_item2 = document_model.get_display_item_for_data_item(data_item2)
-                display_item3 = document_model.get_display_item_for_data_item(data_item3)
-                document_controller.select_display_items_in_data_panel([display_item1, display_item2])
-                document_controller.perform_action("processing.cross_correlate")
-                computation = document_model.computations[-1]
-                document_model.recompute_all()
-                self.assertIsNone(document_model.computations[0].error_text)
-                mime_data = self.app.ui.create_mime_data()
-                MimeTypes.mime_data_put_data_source(mime_data, display_item3, None)
-                ComputationPanel.drop_mime_data(document_controller, computation, computation.variables[1], mime_data, 0, 0)
-                document_model.recompute_all()
-                self.assertIsNone(document_model.computations[0].error_text)
+            document_controller = profile_context.create_document_controller()
+            document_model = document_controller.document_model
+            TestContext.add_project_memory(profile_context.profile)
+            data1 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
+            data2 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
+            data3 = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
+            data_item1 = DataItem.DataItem(data1)
+            data_item2 = DataItem.DataItem(data2)
+            data_item3 = DataItem.DataItem(data3)
+            document_model.append_data_item(data_item1, project=document_model.projects[0])
+            document_model.append_data_item(data_item2, project=document_model.projects[0])
+            document_model.append_data_item(data_item3, project=document_model.projects[1])
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            display_item3 = document_model.get_display_item_for_data_item(data_item3)
+            document_controller.select_display_items_in_data_panel([display_item1, display_item2])
+            document_controller.perform_action("processing.cross_correlate")
+            computation = document_model.computations[-1]
+            document_model.recompute_all()
+            self.assertIsNone(document_model.computations[0].error_text)
+            mime_data = self.app.ui.create_mime_data()
+            MimeTypes.mime_data_put_data_source(mime_data, display_item3, None)
+            ComputationPanel.drop_mime_data(document_controller, computation, computation.variables[1], mime_data, 0, 0)
+            document_model.recompute_all()
+            self.assertIsNone(document_model.computations[0].error_text)
 
     def disabled_test_expression_updates_when_variable_is_assigned(self):
         raise Exception()
