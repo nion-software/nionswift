@@ -68,6 +68,7 @@ class Application(UIApplication.BaseApplication):
         if True or set_global:
             app = self  # hack to get the single instance set. hmm. better way?
 
+        self.__profile = None
         self.__document_model = None
 
         self.__menu_handlers = []
@@ -122,6 +123,10 @@ class Application(UIApplication.BaseApplication):
         self.ui.run(self)
 
     @property
+    def profile(self) -> typing.Optional[Profile.Profile]:
+        return self.__profile
+
+    @property
     def document_model(self):
         return self.__document_model
 
@@ -154,7 +159,8 @@ class Application(UIApplication.BaseApplication):
             profile_path = data_dir / profile_name.with_suffix(".nsproj")
 
         # create or load the profile object
-        profile, is_created = self.__establish_profile(profile_path)
+        self.__profile, is_created = self.__establish_profile(profile_path)
+        profile = self.__profile
 
         # if it was created, it probably means it is migrating from an old version. so add all recent projects.
         # they will initially be disabled and the user will have to explicitly upgrade them.
@@ -167,20 +173,48 @@ class Application(UIApplication.BaseApplication):
         DocumentModel.DocumentModel.computation_min_period = 0.1
         DocumentModel.DocumentModel.computation_min_factor = 1.0
 
-        document_model = DocumentModel.DocumentModel(profile=profile)
+        project_reference: typing.Optional[Profile.ProjectReference] = None
+
+        project_reference = project_reference or profile.get_project_reference(profile.last_project_reference)
+
+        project_reference = project_reference or profile.get_project_reference(profile.work_project_reference_uuid)
+
+        if project_reference:
+            document_controller = self.open_project_window(project_reference)
+
+            if profile_dir is None:
+                # output log message unless we passed a profile_dir for testing.
+                logging.getLogger("loader").info("Welcome to Nion Swift.")
+
+            if is_created and len(document_controller.document_model.display_items) > 0:
+                document_controller.selected_display_panel.set_display_panel_display_item(document_controller.document_model.display_items[0])
+                document_controller.selected_display_panel.perform_action("set_fill_mode")
+        else:
+            self.open_project_manager()
+
+        return True
+
+    def open_project_manager(self) -> None:
+        if not self.is_dialog_type_open(ProjectPanel.ProjectDialog):
+            project_dialog = ProjectPanel.ProjectDialog(self.ui, self)
+            project_dialog.show()
+
+    def open_project_window(self, project_reference: Profile.ProjectReference) -> DocumentController.DocumentController:
+        self.__profile.read_project(project_reference)
+
+        document_model = project_reference.document_model
         document_model.create_default_data_groups()
         document_model.start_dispatcher()
 
         # create the document controller
         document_controller = self.create_document_controller(document_model, "library")
-        if profile_dir is None:
-            # output log message unless we passed a profile_dir for testing.
-            logging.getLogger("loader").info("Welcome to Nion Swift.")
-        if is_created and len(document_model.display_items) > 0:
-            document_controller.selected_display_panel.set_display_panel_display_item(document_model.display_items[0])
-            document_controller.selected_display_panel.perform_action("set_fill_mode")
 
-        return True
+        def window_closed():
+            pass # print(f"CLOSED {document_controller.title}")
+
+        document_controller.on_close = window_closed
+
+        return document_controller
 
     def get_recent_library_paths(self):
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
@@ -212,7 +246,9 @@ class Application(UIApplication.BaseApplication):
         cache_path = profile_path.parent / pathlib.Path(profile_path.stem + " Cache").with_suffix(".nscache")
         logging.getLogger("loader").info(f"Using cache {cache_path}")
         storage_cache = Cache.DbStorageCache(cache_path)
-        return Profile.Profile(storage_system=storage_system, storage_cache=storage_cache), create_new_profile
+        profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache)
+        profile.read_profile()
+        return profile, create_new_profile
 
     def _window_did_close(self, window: UIWindow.Window) -> None:
         # this will be called for _all_ windows, so check if the window is a document window

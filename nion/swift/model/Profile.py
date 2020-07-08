@@ -227,6 +227,8 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.define_root_context()
         self.define_type("profile")
         self.define_relationship("project_references", project_reference_factory, insert=self.__insert_project_reference, remove=self.__remove_project_reference)
+        self.define_property("last_project_reference", converter=Converter.UuidToStringConverter())
+        self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("closed_items", list())
 
         self.storage_system = storage_system or FileStorageSystem.MemoryPersistentStorageSystem()
@@ -321,15 +323,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         return Transaction(self)
 
-    def read_from_dict(self, properties: typing.Mapping) -> None:
-        super().read_from_dict(properties)
-        # activate the project uuids. needed for backwards compatibility during beta only.
-        for project_reference_uuid_str in typing.cast(typing.MutableMapping, properties).pop("active_project_uuids", list()):
-            project_reference_uuid = uuid.UUID(project_reference_uuid_str)
-            for project_reference in self.project_references:
-                if project_reference.uuid == project_reference_uuid:
-                    project_reference.is_active = True
-
     def read_profile(self) -> None:
         # read the properties from the storage system. called after open.
         properties = self.storage_system.read_properties()
@@ -392,6 +385,12 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             project_reference.load_project(self.projects, self.profile_context)
         else:
             project_reference.unload_project()
+
+    def get_project_reference(self, uuid_: uuid.UUID) -> typing.Optional[ProjectReference]:
+        for project_reference in self.project_references:
+            if project_reference.uuid == uuid_:
+                return project_reference
+        return None
 
     def append_project_reference(self, project_reference: ProjectReference) -> None:
         assert not self.get_item_by_uuid("project_references", project_reference.uuid)

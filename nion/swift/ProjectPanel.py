@@ -4,7 +4,6 @@ from __future__ import annotations
 import functools
 import gettext
 import pathlib
-import pkgutil
 import subprocess
 import sys
 import typing
@@ -13,10 +12,8 @@ import typing
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift.model import DataGroup
-from nion.swift.model import DocumentModel
 from nion.swift.model import Profile
 from nion.swift.model import Observer
-from nion.ui import CanvasItem
 from nion.ui import Dialog
 from nion.ui import UserInterface
 from nion.ui import Window
@@ -28,6 +25,7 @@ from nion.utils import ListModel
 from nion.utils import Selection
 
 if typing.TYPE_CHECKING:
+    from nion.swift import Application
     from nion.swift import DocumentController
 
 _ = gettext.gettext
@@ -341,6 +339,7 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
     def __init__(self, window: Window.Window, tree_model: TreeModel):
         super().__init__()
+        self.__window = window
         self.__tree_model = tree_model
         get_font_metrics_fn = self.__window.ui.get_font_metrics
         self.__folder_indent = get_font_metrics_fn("12px", "\N{BLACK DOWN-POINTING TRIANGLE} ").width
@@ -389,7 +388,7 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
     def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
         display_item = self.__tree_model.value[index]
-        menu = self.ui.create_context_menu(self.__window)
+        menu = self.__window.ui.create_context_menu(self.__window)
         if isinstance(display_item, ProjectPanelProjectItem) and display_item.project_reference.project:
             menu.add_menu_item(_(f"Open Project Location"), functools.partial(reveal_project, display_item.project_reference.project.storage_system_path))
         elif isinstance(display_item, ProjectPanelFolderItem):
@@ -405,6 +404,8 @@ class ProjectTreeWidget(Widgets.CompositeWidgetBase):
 
     def __init__(self, window: Window.Window, profile: Profile.Profile):
         super().__init__(window.ui.create_column_widget())
+
+        ui = window.ui
 
         column = self.content_widget
 
@@ -652,12 +653,12 @@ class CollectionsPanel(Panel.Panel):
 
 class ProjectDialog(Dialog.ActionDialog):
 
-    def __init__(self, ui: UserInterface.UserInterface, profile: Profile.Profile):
-        super().__init__(ui, _("Project Manager"), persistent_id="ProjectsDialog")
+    def __init__(self, ui: UserInterface.UserInterface, app: Application.Application):
+        super().__init__(ui, _("Project Manager"), app=app, window_style="window", persistent_id="ProjectsDialog")
 
         self._create_menus()
 
-        projects_section = ProjectTreeWidget(self, profile)
+        projects_section = ProjectTreeWidget(self, app.profile)
 
         column = ui.create_column_widget()
         column.add(projects_section)

@@ -841,11 +841,6 @@ class DocumentController(Window.Window):
         console_dialog = ConsoleDialog.ConsoleDialog(self)
         console_dialog.show()
 
-    def new_project_dialog(self, data_item=None):
-        if not self.is_dialog_type_open(ProjectPanel.ProjectDialog):
-            project_dialog = ProjectPanel.ProjectDialog(self.ui, self.profile)
-            project_dialog.show()
-
     def new_edit_computation_dialog(self, data_item=None):
         if not data_item:
             data_item = self.selected_data_item
@@ -2529,7 +2524,7 @@ class OpenProjectDialogAction(Window.Action):
     action_name = _("Project Manager")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.new_project_dialog()
+        context.application.open_project_manager()
         return Window.ActionResult.FINISHED
 
 
