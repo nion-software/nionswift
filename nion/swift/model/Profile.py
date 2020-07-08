@@ -31,7 +31,7 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         super().__init__()
         self.define_type(type)
         self.define_property("project_uuid", converter=Converter.UuidToStringConverter())
-        self.define_property("is_active", False, changed=self.__property_changed)
+        self.__project: typing.Optional[Project.Project] = None  # only valid when project not loaded
         self.__document_model: typing.Optional[DocumentModel.DocumentModel] = None
         self.__document_model_about_to_close_listener = None
         self.storage_cache = None
@@ -40,6 +40,9 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         if self.__document_model_about_to_close_listener:
             self.__document_model_about_to_close_listener.close()
             self.__document_model_about_to_close_listener = None
+        if self.__project:
+            self.__project.close()
+            self.__project = None
         super().close()
 
     def read_from_dict(self, properties: typing.Mapping) -> None:
@@ -50,11 +53,11 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
             self.project_uuid = self.uuid
 
     def about_to_be_removed(self, container):
-        self.__unmount_project()
+        self.unload_project()
         super().about_to_be_removed(container)
 
     def close_relationships(self) -> None:
-        self.__unmount_project()
+        self.unload_project()
         super().close_relationships()
 
     def insert_model_item(self, container, name, before_index, item):
@@ -104,42 +107,46 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
     def project_reference_parts(self) -> typing.Tuple[str]:
         raise NotImplementedError()
 
+    @property
+    def project_info(self) -> typing.Tuple[typing.Optional[uuid.UUID], typing.Optional[int], typing.Optional[str]]:
+        if self.project:
+            return self.project.read_project_info()
+        elif self.__project:
+            return self.__project.read_project_info()
+        return None, None, "missing"
+
     def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         raise NotImplementedError()
 
-    def load_project(self, existing_projects: typing.Sequence[Project.Project], profile_context: typing.Optional[ProfileContext]) -> None:
-        """Make this project active and read it if it isn't already active."""
-        if not self.is_active:
-            self.is_active = True
-            self.read_project(existing_projects, profile_context)
-
-    def unload_project(self) -> None:
-        """Make this project inactive."""
-        if self.is_active and self.project:
-            self.is_active = False
-            self.__unmount_project()
-            self.notify_property_changed("project")
-
-    def __unmount_project(self):
-        if self.project:
-            self.project.unmount()
-            self.project.about_to_be_removed(self)
-            self.project.persistent_object_context = None
-            self.__document_model.close()
-            self.__document_model = None
-
-    def read_project(self, existing_projects: typing.Sequence[Project.Project], profile_context: typing.Optional[ProfileContext] = None) -> None:
-        """Read the project if it is active.
-
-        The profile context is used during testing.
-        """
-        assert not self.project
-        if self.is_active:
+    def read_project_info(self, profile_context: typing.Optional[ProfileContext]) -> None:
+        if not self.__project:
             project_storage_system = self.make_storage(profile_context)
             if project_storage_system:
                 project_storage_system.load_properties()
-                project = Project.Project(project_storage_system)
+                self.__project = Project.Project(project_storage_system)
+        if self.__project:
+            self.__project_info = self.__project.read_project_info()
+
+    def load_project(self, existing_projects: typing.Sequence[Project.Project], profile_context: typing.Optional[ProfileContext]) -> None:
+        """Read project.
+
+        The profile context is used during testing.
+        """
+        if not self.project:  # the project from the document model
+
+            project = self.__project
+
+            # create project if it doesn't exist
+            if not project:
+                project_storage_system = self.make_storage(profile_context)
+                if project_storage_system:
+                    project_storage_system.load_properties()
+                    project = Project.Project(project_storage_system)
+
+            if project:
                 self.__document_model = DocumentModel.DocumentModel(project, storage_cache=self.storage_cache)
+
+                self.__project = None  # do not delete when closing the project reference
 
                 # handle special case of document model closing during tests
                 def document_window_close():
@@ -163,7 +170,18 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
                     self.__document_model.close()
                     self.__document_model = None
 
+    def unload_project(self) -> None:
+        """Unload project (high level, notify that project changed)."""
+        if self.project:
+            self.project.unmount()
+            self.project.about_to_be_removed(self)
+            self.project.persistent_object_context = None
+            self.__document_model.close()
+            self.__document_model = None
+            self.notify_property_changed("project")
+
     def read_project_uuid(self, profile_context: typing.Optional[ProfileContext] = None) -> typing.Optional[uuid.UUID]:
+        """Read the project UUID without loading entire project."""
         project_storage_system = self.make_storage(profile_context)
         if project_storage_system:
             project_storage_system.load_properties()
@@ -244,11 +262,9 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         oo.source(self).ordered_sequence_from_array("project_references").map(oo.x.prop("project")).filter(lambda x: x is not None).trampoline(self, "projects")
         self.__projects_observer = oo.make_observable()
 
-        self.__is_read = False
-
         if profile_context:
             self.profile_context = profile_context
-            project_reference = self.add_project_memory()
+            self.add_project_memory()
 
     def close(self) -> None:
         self.storage_cache.close()
@@ -265,6 +281,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def __insert_project_reference(self, name: str, before_index: int, project_reference: ProjectReference) -> None:
         project_reference.storage_cache = self.storage_cache
+        project_reference.read_project_info(self.profile_context)
         self.notify_insert_item("project_references", project_reference, before_index)
 
     def __remove_project_reference(self, name: str, index: int, project_reference: ProjectReference) -> None:
@@ -338,10 +355,8 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
             self.storage_system.set_property(self, "uuid", str(self.uuid))
             self.storage_system.set_property(self, "version", FileStorageSystem.PROFILE_VERSION)
 
-        self.__is_read = True
-
     def read_project(self, project_reference: ProjectReference) -> None:
-        project_reference.read_project(self.projects, self.profile_context)
+        project_reference.load_project(self.projects, self.profile_context)
 
     def create_project(self, project_dir: pathlib.Path, library_name: str) -> None:
         project_name = pathlib.Path(library_name)
@@ -363,29 +378,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         elif path.suffix == ".nsproj":
             self.add_project_index(path)
 
-    def upgrade_project(self, project: Project) -> None:
-        assert False
-        assert project in self.projects
-        if project.needs_upgrade:
-            legacy_path = project.storage_system_path.parent
-            target_project_path = legacy_path.with_suffix(".nsproj")
-            target_data_path = legacy_path.parent / (str(legacy_path.stem) + " Data")
-            logging.getLogger("loader").info(f"Created new project {target_project_path} {target_data_path}")
-            target_project_uuid = uuid.uuid4()
-            target_project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(target_project_uuid), "project_data_folders": [str(target_data_path.stem)]})
-            target_project_path.write_text(target_project_data_json, "utf-8")
-            with contextlib.closing(FileStorageSystem.FileProjectStorageSystem(target_project_path)) as new_storage_system:
-                new_storage_system.load_properties()
-                FileStorageSystem.migrate_to_latest(project.project_storage_system, new_storage_system)
-            self.remove_project_reference(project)
-            self.read_project(self.add_project_index(target_project_path))
-
-    def set_project_reference_active(self, project_reference: ProjectReference, active: bool) -> None:
-        if active:
-            project_reference.load_project(self.projects, self.profile_context)
-        else:
-            project_reference.unload_project()
-
     def get_project_reference(self, uuid_: uuid.UUID) -> typing.Optional[ProjectReference]:
         for project_reference in self.project_references:
             if project_reference.uuid == uuid_:
@@ -396,9 +388,6 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         assert not self.get_item_by_uuid("project_references", project_reference.uuid)
         assert not project_reference.project_uuid in {project_reference.project_uuid for project_reference in self.project_references}
         self.append_item("project_references", project_reference)
-
-    def unload_project_reference(self, project_reference: ProjectReference) -> None:
-        project_reference.unload_project()
 
     def remove_project_reference(self, project_reference: ProjectReference) -> None:
         project_reference.unload_project()
@@ -411,10 +400,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         if not existing_project_reference:
             self.append_project_reference(project_reference)
             if load:
-                if self.__is_read:
-                    self.set_project_reference_active(project_reference, True)
-                else:
-                    project_reference.is_active = True
+                self.read_project(project_reference)
             return project_reference
         else:
             if load:

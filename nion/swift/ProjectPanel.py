@@ -15,6 +15,7 @@ from nion.swift.model import DataGroup
 from nion.swift.model import Profile
 from nion.swift.model import Observer
 from nion.ui import Dialog
+from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.ui import Window
 from nion.ui import Widgets
@@ -138,20 +139,18 @@ class ProjectPanelProjectItem:
         self.indent = indent
         self.project_reference = project_reference
         self.display_item_controller = display_item_controller
-        self.check_state = "unchecked"
 
     @property
     def __state_str(self) -> str:
-        project = self.project_reference.project
-        if not project:
+        project_uuid, project_version, project_state = self.project_reference.project_info
+        if project_state == "loaded":
+            return f"(loaded [v{project_version}])"
+        elif project_state == "unloaded":
             return f"(unloaded)"
-        elif project.project_state == "loaded":
-            return f"(loaded [v{project.project_version}]) ({len(project.data_items)}/{len(project.display_items)})"
-        elif project.project_state == "needs_upgrade":
-            return f"(needs upgrade [v{project.project_version}]) ({len(project.data_items)}/{len(project.display_items)})"
-        elif project.project_state == "missing":
+        elif project_state == "needs_upgrade":
+            return f"(needs upgrade [v{project_version}])"
+        else:
             return f"(missing)"
-        return str()
 
     def __str__(self) -> str:
         icon = "\N{CARD FILE BOX}"
@@ -172,8 +171,7 @@ class ProjectPanelFolderItem:
         self.folder_name = folder_name
         self.folder_closed = folder_closed
         self.folder_key = folder_key
-        self.check_state = "unchecked"
-        self.is_enabled = True
+        self.is_enabled = False
         self.project_reference = None
 
     def __str__(self) -> str:
@@ -184,9 +182,9 @@ class ProjectPanelFolderItem:
             triangle_right = "\N{BLACK RIGHT-POINTING TRIANGLE}"
             triangle_down = "\N{BLACK DOWN-POINTING TRIANGLE}"
         if self.folder_closed:
-            return f"{triangle_right} \N{FILE FOLDER} {self.folder_name} {len(self.node.children)} {len(self.node.data)}"
+            return f"{triangle_right} \N{FILE FOLDER} {self.folder_name}"
         else:
-            return f"{triangle_down} \N{OPEN FILE FOLDER} {self.folder_name} {len(self.node.children)} {len(self.node.data)}"
+            return f"{triangle_down} \N{OPEN FILE FOLDER} {self.folder_name}"
 
 
 class TreeNode:
@@ -214,13 +212,12 @@ class TreeModel:
 
         def update_items(item: Observer.ItemValue) -> None:
             if self.__project_panel_items is not None:
-                self.__update_project_panel_items(self.__project_panel_items)
                 self.property_changed_event.fire("value")
 
         # build an observer that will call update_items whenever any of the project_references changes.
         oo = Observer.ObserverBuilder()
         oo.source(profile).tuple(
-            oo.x.ordered_sequence_from_array("project_references").map(oo.x.prop("is_active")).collect_list()).action_fn(update_items)
+            oo.x.ordered_sequence_from_array("project_references").collect_list()).action_fn(update_items)
 
         self.__profile_observer = oo.make_observable()
 
@@ -265,7 +262,7 @@ class TreeModel:
             if len(key_path) > 0:
                 encountered_items.add(folder_key)
                 if not closed:  # closed indicates whether the parent is closed
-                    project_panel_items.append(ProjectPanelFolderItem(node, len(key_path), key_path[-1], folder_closed, folder_key))
+                    project_panel_items.append(ProjectPanelFolderItem(node, len(key_path) - 1, key_path[-1], folder_closed, folder_key))
             for key, child in node.children.items():
                 self.__construct_project_panel_items(key_path + [key], child, folder_closed, project_panel_items, closed_items, encountered_items)
             for project_reference in typing.cast(typing.Sequence[Profile.ProjectReference], node.data):
@@ -279,34 +276,7 @@ class TreeModel:
 
                     display_item_counter = ProjectCounterDisplayItem(project_reference)
                     display_item_counter.on_title_changed = handle_item_controller_title_changed
-                    project_panel_items.append(ProjectPanelProjectItem(len(key_path) + 1, project_reference, display_item_counter))
-
-    # define a function to determine the check state of a node.
-    def __get_node_check_state(self, folder_node: TreeNode) -> str:
-        check_state = None
-        for project_reference in typing.cast(typing.Sequence[Profile.ProjectReference], folder_node.data):
-            project_check_state = "checked" if project_reference.is_active else "unchecked"
-            if not check_state:
-                check_state = project_check_state
-            elif project_check_state != check_state:
-                return "partial"
-        for key, child_node in folder_node.children.items():
-            node_check_state = self.__get_node_check_state(child_node)
-            if not check_state:
-                check_state = node_check_state
-            elif node_check_state != check_state:
-                return "partial"
-            elif node_check_state == "partial":
-                return "partial"
-        return check_state or "unchecked"
-
-    def __update_project_panel_items(self, project_panel_items) -> None:
-        # iterate through items and configure the check, target, and work states.
-        for project_panel_item in project_panel_items:
-            if isinstance(project_panel_item, ProjectPanelFolderItem):
-                project_panel_item.check_state = self.__get_node_check_state(project_panel_item.node)
-            elif isinstance(project_panel_item, ProjectPanelProjectItem):
-                project_panel_item.check_state = "checked" if project_panel_item.project_reference.is_active else "unchecked"
+                    project_panel_items.append(ProjectPanelProjectItem(len(key_path), project_reference, display_item_counter))
 
     @property
     def value(self) -> typing.List:
@@ -318,7 +288,6 @@ class TreeModel:
             project_panel_items = list()
             encountered_items = set()
             self.__construct_project_panel_items(list(), self.__root_node, False, project_panel_items, self.__closed_items, encountered_items)
-            self.__update_project_panel_items(project_panel_items)
             self.__closed_items = self.__closed_items.intersection(encountered_items)
             self.__project_panel_items = project_panel_items
 
@@ -353,32 +322,16 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             return True
         return False
 
-    def paint_item(self, drawing_context, display_item, rect, is_selected):
+    def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item, rect, is_selected):
         item_string = str(display_item)
         with drawing_context.saver():
-            drawing_context.fill_style = "#000" if display_item.is_enabled else "#888"
-            drawing_context.font = "12px"
+            drawing_context.fill_style = "#000"
+            drawing_context.font = "12px bold" if display_item.is_enabled else "12px"
             drawing_context.text_align = 'left'
             drawing_context.text_baseline = 'bottom'
             # drawing_context.fill_text("\N{BALLOT BOX}", rect[0][1] + 4, rect[0][0] + 20 - 4)
             extra_indent = self.__project_indent if not display_item.is_folder else 0
             drawing_context.fill_text(item_string, rect[0][1] + self.__calculate_indent(display_item.indent, extra_indent), rect[0][0] + 20 - 4)
-            drawing_context.begin_path()
-            drawing_context.move_to(rect[0][1] + 4, rect[0][0] + 20 - 4)
-            drawing_context.line_to(rect[0][1] + 4 + 11, rect[0][0] + 20 - 4)
-            drawing_context.line_to(rect[0][1] + 4 + 11, rect[0][0] + 20 - 4 - 11)
-            drawing_context.line_to(rect[0][1] + 4, rect[0][0] + 20 - 4 - 11)
-            drawing_context.close_path()
-            if display_item.check_state == "partial":
-                drawing_context.move_to(rect[0][1] + 4 + 3, rect[0][0] + 20 - 4 - 6)
-                drawing_context.line_to(rect[0][1] + 4 + 8, rect[0][0] + 20 - 4 - 6)
-            if display_item.check_state == "checked":
-                drawing_context.move_to(rect[0][1] + 4 + 8, rect[0][0] + 20 - 4 - 8)
-                drawing_context.line_to(rect[0][1] + 4 + 3, rect[0][0] + 20 - 4 - 3)
-                drawing_context.move_to(rect[0][1] + 4 + 8, rect[0][0] + 20 - 4 - 3)
-                drawing_context.line_to(rect[0][1] + 4 + 3, rect[0][0] + 20 - 4 - 8)
-            drawing_context.stroke_style = "#444"
-            drawing_context.stroke()
 
     def item_tool_tip(self, index: int) -> typing.Optional[str]:
         display_item = self.__tree_model.value[index]
@@ -397,7 +350,7 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         return True
 
     def __calculate_indent(self, display_item_indent, extra_indent):
-        return 4 + display_item_indent * self.__folder_indent + extra_indent
+        return display_item_indent * self.__folder_indent + extra_indent
 
 
 class ProjectTreeWidget(Widgets.CompositeWidgetBase):

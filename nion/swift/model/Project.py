@@ -57,8 +57,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.handle_insert_model_item = None
         self.handle_remove_model_item = None
 
-        self.__project_state = None
-        self.__project_version = 0
+        self.__has_been_read = False
 
         self._raw_properties = None  # debugging
 
@@ -148,11 +147,11 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def project_state(self) -> str:
-        return self.__project_state
+        return self.read_project_info()[2]
 
     @property
     def project_version(self) -> int:
-        return self.__project_version
+        return self.read_project_info()[1]
 
     @property
     def project_filter(self) -> ListModel.Filter:
@@ -215,6 +214,25 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         else:
             return super()._get_relationship_persistent_dict_by_uuid(item, key)
 
+    def read_project_info(self) -> typing.Tuple[typing.Optional[uuid.UUID], typing.Optional[int], typing.Optional[str]]:
+        uuid_: typing.Optional[uuid.UUID] = None
+        project_version: typing.Optional[int] = None
+        project_state: typing.Optional[str]
+        properties = self.__storage_system.get_storage_properties()
+        if properties:
+            uuid_ = uuid.UUID(properties.get("uuid", str(uuid.uuid4())))
+            project_version = properties.get("version", None)
+            if project_version is not None:
+                if project_version in (FileStorageSystem.PROJECT_VERSION, 2):
+                    project_state = "loaded" if self.__has_been_read else "unloaded"
+                else:
+                    project_state = "needs_upgrade"
+            else:
+                project_state = "missing"
+        else:
+            project_state = "missing"
+        return uuid_, project_version, project_state
+
     def prepare_read_project(self) -> None:
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")
         self._raw_properties = self.__storage_system.read_project_properties()  # combines library and data item properties
@@ -222,71 +240,66 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
     def read_project(self) -> None:
         properties = self._raw_properties
-        self.__project_version = properties.get("version", None)
-        if not self._raw_properties:
-            self.__project_state = "missing"
-        elif self.__project_version is not None and self.__project_version in (FileStorageSystem.PROJECT_VERSION, 2):
-            for item_d in properties.get("data_items", list()):
-                data_item = DataItem.DataItem()
-                data_item.begin_reading()
-                data_item.read_from_dict(item_d)
-                data_item.finish_reading()
-                if not self.get_item_by_uuid("data_items", data_item.uuid):
-                    self.load_item("data_items", len(self.data_items), data_item)
-            for item_d in properties.get("display_items", list()):
-                display_item = DisplayItem.DisplayItem()
-                display_item.begin_reading()
-                display_item.read_from_dict(item_d)
-                display_item.finish_reading()
-                if not self.get_item_by_uuid("display_items", display_item.uuid):
-                    self.load_item("display_items", len(self.display_items), display_item)
-            for item_d in properties.get("data_structures", list()):
-                data_structure = DataStructure.DataStructure()
-                data_structure.begin_reading()
-                data_structure.read_from_dict(item_d)
-                data_structure.finish_reading()
-                if not self.get_item_by_uuid("data_structures", data_structure.uuid):
-                    self.load_item("data_structures", len(self.data_structures), data_structure)
-            for item_d in properties.get("computations", list()):
-                computation = Symbolic.Computation()
-                computation.begin_reading()
-                computation.read_from_dict(item_d)
-                computation.finish_reading()
-                if not self.get_item_by_uuid("computations", computation.uuid):
-                    self.load_item("computations", len(self.computations), computation)
-                    # TODO: handle update script and bind after reload in document model
-                    computation.update_script(Project._processing_descriptions)
-            for item_d in properties.get("connections", list()):
-                connection = Connection.connection_factory(item_d.get)
-                connection.begin_reading()
-                connection.read_from_dict(item_d)
-                connection.finish_reading()
-                if not self.get_item_by_uuid("connections", connection.uuid):
-                    self.load_item("connections", len(self.connections), connection)
-            for item_d in properties.get("data_groups", list()):
-                data_group = DataGroup.data_group_factory(item_d.get)
-                data_group.begin_reading()
-                data_group.read_from_dict(item_d)
-                data_group.finish_reading()
-                if not self.get_item_by_uuid("data_groups", data_group.uuid):
-                    self.load_item("data_groups", len(self.data_groups), data_group)
-            for item_d in properties.get("workspaces", list()):
-                workspace = WorkspaceLayout.factory(item_d.get)
-                workspace.begin_reading()
-                workspace.read_from_dict(item_d)
-                workspace.finish_reading()
-                if not self.get_item_by_uuid("workspaces", workspace.uuid):
-                    self.load_item("workspaces", len(self.workspaces), workspace)
-            workspace_uuid_str = properties.get("workspace_uuid", None)
-            if workspace_uuid_str:
-                self._set_persistent_property_value("workspace_uuid", uuid.UUID(workspace_uuid_str))
-            self._set_persistent_property_value("data_item_references", properties.get("data_item_references", dict()))
-            self._set_persistent_property_value("mapped_items", properties.get("mapped_items", list()))
-            self.__project_state = "loaded"
-        elif self.__project_version is not None:
-            self.__project_state = "needs_upgrade"
-        else:
-            self.__project_state = "missing"
+        if properties:
+            project_version = properties.get("version", None)
+            if project_version is not None and project_version in (FileStorageSystem.PROJECT_VERSION, 2):
+                for item_d in properties.get("data_items", list()):
+                    data_item = DataItem.DataItem()
+                    data_item.begin_reading()
+                    data_item.read_from_dict(item_d)
+                    data_item.finish_reading()
+                    if not self.get_item_by_uuid("data_items", data_item.uuid):
+                        self.load_item("data_items", len(self.data_items), data_item)
+                for item_d in properties.get("display_items", list()):
+                    display_item = DisplayItem.DisplayItem()
+                    display_item.begin_reading()
+                    display_item.read_from_dict(item_d)
+                    display_item.finish_reading()
+                    if not self.get_item_by_uuid("display_items", display_item.uuid):
+                        self.load_item("display_items", len(self.display_items), display_item)
+                for item_d in properties.get("data_structures", list()):
+                    data_structure = DataStructure.DataStructure()
+                    data_structure.begin_reading()
+                    data_structure.read_from_dict(item_d)
+                    data_structure.finish_reading()
+                    if not self.get_item_by_uuid("data_structures", data_structure.uuid):
+                        self.load_item("data_structures", len(self.data_structures), data_structure)
+                for item_d in properties.get("computations", list()):
+                    computation = Symbolic.Computation()
+                    computation.begin_reading()
+                    computation.read_from_dict(item_d)
+                    computation.finish_reading()
+                    if not self.get_item_by_uuid("computations", computation.uuid):
+                        self.load_item("computations", len(self.computations), computation)
+                        # TODO: handle update script and bind after reload in document model
+                        computation.update_script(Project._processing_descriptions)
+                for item_d in properties.get("connections", list()):
+                    connection = Connection.connection_factory(item_d.get)
+                    connection.begin_reading()
+                    connection.read_from_dict(item_d)
+                    connection.finish_reading()
+                    if not self.get_item_by_uuid("connections", connection.uuid):
+                        self.load_item("connections", len(self.connections), connection)
+                for item_d in properties.get("data_groups", list()):
+                    data_group = DataGroup.data_group_factory(item_d.get)
+                    data_group.begin_reading()
+                    data_group.read_from_dict(item_d)
+                    data_group.finish_reading()
+                    if not self.get_item_by_uuid("data_groups", data_group.uuid):
+                        self.load_item("data_groups", len(self.data_groups), data_group)
+                for item_d in properties.get("workspaces", list()):
+                    workspace = WorkspaceLayout.factory(item_d.get)
+                    workspace.begin_reading()
+                    workspace.read_from_dict(item_d)
+                    workspace.finish_reading()
+                    if not self.get_item_by_uuid("workspaces", workspace.uuid):
+                        self.load_item("workspaces", len(self.workspaces), workspace)
+                workspace_uuid_str = properties.get("workspace_uuid", None)
+                if workspace_uuid_str:
+                    self._set_persistent_property_value("workspace_uuid", uuid.UUID(workspace_uuid_str))
+                self._set_persistent_property_value("data_item_references", properties.get("data_item_references", dict()))
+                self._set_persistent_property_value("mapped_items", properties.get("mapped_items", list()))
+                self.__has_been_read = True
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
