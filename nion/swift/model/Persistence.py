@@ -2,6 +2,8 @@
 A collection of persistence classes.
 """
 
+from __future__ import annotations
+
 # standard libraries
 import abc
 import copy
@@ -213,21 +215,40 @@ class PersistentObjectContext:
     def __init__(self):
         self.__objects = dict()
         self.registration_event = Event.Event()
+        self.__registration_changed_map: typing.Dict[uuid.UUID, typing.Dict[PersistentObjectProxy, typing.Callable[[typing.Optional[PersistentObject], typing.Optional[PersistentObject]], None]]] = dict()
 
-    def register(self, object: "PersistentObject", item_specifier: "PersistentObjectSpecifier") -> None:
+    def unregister_registration_changed_fn(self, uuid_: uuid.UUID, key: PersistentObjectProxy) -> None:
+        registration_changed_key_map = self.__registration_changed_map.get(uuid_, dict())
+        registration_changed_key_map.pop(key)
+        if not registration_changed_key_map:
+            self.__registration_changed_map.pop(uuid_, None)
+
+    def register_registration_changed_fn(self, uuid_: uuid.UUID, key: PersistentObjectProxy, registration_changed_fn: typing.Callable[[typing.Optional[PersistentObject], typing.Optional[PersistentObject]], None]):
+        registration_changed_key_map = self.__registration_changed_map.setdefault(uuid_, dict())
+        registration_changed_key_map[key] = registration_changed_fn
+
+    def register(self, object: PersistentObject, item_specifier: PersistentObjectSpecifier) -> None:
         # print(f"register {object} {item_specifier.write()} {len(self.__objects) + 1}")
         # assert item_specifier not in self.__objects
         self.__objects[item_specifier] = weakref.ref(object)
         self.registration_event.fire(object, None)
+        registration_changed_key_map = self.__registration_changed_map.get(object.uuid, dict())
+        for registration_changed_fn in list(registration_changed_key_map.values()):
+            if callable(registration_changed_fn):
+                registration_changed_fn(object, None)
 
-    def unregister(self, object: "PersistentObject", item_specifier: "PersistentObjectSpecifier") -> None:
+    def unregister(self, object: PersistentObject, item_specifier: PersistentObjectSpecifier) -> None:
         # print(f"unregister {object} {item_specifier.write()} {len(self.__objects) - 1}")
         # assert item_specifier in self.__objects
         if item_specifier in self.__objects:
             self.__objects.pop(item_specifier)
             self.registration_event.fire(None, object)
+            registration_changed_key_map = self.__registration_changed_map.get(object.uuid, dict())
+            for registration_changed_fn in list(registration_changed_key_map.values()):
+                if callable(registration_changed_fn):
+                    registration_changed_fn(None, object)
 
-    def get_registered_object(self, item_specifier: "PersistentObjectSpecifier") -> typing.Optional["PersistentObject"]:
+    def get_registered_object(self, item_specifier: PersistentObjectSpecifier) -> typing.Optional[PersistentObject]:
         object_weakref = self.__objects.get(item_specifier, None)
         return object_weakref() if object_weakref else None
 
@@ -286,6 +307,8 @@ class PersistentObjectProxy:
         self.__item_specifier = item_specifier if item_specifier else PersistentObjectSpecifier(item=item) if item else None
         self.__item = item
         self.__registration_listener = None
+        self.__persistent_object_context = None
+        self.__registered_change_uuid = None
         self.on_item_registered = None
         self.on_item_unregistered = None
 
@@ -307,6 +330,8 @@ class PersistentObjectProxy:
             self.__persistent_object_about_to_be_removed_listener.close()
             self.__persistent_object_about_to_be_removed_listener = None
         self.__item = None
+        self.__item_specifier = None
+        self.__update_persistent_object_context()
         self.__persistent_object = None
         self.on_item_registered = None
         self.on_item_unregistered = None
@@ -337,7 +362,17 @@ class PersistentObjectProxy:
         self.__item = None
         self.__persistent_object_context_changed()
 
-    def __change_registration(self, registered_object: typing.Optional["PersistentObject"], unregistered_object: typing.Optional["PersistentObject"]) -> None:
+    def __update_persistent_object_context(self):
+        if self.__persistent_object_context:
+            self.__persistent_object_context.unregister_registration_changed_fn(self.__registered_change_uuid, self)
+            self.__registered_change_uuid = None
+            self.__persistent_object_context = None
+        if self.__item_specifier and self.__persistent_object.persistent_object_context:
+            self.__persistent_object_context = self.__persistent_object.persistent_object_context
+            self.__registered_change_uuid = self.__item_specifier.item_uuid
+            self.__persistent_object_context.register_registration_changed_fn(self.__item_specifier.item_uuid, self, self.__change_registration)
+
+    def __change_registration(self, registered_object: typing.Optional[PersistentObject], unregistered_object: typing.Optional[PersistentObject]) -> None:
         if registered_object and not self.__item and self.__item_specifier and registered_object.uuid == self.__item_specifier.item_uuid:
             item = self.__persistent_object._get_related_item(self.__item_specifier)
             if item:
@@ -355,10 +390,7 @@ class PersistentObjectProxy:
                 item = self.__persistent_object._get_related_item(self.__item_specifier)
                 if item:
                     self.__change_registration(item, None)
-            self.__registration_listener = self.__persistent_object.persistent_object_context.registration_event.listen(self.__change_registration)
-        elif self.__registration_listener:
-            self.__registration_listener.close()
-            self.__registration_listener = None
+        self.__update_persistent_object_context()
 
 
 class PersistentObjectParent:
