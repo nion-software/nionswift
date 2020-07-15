@@ -6,10 +6,6 @@
         "items": [
             {
                 "type": "item",
-                "action_id": "window.new"
-            },
-            {
-                "type": "item",
                 "action_id": "window.close"
             },
             {

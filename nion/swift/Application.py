@@ -75,11 +75,6 @@ class Application(UIApplication.BaseApplication):
 
         self.__menu_handlers = []
 
-        # map these document controller events to listener tokens.
-        # when the document controller requests a new document controller,
-        # respond in this class by creating a new document controller.
-        self.__create_new_event_listeners = dict()
-
         Registry.register_component(Inspector.DeclarativeImageChooserConstructor(self), {"declarative_constructor"})
 
         workspace_manager = Workspace.WorkspaceManager()
@@ -225,7 +220,6 @@ class Application(UIApplication.BaseApplication):
     def create_document_controller(self, document_model, workspace_id, display_item=None):
         self._set_document_model(document_model)  # required to allow API to find document model
         document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id, app=self)
-        self.__create_new_event_listeners[document_controller] = document_controller.create_new_document_controller_event.listen(self.create_document_controller)
         self.document_model_available_event.fire(document_model)
         # attempt to set data item / group
         if display_item:
@@ -255,13 +249,6 @@ class Application(UIApplication.BaseApplication):
         profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache)
         profile.read_profile()
         return profile, create_new_profile
-
-    def _window_did_close(self, window: UIWindow.Window) -> None:
-        # this will be called for _all_ windows, so check if the window is a document window
-        # and remove the event listener if required.
-        if window in self.__create_new_event_listeners:
-            self.__create_new_event_listeners.pop(window).close()
-        super()._window_did_close(window)
 
     @property
     def document_controllers(self) -> typing.List[DocumentController.DocumentController]:

@@ -77,7 +77,6 @@ class DocumentController(Window.Window):
 
         self.task_created_event = Event.Event()
         self.cursor_changed_event = Event.Event()
-        self.create_new_document_controller_event = Event.Event()
         self.tool_mode_changed_event = Event.Event()
 
         self.__last_activity = None
@@ -600,10 +599,6 @@ class DocumentController(Window.Window):
     def tool_mode(self, tool_mode):
         self.__tool_mode = tool_mode
         self.tool_mode_changed_event.fire(tool_mode)
-
-    def new_window_with_data_item(self, workspace_id, display_item=None):
-        # hack to work around Application <-> DocumentController interdependency.
-        self.create_new_document_controller_event.fire(self.document_model, workspace_id, display_item)
 
     def _handle_new_project(self) -> None:
         class NewProjectDialog(Dialog.ActionDialog):
@@ -2312,12 +2307,6 @@ class DocumentController(Window.Window):
 
         menu = self.create_context_menu()
 
-        def show_in_new_window():
-            self.new_window_with_data_item("data", display_item=display_item)
-
-        if display_item is not None:
-            menu.add_menu_item(_("Open in New Window"), show_in_new_window)
-
         data_item = display_item.data_item if display_item else None
 
         if display_item:
@@ -2497,15 +2486,6 @@ class EditDisplayScriptAction(Window.Action):
         return Window.ActionResult.FINISHED
 
 
-class NewWindowAction(Window.Action):
-    action_id = "window.new"
-    action_name = _("New Window")
-
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.new_window_with_data_item("library")
-        return Window.ActionResult.FINISHED
-
-
 class OpenConsoleAction(Window.Action):
     action_id = "window.open_console"
     action_name = _("Python Console...")
@@ -2545,7 +2525,6 @@ class ToggleFilterAction(Window.Action):
 Window.register_action(DataItemRecorderAction())
 Window.register_action(EditDataItemScriptAction())
 Window.register_action(EditDisplayScriptAction())
-Window.register_action(NewWindowAction())
 Window.register_action(OpenConsoleAction())
 Window.register_action(OpenProjectDialogAction())
 Window.register_action(OpenRunScriptsAction())
