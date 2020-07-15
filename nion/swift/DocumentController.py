@@ -1,5 +1,4 @@
 # standard libraries
-import collections
 import copy
 import datetime
 import functools
@@ -28,7 +27,6 @@ from nion.swift import DisplayPanel
 from nion.swift import ExportDialog
 from nion.swift import FilterPanel
 from nion.swift import MimeTypes
-from nion.swift import ProjectPanel
 from nion.swift import RecorderPanel
 from nion.swift import ScriptsDialog
 from nion.swift import Task
@@ -40,7 +38,6 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
-from nion.swift.model import Observer
 from nion.swift.model import Processing
 from nion.swift.model import Profile
 from nion.swift.model import Project
@@ -53,7 +50,6 @@ from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
-from nion.utils import Model
 from nion.utils import Registry
 from nion.utils import Selection
 
@@ -238,13 +234,13 @@ class DocumentController(Window.Window):
 
         self.build_menu(None, menu_descriptions)
 
-        self.__data_menu_actions = list()
+        self.__data_menu_actions: typing.List[UserInterface.MenuAction] = list()
 
-        self.__dynamic_live_actions = []
+        self.__dynamic_live_actions: typing.List[UserInterface.MenuAction] = []
 
-        self.__dynamic_view_actions = []
+        self.__dynamic_view_actions: typing.List[UserInterface.MenuAction] = []
 
-        self.__dynamic_window_actions = []
+        self.__dynamic_window_actions: typing.List[UserInterface.MenuAction] = []
 
     def get_menu(self, menu_id):
         assert menu_id.endswith("_menu")

@@ -756,6 +756,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__project_property_changed_listener.close()
             self.__project_property_changed_listener = None
 
+        self.__project.persistent_object_context = None
         self.__project.close()
         self.__project = None
 

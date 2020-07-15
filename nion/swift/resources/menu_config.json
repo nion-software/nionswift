@@ -16,19 +16,21 @@
                 "type": "separator"
             },
             {
-                "type": "item",
-                "action_id": "project.new_project"
-            },
-            {
-                "type": "item",
-                "action_id": "project.open_project"
+                "type": "sub_menu",
+                "menu_id": "recent_projects",
+                "title": "Recent Projects",
+                "items": []
             },
             {
                 "type": "separator"
             },
             {
                 "type": "item",
-                "action_id": "window.open_project_dialog"
+                "action_id": "project.new_project"
+            },
+            {
+                "type": "item",
+                "action_id": "project.open_project"
             },
             {
                 "type": "separator"

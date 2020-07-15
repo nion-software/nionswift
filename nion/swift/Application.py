@@ -1,6 +1,7 @@
 # standard libraries
 import copy
 import datetime
+import functools
 import gettext
 import json
 import logging
@@ -37,6 +38,7 @@ from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
 from nion.ui import Application as UIApplication
+from nion.ui import UserInterface
 from nion.ui import Window as UIWindow
 from nion.utils import Event
 from nion.utils import Registry
@@ -230,8 +232,12 @@ class Application(UIApplication.BaseApplication):
             display_panel = document_controller.selected_display_panel
             if display_panel:
                 display_panel.set_display_panel_display_item(display_item)
+        document_controller._dynamic_recent_project_actions = []
         document_controller.show()
         return document_controller
+
+    def _set_profile_for_test(self, profile: Profile.Profile) -> None:
+        self.__profile = profile
 
     def __establish_profile(self, profile_path: pathlib.Path) -> typing.Tuple[typing.Optional[Profile.Profile], bool]:
         create_new_profile = not profile_path.exists()
@@ -276,6 +282,29 @@ class Application(UIApplication.BaseApplication):
     @property
     def menu_handlers(self) -> typing.List:
         return copy.copy(self.__menu_handlers)
+
+    def _menu_about_to_show(self, window: UIWindow.Window, menu: UserInterface.Menu) -> bool:
+        if menu.menu_id == "recent_projects":
+            self.__about_to_show_recent_projects_menu(window, menu)
+            return True
+        return super()._menu_about_to_show(window, menu)
+
+    def __about_to_show_recent_projects_menu(self, window: UIWindow.Window, menu: UserInterface.Menu) -> None:
+        # recent project actions are stored with the window so they can be deleted.
+        if hasattr(window, "_dynamic_recent_project_actions"):
+            for recent_project_action in window._dynamic_recent_project_actions:
+                menu.remove_action(recent_project_action)
+        window._dynamic_recent_project_actions = []
+        for project_reference in self.__profile.project_references:
+            def open_recent(project_reference: Profile.ProjectReference) -> None:
+                for window in self.windows:
+                    if isinstance(window, DocumentController.DocumentController):
+                        window.request_close()
+                self.open_project_window(project_reference)
+            project_info = project_reference.project_info
+            if project_info[1] == 3 and project_info[2] == "unloaded":
+                action = menu.add_menu_item(project_reference.title, functools.partial(open_recent, project_reference))
+                window._dynamic_recent_project_actions.append(action)
 
     def run_all_tests(self):
         Test.run_all_tests()
