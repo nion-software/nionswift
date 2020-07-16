@@ -112,6 +112,27 @@ class TestProfileClass(unittest.TestCase):
             # clean up
             document_controller.close()
 
+    def test_create_project(self):
+        with create_memory_profile_context() as profile_context:
+            # use lower level calls to create the profile and open the window via the app
+            profile = profile_context.create_profile()
+            profile.read_profile()
+            self.app._set_profile_for_test(profile)
+            document_controller = self.app.open_project_window(profile.project_references[0])
+            # check preconditions
+            self.assertEqual(1, len(self.app.windows))
+            self.assertEqual(1, len(profile.project_references))
+            self.assertEqual("loaded", profile.project_references[0].project_info[2])
+            # add project, check
+            project_reference2 = profile.add_project_memory(load=False)
+            self.assertEqual(2, len(profile.project_references))
+            self.assertEqual("loaded", profile.project_references[0].project_info[2])
+            self.assertEqual("unloaded", profile.project_references[1].project_info[2])
+            self.assertEqual(project_reference2, profile.project_references[1])
+            self.assertEqual(1, len(self.app.windows))
+            # clean up
+            document_controller.close()
+
     def test_forget_loaded_project_not_allowed(self):
         with create_memory_profile_context() as profile_context:
             # use lower level calls to create the profile and open the window via the app

@@ -600,112 +600,6 @@ class DocumentController(Window.Window):
         self.__tool_mode = tool_mode
         self.tool_mode_changed_event.fire(tool_mode)
 
-    def _handle_new_project(self) -> None:
-        class NewProjectDialog(Dialog.ActionDialog):
-
-            def __init__(self, ui, app, parent_window, profile: Profile.Profile):
-                super().__init__(ui, title=_("New Project"), app=app, persistent_id="new_project_dialog")
-
-                self._create_menus()
-
-                self.directory = self.ui.get_persistent_string("project_directory", self.ui.get_document_location())
-
-                project_base_name = _("Nion Swift Project") + " " + datetime.datetime.now().strftime("%Y%m%d")
-                project_base_index = 0
-                project_base_index_str = ""
-                while os.path.exists(os.path.join(self.directory, project_base_name + project_base_index_str)):
-                    project_base_index += 1
-                    project_base_index_str = " " + str(project_base_index)
-
-                self.project_name = project_base_name + project_base_index_str
-
-                def safe_request_close():
-                    parent_window.queue_task(self.request_close)
-
-                def handle_new():
-                    self.project_name = self.__project_name_field.text
-                    profile.create_project(pathlib.Path(self.directory), self.project_name)
-                    return True
-
-                def handle_new_and_close():
-                    handle_new()
-                    safe_request_close()
-                    return True
-
-                column = self.ui.create_column_widget()
-
-                directory_header_row = self.ui.create_row_widget()
-                directory_header_row.add_spacing(13)
-                directory_header_row.add(self.ui.create_label_widget(_("Projects Folder: "), properties={"font": "bold"}))
-                directory_header_row.add_stretch()
-                directory_header_row.add_spacing(13)
-
-                show_directory_row = self.ui.create_row_widget()
-                show_directory_row.add_spacing(26)
-                directory_label = self.ui.create_label_widget(self.directory)
-                show_directory_row.add(directory_label)
-                show_directory_row.add_stretch()
-                show_directory_row.add_spacing(13)
-
-                choose_directory_row = self.ui.create_row_widget()
-                choose_directory_row.add_spacing(26)
-                choose_directory_button = self.ui.create_push_button_widget(_("Choose..."))
-                choose_directory_row.add(choose_directory_button)
-                choose_directory_row.add_stretch()
-                choose_directory_row.add_spacing(13)
-
-                project_name_header_row = self.ui.create_row_widget()
-                project_name_header_row.add_spacing(13)
-                project_name_header_row.add(self.ui.create_label_widget(_("Project Name: "), properties={"font": "bold"}))
-                project_name_header_row.add_stretch()
-                project_name_header_row.add_spacing(13)
-
-                project_name_row = self.ui.create_row_widget()
-                project_name_row.add_spacing(26)
-                project_name_field = self.ui.create_line_edit_widget(properties={"width": 400})
-                project_name_field.text = self.project_name
-                project_name_field.on_return_pressed = handle_new_and_close
-                project_name_field.on_escape_pressed = safe_request_close
-                project_name_row.add(project_name_field)
-                project_name_row.add_stretch()
-                project_name_row.add_spacing(13)
-
-                column.add_spacing(12)
-                column.add(directory_header_row)
-                column.add_spacing(8)
-                column.add(show_directory_row)
-                column.add_spacing(8)
-                column.add(choose_directory_row)
-                column.add_spacing(16)
-                column.add(project_name_header_row)
-                column.add_spacing(8)
-                column.add(project_name_row)
-                column.add_stretch()
-                column.add_spacing(16)
-
-                def choose() -> None:
-                    existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Project Directory"), self.directory)
-                    if existing_directory:
-                        self.directory = existing_directory
-                        directory_label.text = self.directory
-                        self.ui.set_persistent_string("project_directory", self.directory)
-
-                choose_directory_button.on_clicked = choose
-
-                self.add_button(_("Cancel"), lambda: True)
-                self.add_button(_("Create Project"), handle_new)
-
-                self.content.add(column)
-
-                self.__project_name_field = project_name_field
-
-            def show(self):
-                super().show()
-                self.__project_name_field.focused = True
-
-        new_project_dialog = NewProjectDialog(self.ui, self.app, self, self.profile)
-        new_project_dialog.show()
-
     def _import_folder(self):
         documents_dir = self.ui.get_document_location()
         workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Image Folder"), documents_dir)
@@ -2604,36 +2498,7 @@ class AddGroupAction(Window.Action):
         return Window.ActionResult.FINISHED
 
 
-class NewProjectAction(Window.Action):
-    action_id = "project.new_project"
-    action_name = _("New Project...")
-
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        if context.window:
-            window = typing.cast(DocumentController, context.window)
-            window._handle_new_project()
-        return Window.ActionResult.FINISHED
-
-
-class OpenProjectAction(Window.Action):
-    action_id = "project.open_project"
-    action_name = _("Open Project...")
-
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        filter = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
-        import_dir = window.ui.get_persistent_string("open_directory", window.ui.get_document_location())
-        paths, selected_filter, selected_directory = window.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter)
-        window.ui.set_persistent_string("open_directory", selected_directory)
-        if len(paths) == 1:
-            context.window.profile.open_project(pathlib.Path(paths[0]))
-        return Window.ActionResult.FINISHED
-
-
 Window.register_action(AddGroupAction())
-Window.register_action(NewProjectAction())
-Window.register_action(OpenProjectAction())
 
 
 class DisplayCopyAction(Window.Action):
@@ -3277,7 +3142,6 @@ Registry.fire_existing_component_registered_events("processing-component")
 
 try:
     action_shortcuts_dict = json.loads(pkgutil.get_data(__name__, "resources/key_config.json").decode("utf8"))
+    Window.register_action_shortcuts(action_shortcuts_dict)
 except Exception as e:
     logging.error("Could not read key configuration.")
-
-Window.register_action_shortcuts(action_shortcuts_dict)

@@ -1,4 +1,5 @@
 # standard libraries
+import asyncio
 import copy
 import datetime
 import functools
@@ -38,9 +39,11 @@ from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
 from nion.ui import Application as UIApplication
+from nion.ui import Dialog
 from nion.ui import UserInterface
 from nion.ui import Window as UIWindow
 from nion.utils import Event
+from nion.utils import Geometry
 from nion.utils import Registry
 
 _ = gettext.gettext
@@ -283,15 +286,16 @@ class Application(UIApplication.BaseApplication):
                 menu.remove_action(recent_project_action)
         window._dynamic_recent_project_actions = []
         for project_reference in self.__profile.project_references:
-            def open_recent(project_reference: Profile.ProjectReference) -> None:
-                for window in self.windows:
-                    if isinstance(window, DocumentController.DocumentController):
-                        window.request_close()
-                self.open_project_window(project_reference)
             project_info = project_reference.project_info
             if project_info[1] == 3 and project_info[2] == "unloaded":
-                action = menu.add_menu_item(project_reference.title, functools.partial(open_recent, project_reference))
+                action = menu.add_menu_item(project_reference.title, functools.partial(self.switch_project_reference, project_reference))
                 window._dynamic_recent_project_actions.append(action)
+
+    def switch_project_reference(self, project_reference: Profile.ProjectReference) -> None:
+        for window in self.windows:
+            if isinstance(window, DocumentController.DocumentController):
+                window.request_close()
+        self.open_project_window(project_reference)
 
     def run_all_tests(self):
         Test.run_all_tests()
@@ -303,3 +307,146 @@ def get_root_dir():
     for i in range(path_ascend_count):
         root_dir = os.path.dirname(root_dir)
     return root_dir
+
+
+class NewProjectAction(UIWindow.Action):
+    action_id = "project.new_project"
+    action_name = _("New Project...")
+
+    def invoke(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
+        context = typing.cast(DocumentController.DocumentController.ActionContext, context)
+
+        class NewProjectDialog(Dialog.ActionDialog):
+
+            def __init__(self, ui, app: Application, event_loop: asyncio.AbstractEventLoop, profile: Profile.Profile):
+                super().__init__(ui, title=_("New Project"), app=app, persistent_id="new_project_dialog")
+
+                self._create_menus()
+
+                self.directory = self.ui.get_persistent_string("project_directory", self.ui.get_document_location())
+
+                project_base_name = _("Nion Swift Project") + " " + datetime.datetime.now().strftime("%Y%m%d")
+                project_base_index = 0
+                project_base_index_str = ""
+                while os.path.exists(os.path.join(self.directory, project_base_name + project_base_index_str)):
+                    project_base_index += 1
+                    project_base_index_str = " " + str(project_base_index)
+
+                self.project_name = project_base_name + project_base_index_str
+
+                def safe_request_close():
+                    event_loop.call_soon(self.request_close)
+
+                def handle_new():
+                    self.project_name = self.__project_name_field.text
+                    project_reference = profile.create_project(pathlib.Path(self.directory), self.project_name)
+                    if project_reference:
+                        app.switch_project_reference(project_reference)
+                    return True
+
+                def handle_new_and_close():
+                    handle_new()
+                    safe_request_close()
+                    return True
+
+                column = self.ui.create_column_widget()
+
+                directory_header_row = self.ui.create_row_widget()
+                directory_header_row.add_spacing(13)
+                directory_header_row.add(self.ui.create_label_widget(_("Projects Folder: "), properties={"font": "bold"}))
+                directory_header_row.add_stretch()
+                directory_header_row.add_spacing(13)
+
+                show_directory_row = self.ui.create_row_widget()
+                show_directory_row.add_spacing(26)
+                directory_label = self.ui.create_label_widget(self.directory)
+                show_directory_row.add(directory_label)
+                show_directory_row.add_stretch()
+                show_directory_row.add_spacing(13)
+
+                choose_directory_row = self.ui.create_row_widget()
+                choose_directory_row.add_spacing(26)
+                choose_directory_button = self.ui.create_push_button_widget(_("Choose..."))
+                choose_directory_row.add(choose_directory_button)
+                choose_directory_row.add_stretch()
+                choose_directory_row.add_spacing(13)
+
+                project_name_header_row = self.ui.create_row_widget()
+                project_name_header_row.add_spacing(13)
+                project_name_header_row.add(self.ui.create_label_widget(_("Project Name: "), properties={"font": "bold"}))
+                project_name_header_row.add_stretch()
+                project_name_header_row.add_spacing(13)
+
+                project_name_row = self.ui.create_row_widget()
+                project_name_row.add_spacing(26)
+                project_name_field = self.ui.create_line_edit_widget(properties={"width": 400})
+                project_name_field.text = self.project_name
+                project_name_field.on_return_pressed = handle_new_and_close
+                project_name_field.on_escape_pressed = safe_request_close
+                project_name_row.add(project_name_field)
+                project_name_row.add_stretch()
+                project_name_row.add_spacing(13)
+
+                column.add_spacing(12)
+                column.add(directory_header_row)
+                column.add_spacing(8)
+                column.add(show_directory_row)
+                column.add_spacing(8)
+                column.add(choose_directory_row)
+                column.add_spacing(16)
+                column.add(project_name_header_row)
+                column.add_spacing(8)
+                column.add(project_name_row)
+                column.add_stretch()
+                column.add_spacing(16)
+
+                def choose() -> None:
+                    existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Project Directory"), self.directory)
+                    if existing_directory:
+                        self.directory = existing_directory
+                        directory_label.text = self.directory
+                        self.ui.set_persistent_string("project_directory", self.directory)
+
+                choose_directory_button.on_clicked = choose
+
+                self.add_button(_("Cancel"), lambda: True)
+                self.add_button(_("Create Project"), handle_new)
+
+                self.content.add(column)
+
+                self.__project_name_field = project_name_field
+
+            def show(self, *, size: Geometry.IntSize = None, position: Geometry.IntPoint = None) -> None:
+                super().show(size=size, position=position)
+                self.__project_name_field.focused = True
+
+        application = typing.cast(Application, context.application)
+        new_project_dialog = NewProjectDialog(application.ui, application, application.event_loop, application.profile)
+        new_project_dialog.show()
+
+        return UIWindow.ActionResult.FINISHED
+
+
+class OpenProjectAction(UIWindow.Action):
+    action_id = "project.open_project"
+    action_name = _("Open Project...")
+
+    def invoke(self, context_: UIWindow.ActionContext) -> UIWindow.ActionResult:
+        context = typing.cast(DocumentController.DocumentController.ActionContext, context_)
+        application = typing.cast(Application, context.application)
+        ui = context.application.ui
+        filter = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
+        import_dir = ui.get_persistent_string("open_directory", ui.get_document_location())
+        paths, selected_filter, selected_directory = ui.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter)
+        ui.set_persistent_string("open_directory", selected_directory)
+        if len(paths) == 1:
+            project_reference = application.profile.open_project(pathlib.Path(paths[0]))
+            if project_reference:
+                project_info = project_reference.project_info
+                if project_info[1] == 3 and project_info[2] == "unloaded":
+                    application.switch_project_reference(project_reference)
+        return UIWindow.ActionResult.FINISHED
+
+
+UIWindow.register_action(NewProjectAction())
+UIWindow.register_action(OpenProjectAction())

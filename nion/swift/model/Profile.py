@@ -344,7 +344,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
     def read_project(self, project_reference: ProjectReference) -> None:
         project_reference.load_project(self.profile_context)
 
-    def create_project(self, project_dir: pathlib.Path, library_name: str) -> None:
+    def create_project(self, project_dir: pathlib.Path, library_name: str) -> typing.Optional[ProjectReference]:
         project_name = pathlib.Path(library_name)
         project_data_path = pathlib.Path(library_name + " Data")
         project_path = project_dir / project_name.with_suffix(".nsproj")
@@ -356,13 +356,14 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         project_reference.project_path = project_path
         project_reference.project_uuid = project_uuid
         self.append_project_reference(project_reference)
-        project_reference.load_project(self.profile_context)
+        return project_reference
 
-    def open_project(self, path: pathlib.Path) -> None:
+    def open_project(self, path: pathlib.Path) -> typing.Optional[ProjectReference]:
         if path.suffix == ".nslib":
-            self.add_project_folder(pathlib.Path(path.parent))
+            return self.add_project_folder(pathlib.Path(path.parent), load=False)
         elif path.suffix == ".nsproj":
-            self.add_project_index(path)
+            return self.add_project_index(path, load=False)
+        return None
 
     def get_project_reference(self, uuid_: uuid.UUID) -> typing.Optional[ProjectReference]:
         for project_reference in self.project_references:
@@ -410,4 +411,4 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         assert callable(project_reference_factory_hook)
         project_reference = project_reference_factory_hook("project_memory")
         project_reference.project_uuid = _uuid or uuid.uuid4()
-        return self.__add_project_reference(project_reference, load)
+        return self.add_project_reference(project_reference, load)
