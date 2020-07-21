@@ -10,13 +10,10 @@ import numpy
 from nion.data import DataAndMetadata
 from nion.swift.model import ApplicationData
 from nion.swift.model import DataItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
 from nion.swift.model import ImportExportManager
-from nion.swift.model import Profile
 from nion.swift.model import Utility
 from nion.swift import Application
-from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift.test import TestContext
 from nion.ui import DrawingContext

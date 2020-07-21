@@ -9,7 +9,6 @@ import weakref
 import numpy
 
 # local libraries
-from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
@@ -17,7 +16,6 @@ from nion.swift import Facade
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.test import TestContext

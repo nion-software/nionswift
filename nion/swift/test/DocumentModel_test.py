@@ -19,7 +19,6 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
