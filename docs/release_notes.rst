@@ -5,8 +5,42 @@ Release Notes
 
 Version 0.15.0 (UNRELEASED)
 ---------------------------
-* (2020-5-12) Add support for exporting composite line plots to csv.
-* (2020-3-26) Allow pick computations for sequences of spectrum images.
+The highlights of this release are improved display performance, improved reliability,
+and improved line plot displays.
+
+Requires Python 3.7 or later.
+
+* (2020-06-10) Improve internal metadata handling during acquisition.
+* (2020-05-18) Improve tick drawing on line plots.  Also scientific notation.
+* (2020-05-18) Improve auto-scaling of log line plots.
+* (2020-05-13) Add complex display type chooser for images and line plots.
+* (2020-05-12) Add support for exporting composite line plots to csv. Fixes #209.
+* (2020-05-12) Improve font handling/scaling on Windows.
+* (2020-05-11) Add context menu to open folder location of Scripts.
+* (2020-05-08) Ensure Inspector shows calibrated units for composite line plots. Fixes #406.
+* (2020-05-08) Use thread pools to reduce graphics resource usage.
+* (2020-05-05) Force drag interval graphics when control is held down. Fixes #389.
+* (2020-04-27) Use cursor style to indicate drag areas in line plot. Improves #37.
+* (2020-04-24) Ensure negative scale in line plots is handled properly. Fixes #130.
+* (2020-03-26) Add support for running 'pick' on sequences of spectrum images.
+* (2020-04-03) Fix issues that might prevent projects from loading.
+* (2020-04-01) Fix problems handling input in scripts dialog.
+* (2020-03-24) Optimize several aspects of data panel.
+* (2020-03-21) Update each display panel in its own thread for decreased latency.
+* (2020-03-07) Improve performance when dragging display intervals on line profile.
+* (2020-03-04) Improve performance when starting acquisition.
+* (2020-03-02) Add keyboard shortcuts for line profile (l) and pick (p or P).
+* (2020-02-13) Allow prefix to be prepended to file names in export dialog (Sherjeel Shabih).
+* (2020-02-12) Add sequence align variants for spline and Fourier.
+* (2020-01-21) Add support for folders to Run Script dialog.
+* (2020-01-17) Add internal support for sectioned acquisition.
+* (2019-12-30) Allow spot masks to be elliptical and rotatable.
+* (2019-12-26) Change mask graphics to center on calibrated origin.
+* (2019-12-23) Add Gaussian, Hamming, and Hann window processing functions.
+* (2019-12-15) Allow graphics to be designated as masks.
+* (2019-12-13) Add mapped sum and mapped average processing commands.
+* (2019-12-01) Add support for new project index file structure.
+* (2019-11-30) Add support for PySide2 host.
 
 Version 0.14.8, November 27, 2019
 ---------------------------------
