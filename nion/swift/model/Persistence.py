@@ -1,6 +1,7 @@
 """
 A collection of persistence classes.
 """
+from __future__ import annotations
 
 from __future__ import annotations
 
@@ -255,7 +256,7 @@ class PersistentObjectContext:
 
 class PersistentObjectSpecifier:
 
-    def __init__(self, *, item: "PersistentObject" = None, item_uuid: uuid.UUID = None, context: "PersistentObject" = None, context_uuid: uuid.UUID = None):
+    def __init__(self, *, item: PersistentObject = None, item_uuid: uuid.UUID = None, context: PersistentObject = None, context_uuid: uuid.UUID = None):
         self.__item_uuid = item.uuid if item else item_uuid
         self.__context_uuid = context.uuid if context else context_uuid
         assert (self.__item_uuid is None) or isinstance(self.__item_uuid, uuid.UUID)
@@ -285,7 +286,7 @@ class PersistentObjectSpecifier:
         return None
 
     @staticmethod
-    def read(d: typing.Union[typing.Mapping, str, uuid.UUID]) -> typing.Optional["PersistentObjectSpecifier"]:
+    def read(d: typing.Union[typing.Mapping, str, uuid.UUID]) -> typing.Optional[PersistentObjectSpecifier]:
         if isinstance(d, str):
             return PersistentObjectSpecifier(item_uuid=uuid.UUID(d))
         elif isinstance(d, uuid.UUID):
@@ -302,7 +303,7 @@ class PersistentObjectSpecifier:
 
 class PersistentObjectProxy:
 
-    def __init__(self, persistent_object: "PersistentObject", item_specifier: typing.Optional[PersistentObjectSpecifier], item: typing.Optional["PersistentObject"]):
+    def __init__(self, persistent_object: PersistentObject, item_specifier: typing.Optional[PersistentObjectSpecifier], item: typing.Optional[PersistentObject]):
         self.__persistent_object = persistent_object
         self.__item_specifier = item_specifier if item_specifier else PersistentObjectSpecifier(item=item) if item else None
         self.__item = item
@@ -337,11 +338,11 @@ class PersistentObjectProxy:
         self.on_item_unregistered = None
 
     @property
-    def item(self) -> typing.Optional["PersistentObject"]:
+    def item(self) -> typing.Optional[PersistentObject]:
         return self.__item
 
     @item.setter
-    def item(self, item: typing.Optional["PersistentObject"]) -> None:
+    def item(self, item: typing.Optional[PersistentObject]) -> None:
         if self.__registration_listener:
             self.__registration_listener.close()
             self.__registration_listener = None
@@ -396,13 +397,13 @@ class PersistentObjectProxy:
 class PersistentObjectParent:
     """ Track the parent of a persistent object. """
 
-    def __init__(self, parent: "PersistentObject", relationship_name: str=None, item_name: str=None):
+    def __init__(self, parent: PersistentObject, relationship_name: str=None, item_name: str=None):
         self.__weak_parent = weakref.ref(parent)
         self.relationship_name = relationship_name
         self.item_name = item_name
 
     @property
-    def parent(self) -> "PersistentObject":
+    def parent(self) -> PersistentObject:
         return self.__weak_parent()
 
 
@@ -517,7 +518,7 @@ class PersistentObject:
         self.__container_weak_ref = None
 
     @property
-    def item_specifier(self) -> "PersistentObjectSpecifier":
+    def item_specifier(self) -> PersistentObjectSpecifier:
         return PersistentObjectSpecifier(item_uuid=self.uuid)
 
     def define_root_context(self) -> None:
@@ -536,7 +537,7 @@ class PersistentObject:
         """
         self.persistent_dict = self.persistent_storage.get_storage_properties()
 
-    def update_item_context(self, item: "PersistentObject") -> None:
+    def update_item_context(self, item: PersistentObject) -> None:
         """Update the context on the item."""
         item.persistent_object_context = self.persistent_object_context
 
@@ -618,7 +619,7 @@ class PersistentObject:
                     return item_d
         return None
 
-    def _get_related_item(self, item_specifier: PersistentObjectSpecifier) -> typing.Optional["PersistentObject"]:
+    def _get_related_item(self, item_specifier: PersistentObjectSpecifier) -> typing.Optional[PersistentObject]:
         if self.persistent_object_parent and self.persistent_object_parent.parent:
             return self.persistent_object_parent.parent._get_related_item(item_specifier)
         if self.persistent_object_context:
@@ -907,7 +908,7 @@ class PersistentObject:
         if item.item_changed:
             item.item_changed(name, old_value, value)
 
-    def load_item(self, name: str, before_index: int, item: "PersistentObject") -> None:
+    def load_item(self, name: str, before_index: int, item: PersistentObject) -> None:
         """ Load item in persistent storage and then into relationship storage, but don't update modified or notify persistent storage. """
         item.persistent_dict = self._get_relationship_persistent_dict_by_uuid(item, name)
         item.persistent_storage = self.persistent_storage
@@ -985,22 +986,22 @@ class PersistentObject:
         relationship = self.__relationships[name]
         return relationship.values.index(item)
 
-    def get_item_by_uuid(self, name: str, uuid: uuid.UUID) -> typing.Optional["PersistentObject"]:
+    def get_item_by_uuid(self, name: str, uuid: uuid.UUID) -> typing.Optional[PersistentObject]:
         """Return the item from the index by uuid."""
         relationship = self.__relationships[name]
         return relationship.index.get(uuid)
 
-    def item_inserted(self, name: str, before_index: int, item: "PersistentObject") -> None:
+    def item_inserted(self, name: str, before_index: int, item: PersistentObject) -> None:
         """ Call this to notify this context that the item before before_index has just been inserted into the parent in
         the relationship with the given name. """
         self.persistent_storage.insert_item(self, name, before_index, item)
 
-    def item_removed(self, name: str, index: int, item: "PersistentObject") -> None:
+    def item_removed(self, name: str, index: int, item: PersistentObject) -> None:
         """ Call this to notify this context that the item at item_index has been removed from the parent in the
         relationship with the given name. """
         self.persistent_storage.remove_item(self, name, index, item)
 
-    def item_set(self, name: str, item: "PersistentObject") -> None:
+    def item_set(self, name: str, item: PersistentObject) -> None:
         """ Call this to notify this context that an item with name has been set on the parent. """
         self.persistent_storage.set_item(self, name, item)
 
@@ -1040,11 +1041,11 @@ class PersistentObject:
         """ Call this to write an item that was write delayed. """
         self.persistent_storage.rewrite_item(self)
 
-    def create_item_proxy(self, *, item_uuid: uuid.UUID = None, item_specifier: PersistentObjectSpecifier = None, item: "PersistentObject" = None) -> PersistentObjectProxy:
+    def create_item_proxy(self, *, item_uuid: uuid.UUID = None, item_specifier: PersistentObjectSpecifier = None, item: PersistentObject = None) -> PersistentObjectProxy:
         """Create an item proxy by uuid or directly using the item."""
         item_specifier = item_specifier or (PersistentObjectSpecifier(item_uuid=item_uuid) if item_uuid else None)
         return PersistentObjectProxy(self, item_specifier, item)
 
-    def resolve_item_specifier(self, item_specifier: PersistentObjectSpecifier) -> typing.Optional["PersistentObject"]:
+    def resolve_item_specifier(self, item_specifier: PersistentObjectSpecifier) -> typing.Optional[PersistentObject]:
         """Return the resolve item specifier."""
         return self._get_related_item(item_specifier)
