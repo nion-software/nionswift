@@ -215,23 +215,26 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             return super()._get_relationship_persistent_dict_by_uuid(item, key)
 
     def read_project_info(self) -> typing.Tuple[typing.Optional[uuid.UUID], typing.Optional[int], typing.Optional[str]]:
-        uuid_: typing.Optional[uuid.UUID] = None
-        project_version: typing.Optional[int] = None
-        project_state: typing.Optional[str]
-        properties = self.__storage_system.get_storage_properties()
-        if properties:
-            uuid_ = uuid.UUID(properties.get("uuid", str(uuid.uuid4())))
-            project_version = properties.get("version", None)
-            if project_version is not None:
-                if project_version in (FileStorageSystem.PROJECT_VERSION, 2):
-                    project_state = "loaded" if self.__has_been_read else "unloaded"
+        try:
+            uuid_: typing.Optional[uuid.UUID] = None
+            project_version: typing.Optional[int] = None
+            project_state: typing.Optional[str]
+            properties = self.__storage_system.get_storage_properties()
+            if properties:
+                uuid_ = uuid.UUID(properties.get("uuid", str(uuid.uuid4())))
+                project_version = properties.get("version", None)
+                if project_version is not None:
+                    if project_version in (FileStorageSystem.PROJECT_VERSION, 2):
+                        project_state = "loaded" if self.__has_been_read else "unloaded"
+                    else:
+                        project_state = "needs_upgrade"
                 else:
-                    project_state = "needs_upgrade"
+                    project_state = "missing"
             else:
                 project_state = "missing"
-        else:
-            project_state = "missing"
-        return uuid_, project_version, project_state
+            return uuid_, project_version, project_state
+        except Exception:
+            return None, None, "invalid"
 
     def prepare_read_project(self) -> None:
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")

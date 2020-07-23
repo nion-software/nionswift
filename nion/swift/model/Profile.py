@@ -128,7 +128,7 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         The profile context is used during testing.
         """
         if not self.project:  # the project from the document model
-            project = None
+            project: typing.Optional[Project.Project] = None
 
             # create project if it doesn't exist
             project_storage_system = self.make_storage(profile_context)

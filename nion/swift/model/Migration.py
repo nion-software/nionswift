@@ -826,10 +826,6 @@ def migrate_library_to_v2(library_properties):
 
 def migrate_library_to_v3(library_properties):
     if library_properties.get("version", 0) == 2:
-        library_properties.pop("workspaces", None)
-        library_properties.pop("data_groups", None)
-        library_properties.pop("workspace_uuid", None)
-        library_properties.pop("data_item_references", None)
         library_properties.pop("data_item_variables", None)
         library_properties["version"] = 3
         logging.getLogger("migration").debug("Updated 2 to 3 (profiles)")

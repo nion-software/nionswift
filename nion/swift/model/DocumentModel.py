@@ -830,7 +830,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         return self._project.create_item_proxy(item_uuid=item_uuid, item_specifier=item_specifier, item=item)
 
     def resolve_item_specifier(self, item_specifier: Persistence.PersistentObjectSpecifier) -> Persistence.PersistentObject:
-        assert item_specifier.context_uuid  # require full item specifier since it shouldn't match the arbitrary project used to resolve.
         return self._project.resolve_item_specifier(item_specifier)
 
     @property

@@ -180,7 +180,11 @@ class Application(UIApplication.BaseApplication):
         project_reference = project_reference or profile.get_project_reference(profile.work_project_reference_uuid)
 
         if project_reference:
-            document_controller = self.open_project_window(project_reference)
+            try:
+                document_controller = self.open_project_window(project_reference)
+            except Exception:
+                self.show_ok_dialog(_("Error Opening Project"), _("Unable to open default project."), completion_fn=self.show_open_project_dialog)
+                return True
 
             if profile_dir is None:
                 # output log message unless we passed a profile_dir for testing.
@@ -215,6 +219,22 @@ class Application(UIApplication.BaseApplication):
         document_controller.on_close = window_closed
 
         return document_controller
+
+    def show_open_project_dialog(self) -> None:
+        ui = self.ui
+        filter = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
+        import_dir = ui.get_persistent_string("open_directory", ui.get_document_location())
+        paths, selected_filter, selected_directory = ui.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter)
+        ui.set_persistent_string("open_directory", selected_directory)
+        if len(paths) == 1:
+            try:
+                project_reference = self.profile.open_project(pathlib.Path(paths[0]))
+                if project_reference:
+                    project_info = project_reference.project_info
+                    if project_info[1] in (2, 3) and project_info[2] == "unloaded":
+                        self.switch_project_reference(project_reference)
+            except Exception:
+                self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."))
 
     def get_recent_library_paths(self):
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
@@ -287,7 +307,7 @@ class Application(UIApplication.BaseApplication):
         window._dynamic_recent_project_actions = []
         for project_reference in self.__profile.project_references:
             project_info = project_reference.project_info
-            if project_info[1] == 3 and project_info[2] == "unloaded":
+            if project_info[1] in (2, 3) and project_info[2] == "unloaded":
                 action = menu.add_menu_item(project_reference.title, functools.partial(self.switch_project_reference, project_reference))
                 window._dynamic_recent_project_actions.append(action)
 
@@ -295,7 +315,10 @@ class Application(UIApplication.BaseApplication):
         for window in self.windows:
             if isinstance(window, DocumentController.DocumentController):
                 window.request_close()
-        self.open_project_window(project_reference)
+        try:
+            self.open_project_window(project_reference)
+        except Exception:
+            self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_open_project_dialog)
 
     def run_all_tests(self):
         Test.run_all_tests()
@@ -434,17 +457,7 @@ class OpenProjectAction(UIWindow.Action):
     def invoke(self, context_: UIWindow.ActionContext) -> UIWindow.ActionResult:
         context = typing.cast(DocumentController.DocumentController.ActionContext, context_)
         application = typing.cast(Application, context.application)
-        ui = context.application.ui
-        filter = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
-        import_dir = ui.get_persistent_string("open_directory", ui.get_document_location())
-        paths, selected_filter, selected_directory = ui.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter)
-        ui.set_persistent_string("open_directory", selected_directory)
-        if len(paths) == 1:
-            project_reference = application.profile.open_project(pathlib.Path(paths[0]))
-            if project_reference:
-                project_info = project_reference.project_info
-                if project_info[1] == 3 and project_info[2] == "unloaded":
-                    application.switch_project_reference(project_reference)
+        application.show_open_project_dialog()
         return UIWindow.ActionResult.FINISHED
 
 
