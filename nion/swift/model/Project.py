@@ -146,12 +146,31 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         return pathlib.Path(self.__storage_system.get_identifier())
 
     @property
-    def project_state(self) -> str:
-        return self.read_project_info()[2]
+    def project_uuid(self) -> typing.Optional[uuid.UUID]:
+        properties = self.__storage_system.get_storage_properties()
+        try:
+            return uuid.UUID(properties.get("uuid", str(uuid.uuid4()))) if properties else None
+        except Exception:
+            return None
 
     @property
-    def project_version(self) -> int:
-        return self.read_project_info()[1]
+    def project_state(self) -> str:
+        project_uuid = self.project_uuid
+        project_version = self.project_version
+        if project_uuid is not None and project_version is not None:
+            if project_version in (FileStorageSystem.PROJECT_VERSION, 2):
+                return "loaded" if self.__has_been_read else "unloaded"
+            else:
+                return "needs_upgrade"
+        return "invalid"
+
+    @property
+    def project_version(self) -> typing.Optional[int]:
+        properties = self.__storage_system.get_storage_properties()
+        try:
+            return properties.get("version", None) if properties else None
+        except Exception:
+            return None
 
     @property
     def project_filter(self) -> ListModel.Filter:
@@ -213,28 +232,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
             return self.__storage_system.get_persistent_dict("data_items", item.uuid)
         else:
             return super()._get_relationship_persistent_dict_by_uuid(item, key)
-
-    def read_project_info(self) -> typing.Tuple[typing.Optional[uuid.UUID], typing.Optional[int], typing.Optional[str]]:
-        try:
-            uuid_: typing.Optional[uuid.UUID] = None
-            project_version: typing.Optional[int] = None
-            project_state: typing.Optional[str]
-            properties = self.__storage_system.get_storage_properties()
-            if properties:
-                uuid_ = uuid.UUID(properties.get("uuid", str(uuid.uuid4())))
-                project_version = properties.get("version", None)
-                if project_version is not None:
-                    if project_version in (FileStorageSystem.PROJECT_VERSION, 2):
-                        project_state = "loaded" if self.__has_been_read else "unloaded"
-                    else:
-                        project_state = "needs_upgrade"
-                else:
-                    project_state = "missing"
-            else:
-                project_state = "missing"
-            return uuid_, project_version, project_state
-        except Exception:
-            return None, None, "invalid"
 
     def prepare_read_project(self) -> None:
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")

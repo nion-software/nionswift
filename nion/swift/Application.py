@@ -230,10 +230,9 @@ class Application(UIApplication.BaseApplication):
             try:
                 project_reference = self.profile.open_project(pathlib.Path(paths[0]))
                 if project_reference:
-                    project_info = project_reference.project_info
-                    if project_info[1] in (2, 3) and project_info[2] == "unloaded":
+                    if project_reference.project_version in (2, 3) and project_reference.project_state == "unloaded":
                         self.switch_project_reference(project_reference)
-                    elif project_info[2] == "needs_upgrade":
+                    elif project_reference.project_state == "needs_upgrade":
                         def handle_upgrade(result: bool) -> None:
                             if result:
                                 new_project_reference = self.profile.upgrade(project_reference)
@@ -317,8 +316,7 @@ class Application(UIApplication.BaseApplication):
                 menu.remove_action(recent_project_action)
         window._dynamic_recent_project_actions = []
         for project_reference in self.__profile.project_references:
-            project_info = project_reference.project_info
-            if project_info[1] in (2, 3) and project_info[2] == "unloaded":
+            if project_reference.project_version in (2, 3) and project_reference.project_state == "unloaded":
                 action = menu.add_menu_item(project_reference.title, functools.partial(self.switch_project_reference, project_reference))
                 window._dynamic_recent_project_actions.append(action)
 

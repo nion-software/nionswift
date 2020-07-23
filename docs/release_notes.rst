@@ -17,7 +17,7 @@ Requires Python 3.7 or later.
 * (2020-05-12) Add support for exporting composite line plots to csv. Fixes #209.
 * (2020-05-12) Improve font handling/scaling on Windows.
 * (2020-05-11) Add context menu to open folder location of Scripts.
-* (2020-05-08) Ensure Inspector shows calibrated units for composite line plots. Fixes #406.
+* (2020-05-08) Ensure inspector shows calibrated units for composite line plots. Fixes #406.
 * (2020-05-08) Use thread pools to reduce graphics resource usage.
 * (2020-05-05) Force drag interval graphics when control is held down. Fixes #389.
 * (2020-04-27) Use cursor style to indicate drag areas in line plot. Improves #37.
@@ -30,7 +30,7 @@ Requires Python 3.7 or later.
 * (2020-03-07) Improve performance when dragging display intervals on line profile.
 * (2020-03-04) Improve performance when starting acquisition.
 * (2020-03-02) Add keyboard shortcuts for line profile (l) and pick (p or P).
-* (2020-02-13) Allow prefix to be prepended to file names in export dialog (Sherjeel Shabih).
+* (2020-02-13) Allow prefix to be prepended to file names in export dialog (thanks Sherjeel Shabih).
 * (2020-02-12) Add sequence align variants for spline and Fourier.
 * (2020-01-21) Add support for folders to Run Script dialog.
 * (2020-01-17) Add internal support for sectioned acquisition.

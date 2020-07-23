@@ -37,11 +37,11 @@ class TestProfileClass(unittest.TestCase):
             document_controller = self.app.open_project_window(profile.project_references[0])
             # check conditions
             self.assertEqual(2, len(profile.project_references))
-            self.assertEqual("loaded", profile.project_references[0].project_info[2])
-            self.assertEqual("unloaded", profile.project_references[1].project_info[2])
+            self.assertEqual("loaded", profile.project_references[0].project_state)
+            self.assertEqual("unloaded", profile.project_references[1].project_state)
             document_controller.request_close()
-            self.assertEqual("unloaded", profile.project_references[0].project_info[2])
-            self.assertEqual("unloaded", profile.project_references[1].project_info[2])
+            self.assertEqual("unloaded", profile.project_references[0].project_state)
+            self.assertEqual("unloaded", profile.project_references[1].project_state)
 
     def test_switching_projects_and_back(self):
         with create_memory_profile_context() as profile_context:
@@ -52,18 +52,18 @@ class TestProfileClass(unittest.TestCase):
             TestContext.add_project_memory(profile, load=False)
             # load first project and check conditions
             document_controller = self.app.open_project_window(profile.project_references[0])
-            self.assertEqual("loaded", profile.project_references[0].project_info[2])
-            self.assertEqual("unloaded", profile.project_references[1].project_info[2])
+            self.assertEqual("loaded", profile.project_references[0].project_state)
+            self.assertEqual("unloaded", profile.project_references[1].project_state)
             # switch projects and check conditions
             document_controller.request_close()
             document_controller = self.app.open_project_window(profile.project_references[1])
-            self.assertEqual("unloaded", profile.project_references[0].project_info[2])
-            self.assertEqual("loaded", profile.project_references[1].project_info[2])
+            self.assertEqual("unloaded", profile.project_references[0].project_state)
+            self.assertEqual("loaded", profile.project_references[1].project_state)
             # switch projects again and check conditions
             document_controller.request_close()
             document_controller = self.app.open_project_window(profile.project_references[0])
-            self.assertEqual("loaded", profile.project_references[0].project_info[2])
-            self.assertEqual("unloaded", profile.project_references[1].project_info[2])
+            self.assertEqual("loaded", profile.project_references[0].project_state)
+            self.assertEqual("unloaded", profile.project_references[1].project_state)
             document_controller.request_close()
 
     def test_switching_projects_with_related_items(self):
@@ -78,19 +78,19 @@ class TestProfileClass(unittest.TestCase):
             document_controller = self.app.open_project_window(profile.project_references[0])
             document_controller.document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
             document_controller._perform_processing(document_controller.document_model.display_items[0], None, document_controller.document_model.get_fft_new)
-            self.assertEqual("loaded", profile.project_references[0].project_info[2])
-            self.assertEqual("unloaded", profile.project_references[1].project_info[2])
+            self.assertEqual("loaded", profile.project_references[0].project_state)
+            self.assertEqual("unloaded", profile.project_references[1].project_state)
             self.assertEqual(2, len(document_controller.document_model.data_items))
             # switch projects and check conditions
             document_controller.request_close()
             document_controller = self.app.open_project_window(profile.project_references[1])
-            self.assertEqual("unloaded", profile.project_references[0].project_info[2])
-            self.assertEqual("loaded", profile.project_references[1].project_info[2])
+            self.assertEqual("unloaded", profile.project_references[0].project_state)
+            self.assertEqual("loaded", profile.project_references[1].project_state)
             # switch projects again and check conditions
             document_controller.request_close()
             document_controller = self.app.open_project_window(profile.project_references[0])
-            self.assertEqual("loaded", profile.project_references[0].project_info[2])
-            self.assertEqual("unloaded", profile.project_references[1].project_info[2])
+            self.assertEqual("loaded", profile.project_references[0].project_state)
+            self.assertEqual("unloaded", profile.project_references[1].project_state)
             self.assertEqual(2, len(document_controller.document_model.data_items))
             document_controller.request_close()
 
@@ -103,12 +103,12 @@ class TestProfileClass(unittest.TestCase):
             TestContext.add_project_memory(profile, load=False)
             # load first project and check conditions
             document_controller = self.app.open_project_window(profile.project_references[0])
-            self.assertEqual("loaded", profile.project_references[0].project_info[2])
-            self.assertEqual("unloaded", profile.project_references[1].project_info[2])
+            self.assertEqual("loaded", profile.project_references[0].project_state)
+            self.assertEqual("unloaded", profile.project_references[1].project_state)
             # forget project and check conditions
             profile.remove_project_reference(profile.project_references[1])
             self.assertEqual(1, len(profile.project_references))
-            self.assertEqual("loaded", profile.project_references[0].project_info[2])
+            self.assertEqual("loaded", profile.project_references[0].project_state)
             # clean up
             document_controller.close()
 
@@ -122,12 +122,12 @@ class TestProfileClass(unittest.TestCase):
             # check preconditions
             self.assertEqual(1, len(self.app.windows))
             self.assertEqual(1, len(profile.project_references))
-            self.assertEqual("loaded", profile.project_references[0].project_info[2])
+            self.assertEqual("loaded", profile.project_references[0].project_state)
             # add project, check
             project_reference2 = profile.add_project_memory(load=False)
             self.assertEqual(2, len(profile.project_references))
-            self.assertEqual("loaded", profile.project_references[0].project_info[2])
-            self.assertEqual("unloaded", profile.project_references[1].project_info[2])
+            self.assertEqual("loaded", profile.project_references[0].project_state)
+            self.assertEqual("unloaded", profile.project_references[1].project_state)
             self.assertEqual(project_reference2, profile.project_references[1])
             self.assertEqual(1, len(self.app.windows))
             # clean up
@@ -142,14 +142,14 @@ class TestProfileClass(unittest.TestCase):
             TestContext.add_project_memory(profile, load=False)
             # load first project and check conditions
             document_controller = self.app.open_project_window(profile.project_references[0])
-            self.assertEqual("loaded", profile.project_references[0].project_info[2])
-            self.assertEqual("unloaded", profile.project_references[1].project_info[2])
+            self.assertEqual("loaded", profile.project_references[0].project_state)
+            self.assertEqual("unloaded", profile.project_references[1].project_state)
             # forget project and check conditions
             with self.assertRaises(Exception):
                 profile.remove_project_reference(profile.project_references[0])
             self.assertEqual(2, len(profile.project_references))
-            self.assertEqual("loaded", profile.project_references[0].project_info[2])
-            self.assertEqual("unloaded", profile.project_references[1].project_info[2])
+            self.assertEqual("loaded", profile.project_references[0].project_state)
+            self.assertEqual("unloaded", profile.project_references[1].project_state)
             # clean up
             document_controller.close()
 

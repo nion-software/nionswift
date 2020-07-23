@@ -31,7 +31,9 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         super().__init__()
         self.define_type(type)
         self.define_property("project_uuid", converter=Converter.UuidToStringConverter())
-        self.__project_info = None, None, "missing"
+        self.__has_project_info_been_read = False
+        self.__project_version = None
+        self.__project_state = "invalid"
         self.__document_model: typing.Optional[DocumentModel.DocumentModel] = None
         self.__document_model_about_to_close_listener = None
         self.storage_cache = None
@@ -41,13 +43,6 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
             self.__document_model_about_to_close_listener.close()
             self.__document_model_about_to_close_listener = None
         super().close()
-
-    def read_from_dict(self, properties: typing.Mapping) -> None:
-        super().read_from_dict(properties)
-        # copy this uuid to the project uuid for backwards compatibility.
-        # this is only needed for the beta version.
-        if self.project_uuid is None:
-            self.project_uuid = self.uuid
 
     def about_to_be_removed(self, container):
         self.unload_project()
@@ -84,6 +79,14 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         self.notify_property_changed(name)
 
     @property
+    def project_version(self) -> typing.Optional[int]:
+        return self.project.project_version if self.project else self.__project_version
+
+    @property
+    def project_state(self) -> str:
+        return self.project.project_state if self.project else self.__project_state
+
+    @property
     def project(self) -> typing.Optional[Project.Project]:
         return self.__document_model._project if self.__document_model else None
 
@@ -104,23 +107,20 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
     def project_reference_parts(self) -> typing.Tuple[str]:
         raise NotImplementedError()
 
-    @property
-    def project_info(self) -> typing.Tuple[typing.Optional[uuid.UUID], typing.Optional[int], typing.Optional[str]]:
-        if self.project:
-            return self.project.read_project_info()
-        else:
-            return self.__project_info
-
     def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         raise NotImplementedError()
 
     def read_project_info(self, profile_context: typing.Optional[ProfileContext]) -> None:
-        if not self.__project_info[0]:
+        if not self.__has_project_info_been_read:
             project_storage_system = self.make_storage(profile_context)
             if project_storage_system:
                 project_storage_system.load_properties()
                 with contextlib.closing(Project.Project(project_storage_system)) as project:
-                    self.__project_info = project.read_project_info()
+                    if self.project_uuid != project.project_uuid:
+                        self.project_uuid = project.project_uuid
+                    self.__project_version = project.project_version
+                    self.__project_state = project.project_state
+                    self.__has_project_info_been_read = True
 
     def load_project(self, profile_context: typing.Optional[ProfileContext]) -> None:
         """Read project.
@@ -177,7 +177,7 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         return None
 
     def upgrade(self, profile_context: typing.Optional[ProfileContext] = None) -> typing.Optional[pathlib.Path]:
-        if self.__project_info[2] == "needs_upgrade":
+        if self.project_state == "needs_upgrade":
             project_storage_system = self.make_storage(profile_context)
             if project_storage_system:
                 legacy_path = pathlib.Path(project_storage_system.get_identifier())
@@ -393,7 +393,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.append_item("project_references", project_reference)
 
     def remove_project_reference(self, project_reference: ProjectReference) -> None:
-        assert project_reference.project_info[2] != "loaded"
+        assert project_reference.project_state != "loaded"
         project_reference.unload_project()
         self.remove_item("project_references", project_reference)
 

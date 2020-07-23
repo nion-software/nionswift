@@ -142,7 +142,10 @@ class ProjectPanelProjectItem:
 
     @property
     def __state_str(self) -> str:
-        project_uuid, project_version, project_state = self.project_reference.project_info
+        project_reference = self.project_reference
+        project_uuid = project_reference.project_uuid
+        project_version = project_reference.project_version
+        project_state = project_reference.project_state
         if project_state == "loaded":
             return f"(loaded [v{project_version}])"
         elif project_state == "unloaded":
@@ -150,7 +153,7 @@ class ProjectPanelProjectItem:
         elif project_state == "needs_upgrade":
             return f"(needs upgrade [v{project_version}])"
         else:
-            return f"(missing)"
+            return f"(invalid)"
 
     def __str__(self) -> str:
         icon = "\N{CARD FILE BOX}"
