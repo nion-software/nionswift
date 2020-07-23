@@ -176,6 +176,22 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
                 return project.uuid
         return None
 
+    def upgrade(self, profile_context: typing.Optional[ProfileContext] = None) -> typing.Optional[pathlib.Path]:
+        if self.__project_info[2] == "needs_upgrade":
+            project_storage_system = self.make_storage(profile_context)
+            if project_storage_system:
+                legacy_path = pathlib.Path(project_storage_system.get_identifier())
+                target_project_path = legacy_path.parent.with_suffix(".nsproj")
+                target_data_path = target_project_path.with_name(target_project_path.stem + " Data")
+                logging.getLogger("loader").info(f"Created new project {target_project_path} {target_data_path}")
+                target_project_uuid = uuid.uuid4()
+                target_project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(target_project_uuid), "project_data_folders": [str(target_data_path.stem)]})
+                target_project_path.write_text(target_project_data_json, "utf-8")
+                with contextlib.closing(FileStorageSystem.FileProjectStorageSystem(target_project_path)) as new_storage_system:
+                    new_storage_system.load_properties()
+                    FileStorageSystem.migrate_to_latest(project_storage_system, new_storage_system)
+                return target_project_path
+        return None
 
 
 class IndexProjectReference(ProjectReference):
@@ -412,3 +428,10 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         project_reference = project_reference_factory_hook("project_memory")
         project_reference.project_uuid = _uuid or uuid.uuid4()
         return self.add_project_reference(project_reference, load)
+
+    def upgrade(self, project_reference: ProjectReference) -> typing.Optional[ProjectReference]:
+        project_path = project_reference.upgrade(self.profile_context)
+        if project_path:
+            self.remove_project_reference(project_reference)
+            return self.add_project_index(project_path, load=False)
+        return None

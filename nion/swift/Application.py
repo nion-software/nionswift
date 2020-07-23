@@ -233,6 +233,17 @@ class Application(UIApplication.BaseApplication):
                     project_info = project_reference.project_info
                     if project_info[1] in (2, 3) and project_info[2] == "unloaded":
                         self.switch_project_reference(project_reference)
+                    elif project_info[2] == "needs_upgrade":
+                        def handle_upgrade(result: bool) -> None:
+                            if result:
+                                new_project_reference = self.profile.upgrade(project_reference)
+                                if new_project_reference:
+                                    self.switch_project_reference(new_project_reference)
+
+                        self.show_ok_cancel_dialog(_("Project Needs Upgrade"),
+                                                   _("This project needs to be upgraded to work with this version."),
+                                                   ok_text=_("Upgrade"),
+                                                   completion_fn=handle_upgrade)
             except Exception:
                 self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."))
 
