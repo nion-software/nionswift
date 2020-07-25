@@ -354,14 +354,65 @@ class TestProfileClass(unittest.TestCase):
                 app.exit()
                 app.deinitialize()
 
-    def test_create_new_project(self):
+    def test_switching_project_reloads_new_project_on_relaunch(self):
         with create_memory_profile_context() as profile_context:
             # use lower level calls to create the profile and open the window via the app
-            profile = profile_context.create_profile()
+            profile = profile_context.create_profile(add_project=False)
             profile.read_profile()
-            self.app._set_profile_for_test(profile)
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app._set_profile_for_test(profile)
             TestContext.add_project_memory(profile, load=False)
-            # TODO
+            TestContext.add_project_memory(profile, load=False)
+            app.initialize(load_plug_ins=False)
+            try:
+                # ensure one project reference
+                self.assertEqual(2, len(profile.project_references))
+                profile.last_project_reference = profile.project_references[0].uuid
+                logging.getLogger("loader").setLevel = unittest.mock.Mock()  # ignore this call
+
+                # start the app
+                app.start(profile=profile)
+
+                # ensure a single project is loaded
+                self.assertEqual(2, len(profile.project_references))
+                self.assertEqual("loaded", profile.project_references[0].project_state)
+                self.assertEqual("unloaded", profile.project_references[1].project_state)
+                self.assertEqual(1, len(app.windows))
+                self.assertEqual(profile.last_project_reference, profile.project_references[0].uuid)
+
+                # switch project and check
+                app.switch_project_reference(profile.project_references[1])
+                self.assertEqual("unloaded", profile.project_references[0].project_state)
+                self.assertEqual("loaded", profile.project_references[1].project_state)
+                self.assertEqual(1, len(app.windows))
+                self.assertEqual(profile.last_project_reference, profile.project_references[1].uuid)
+            finally:
+                app.exit()
+                app.deinitialize()
+
+            # reload and check
+            profile = profile_context.create_profile(add_project=False)
+            profile.read_profile()
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app._set_profile_for_test(profile)
+            app.initialize(load_plug_ins=False)
+            try:
+                # ensure one project reference
+                self.assertEqual(2, len(profile.project_references))
+                profile.last_project_reference = profile.project_references[0].uuid
+
+                # start the app
+                app.start(profile=profile)
+
+                # switch project and check
+                app.switch_project_reference(profile.project_references[1])
+                self.assertEqual("unloaded", profile.project_references[0].project_state)
+                self.assertEqual("loaded", profile.project_references[1].project_state)
+                self.assertEqual(1, len(app.windows))
+                self.assertEqual(profile.last_project_reference, profile.project_references[1].uuid)
+            finally:
+                app.exit()
+                app.deinitialize()
 
     # TODO: creating new project
     # TODO: opening project from file

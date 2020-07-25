@@ -179,6 +179,7 @@ class Application(UIApplication.BaseApplication):
 
         project_reference = project_reference or profile.get_project_reference(profile.last_project_reference)
 
+        # for backwards compatibility for beta versions. remove after limited beta sites updated.
         project_reference = project_reference or profile.get_project_reference(profile.work_project_reference_uuid)
 
         if project_reference:
@@ -214,6 +215,8 @@ class Application(UIApplication.BaseApplication):
 
         # create the document controller
         document_controller = self.create_document_controller(document_model, "library")
+
+        self.__profile.last_project_reference = project_reference.uuid
 
         def window_closed():
             pass # print(f"CLOSED {document_controller.title}")
@@ -324,6 +327,11 @@ class Application(UIApplication.BaseApplication):
                 action = menu.add_menu_item(project_reference.title, functools.partial(self.switch_project_reference, project_reference))
                 window._dynamic_recent_project_actions.append(action)
 
+    def create_project_reference(self, directory: pathlib.Path, project_name: str) -> None:
+        project_reference = self.profile.create_project(directory, project_name)
+        if project_reference:
+            self.switch_project_reference(project_reference)
+
     def switch_project_reference(self, project_reference: Profile.ProjectReference) -> None:
         for window in self.windows:
             if isinstance(window, DocumentController.DocumentController):
@@ -373,15 +381,8 @@ class NewProjectAction(UIWindow.Action):
                 def safe_request_close():
                     event_loop.call_soon(self.request_close)
 
-                def handle_new():
-                    self.project_name = self.__project_name_field.text
-                    project_reference = profile.create_project(pathlib.Path(self.directory), self.project_name)
-                    if project_reference:
-                        app.switch_project_reference(project_reference)
-                    return True
-
                 def handle_new_and_close():
-                    handle_new()
+                    app.create_project_reference(pathlib.Path(self.directory), self.__project_name_field.text)
                     safe_request_close()
                     return True
 
@@ -446,7 +447,7 @@ class NewProjectAction(UIWindow.Action):
                 choose_directory_button.on_clicked = choose
 
                 self.add_button(_("Cancel"), lambda: True)
-                self.add_button(_("Create Project"), handle_new)
+                self.add_button(_("Create Project"), handle_new_and_close)
 
                 self.content.add(column)
 
