@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import contextlib
 import gettext
@@ -112,7 +114,10 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
 
     def read_project_info(self, profile_context: typing.Optional[ProfileContext]) -> None:
         if not self.__has_project_info_been_read:
-            project_storage_system = self.make_storage(profile_context)
+            try:
+                project_storage_system = self.make_storage(profile_context)
+            except Exception:
+                project_storage_system = None
             if project_storage_system:
                 project_storage_system.load_properties()
                 with contextlib.closing(Project.Project(project_storage_system)) as project:
@@ -176,22 +181,15 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
                 return project.uuid
         return None
 
-    def upgrade(self, profile_context: typing.Optional[ProfileContext] = None) -> typing.Optional[pathlib.Path]:
+    def upgrade(self, profile_context: typing.Optional[ProfileContext] = None) -> typing.Optional[ProjectReference]:
         if self.project_state == "needs_upgrade":
             project_storage_system = self.make_storage(profile_context)
             if project_storage_system:
-                legacy_path = pathlib.Path(project_storage_system.get_identifier())
-                target_project_path = legacy_path.parent.with_suffix(".nsproj")
-                target_data_path = target_project_path.with_name(target_project_path.stem + " Data")
-                logging.getLogger("loader").info(f"Created new project {target_project_path} {target_data_path}")
-                target_project_uuid = uuid.uuid4()
-                target_project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(target_project_uuid), "project_data_folders": [str(target_data_path.stem)]})
-                target_project_path.write_text(target_project_data_json, "utf-8")
-                with contextlib.closing(FileStorageSystem.FileProjectStorageSystem(target_project_path)) as new_storage_system:
-                    new_storage_system.load_properties()
-                    FileStorageSystem.migrate_to_latest(project_storage_system, new_storage_system)
-                return target_project_path
+                return self._upgrade_project_storage_system(project_storage_system)
         return None
+
+    def _upgrade_project_storage_system(self, project_storage_system: FileStorageSystem.ProjectStorageSystem) -> ProjectReference:
+        raise NotImplementedError()
 
 
 class IndexProjectReference(ProjectReference):
@@ -224,6 +222,24 @@ class FolderProjectReference(ProjectReference):
         if self.project_folder_path:
             return FileStorageSystem.make_folder_project_storage_system(self.project_folder_path)
         return None
+
+    def _upgrade_project_storage_system(self, project_storage_system: FileStorageSystem.ProjectStorageSystem) -> ProjectReference:
+        legacy_path = pathlib.Path(project_storage_system.get_identifier())
+        target_project_path = legacy_path.parent.with_suffix(".nsproj")
+        target_data_path = target_project_path.with_name(target_project_path.stem + " Data")
+        logging.getLogger("loader").info(f"Created new project {target_project_path} {target_data_path}")
+        target_project_uuid = uuid.uuid4()
+        target_project_data_json = json.dumps(
+            {"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(target_project_uuid),
+             "project_data_folders": [str(target_data_path.stem)]})
+        target_project_path.write_text(target_project_data_json, "utf-8")
+        with contextlib.closing(FileStorageSystem.FileProjectStorageSystem(target_project_path)) as new_storage_system:
+            new_storage_system.load_properties()
+            FileStorageSystem.migrate_to_latest(project_storage_system, new_storage_system)
+        new_project_reference = IndexProjectReference()
+        new_project_reference.project_path = target_project_path
+        new_project_reference.project_uuid = target_project_uuid
+        return new_project_reference
 
 
 project_reference_factory_hook = None
@@ -430,8 +446,8 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         return self.add_project_reference(project_reference, load)
 
     def upgrade(self, project_reference: ProjectReference) -> typing.Optional[ProjectReference]:
-        project_path = project_reference.upgrade(self.profile_context)
-        if project_path:
+        new_project_reference = project_reference.upgrade(self.profile_context)
+        if new_project_reference:
             self.remove_project_reference(project_reference)
-            return self.add_project_index(project_path, load=False)
+            return self.add_project_reference(new_project_reference, load=False)
         return None

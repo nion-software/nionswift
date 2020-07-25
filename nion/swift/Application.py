@@ -134,7 +134,7 @@ class Application(UIApplication.BaseApplication):
     def _set_document_model(self, document_model):
         self.__document_model = document_model
 
-    def start(self, *, profile_dir: pathlib.Path = None):
+    def start(self, *, profile_dir: pathlib.Path = None, profile: Profile.Profile = None) -> bool:
         """Start the application.
 
         Creates the profile object using profile_path parameter (for testing), the profile path constructed from the
@@ -150,17 +150,19 @@ class Application(UIApplication.BaseApplication):
         logging.getLogger("migration").setLevel(logging.INFO)
         logging.getLogger("loader").setLevel(logging.INFO)
 
-        # determine the profile_path
-        if profile_dir:
-            profile_path = profile_dir / pathlib.Path("Profile").with_suffix(".nsproj")
-        else:
-            data_dir = pathlib.Path(self.ui.get_data_location())
-            profile_name = pathlib.Path(self.ui.get_persistent_string("profile_name", "Profile"))
-            profile_path = data_dir / profile_name.with_suffix(".nsproj")
-
-        # create or load the profile object
-        self.__profile, is_created = self.__establish_profile(profile_path)
-        profile = self.__profile
+        # create or load the profile object. allow test to override profile.
+        is_created = False
+        if not profile:
+            # determine the profile_path
+            if profile_dir:
+                profile_path = profile_dir / pathlib.Path("Profile").with_suffix(".nsproj")
+            else:
+                data_dir = pathlib.Path(self.ui.get_data_location())
+                profile_name = pathlib.Path(self.ui.get_persistent_string("profile_name", "Profile"))
+                profile_path = data_dir / profile_name.with_suffix(".nsproj")
+            # create the profile
+            profile, is_created = self.__establish_profile(profile_path)
+        self.__profile = profile
 
         # if it was created, it probably means it is migrating from an old version. so add all recent projects.
         # they will initially be disabled and the user will have to explicitly upgrade them.
@@ -194,7 +196,7 @@ class Application(UIApplication.BaseApplication):
                 document_controller.selected_display_panel.set_display_panel_display_item(document_controller.document_model.display_items[0])
                 document_controller.selected_display_panel.perform_action("set_fill_mode")
         else:
-            self.open_project_manager()
+            self.show_open_project_dialog()
 
         return True
 
@@ -227,24 +229,25 @@ class Application(UIApplication.BaseApplication):
         paths, selected_filter, selected_directory = ui.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter)
         ui.set_persistent_string("open_directory", selected_directory)
         if len(paths) == 1:
-            try:
-                project_reference = self.profile.open_project(pathlib.Path(paths[0]))
-                if project_reference:
-                    if project_reference.project_version in (2, 3) and project_reference.project_state == "unloaded":
-                        self.switch_project_reference(project_reference)
-                    elif project_reference.project_state == "needs_upgrade":
-                        def handle_upgrade(result: bool) -> None:
-                            if result:
-                                new_project_reference = self.profile.upgrade(project_reference)
-                                if new_project_reference:
-                                    self.switch_project_reference(new_project_reference)
+            project_reference = self.profile.open_project(pathlib.Path(paths[0]))
+            if project_reference:
+                if project_reference.project_version in (2, 3) and project_reference.project_state == "unloaded":
+                    self.switch_project_reference(project_reference)
+                elif project_reference.project_state == "needs_upgrade":
+                    def handle_upgrade(result: bool) -> None:
+                        if result:
+                            new_project_reference = self.profile.upgrade(project_reference)
+                            if new_project_reference:
+                                self.switch_project_reference(new_project_reference)
 
-                        self.show_ok_cancel_dialog(_("Project Needs Upgrade"),
-                                                   _("This project needs to be upgraded to work with this version."),
-                                                   ok_text=_("Upgrade"),
-                                                   completion_fn=handle_upgrade)
-            except Exception:
-                self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."))
+                    self.show_ok_cancel_dialog(_("Project Needs Upgrade"),
+                                               _("This project needs to be upgraded to work with this version."),
+                                               ok_text=_("Upgrade"),
+                                               completion_fn=handle_upgrade)
+                else:
+                    self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_open_project_dialog)
+            else:
+                self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_open_project_dialog)
 
     def get_recent_library_paths(self):
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
@@ -267,6 +270,7 @@ class Application(UIApplication.BaseApplication):
         self.__profile = profile
 
     def __establish_profile(self, profile_path: pathlib.Path) -> typing.Tuple[typing.Optional[Profile.Profile], bool]:
+        assert profile_path.is_absolute()  # prevents tests from creating temporary files in test directory
         create_new_profile = not profile_path.exists()
         if create_new_profile:
             logging.getLogger("loader").info(f"Creating new profile {profile_path}")
@@ -451,6 +455,7 @@ class NewProjectAction(UIWindow.Action):
             def show(self, *, size: Geometry.IntSize = None, position: Geometry.IntPoint = None) -> None:
                 super().show(size=size, position=position)
                 self.__project_name_field.focused = True
+                self.__project_name_field.select_all()
 
         application = typing.cast(Application, context.application)
         new_project_dialog = NewProjectDialog(application.ui, application, application.event_loop, application.profile)

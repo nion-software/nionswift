@@ -1,5 +1,7 @@
 # standard libraries
+import logging
 import unittest
+import unittest.mock
 
 # third party libraries
 import numpy
@@ -17,6 +19,16 @@ Facade.initialize()
 
 def create_memory_profile_context() -> TestContext.MemoryProfileContext:
     return TestContext.MemoryProfileContext()
+
+
+def press_ok_and_complete(*args, **kwargs):
+    kwargs["completion_fn"]()
+
+def press_ok_cancel_and_ok_complete(*args, **kwargs):
+    kwargs["completion_fn"](True)
+
+def press_ok_cancel_and_cancel_complete(*args, **kwargs):
+    kwargs["completion_fn"](False)
 
 
 class TestProfileClass(unittest.TestCase):
@@ -152,6 +164,204 @@ class TestProfileClass(unittest.TestCase):
             self.assertEqual("unloaded", profile.project_references[1].project_state)
             # clean up
             document_controller.close()
+
+    def test_launch_with_no_project_then_cancel_open_dialog(self):
+        with create_memory_profile_context() as profile_context:
+            # use lower level calls to create the profile and open the window via the app
+            profile = profile_context.create_profile(add_project=False)
+            profile.read_profile()
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app._set_profile_for_test(profile)
+            app.initialize(load_plug_ins=False)
+            try:
+                # ensure no project references
+                self.assertEqual(0, len(profile.project_references))
+                # set up mock calls to get through start call and check conditions
+                app.ui.get_file_paths_dialog = unittest.mock.Mock(return_value=([], str(), str()))
+                app.show_ok_dialog = unittest.mock.Mock()
+                app.show_ok_dialog.side_effect = press_ok_and_complete
+                # start the app
+                app.start(profile=profile)
+                # check the mock calls
+                app.ui.get_file_paths_dialog.assert_called_once()
+                app.show_ok_dialog.assert_not_called()
+                # ensure no project is loaded
+                self.assertEqual(0, len(profile.project_references))
+                self.assertEqual(0, len(app.windows))
+            finally:
+                app.exit()
+                app.deinitialize()
+
+    def test_launch_with_no_project_then_open_a_project(self):
+        with create_memory_profile_context() as profile_context:
+            # use lower level calls to create the profile and open the window via the app
+            profile = profile_context.create_profile(add_project=False)
+            profile.read_profile()
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app._set_profile_for_test(profile)
+            app.initialize(load_plug_ins=False)
+            try:
+                # ensure no project references
+                self.assertEqual(0, len(profile.project_references))
+
+                # set up mock calls to get through start call
+                profile.open_project = unittest.mock.Mock()
+                profile.open_project.side_effect = lambda x: TestContext.add_project_memory(profile, load=False)
+                app.ui.get_file_paths_dialog = unittest.mock.Mock(return_value=(["PATH"], str(), str()))
+                app.show_ok_dialog = unittest.mock.Mock()
+                app.show_ok_dialog.side_effect = press_ok_and_complete
+                logging.getLogger("loader").setLevel = unittest.mock.Mock()  # ignore this call
+
+                # start the app
+                app.start(profile=profile)
+
+                # check the mock calls
+                app.ui.get_file_paths_dialog.assert_called_once()
+                profile.open_project.assert_called_once()
+                app.show_ok_dialog.assert_not_called()
+
+                # ensure a single project is loaded
+                self.assertEqual(1, len(profile.project_references))
+                self.assertEqual("loaded", profile.project_references[0].project_state)
+                self.assertEqual(1, len(app.windows))
+            finally:
+                app.exit()
+                app.deinitialize()
+
+    def test_launch_with_no_project_then_open_a_project_with_error(self):
+        # test both json error and general storage error
+        for uuid_error, storage_error in ((True, False), (False, True)):
+            with self.subTest(uuid_error=uuid_error, storage_error=storage_error):
+                with create_memory_profile_context() as profile_context:
+                    # use lower level calls to create the profile and open the window via the app
+                    profile = profile_context.create_profile(add_project=False)
+                    profile.read_profile()
+                    app = Application.Application(TestUI.UserInterface(), set_global=False)
+                    app._set_profile_for_test(profile)
+                    app.initialize(load_plug_ins=False)
+                    try:
+                        # ensure no project references
+                        self.assertEqual(0, len(profile.project_references))
+
+                        # set up mock calls to get through start call
+                        def setup_bad_project(args):
+                            project_reference = TestContext.add_project_memory(profile, load=False, make_uuid_error=uuid_error, make_storage_error=storage_error)
+                            return project_reference
+
+                        profile.open_project = unittest.mock.Mock()
+                        profile.open_project.side_effect = setup_bad_project
+                        app.ui.get_file_paths_dialog = unittest.mock.Mock()
+                        app.ui.get_file_paths_dialog.side_effect = [(["PATH"], str(), str()), ([], str(), str())]
+                        app.show_ok_dialog = unittest.mock.Mock()
+                        app.show_ok_dialog.side_effect = press_ok_and_complete
+                        logging.getLogger("loader").setLevel = unittest.mock.Mock()  # ignore this call
+
+                        # start the app
+                        app.start(profile=profile)
+
+                        # check the mock calls
+                        self.assertEqual(2, len(app.ui.get_file_paths_dialog.mock_calls))
+                        profile.open_project.assert_called_once()
+                        app.show_ok_dialog.assert_called_once()
+
+                        # ensure a single project is loaded
+                        self.assertEqual(1, len(profile.project_references))
+                        self.assertEqual("invalid", profile.project_references[0].project_state)
+                        self.assertEqual(0, len(app.windows))
+                    finally:
+                        app.exit()
+                        app.deinitialize()
+
+    def test_launch_with_no_project_then_open_a_project_needing_upgrade_and_cancel(self):
+        with create_memory_profile_context() as profile_context:
+            # use lower level calls to create the profile and open the window via the app
+            profile = profile_context.create_profile(add_project=False)
+            profile.read_profile()
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app._set_profile_for_test(profile)
+            app.initialize(load_plug_ins=False)
+            try:
+                # ensure no project references
+                self.assertEqual(0, len(profile.project_references))
+
+                # set up mock calls to get through start call
+                def setup_needs_upgrade_project(args):
+                    project_reference = TestContext.add_project_memory(profile, load=False, d={"version": 0})
+                    return project_reference
+
+                profile.open_project = unittest.mock.Mock()
+                profile.open_project.side_effect = setup_needs_upgrade_project
+                app.ui.get_file_paths_dialog = unittest.mock.Mock()
+                app.ui.get_file_paths_dialog = unittest.mock.Mock(return_value=(["PATH"], str(), str()))
+                app.show_ok_cancel_dialog = unittest.mock.Mock()
+                app.show_ok_cancel_dialog.side_effect = press_ok_cancel_and_cancel_complete
+                logging.getLogger("loader").setLevel = unittest.mock.Mock()  # ignore this call
+
+                # start the app
+                app.start(profile=profile)
+
+                # check the mock calls
+                self.assertEqual(1, len(app.ui.get_file_paths_dialog.mock_calls))
+                profile.open_project.assert_called_once()
+                app.show_ok_cancel_dialog.assert_called_once()
+
+                # ensure a single project is loaded
+                self.assertEqual(1, len(profile.project_references))
+                self.assertEqual("needs_upgrade", profile.project_references[0].project_state)
+                self.assertEqual(0, len(app.windows))
+            finally:
+                app.exit()
+                app.deinitialize()
+
+    def test_launch_with_no_project_then_open_a_project_needing_upgrade_and_proceed(self):
+        with create_memory_profile_context() as profile_context:
+            # use lower level calls to create the profile and open the window via the app
+            profile = profile_context.create_profile(add_project=False)
+            profile.read_profile()
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app._set_profile_for_test(profile)
+            app.initialize(load_plug_ins=False)
+            try:
+                # ensure no project references
+                self.assertEqual(0, len(profile.project_references))
+
+                # set up mock calls to get through start call
+                def setup_needs_upgrade_project(args):
+                    project_reference = TestContext.add_project_memory(profile, load=False, d={"version": 0})
+                    return project_reference
+
+                profile.open_project = unittest.mock.Mock()
+                profile.open_project.side_effect = setup_needs_upgrade_project
+                app.ui.get_file_paths_dialog = unittest.mock.Mock()
+                app.ui.get_file_paths_dialog = unittest.mock.Mock(return_value=(["PATH"], str(), str()))
+                app.show_ok_cancel_dialog = unittest.mock.Mock()
+                app.show_ok_cancel_dialog.side_effect = press_ok_cancel_and_ok_complete
+                logging.getLogger("loader").setLevel = unittest.mock.Mock()  # ignore this call
+
+                # start the app
+                app.start(profile=profile)
+
+                # check the mock calls
+                self.assertEqual(1, len(app.ui.get_file_paths_dialog.mock_calls))
+                profile.open_project.assert_called_once()
+                app.show_ok_cancel_dialog.assert_called_once()
+
+                # ensure a single project is loaded
+                self.assertEqual(1, len(profile.project_references))
+                self.assertEqual("loaded", profile.project_references[0].project_state)
+                self.assertEqual(1, len(app.windows))
+            finally:
+                app.exit()
+                app.deinitialize()
+
+    def test_create_new_project(self):
+        with create_memory_profile_context() as profile_context:
+            # use lower level calls to create the profile and open the window via the app
+            profile = profile_context.create_profile()
+            profile.read_profile()
+            self.app._set_profile_for_test(profile)
+            TestContext.add_project_memory(profile, load=False)
+            # TODO
 
     # TODO: creating new project
     # TODO: opening project from file

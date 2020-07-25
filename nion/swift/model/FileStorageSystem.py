@@ -1055,10 +1055,10 @@ def make_folder_project_storage_system(project_folder_path: pathlib.Path) -> typ
 
 
 def make_memory_project_storage_system(profile_context, _uuid: uuid.UUID, d: typing.Dict) -> typing.Optional[ProjectStorageSystem]:
-    storage_system_uuid = _uuid or uuid.uuid4()
+    storage_system_uuid = d.get("uuid") or _uuid or uuid.uuid4()  # allow d to override project uuid for testing failures
     # the profile context must be valid here.
     new_project_properties = profile_context.x_project_properties.setdefault(storage_system_uuid,
-                                                                             {"version": PROJECT_VERSION,
+                                                                             {"version": d.get("version", PROJECT_VERSION),
                                                                               "uuid": str(storage_system_uuid)})
     new_data_properties_map = profile_context.x_data_properties_map.setdefault(storage_system_uuid, dict())
     new_data_map = profile_context.x_data_map.setdefault(storage_system_uuid, dict())

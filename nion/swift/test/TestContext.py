@@ -58,7 +58,7 @@ class MemoryProfileContext:
         self.data_map = self.x_data_map[self.project_uuid] = dict()
         self.trash_map = self.x_trash_map[self.project_uuid] = dict()
 
-    def create_profile(self) -> Profile.Profile:
+    def create_profile(self, add_project: bool = True) -> Profile.Profile:
         if not self.__profile:
             library_properties = {"version": FileStorageSystem.PROFILE_VERSION}
             storage_system = self.__storage_system
@@ -66,7 +66,8 @@ class MemoryProfileContext:
             profile = Profile.Profile(storage_system=storage_system, storage_cache=self.storage_cache)
             profile.storage_system = storage_system
             profile.profile_context = self
-            add_project_memory(profile, self.project_uuid)
+            if add_project:
+                add_project_memory(profile, self.project_uuid)
             self.__profile = profile
             self.__items_to_close.append(profile)
             return profile
@@ -132,24 +133,35 @@ class MemoryProfileContext:
 class MemoryProjectReference(Profile.ProjectReference):
     type = "project_memory"
 
-    def __init__(self, d: typing.Dict = None):
+    def __init__(self, d: typing.Dict = None, make_storage_error: bool = False):
         super().__init__(self.__class__.type)
         self.__d = d or dict()
+        self.__make_storage_error = make_storage_error
 
     @property
     def project_reference_parts(self) -> typing.Tuple[str]:
         return ("memory",)
 
     def make_storage(self, profile_context: typing.Optional[MemoryProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+        if self.__make_storage_error:
+            raise Exception("make_storage_error")
         return FileStorageSystem.make_memory_project_storage_system(profile_context, self.project_uuid, self.__d)
+
+    def _upgrade_project_storage_system(self, project_storage_system: FileStorageSystem.ProjectStorageSystem) -> Profile.ProjectReference:
+        new_project_reference = MemoryProjectReference()
+        new_project_reference.project_uuid = uuid.uuid4()
+        return new_project_reference
 
 
 def create_memory_context():
     return MemoryProfileContext()
 
 
-def add_project_memory(profile: Profile.Profile, _uuid: uuid.UUID = None, load: bool = True) -> Profile.ProjectReference:
-    project_reference = MemoryProjectReference()
+def add_project_memory(profile: Profile.Profile, _uuid: uuid.UUID = None, load: bool = True, d: typing.Dict = None, make_storage_error: bool = False, make_uuid_error: bool = False) -> Profile.ProjectReference:
+    if make_uuid_error:
+        d = d or dict()
+        d["uuid"] = 999
+    project_reference = MemoryProjectReference(d, make_storage_error)
     project_reference.project_uuid = _uuid or uuid.uuid4()
     return profile.add_project_reference(project_reference, load)
 
