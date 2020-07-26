@@ -239,7 +239,11 @@ class Application(UIApplication.BaseApplication):
                 elif project_reference.project_state == "needs_upgrade":
                     def handle_upgrade(result: bool) -> None:
                         if result:
-                            new_project_reference = self.profile.upgrade(project_reference)
+                            try:
+                                new_project_reference = self.profile.upgrade(project_reference)
+                            except Exception:
+                                self.show_ok_dialog(_("Error Upgrading Project"), _("Unable to upgrade project."))
+                                new_project_reference = None
                             if new_project_reference:
                                 self.switch_project_reference(new_project_reference)
 

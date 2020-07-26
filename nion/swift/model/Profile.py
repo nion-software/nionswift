@@ -227,6 +227,8 @@ class FolderProjectReference(ProjectReference):
         legacy_path = pathlib.Path(project_storage_system.get_identifier())
         target_project_path = legacy_path.parent.with_suffix(".nsproj")
         target_data_path = target_project_path.with_name(target_project_path.stem + " Data")
+        if target_project_path.exists() or target_data_path.exists():
+            raise FileExistsError()
         logging.getLogger("loader").info(f"Created new project {target_project_path} {target_data_path}")
         target_project_uuid = uuid.uuid4()
         target_project_data_json = json.dumps(
@@ -293,6 +295,17 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.__projects_observer = None
         self.profile_context = None
         super().close()
+
+    def read_from_dict(self, properties):
+        # cleanup from beta versions
+        properties.pop("data_groups", None)
+        properties.pop("data_item_references", None)
+        properties.pop("data_item_variables", None)
+        properties.pop("project_uuid", None)
+        properties.pop("target_project_reference_uuid", None)
+        properties.pop("workspace_uuid", None)
+        properties.pop("workspaces", None)
+        super().read_from_dict(properties)
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)

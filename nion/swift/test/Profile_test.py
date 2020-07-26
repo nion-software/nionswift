@@ -354,6 +354,50 @@ class TestProfileClass(unittest.TestCase):
                 app.exit()
                 app.deinitialize()
 
+    def test_launch_with_no_project_then_open_a_project_needing_upgrade_but_unable_to_upgrade(self):
+        with create_memory_profile_context() as profile_context:
+            # use lower level calls to create the profile and open the window via the app
+            profile = profile_context.create_profile(add_project=False)
+            profile.read_profile()
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app._set_profile_for_test(profile)
+            app.initialize(load_plug_ins=False)
+            try:
+                # ensure no project references
+                self.assertEqual(0, len(profile.project_references))
+
+                # set up mock calls to get through start call
+                def setup_needs_upgrade_project(args):
+                    project_reference = TestContext.add_project_memory(profile, load=False, d={"version": 0})
+                    return project_reference
+
+                profile.open_project = unittest.mock.Mock()
+                profile.open_project.side_effect = setup_needs_upgrade_project
+                app.ui.get_file_paths_dialog = unittest.mock.Mock()
+                app.ui.get_file_paths_dialog = unittest.mock.Mock(return_value=(["PATH"], str(), str()))
+                app.show_ok_cancel_dialog = unittest.mock.Mock()
+                app.show_ok_cancel_dialog.side_effect = press_ok_cancel_and_ok_complete
+                app.show_ok_dialog = unittest.mock.Mock()
+                profile.upgrade = unittest.mock.Mock()
+                profile.upgrade.side_effect = FileExistsError()
+                logging.getLogger("loader").setLevel = unittest.mock.Mock()  # ignore this call
+
+                # start the app
+                app.start(profile=profile)
+
+                # check the mock calls
+                self.assertEqual(1, len(app.ui.get_file_paths_dialog.mock_calls))
+                profile.open_project.assert_called_once()
+                app.show_ok_cancel_dialog.assert_called_once()
+                app.show_ok_dialog.assert_called_once()
+
+                # ensure a single project is loaded
+                self.assertEqual(1, len(profile.project_references))
+                self.assertEqual(0, len(app.windows))
+            finally:
+                app.exit()
+                app.deinitialize()
+
     def test_switching_project_reloads_new_project_on_relaunch(self):
         with create_memory_profile_context() as profile_context:
             # use lower level calls to create the profile and open the window via the app
