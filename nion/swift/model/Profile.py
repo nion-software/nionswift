@@ -258,9 +258,11 @@ def project_reference_factory(lookup_id: typing.Callable[[str], str]) -> typing.
 
 
 class Profile(Observable.Observable, Persistence.PersistentObject):
+    count = 0  # useful for detecting leaks in tests
 
     def __init__(self, storage_system=None, storage_cache=None, *, profile_context: typing.Optional[ProfileContext] = None):
         super().__init__()
+        self.__class__.count += 1
 
         self.define_root_context()
         self.define_type("profile")
@@ -294,6 +296,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.__projects_observer.close()
         self.__projects_observer = None
         self.profile_context = None
+        self.__class__.count -= 1
         super().close()
 
     def read_from_dict(self, properties):

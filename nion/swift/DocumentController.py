@@ -62,9 +62,11 @@ _ = gettext.gettext
 
 class DocumentController(Window.Window):
     """Manage a document window."""
+    count = 0  # useful for detecting leaks in tests
 
     def __init__(self, ui, document_model, workspace_id=None, app: "Application.Application" = None):
         super().__init__(ui, app)
+        self.__class__.count += 1
 
         self.__undo_stack = Undo.UndoStack()
 
@@ -181,6 +183,7 @@ class DocumentController(Window.Window):
         # to determine when to close it.
         self.document_model.remove_ref()
         self.document_model = None
+        self.__class__.count -= 1
         super().close()
 
     def _register_ui_activity(self):

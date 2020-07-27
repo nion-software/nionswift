@@ -53,9 +53,11 @@ app = None
 
 # facilitate bootstrapping the application
 class Application(UIApplication.BaseApplication):
+    count = 0  # useful for detecting leaks in tests
 
     def __init__(self, ui, set_global=True, resources_path=None):
         super().__init__(ui)
+        self.__class__.count += 1
 
         logging.getLogger("migration").setLevel(logging.ERROR)
         logging.getLogger("loader").setLevel(logging.ERROR)
@@ -116,6 +118,7 @@ class Application(UIApplication.BaseApplication):
         # shut down hardware source manager, unload plug-ins, and really exit ui
         HardwareSource.HardwareSourceManager().close()
         PlugInManager.unload_plug_ins()
+        self.__class__.count -= 1
         super().deinitialize()
 
     def run(self):

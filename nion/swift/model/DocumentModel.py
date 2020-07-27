@@ -544,12 +544,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     The document model provides a dispatcher object which will run tasks in a thread pool.
     """
+    count = 0  # useful for detecting leaks in tests
 
     computation_min_period = 0.0
     computation_min_factor = 0.0
 
     def __init__(self, project: Project.Project, *, storage_cache = None):
         super().__init__()
+        self.__class__.count += 1
 
         self.about_to_close_event = Event.Event()
 
@@ -759,6 +761,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__project.persistent_object_context = None
         self.__project.close()
         self.__project = None
+        self.__class__.count -= 1
 
     def __call_soon(self, fn):
         # add the function to the queue of items to call on the main thread.
