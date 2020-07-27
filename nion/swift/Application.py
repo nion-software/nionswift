@@ -241,25 +241,7 @@ class Application(UIApplication.BaseApplication):
         if len(paths) == 1:
             project_reference = self.profile.open_project(pathlib.Path(paths[0]))
             if project_reference:
-                if project_reference.project_version in (2, 3) and project_reference.project_state == "unloaded":
-                    self.switch_project_reference(project_reference)
-                elif project_reference.project_state == "needs_upgrade":
-                    def handle_upgrade(result: bool) -> None:
-                        if result:
-                            try:
-                                new_project_reference = self.profile.upgrade(project_reference)
-                            except Exception:
-                                self.show_ok_dialog(_("Error Upgrading Project"), _("Unable to upgrade project."))
-                                new_project_reference = None
-                            if new_project_reference:
-                                self.switch_project_reference(new_project_reference)
-
-                    self.show_ok_cancel_dialog(_("Project Needs Upgrade"),
-                                               _("This project needs to be upgraded to work with this version."),
-                                               ok_text=_("Upgrade"),
-                                               completion_fn=handle_upgrade)
-                else:
-                    self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_open_project_dialog)
+                self.open_project_reference(project_reference)
             else:
                 self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_open_project_dialog)
 
@@ -334,14 +316,38 @@ class Application(UIApplication.BaseApplication):
                 menu.remove_action(recent_project_action)
         window._dynamic_recent_project_actions = []
         for project_reference in self.__profile.project_references:
-            if project_reference.project_version in (2, 3) and project_reference.project_state == "unloaded":
-                action = menu.add_menu_item(project_reference.title, functools.partial(self.switch_project_reference, project_reference))
+            if project_reference.project_state != "loaded":
+                project_title = project_reference.title
+                if project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
+                    project_title += " " + _("(NEEDS UPGRADE)")
+                action = menu.add_menu_item(project_title, functools.partial(self.open_project_reference, project_reference))
                 window._dynamic_recent_project_actions.append(action)
 
     def create_project_reference(self, directory: pathlib.Path, project_name: str) -> None:
         project_reference = self.profile.create_project(directory, project_name)
         if project_reference:
             self.switch_project_reference(project_reference)
+
+    def open_project_reference(self, project_reference: Profile.ProjectReference) -> None:
+        if project_reference.project_version == FileStorageSystem.PROJECT_VERSION and project_reference.project_state == "unloaded":
+            self.switch_project_reference(project_reference)
+        elif project_reference.project_state == "needs_upgrade":
+            def handle_upgrade(result: bool) -> None:
+                if result:
+                    try:
+                        new_project_reference = self.profile.upgrade(project_reference)
+                    except Exception:
+                        self.show_ok_dialog(_("Error Upgrading Project"), _("Unable to upgrade project."))
+                        new_project_reference = None
+                    if new_project_reference:
+                        self.switch_project_reference(new_project_reference)
+
+            self.show_ok_cancel_dialog(_("Project Needs Upgrade"),
+                                       _("This project needs to be upgraded to work with this version."),
+                                       ok_text=_("Upgrade"),
+                                       completion_fn=handle_upgrade)
+        else:
+            self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_open_project_dialog)
 
     def switch_project_reference(self, project_reference: Profile.ProjectReference) -> None:
         for window in self.windows:

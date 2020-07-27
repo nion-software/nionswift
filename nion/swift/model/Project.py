@@ -158,7 +158,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         project_uuid = self.project_uuid
         project_version = self.project_version
         if project_uuid is not None and project_version is not None:
-            if project_version in (FileStorageSystem.PROJECT_VERSION, 2):
+            if project_version  == FileStorageSystem.PROJECT_VERSION:
                 return "loaded" if self.__has_been_read else "unloaded"
             else:
                 return "needs_upgrade"
@@ -242,7 +242,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         properties = self._raw_properties
         if properties:
             project_version = properties.get("version", None)
-            if project_version is not None and project_version in (FileStorageSystem.PROJECT_VERSION, 2):
+            if project_version is not None and project_version == FileStorageSystem.PROJECT_VERSION:
                 for item_d in properties.get("data_items", list()):
                     data_item = DataItem.DataItem()
                     data_item.begin_reading()
