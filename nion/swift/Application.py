@@ -6,6 +6,7 @@ import functools
 import gettext
 import json
 import logging
+import operator
 import os
 import pathlib
 import sys
@@ -224,6 +225,7 @@ class Application(UIApplication.BaseApplication):
         document_controller = self.create_document_controller(document_model, "library")
 
         self.__profile.last_project_reference = project_reference.uuid
+        project_reference.last_used = datetime.datetime.now()
 
         def window_closed():
             pass # print(f"CLOSED {document_controller.title}")
@@ -315,7 +317,9 @@ class Application(UIApplication.BaseApplication):
             for recent_project_action in window._dynamic_recent_project_actions:
                 menu.remove_action(recent_project_action)
         window._dynamic_recent_project_actions = []
-        for project_reference in self.__profile.project_references:
+        project_references = filter(lambda pr: pr.project_state != "loaded", self.__profile.project_references)
+        project_references = sorted(project_references, key=operator.attrgetter("last_used"), reverse=True)
+        for project_reference in project_references[:20]:
             if project_reference.project_state != "loaded":
                 project_title = project_reference.title
                 if project_reference.project_version != FileStorageSystem.PROJECT_VERSION:

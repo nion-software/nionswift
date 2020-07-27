@@ -2,9 +2,11 @@ from __future__ import annotations
 
 # standard libraries
 import contextlib
+import datetime
 import gettext
 import json
 import logging
+import os
 import pathlib
 import typing
 import uuid
@@ -33,6 +35,7 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         super().__init__()
         self.define_type(type)
         self.define_property("project_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("last_used", None, converter=Converter.DatetimeToStringConverter())
         self.__has_project_info_been_read = False
         self.__project_version = None
         self.__project_state = "invalid"
@@ -76,6 +79,15 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         else:
             container.remove_item(name, item)
             return Changes.UndeleteLog()
+
+    def read_from_dict(self, properties):
+        super().read_from_dict(properties)
+        if not self.last_used:
+            self.last_used = self._get_last_used()
+
+    def _get_last_used(self) -> datetime.datetime:
+        # fallback when last_used is not initialized
+        return self.modified
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -206,6 +218,13 @@ class IndexProjectReference(ProjectReference):
     def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         return FileStorageSystem.make_index_project_storage_system(self.project_path)
 
+    def _get_last_used(self) -> datetime.datetime:
+        # fallback when last_used is not initialized
+        try:
+            return datetime.datetime.fromtimestamp(os.path.getmtime(self.project_path))
+        except Exception:
+            return super()._get_last_used()
+
 
 class FolderProjectReference(ProjectReference):
     type = "project_folder"
@@ -222,6 +241,13 @@ class FolderProjectReference(ProjectReference):
         if self.project_folder_path:
             return FileStorageSystem.make_folder_project_storage_system(self.project_folder_path)
         return None
+
+    def _get_last_used(self) -> datetime.datetime:
+        # fallback when last_used is not initialized
+        try:
+            return datetime.datetime.fromtimestamp(os.path.getmtime(self.project_folder_path))
+        except Exception:
+            return super()._get_last_used()
 
     def _upgrade_project_storage_system(self, project_storage_system: FileStorageSystem.ProjectStorageSystem) -> ProjectReference:
         legacy_path = pathlib.Path(project_storage_system.get_identifier())
