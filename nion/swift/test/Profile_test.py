@@ -441,7 +441,7 @@ class TestProfileClass(unittest.TestCase):
             app._set_profile_for_test(profile)
             app.initialize(load_plug_ins=False)
             try:
-                # ensure one project reference
+                # ensure two project references
                 self.assertEqual(2, len(profile.project_references))
                 profile.last_project_reference = profile.project_references[0].uuid
 
@@ -457,6 +457,63 @@ class TestProfileClass(unittest.TestCase):
             finally:
                 app.exit()
                 app.deinitialize()
+
+    def test_switch_to_project_with_error(self):
+        # test both json error and general storage error
+        for uuid_error, storage_error in ((True, False), (False, True)):
+            with self.subTest(uuid_error=uuid_error, storage_error=storage_error):
+                with create_memory_profile_context() as profile_context:
+                    # use lower level calls to create the profile and open the window via the app
+                    profile = profile_context.create_profile(add_project=False)
+                    profile.read_profile()
+                    app = Application.Application(TestUI.UserInterface(), set_global=False)
+                    app._set_profile_for_test(profile)
+                    TestContext.add_project_memory(profile, load=False)
+                    TestContext.add_project_memory(profile, load=False)
+                    app.initialize(load_plug_ins=False)
+                    try:
+                        # ensure two project references
+                        self.assertEqual(2, len(profile.project_references))
+                        profile.last_project_reference = profile.project_references[0].uuid
+                        logging.getLogger("loader").setLevel = unittest.mock.Mock()  # ignore this call
+
+                        # start the app
+                        app.start(profile=profile)
+
+                        # ensure a single project is loaded
+                        self.assertEqual(2, len(profile.project_references))
+                        self.assertEqual("loaded", profile.project_references[0].project_state)
+                        self.assertEqual("unloaded", profile.project_references[1].project_state)
+                        self.assertEqual(1, len(app.windows))
+                        self.assertEqual(profile.last_project_reference, profile.project_references[0].uuid)
+
+                        # switching to an error project should display an ok message with an error, then the file
+                        # open dialog (which will be cancelled). no windows should be open at the end.
+
+                        # set up mock calls to get through the switch.
+                        if uuid_error:
+                            profile.read_project = unittest.mock.Mock()
+                            profile.read_project.side_effect = Exception()
+                        if storage_error:
+                            profile.project_references[1].make_storage = unittest.mock.Mock()
+                            profile.project_references[1].make_storage.side_effect = Exception()
+                        app.ui.get_file_paths_dialog = unittest.mock.Mock()
+                        app.ui.get_file_paths_dialog.side_effect = [([], str(), str()), ([], str(), str())]
+                        app.show_ok_dialog = unittest.mock.Mock()
+                        app.show_ok_dialog.side_effect = press_ok_and_complete
+                        logging.getLogger("loader").setLevel = unittest.mock.Mock()  # ignore this call
+
+                        # switch project and check
+                        app.switch_project_reference(profile.project_references[1])
+                        app.ui.get_file_paths_dialog.assert_called_once()
+                        app.show_ok_dialog.assert_called_once()
+                        self.assertEqual("unloaded", profile.project_references[0].project_state)
+                        self.assertEqual("unloaded", profile.project_references[1].project_state)
+                        self.assertEqual(0, len(app.windows))
+                        self.assertEqual(profile.last_project_reference, profile.project_references[0].uuid)
+                    finally:
+                        app.exit()
+                        app.deinitialize()
 
     # TODO: creating new project
     # TODO: opening project from file

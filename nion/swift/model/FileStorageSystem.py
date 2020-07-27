@@ -676,11 +676,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
     def _read_properties(self) -> typing.Dict:
         properties = dict()
         if self.__project_path and self.__project_path.exists():
-            try:
-                with self.__project_path.open("r") as fp:
-                    properties = json.load(fp)
-            except Exception:
-                os.replace(self.__project_path, self.__project_path.with_suffix(".bak"))
+            with self.__project_path.open("r") as fp:
+                properties = json.load(fp)
         return properties
 
     def _write_properties(self) -> None:
