@@ -59,6 +59,10 @@ class Application(UIApplication.BaseApplication):
         super().__init__(ui)
         self.__class__.count += 1
 
+        # reset these values for tests. otherwise tests run slower after app.start is called in any previous test.
+        DocumentModel.DocumentModel.computation_min_period = 0.0
+        DocumentModel.DocumentModel.computation_min_factor = 0.0
+
         logging.getLogger("migration").setLevel(logging.ERROR)
         logging.getLogger("loader").setLevel(logging.ERROR)
 
