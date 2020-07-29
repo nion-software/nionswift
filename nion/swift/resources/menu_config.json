@@ -6,10 +6,15 @@
         "items": [
             {
                 "type": "item",
-                "action_id": "window.close"
+                "action_id": "project.new_project"
             },
             {
-                "type": "separator"
+                "type": "item",
+                "action_id": "project.open_project"
+            },
+            {
+                "type": "item",
+                "action_id": "project.choose_project"
             },
             {
                 "type": "sub_menu",
@@ -22,11 +27,7 @@
             },
             {
                 "type": "item",
-                "action_id": "project.new_project"
-            },
-            {
-                "type": "item",
-                "action_id": "project.open_project"
+                "action_id": "window.close"
             },
             {
                 "type": "separator"

@@ -165,6 +165,30 @@ class TestProfileClass(unittest.TestCase):
             # clean up
             document_controller.close()
 
+    def test_launch_with_no_project_then_cancel_choose_dialog(self):
+        with create_memory_profile_context() as profile_context:
+            # use lower level calls to create the profile and open the window via the app
+            profile = profile_context.create_profile(add_project=False)
+            profile.read_profile()
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app._set_profile_for_test(profile)
+            app.initialize(load_plug_ins=False)
+            try:
+                # ensure no project references
+                self.assertEqual(0, len(profile.project_references))
+                # set up mock calls to get through start call and check conditions
+                app.show_choose_project_dialog = unittest.mock.Mock()
+                # start the app
+                app.start(profile=profile)
+                # check the mock calls
+                app.show_choose_project_dialog.assert_called_once()
+                # ensure no project is loaded
+                self.assertEqual(0, len(profile.project_references))
+                self.assertEqual(0, len(app.windows))
+            finally:
+                app.exit()
+                app.deinitialize()
+
     def test_launch_with_no_project_then_cancel_open_dialog(self):
         with create_memory_profile_context() as profile_context:
             # use lower level calls to create the profile and open the window via the app
@@ -180,10 +204,13 @@ class TestProfileClass(unittest.TestCase):
                 app.ui.get_file_paths_dialog = unittest.mock.Mock(return_value=([], str(), str()))
                 app.show_ok_dialog = unittest.mock.Mock()
                 app.show_ok_dialog.side_effect = press_ok_and_complete
+                app.show_choose_project_dialog = unittest.mock.Mock()
+                app.show_choose_project_dialog.side_effect = app.show_open_project_dialog
                 # start the app
                 app.start(profile=profile)
                 # check the mock calls
                 app.ui.get_file_paths_dialog.assert_called_once()
+                app.show_choose_project_dialog.assert_called_once()
                 app.show_ok_dialog.assert_not_called()
                 # ensure no project is loaded
                 self.assertEqual(0, len(profile.project_references))
@@ -210,6 +237,8 @@ class TestProfileClass(unittest.TestCase):
                 app.ui.get_file_paths_dialog = unittest.mock.Mock(return_value=(["PATH"], str(), str()))
                 app.show_ok_dialog = unittest.mock.Mock()
                 app.show_ok_dialog.side_effect = press_ok_and_complete
+                app.show_choose_project_dialog = unittest.mock.Mock()
+                app.show_choose_project_dialog.side_effect = app.show_open_project_dialog
                 logging.getLogger("loader").setLevel = unittest.mock.Mock()  # ignore this call
 
                 # start the app
@@ -218,6 +247,7 @@ class TestProfileClass(unittest.TestCase):
                 # check the mock calls
                 app.ui.get_file_paths_dialog.assert_called_once()
                 profile.open_project.assert_called_once()
+                app.show_choose_project_dialog.assert_called_once()
                 app.show_ok_dialog.assert_not_called()
 
                 # ensure a single project is loaded
@@ -248,6 +278,8 @@ class TestProfileClass(unittest.TestCase):
                             project_reference = TestContext.add_project_memory(profile, load=False, make_uuid_error=uuid_error, make_storage_error=storage_error)
                             return project_reference
 
+                        app.show_choose_project_dialog = unittest.mock.Mock()
+                        app.show_choose_project_dialog.side_effect = app.show_open_project_dialog
                         profile.open_project = unittest.mock.Mock()
                         profile.open_project.side_effect = setup_bad_project
                         app.ui.get_file_paths_dialog = unittest.mock.Mock()
@@ -295,6 +327,8 @@ class TestProfileClass(unittest.TestCase):
                 app.ui.get_file_paths_dialog = unittest.mock.Mock(return_value=(["PATH"], str(), str()))
                 app.show_ok_cancel_dialog = unittest.mock.Mock()
                 app.show_ok_cancel_dialog.side_effect = press_ok_cancel_and_cancel_complete
+                app.show_choose_project_dialog = unittest.mock.Mock()
+                app.show_choose_project_dialog.side_effect = app.show_open_project_dialog
                 logging.getLogger("loader").setLevel = unittest.mock.Mock()  # ignore this call
 
                 # start the app
@@ -303,6 +337,7 @@ class TestProfileClass(unittest.TestCase):
                 # check the mock calls
                 self.assertEqual(1, len(app.ui.get_file_paths_dialog.mock_calls))
                 profile.open_project.assert_called_once()
+                app.show_choose_project_dialog.assert_called_once()
                 app.show_ok_cancel_dialog.assert_called_once()
 
                 # ensure a single project is loaded
@@ -336,6 +371,8 @@ class TestProfileClass(unittest.TestCase):
                 app.ui.get_file_paths_dialog = unittest.mock.Mock(return_value=(["PATH"], str(), str()))
                 app.show_ok_cancel_dialog = unittest.mock.Mock()
                 app.show_ok_cancel_dialog.side_effect = press_ok_cancel_and_ok_complete
+                app.show_choose_project_dialog = unittest.mock.Mock()
+                app.show_choose_project_dialog.side_effect = app.show_open_project_dialog
                 logging.getLogger("loader").setLevel = unittest.mock.Mock()  # ignore this call
 
                 # start the app
@@ -344,6 +381,7 @@ class TestProfileClass(unittest.TestCase):
                 # check the mock calls
                 self.assertEqual(1, len(app.ui.get_file_paths_dialog.mock_calls))
                 profile.open_project.assert_called_once()
+                app.show_choose_project_dialog.assert_called_once()
                 app.show_ok_cancel_dialog.assert_called_once()
 
                 # ensure a single project is loaded
@@ -375,6 +413,8 @@ class TestProfileClass(unittest.TestCase):
                 profile.open_project.side_effect = setup_needs_upgrade_project
                 app.ui.get_file_paths_dialog = unittest.mock.Mock()
                 app.ui.get_file_paths_dialog = unittest.mock.Mock(return_value=(["PATH"], str(), str()))
+                app.show_choose_project_dialog = unittest.mock.Mock()
+                app.show_choose_project_dialog.side_effect = app.show_open_project_dialog
                 app.show_ok_cancel_dialog = unittest.mock.Mock()
                 app.show_ok_cancel_dialog.side_effect = press_ok_cancel_and_ok_complete
                 app.show_ok_dialog = unittest.mock.Mock()
@@ -388,6 +428,7 @@ class TestProfileClass(unittest.TestCase):
                 # check the mock calls
                 self.assertEqual(1, len(app.ui.get_file_paths_dialog.mock_calls))
                 profile.open_project.assert_called_once()
+                app.show_choose_project_dialog.assert_called_once()
                 app.show_ok_cancel_dialog.assert_called_once()
                 app.show_ok_dialog.assert_called_once()
 
@@ -476,6 +517,8 @@ class TestProfileClass(unittest.TestCase):
                         self.assertEqual(2, len(profile.project_references))
                         profile.last_project_reference = profile.project_references[0].uuid
                         logging.getLogger("loader").setLevel = unittest.mock.Mock()  # ignore this call
+                        app.show_choose_project_dialog = unittest.mock.Mock()
+                        app.show_choose_project_dialog.side_effect = app.show_open_project_dialog
 
                         # start the app
                         app.start(profile=profile)

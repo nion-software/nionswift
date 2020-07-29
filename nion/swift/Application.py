@@ -40,6 +40,7 @@ from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
 from nion.ui import Application as UIApplication
+from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import UserInterface
 from nion.ui import Window as UIWindow
@@ -194,7 +195,7 @@ class Application(UIApplication.BaseApplication):
             try:
                 document_controller = self.open_project_window(project_reference)
             except Exception:
-                self.show_ok_dialog(_("Error Opening Project"), _("Unable to open default project."), completion_fn=self.show_open_project_dialog)
+                self.show_ok_dialog(_("Error Opening Project"), _("Unable to open default project."), completion_fn=self.show_choose_project_dialog)
                 return True
 
             if profile_dir is None:
@@ -205,7 +206,7 @@ class Application(UIApplication.BaseApplication):
                 document_controller.selected_display_panel.set_display_panel_display_item(document_controller.document_model.display_items[0])
                 document_controller.selected_display_panel.perform_action("set_fill_mode")
         else:
-            self.show_open_project_dialog()
+            self.show_choose_project_dialog()
 
         return True
 
@@ -245,7 +246,65 @@ class Application(UIApplication.BaseApplication):
             if project_reference:
                 self.open_project_reference(project_reference)
             else:
-                self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_open_project_dialog)
+                self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_choose_project_dialog)
+
+    def show_choose_project_dialog(self) -> None:
+        u = Declarative.DeclarativeUI()
+        button_row = u.create_row(u.create_push_button(text=_("New..."), on_clicked="new_project"),
+                                  u.create_push_button(text=_("Open..."), on_clicked="open_project"),
+                                  u.create_stretch(),
+                                  u.create_push_button(text=_("Cancel"), on_clicked="close_window"),
+                                  u.create_push_button(text=_("Open Recent")),
+                                  spacing=8)
+
+        used_project_references = list()
+        project_titles = list()
+
+        project_references = filter(lambda pr: pr.project_state != "loaded", self.__profile.project_references)
+        project_references = sorted(project_references, key=operator.attrgetter("last_used"), reverse=True)
+        for project_reference in project_references[:20]:
+            if project_reference.project_state != "loaded":
+                project_title = project_reference.title
+                if project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
+                    project_title += " " + _("(NEEDS UPGRADE)")
+                used_project_references.append(project_reference)
+                project_titles.append(project_title)
+
+        item_list = u.create_list_box(items=project_titles, height=240, min_height=180, size_policy_horizontal="expanding", on_item_selected="recent_item_selected")
+
+        main_column = u.create_column(u.create_label(text=_("Recent Projects")),
+                                      item_list,
+                                      u.create_spacing(13),
+                                      button_row, spacing=8, width=380)
+        window = u.create_window(main_column, title=_("Choose Project"), margin=12, window_style="tool")
+
+        def switch_project_reference(project_reference: Profile.ProjectReference) -> None:
+            self.switch_project_reference(project_reference)
+
+        def show_open_project_dialog() -> None:
+            self.show_open_project_dialog()
+
+        def show_new_project_dialog() -> None:
+            NewProjectAction().invoke(UIWindow.ActionContext(self, None, None))
+
+        class ChooseProjectHandler(Declarative.WindowHandler):
+            def __init__(self):
+                super().__init__()
+
+            def recent_item_selected(self, widget: Declarative.UIWidget, current_index: int) -> None:
+                if 0 <= current_index < len(used_project_references):
+                    self.close_window()
+                    switch_project_reference(used_project_references[current_index])
+
+            def new_project(self, widget: Declarative.UIWidget) -> None:
+                self.close_window()
+                show_new_project_dialog()
+
+            def open_project(self, widget: Declarative.UIWidget) -> None:
+                self.close_window()
+                show_open_project_dialog()
+
+        ChooseProjectHandler().run(self, window)
 
     def get_recent_library_paths(self):
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
@@ -351,7 +410,7 @@ class Application(UIApplication.BaseApplication):
                                        ok_text=_("Upgrade"),
                                        completion_fn=handle_upgrade)
         else:
-            self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_open_project_dialog)
+            self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_choose_project_dialog)
 
     def switch_project_reference(self, project_reference: Profile.ProjectReference) -> None:
         for window in self.windows:
@@ -360,7 +419,7 @@ class Application(UIApplication.BaseApplication):
         try:
             self.open_project_window(project_reference)
         except Exception:
-            self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_open_project_dialog)
+            self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_choose_project_dialog)
 
     def run_all_tests(self):
         Test.run_all_tests()
@@ -497,5 +556,17 @@ class OpenProjectAction(UIWindow.Action):
         return UIWindow.ActionResult.FINISHED
 
 
+class ChooseProjectAction(UIWindow.Action):
+    action_id = "project.choose_project"
+    action_name = _("Choose Project...")
+
+    def invoke(self, context_: UIWindow.ActionContext) -> UIWindow.ActionResult:
+        context = typing.cast(DocumentController.DocumentController.ActionContext, context_)
+        application = typing.cast(Application, context.application)
+        application.show_choose_project_dialog()
+        return UIWindow.ActionResult.FINISHED
+
+
 UIWindow.register_action(NewProjectAction())
 UIWindow.register_action(OpenProjectAction())
+UIWindow.register_action(ChooseProjectAction())

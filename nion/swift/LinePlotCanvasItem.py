@@ -572,7 +572,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 line_graph_canvas_item.set_axes(None)
                 line_graph_canvas_item.set_uncalibrated_xdata(None)
             self.__line_graph_xdata_list = list()
-            self.__update_canvas_items(LineGraphCanvasItem.LineGraphAxes(), None, None)
+            self.__update_canvas_items(LineGraphCanvasItem.LineGraphAxes(), None, None, None)
 
     def _inserted(self, container):
         # make sure we get 'prepare_render' calls
