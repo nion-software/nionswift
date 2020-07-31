@@ -265,8 +265,10 @@ class Application(UIApplication.BaseApplication):
         for project_reference in project_references[:20]:
             if project_reference.project_state != "loaded":
                 project_title = project_reference.title
-                if project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
+                if project_reference.project_state == "needs_upgrade":
                     project_title += " " + _("(NEEDS UPGRADE)")
+                elif project_reference.project_state != "unloaded" or project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
+                    project_title += " " + _("(MISSING OR UNREADABLE)")
                 used_project_references.append(project_reference)
                 project_titles.append(project_title)
 
@@ -278,8 +280,8 @@ class Application(UIApplication.BaseApplication):
                                       button_row, spacing=8, width=380)
         window = u.create_window(main_column, title=_("Choose Project"), margin=12, window_style="tool")
 
-        def switch_project_reference(project_reference: Profile.ProjectReference) -> None:
-            self.switch_project_reference(project_reference)
+        def open_project_reference(project_reference: Profile.ProjectReference) -> None:
+            self.open_project_reference(project_reference)
 
         def show_open_project_dialog() -> None:
             self.show_open_project_dialog()
@@ -294,7 +296,7 @@ class Application(UIApplication.BaseApplication):
             def recent_item_selected(self, widget: Declarative.UIWidget, current_index: int) -> None:
                 if 0 <= current_index < len(used_project_references):
                     self.close_window()
-                    switch_project_reference(used_project_references[current_index])
+                    open_project_reference(used_project_references[current_index])
 
             def new_project(self, widget: Declarative.UIWidget) -> None:
                 self.close_window()
@@ -381,8 +383,10 @@ class Application(UIApplication.BaseApplication):
         for project_reference in project_references[:20]:
             if project_reference.project_state != "loaded":
                 project_title = project_reference.title
-                if project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
+                if project_reference.project_state == "needs_upgrade":
                     project_title += " " + _("(NEEDS UPGRADE)")
+                elif project_reference.project_state != "unloaded" or project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
+                    project_title += " " + _("(MISSING OR UNREADABLE)")
                 action = menu.add_menu_item(project_title, functools.partial(self.open_project_reference, project_reference))
                 window._dynamic_recent_project_actions.append(action)
 
