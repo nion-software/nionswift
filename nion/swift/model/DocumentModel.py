@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import abc
 import asyncio
@@ -525,14 +527,21 @@ class MappedItemManager(metaclass=Registry.Singleton):
 
     def __init__(self):
         self.__item_map = dict()
+        self.__document_map = dict()
 
-    def register(self, item: Persistence.PersistentObject) -> str:
+    def register(self, document_model: DocumentModel, item: Persistence.PersistentObject) -> str:
         for r in range(1, 1000000):
             r_var = "r{:02d}".format(r)
             if not r_var in self.__item_map:
                 self.__item_map[r_var] = item
+                self.__document_map.setdefault(document_model, set()).add(r_var)
                 return r_var
         return str()
+
+    def unregister_document(self, document_model: DocumentModel) -> None:
+        r_vars = self.__document_map.pop(document_model, set())
+        for r_var in r_vars:
+            self.__item_map.pop(r_var, None)
 
     @property
     def item_map(self) -> typing.Mapping[str, Persistence.PersistentObject]:
@@ -671,7 +680,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             if isinstance(item_proxy.item, DataItem.DataItem):
                 data_item = typing.cast(DataItem.DataItem, item_proxy.item)
                 if not data_item in MappedItemManager().item_map.values():
-                    data_item.set_r_value(MappedItemManager().register(item_proxy.item), notify_changed=False)
+                    data_item.set_r_value(MappedItemManager().register(self, item_proxy.item), notify_changed=False)
                     new_mapped_items.append(data_item.item_specifier.write())
         # self._project.mapped_items = new_mapped_items
 
@@ -700,6 +709,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             if self.__computation_active_item:
                 self.__computation_active_item.valid = False
                 self.__computation_active_item = None
+
+        # r_vars
+        MappedItemManager().unregister_document(self)
 
         # close implicit connections
         self.__implicit_map_connection.close()
@@ -1042,7 +1054,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def assign_variable_to_data_item(self, data_item: DataItem.DataItem) -> str:
         if not data_item.r_var:
-            data_item.set_r_value(MappedItemManager().register(data_item))
+            data_item.set_r_value(MappedItemManager().register(self, data_item))
             mapped_items = self._project.mapped_items
             mapped_items.append(data_item.project.create_specifier(data_item).write())
             self._project.mapped_items = mapped_items

@@ -4152,6 +4152,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_item_variable_reloads(self):
         with create_memory_profile_context() as profile_context:
+            self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.keys()))
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 item_uuid = uuid.uuid4()
@@ -4159,9 +4160,11 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
                 key = document_model.assign_variable_to_data_item(data_item)
                 self.assertEqual(key, document_model.data_items[0].r_var)
+            self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.keys()))
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 self.assertIsNotNone(document_model.data_items[0].r_var)
+            self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.keys()))
 
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
