@@ -2947,6 +2947,15 @@ class ProjectionSumAction(ProcessingAction):
         return Window.ActionResult.FINISHED
 
 
+class RebinAction(ProcessingAction):
+    action_id = "processing.rebin"
+    action_name = _("Rebin")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        self.invoke_processing(context, context.model.get_rebin_new)
+        return Window.ActionResult.FINISHED
+
+
 class ResampleAction(ProcessingAction):
     action_id = "processing.resample"
     action_name = _("Resample")
@@ -3115,6 +3124,7 @@ Window.register_action(PickAction())
 Window.register_action(PickAverageAction())
 Window.register_action(PickSumAction())
 Window.register_action(ProjectionSumAction())
+Window.register_action(RebinAction())
 Window.register_action(ResampleAction())
 Window.register_action(ResizeAction())
 Window.register_action(ScalarAction())

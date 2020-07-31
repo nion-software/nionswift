@@ -229,6 +229,10 @@
                     },
                     {
                         "type": "item",
+                        "action_id": "processing.rebin"
+                    },
+                    {
+                        "type": "item",
                         "action_id": "processing.resample"
                     },
                     {
