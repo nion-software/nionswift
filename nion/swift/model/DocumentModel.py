@@ -2538,7 +2538,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
                 "out_regions": [pick_sum_out_region]}
             line_profile_in_region = {"name": "line_region", "type": "line", "params": {"label": _("Line Profile")}}
-            vs["line-profile"] = {"title": _("Line Profile"), "expression": "xd.line_profile({src}.display_xdata, line_region.vector, line_region.line_width)",
+            vs["line-profile"] = {"title": _("Line Profile"), "expression": "xd.line_profile(xd.absolute({src}.xdata) if {src}.xdata.is_data_complex_type else {src}.xdata, line_region.vector, line_region.line_width)",
                 "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}]}
             vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft({src}.filtered_xdata))",
                 "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d]}]}
