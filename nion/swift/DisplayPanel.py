@@ -217,6 +217,15 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         canvas_width = self.canvas_size[1]
         canvas_height = self.canvas_size[0]
 
+        # draw the border
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.rect(0, 0, canvas_width, canvas_height)
+            drawing_context.line_join = "miter"
+            drawing_context.stroke_style = "#AAA"
+            drawing_context.line_width = 0.5
+            drawing_context.stroke()
+
         drop_regions_map = self.__drop_regions_map
 
         if self.__drop_region != "none":
@@ -239,9 +248,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
                 drawing_context.fill()
 
         if self.selected:
-
             stroke_style = self.__focused_style if self.focused else self.__selected_style
-
             if stroke_style:
                 with drawing_context.saver():
                     drawing_context.begin_path()
@@ -1225,8 +1232,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         self.__display_changed = False  # put this at end of init to avoid transient initialization states
 
-        self.__header_canvas_item.label = "#" + self.identifier
-
         self.__change_display_panel_content(document_controller, d)
 
     def close(self):
@@ -1362,7 +1367,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                     self.__switch_to_grid_browser()
                 else:
                     self.__switch_to_no_browser()
-            self.__header_canvas_item.label = "#" + self.identifier
         except Exception as e:
             # catch and print any exceptions, but kill the exception so layout stays intact
             global _test_log_exceptions
