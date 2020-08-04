@@ -321,6 +321,29 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.display_canvas_item.layout_immediate((640, 480))
             display_panel.display_canvas_item.simulate_click((240, 16))
 
+    def test_narrow_line_plot_with_nans_is_drawn_properly(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data = numpy.random.rand(200)
+            data[0] = numpy.nan
+            data_item = DataItem.DataItem(data)
+            data_item.set_xdata(DataAndMetadata.new_data_and_metadata(data))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate((100, 480))
+            axes = display_panel.display_canvas_item._axes
+            drawing_context = DrawingContext.DrawingContext()
+            calibrated_data_min = axes.calibrated_data_min
+            calibrated_data_max = axes.calibrated_data_max
+            calibrated_data_range = calibrated_data_max - calibrated_data_min
+            display_xdata = display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata
+            LineGraphCanvasItem.draw_line_graph(drawing_context, 480, 100, 0, 0, display_xdata, calibrated_data_min, calibrated_data_range, axes.calibrated_left_channel, axes.calibrated_right_channel, axes.x_calibration, "black", "black", None, axes.data_style)
+            # ensure that the drawing commands are sufficiently populated to have drawn the graph
+            self.assertGreater(len(drawing_context.commands), 100)
+
     def test_check_exponents(self):
         e = LineGraphCanvasItem.Exponenter()
         e.add_label("5e+05")
