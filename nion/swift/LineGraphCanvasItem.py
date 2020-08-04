@@ -392,7 +392,7 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
                 binned_data = Image.rebin_1d(calibrated_data, binned_length, rebin_cache)
                 binned_left = int(uncalibrated_left_channel * plot_width / uncalibrated_width)
                 # draw the plot
-                last_px = plot_origin_x
+                px = plot_origin_x
                 last_py = baseline
                 for i in range(0, plot_width):
                     px = plot_origin_x + i
@@ -419,24 +419,21 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
                             else:
                                 stroke_path.move_to(px, baseline)
                                 stroke_path.line_to(px, py)
-                        last_px = px
                         last_py = py
                     else:
                         if did_draw:
                             did_draw = False
                             stroke_path.line_to(px, last_py)
                             if stroke_color and not fill_color:
-                                stroke_path.line_to(last_px, shape_origin_y)
-                            finalize_path(drawing_context, stroke_path, shape_origin_x, last_px, shape_origin_y, fill_color, stroke_color)
+                                stroke_path.line_to(px, shape_origin_y)
+                            finalize_path(drawing_context, stroke_path, shape_origin_x, px, shape_origin_y, fill_color, stroke_color)
                             stroke_path = DrawingContext.DrawingContext()
                             drawing_context.begin_path()
-                        last_px = px
-                        #stroke_path.move_to(px, last_py)
 
                 stroke_path.line_to(plot_origin_x + plot_width, last_py)
 
-            if did_draw:
-                finalize_path(drawing_context, stroke_path, shape_origin_x, last_px, shape_origin_y, fill_color, stroke_color)
+                if did_draw:
+                    finalize_path(drawing_context, stroke_path, shape_origin_x, px, shape_origin_y, fill_color, stroke_color)
 
         else:
             if fill_color or stroke_color:
