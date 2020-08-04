@@ -968,8 +968,7 @@ class Exponenter:
     def draw_scientific_notation(self, drawing_context: DrawingContext.DrawingContext, ui_settings: UISettings.UISettings, fonts: typing.Tuple[str, str], label: str, width: int, y: int) -> None:
         labels = self.used_labels(label)
         if labels[1] is not None:
-            mw = max(ui_settings.get_font_metrics(fonts[1], _labels[1]).width for _labels in self.__labels_list)
-            w = ui_settings.get_font_metrics(fonts[1], labels[1])
+            mw = max([ui_settings.get_font_metrics(fonts[1], _labels[1]).width for _labels in self.__labels_list], default=0)
             drawing_context.font = fonts[0]
             drawing_context.text_align = "right"
             drawing_context.fill_text(labels[0], width - mw, y)
