@@ -376,9 +376,10 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
         drawing_context.begin_path()
         if calibrated_data_range != 0.0 and uncalibrated_width > 0.0:
             if data_style == "log":
-                baseline = plot_origin_y + plot_height - (plot_height * float(numpy.amin(calibrated_xdata.data) - calibrated_data_min) / calibrated_data_range)
+                baseline = plot_origin_y + plot_height
             else:
                 baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - calibrated_data_min) / calibrated_data_range)
+
             baseline = min(plot_origin_y + plot_height, baseline)
             baseline = max(plot_origin_y, baseline)
             # rebin so that uncalibrated_width corresponds to plot width
