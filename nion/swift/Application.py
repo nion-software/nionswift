@@ -306,7 +306,7 @@ class Application(UIApplication.BaseApplication):
                 self.close_window()
                 show_open_project_dialog()
 
-        ChooseProjectHandler().run(self, window)
+        ChooseProjectHandler().run(window, app=self)
 
     def get_recent_library_paths(self):
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
