@@ -144,12 +144,21 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
         self.__line_graph_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem()
+        self.__line_graph_legend_row = CanvasItem.CanvasItemComposition()
+        self.__line_graph_legend_row.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(4, 8, 4, 8))
         self.__line_graph_legend_canvas_item = LineGraphCanvasItem.LineGraphLegendCanvasItem(ui_settings, delegate)
+        self.__line_graph_legend_row.add_stretch()
+        self.__line_graph_legend_row.add_canvas_item(self.__line_graph_legend_canvas_item)
+        self.__line_graph_legend_row.add_stretch()
+        self.__line_graph_legend_column = CanvasItem.CanvasItemComposition()
+        self.__line_graph_legend_column.layout = CanvasItem.CanvasItemColumnLayout()
+        self.__line_graph_legend_column.add_canvas_item(self.__line_graph_legend_row)
+        self.__line_graph_legend_column.add_stretch()
         self.__line_graph_frame_canvas_item = LineGraphCanvasItem.LineGraphFrameCanvasItem()
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_background_canvas_item)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_stack)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_regions_canvas_item)
-        self.__line_graph_area_stack.add_canvas_item(self.__line_graph_legend_canvas_item)
+        self.__line_graph_area_stack.add_canvas_item(self.__line_graph_legend_column)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_frame_canvas_item)
 
         for i in range(16):
@@ -254,23 +263,17 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         return self.___has_valid_drawn_graph_data
 
     def __update_legend_origin(self):
-        plot_rect = self.__line_graph_area_stack.canvas_bounds
-        if plot_rect:
-            plot_width = int(plot_rect[1][1]) - 1
-            plot_origin_x = int(plot_rect[0][1])
-            plot_origin_y = int(plot_rect[0][0])
-
-            line_height = self.__line_graph_legend_canvas_item.font_size + 4
-            border = 4
-            legend_size = self.__line_graph_legend_canvas_item.get_bounds()
-
-            if self.__legend_position == "top-left":
-                legend_origin = Geometry.IntPoint(x=plot_origin_x + 10, y=plot_origin_y + line_height * 0.5 - border)
-            else:
-                legend_origin = Geometry.IntPoint(x=plot_origin_x + plot_width - 10 - legend_size.width,
-                                                  y=plot_origin_y + line_height * 0.5 - border)
-
-            self.__line_graph_legend_canvas_item.update_layout(legend_origin, self.__line_graph_legend_canvas_item.get_bounds())
+        self.__line_graph_legend_canvas_item.size_to_content()
+        if self.__legend_position == "top-left":
+            self.__line_graph_legend_canvas_item.visible = True
+            self.__line_graph_legend_row.canvas_items[0].visible = False
+            self.__line_graph_legend_row.canvas_items[2].visible = True
+        elif self.__legend_position == "top-right":
+            self.__line_graph_legend_canvas_item.visible = True
+            self.__line_graph_legend_row.canvas_items[0].visible = True
+            self.__line_graph_legend_row.canvas_items[2].visible = False
+        else:
+            self.__line_graph_legend_canvas_item.visible = False
 
     def update_display_values(self, display_values_list) -> None:
         self.__display_values_list = display_values_list

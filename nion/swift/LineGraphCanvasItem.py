@@ -1185,7 +1185,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__ui_settings = ui_settings
         self.font_size = 12
 
-    def __generate_effective_entries(self):
+    def __generate_effective_entries(self) -> None:
         """
         This function generates a new effective entries array based on how the user is dragging legend items and updates
         the bounds of the canvas item as needed.
@@ -1196,18 +1196,10 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             DisplayItem.shift_display_layers(effective_entries, self.__dragging_index, self.__entry_to_insert)
 
         self.__effective_entries = effective_entries
-        self.__update_bounds()
 
-    def __update_bounds(self):
-        """
-        Updates the bounds of the canvas item by calculating the new bounds.
-        """
-        self.update_layout(self.canvas_origin, self.get_bounds())
+        self.size_to_content()
 
-    def get_bounds(self) -> Geometry.IntSize:
-        """
-        Computes the size needed by the canvas item.
-        """
+    def size_to_content(self) -> None:
         line_height = self.font_size + 4
         border = 4
 
@@ -1224,7 +1216,10 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
         legend_width = text_width + border * 2 + line_height
 
-        return Geometry.IntSize(width=legend_width, height=legend_height)
+        new_sizing = self.copy_sizing()
+        new_sizing.set_fixed_width(legend_width)
+        new_sizing.set_fixed_height(legend_height)
+        self.update_sizing(new_sizing)
 
     def wants_drag_event(self, mime_data: UserInterface.MimeData, x: int, y: int) -> bool:
         return mime_data.has_format(MimeTypes.LAYER_MIME_TYPE)
@@ -1417,14 +1412,14 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.__foreign_legend_entry is not None and self.__entry_to_insert is not None:
             effective_entries_and_foreign.insert(self.__entry_to_insert, self.__foreign_legend_entry)
 
-        legend_height = len(effective_entries_and_foreign) * line_height + border * 2
+        legend_height = len(effective_entries_and_foreign) * line_height
 
         with drawing_context.saver():
             drawing_context.begin_path()
             drawing_context.rect(0,
                                  0,
                                  legend_width + border * 2 + line_height,
-                                 legend_height)
+                                 legend_height + border * 2)
             drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
             drawing_context.fill()
 
@@ -1432,7 +1427,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             with drawing_context.saver():
                 drawing_context.begin_path()
                 drawing_context.rect(0,
-                                     self.__entry_to_insert * line_height + border * 2,
+                                     self.__entry_to_insert * line_height + border,
                                      legend_width + border * 2 + line_height,
                                      line_height)
                 drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
@@ -1444,10 +1439,10 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.text_align = "right"
                 drawing_context.text_baseline = "bottom"
                 drawing_context.fill_style = "#000"
-                drawing_context.fill_text(legend_entry.label, legend_width + border, line_height * (index + 1))
+                drawing_context.fill_text(legend_entry.label, legend_width + border, line_height * (index + 1) - 4 + border)
 
                 drawing_context.begin_path()
-                drawing_context.rect(legend_width + border + 3, line_height * index + 3 + 4, line_height - 6, line_height - 6)
+                drawing_context.rect(legend_width + border + 3, line_height * index + 3 + border, line_height - 6, line_height - 6)
                 if legend_entry.fill_color:
                     drawing_context.fill_style = legend_entry.fill_color
                     drawing_context.fill()
