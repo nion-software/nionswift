@@ -2463,7 +2463,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     mapping_param = {"name": "mapping", "label": _("Sequence/Collection Mapping"), "type": "string", "value": "none", "value_default": "none", "control_type": "choice"}
                     vs[processing_component.processing_id].setdefault("parameters", list()).insert(0, mapping_param)
                 if processing_component.is_mappable and processing_component.is_scalar:
-                    map_out_region = {"name": "pick_point", "type": "point", "params": {"label": _("Pick")}}
+                    map_out_region = {"name": "pick_point", "type": "point", "params": {"label": _("Pick"), "role": "collection_index"}}
                     vs[processing_component.processing_id]["out_regions"] = [map_out_region]
                     # TODO: generalize this so that other sequence/collections can be accepted by making a coordinate system monitor or similar
                     # TODO: processing should declare its relationship to input coordinate system and swift should automatically connect pickers
