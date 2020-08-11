@@ -13,6 +13,7 @@ import typing
 import uuid
 import weakref
 
+from nion.data import Image
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import DataPanel
 from nion.swift import DisplayScriptCanvasItem
@@ -1606,7 +1607,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             MimeTypes.mime_data_put_display_item(mime_data, self.__display_item)
         MimeTypes.mime_data_put_panel(mime_data, None, self.save_contents())
         thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(self.__display_item)
-        self.__begin_drag(mime_data, thumbnail_data)
+        thumbnail = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data), Geometry.IntSize(w=80, h=80))) if thumbnail_data is not None else None
+        self.__begin_drag(mime_data, thumbnail)
 
     def __begin_drag(self, mime_data, thumbnail_data):
         self.drag(mime_data, thumbnail_data, drag_finished_fn=functools.partial(self._drag_finished, self.__document_controller))

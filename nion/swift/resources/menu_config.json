@@ -209,6 +209,10 @@
             },
             {
                 "type": "item",
+                "action_id": "window.edit_computation"
+            },
+            {
+                "type": "item",
                 "action_id": "window.edit_data_item_script"
             },
             {

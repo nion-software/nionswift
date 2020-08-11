@@ -47,8 +47,11 @@
     "window.close": {
         "window": "close"
     },
-    "window.edit_data_item_script": {
+    "window.edit_computation": {
         "window": "Ctrl+E"
+    },
+    "window.edit_data_item_script": {
+        "window": "Ctrl+Shift+E"
     },
     "window.open_run_scripts": {
         "window": "Ctrl+R"

@@ -5,6 +5,7 @@
 # None
 
 # local libraries
+import typing
 from nion.data import Image
 from nion.swift import MimeTypes
 from nion.swift import Thumbnails
@@ -138,13 +139,14 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
 
 class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
 
-    def __init__(self, ui, thumbnail_source: AbstractThumbnailSource, size: Geometry.IntSize):
+    def __init__(self, ui, thumbnail_source: AbstractThumbnailSource, size: typing.Optional[Geometry.IntSize] = None):
         super().__init__()
         bitmap_overlay_canvas_item = BitmapOverlayCanvasItem()
         bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#CCC", border_color="#444")
-        bitmap_canvas_item.sizing.set_fixed_size(size)
         bitmap_overlay_canvas_item.add_canvas_item(bitmap_canvas_item)
-        thumbnail_source.overlay_canvas_item.sizing.set_fixed_size(size)
+        if size is not None:
+            bitmap_canvas_item.sizing.set_fixed_size(size)
+            thumbnail_source.overlay_canvas_item.sizing.set_fixed_size(size)
         bitmap_overlay_canvas_item.add_canvas_item(thumbnail_source.overlay_canvas_item)
         self.__thumbnail_source = thumbnail_source
         self.on_drag = None
@@ -155,7 +157,7 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
             on_drag = self.on_drag
             if callable(on_drag):
                 mime_data = ui.create_mime_data()
-                valid, thumbnail = thumbnail_source.populate_mime_data_for_drag(mime_data, size)
+                valid, thumbnail = thumbnail_source.populate_mime_data_for_drag(mime_data, Geometry.IntSize(width=80, height=80))
                 if valid:
                     on_drag(mime_data, thumbnail, x, y)
 
@@ -191,13 +193,37 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
         super().close()
 
 
+class SquareCanvasItemLayout(CanvasItem.CanvasItemLayout):
+    def layout(self, canvas_origin, canvas_size, canvas_items, *, immediate=False):
+        r = Geometry.IntRect(origin=canvas_origin, size=canvas_size)
+        if canvas_size.width > canvas_size.height:
+            r = Geometry.fit_to_size(r, Geometry.IntSize(w=canvas_size.height, h=canvas_size.height))
+            super().layout(canvas_origin, r.size, canvas_items, immediate=immediate)
+        else:
+            r = Geometry.fit_to_size(r, Geometry.IntSize(w=canvas_size.width, h=canvas_size.width))
+            super().layout(canvas_origin, r.size, canvas_items, immediate=immediate)
+
+
 class ThumbnailWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, thumbnail_source: AbstractThumbnailSource, size: Geometry.IntSize):
-        super().__init__(ui.create_column_widget())
+    # when this widget is placed within a container, it will have no intrinsic size unless size is passed as a
+    # parameter. for the case where the size parameter is unspecified, setting the size policy to expanding (in both
+    # directions) tells the container that this widget would like to use all available space. however, in order for this
+    # to take effect, the container hierarchy cannot utilize unbound stretches or else this widget will not expand. the
+    # minimum size is present so that it always uses at least 32x32 pixels. the square canvas layout ensures that the
+    # thumbnail area is always square and aligned to the top-left of the container.
+
+    def __init__(self, ui, thumbnail_source: AbstractThumbnailSource, size: typing.Optional[Geometry.IntSize] = None, properties: typing.Optional[typing.Dict] = None, is_expanding: bool = False):
+        super().__init__(ui.create_column_widget(properties={"size-policy-horizontal": "expanding", "size-policy-vertical": "expanding"} if is_expanding else None))
+        if not is_expanding:
+            size = size or Geometry.IntSize(width=80, height=80)
         thumbnail_canvas_item = ThumbnailCanvasItem(ui, thumbnail_source, size)
-        bitmap_canvas_widget = ui.create_canvas_widget(properties={"height": size.height, "width": size.width})
-        bitmap_canvas_widget.canvas_item.add_canvas_item(thumbnail_canvas_item)
+        properties = properties or ({"height": size.height, "width": size.width} if size else dict())
+        bitmap_canvas_widget = ui.create_canvas_widget(properties=properties)
+        thumbnail_square = CanvasItem.CanvasItemComposition()
+        thumbnail_square.layout = SquareCanvasItemLayout()
+        thumbnail_square.add_canvas_item(thumbnail_canvas_item)
+        bitmap_canvas_widget.canvas_item.add_canvas_item(thumbnail_square)
         self.content_widget.add(bitmap_canvas_widget)
         self.on_drop_mime_data = None
         self.on_drag = None
@@ -223,10 +249,10 @@ class ThumbnailWidget(Widgets.CompositeWidgetBase):
         thumbnail_canvas_item.on_delete = delete
 
     def close(self):
-        super().close()
         self.on_drop_mime_data = None
         self.on_drag = None
         self.on_delete = None
+        super().close()
 
 
 class DataItemBitmapOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -313,7 +339,7 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
         if self.__display_item:
             MimeTypes.mime_data_put_display_item(mime_data, self.__display_item)
             rgba_image_data = self.__thumbnail_source.thumbnail_data
-            thumbnail = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(rgba_image_data), (size.width, size.height))) if rgba_image_data is not None else None
+            thumbnail = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(rgba_image_data), Geometry.IntSize(w=80, h=80))) if rgba_image_data is not None else None
             return True, thumbnail
         return False, None
 

@@ -2066,7 +2066,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 pass
             elif computation:
                 computation.source = data_item
-                computation.create_output_item("target", Symbolic.make_item(data_item))
+                computation.create_output_item("target", Symbolic.make_item(data_item), label=_("Target"))
                 self.append_computation(computation)
             elif old_computation:
                 # remove old computation without cascade (it would delete this data item itself)

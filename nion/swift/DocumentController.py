@@ -729,12 +729,14 @@ class DocumentController(Window.Window):
         console_dialog = ConsoleDialog.ConsoleDialog(self)
         console_dialog.show()
 
-    def new_edit_computation_dialog(self, data_item=None):
-        if not data_item:
-            data_item = self.selected_data_item
+    def new_edit_computation_dialog(self) -> None:
+        data_item = self.selected_data_item
         if data_item:
             edit_computation_dialog = ComputationPanel.EditComputationDialog(self, data_item)
             edit_computation_dialog.show()
+
+    def new_inspect_computation_dialog(self) -> None:
+        ComputationPanel.InspectComputationDialog(self)
 
     def new_display_editor_dialog(self, display_item: DisplayItem.DisplayItem=None):
         if not display_item:
@@ -2365,6 +2367,15 @@ class DataItemRecorderAction(Window.Action):
         return Window.ActionResult.FINISHED
 
 
+class EditComputationAction(Window.Action):
+    action_id = "window.edit_computation"
+    action_name = _("Edit Computation")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context.window.new_inspect_computation_dialog()
+        return Window.ActionResult.FINISHED
+
+
 class EditDataItemScriptAction(Window.Action):
     action_id = "window.edit_data_item_script"
     action_name = _("Edit Data Item Scripts")
@@ -2420,6 +2431,7 @@ class ToggleFilterAction(Window.Action):
 
 
 Window.register_action(DataItemRecorderAction())
+Window.register_action(EditComputationAction())
 Window.register_action(EditDataItemScriptAction())
 Window.register_action(EditDisplayScriptAction())
 Window.register_action(OpenConsoleAction())

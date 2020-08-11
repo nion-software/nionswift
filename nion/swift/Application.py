@@ -87,6 +87,7 @@ class Application(UIApplication.BaseApplication):
         self.__menu_handlers = []
 
         Registry.register_component(Inspector.DeclarativeImageChooserConstructor(self), {"declarative_constructor"})
+        Registry.register_component(Inspector.DeclarativeDataSourceChooserConstructor(self), {"declarative_constructor"})
 
         workspace_manager = Workspace.WorkspaceManager()
         workspace_manager.register_panel(SessionPanel.SessionPanel, "session-panel", _("Session"), ["left", "right"], "right", {"min-width": 320, "height": 80})

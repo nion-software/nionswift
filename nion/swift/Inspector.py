@@ -2730,7 +2730,8 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
     label_column.add_stretch()
     row.add(label_column)
     row.add_spacing(8)
-    data_item = computation.get_input(variable.name).data_item
+    computation_input = computation.get_input(variable.name)
+    data_item = computation_input.data_item if computation_input else None
 
     def drop_mime_data(mime_data, x, y):
         display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
@@ -2763,7 +2764,8 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
 
     def property_changed(key):
         if key == "specifier":
-            data_item = computation.get_input(variable.name).data_item
+            computation_input = computation.get_input(variable.name)
+            data_item = computation_input.data_item if computation_input else None
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_item_thumbnail_source.set_display_item(display_item)
 
@@ -2858,18 +2860,12 @@ class ComputationInspectorSection(InspectorSection):
             label_row.add_stretch()
             self._unbinder.add([data_item, computation], [label_widget.unbind_text])
 
-            edit_button = self.ui.create_push_button_widget(_("Edit..."))
-            edit_row = self.ui.create_row_widget()
-            edit_row.add(edit_button)
-            edit_row.add_stretch()
-
             self._variables_column_widget = self.ui.create_column_widget()
 
             stretch_column = self.ui.create_column_widget()
             stretch_column.add_stretch()
 
             self.add_widget_to_content(label_row)
-            self.add_widget_to_content(edit_row)
             self.add_widget_to_content(self._variables_column_widget)
             self.add_widget_to_content(stretch_column)
 
@@ -2882,11 +2878,6 @@ class ComputationInspectorSection(InspectorSection):
 
             self.__computation_variable_inserted_event_listener = computation.variable_inserted_event.listen(variable_inserted)
             self.__computation_variable_removed_event_listener = computation.variable_removed_event.listen(variable_removed)
-
-            def edit_clicked():
-                document_controller.new_edit_computation_dialog(data_item)
-
-            edit_button.on_clicked = edit_clicked
 
             for index, variable in enumerate(computation.variables):
                 variable_inserted(index, variable)
@@ -3270,7 +3261,7 @@ class DeclarativeImageChooserConstructor:
             properties = Declarative.construct_sizing_properties(d)
             thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, window=window)
 
-            def drop_mime_data(mime_data, x, y):
+            def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
                 document_model = self.__app.document_model
                 display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
                 thumbnail_source.display_item = display_item
@@ -3278,10 +3269,10 @@ class DeclarativeImageChooserConstructor:
                     return "copy"
                 return None
 
-            def data_item_delete():
+            def data_item_delete() -> None:
                 thumbnail_source.display_item = None
 
-            widget = DataItemThumbnailWidget.ThumbnailWidget(ui, thumbnail_source, Geometry.IntSize(80, 80))
+            widget = DataItemThumbnailWidget.ThumbnailWidget(ui, thumbnail_source, properties=properties)
             widget.on_drag = widget.drag
             widget.on_drop_mime_data = drop_mime_data
             widget.on_delete = data_item_delete
@@ -3292,3 +3283,39 @@ class DeclarativeImageChooserConstructor:
                 Declarative.connect_attributes(widget, d, handler, finishes)
 
             return widget
+
+
+class DeclarativeDataSourceChooserConstructor:
+
+    def __init__(self, app):
+        self.__app = app
+
+    def construct(self, d_type: str, ui: UserInterface.UserInterface, window, d: typing.Mapping, handler, finishes: typing.Sequence[typing.Callable[[], None]] = None) -> typing.Optional[UserInterface.Widget]:
+        if d_type == "data_source_chooser":
+            properties = Declarative.construct_sizing_properties(d)
+            thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, window=window)
+
+            def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
+                on_drop_mime_data_method = d.get("on_drop_mime_data")
+                if callable(getattr(handler, on_drop_mime_data_method, None)):
+                    return getattr(handler, on_drop_mime_data_method)(mime_data, x, y)
+                return None
+
+            def data_item_delete():
+                on_delete_method = d.get("on_delete")
+                if callable(getattr(handler, on_delete_method, None)):
+                    return getattr(handler, on_delete_method)()
+
+            widget = DataItemThumbnailWidget.ThumbnailWidget(ui, thumbnail_source, properties=properties, is_expanding=True)
+            widget.on_drag = widget.drag
+            widget.on_drop_mime_data = drop_mime_data
+            widget.on_delete = data_item_delete
+
+            if handler:
+                Declarative.connect_name(widget, d, handler)
+                Declarative.connect_reference_value(thumbnail_source, d, handler, "display_item", finishes)
+                Declarative.connect_attributes(widget, d, handler, finishes)
+
+            return widget
+
+        return None

@@ -18,15 +18,21 @@ import weakref
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import MimeTypes
 from nion.swift import Undo
+from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
+from nion.swift.model import DisplayItem
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
+from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import UserInterface
+from nion.ui import Window
 from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import ListModel
+from nion.utils import Model
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -87,6 +93,9 @@ class ComputationModel:
 
     def set_data_item(self, data_item):
         self.__set_display_item(self.document_controller.document_model.get_display_item_for_data_item(data_item))
+
+    def set_display_item(self, display_item):
+        self.__set_display_item(display_item)
 
     class AddVariableCommand(Undo.UndoableCommand):
 
@@ -748,7 +757,7 @@ def drop_mime_data(document_controller, computation: Symbolic.Computation, varia
         if graphic:
             secondary_specifier = DataStructure.get_object_specifier(graphic, project=project)
         properties = {"variable_type": "data_source", "secondary_specifier": secondary_specifier, "specifier": variable_specifier}
-        command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
+        command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), **properties)
         command.perform()
         document_controller.push_undo_command(command)
         return "copy"
@@ -757,7 +766,7 @@ def drop_mime_data(document_controller, computation: Symbolic.Computation, varia
     if data_item:
         variable_specifier = DataStructure.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item), project=project)
         properties = {"variable_type": "data_source", "secondary_specifier": dict(), "specifier": variable_specifier}
-        command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), **properties)
+        command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), **properties)
         command.perform()
         document_controller.push_undo_command(command)
         return "copy"
@@ -766,7 +775,7 @@ def drop_mime_data(document_controller, computation: Symbolic.Computation, varia
 
 def data_item_delete(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
     variable_specifier = {"type": variable.variable_type, "version": 1, "uuid": str(uuid.uuid4())}
-    command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), specifier=variable_specifier)
+    command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Source"), specifier=variable_specifier)
     command.perform()
     document_controller.push_undo_command(command)
 
@@ -799,7 +808,8 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
 
     def property_changed(key):
         if key == "specifier":
-            data_item = computation.get_input(variable.name).data_item
+            computation_input = computation.get_input(variable.name)
+            data_item = computation_input.data_item if computation_input else None
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_item_thumbnail_source.set_display_item(display_item)
 
@@ -1037,3 +1047,262 @@ class EditComputationDialog(Dialog.ActionDialog):
     @property
     def _computation_model_for_testing(self):
         return self.__computation_model
+
+
+class VariableHandler:
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
+        self.document_controller = document_controller
+        self.computation = computation
+        self.variable = variable
+        self.slider_converter = Converter.FloatToScaledIntegerConverter(1000, 0, 100)
+        self.float_str_converter = Converter.FloatToStringConverter()
+        self.int_str_converter = Converter.IntegerToStringConverter()
+        self.property_changed_event = Event.Event()
+        self.__specifier_changed_listener = variable.property_changed_event.listen(self.__variable_property_changed)
+
+    def close(self) -> None:
+        self.__specifier_changed_listener.close()
+        self.__specifier_changed_listener = None
+
+    def __variable_property_changed(self, property_name: str) -> None:
+        if property_name in ("specifier", "secondary_specifier"):
+            self.property_changed_event.fire("display_item")
+        elif property_name == "value":
+            self.property_changed_event.fire("variable_value")
+            self.property_changed_event.fire("combo_box_index")
+
+    @property
+    def variable_value(self):
+        return self.variable.value
+
+    @variable_value.setter
+    def variable_value(self, value):
+        document_controller = self.document_controller
+        computation = self.computation
+        variable = self.variable
+        if value != variable.value:
+            command = ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, value=value)
+            command.perform()
+            document_controller.push_undo_command(command)
+
+    @property
+    def combo_box_index(self):
+        if self.variable.value == "mapped":
+            return 1
+        return 0
+
+    @combo_box_index.setter
+    def combo_box_index(self, value):
+        if value == 1:
+            self.variable.value = "mapped"
+        else:
+            self.variable.value = "none"
+
+    @property
+    def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
+        document_model = self.document_controller.document_model
+        computation = self.computation
+        variable = self.variable
+        computation_input = computation.get_input(variable.name)
+        data_item = computation_input.data_item if computation_input else None
+        return document_model.get_display_item_for_data_item(data_item)
+
+    @display_item.setter
+    def display_item(self, value: DisplayItem.DisplayItem) -> None:
+        pass  # handled separately
+
+    def drop_mime_data(self, mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
+        return drop_mime_data(self.document_controller, self.computation, self.variable, mime_data, x, y)
+
+    def data_item_delete(self):
+        data_item_delete(self.document_controller, self.computation, self.variable)
+
+
+class ResultHandler:
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, result: Symbolic.ComputationOutput):
+        self.document_controller = document_controller
+        self.computation = computation
+        self.result = result
+
+    @property
+    def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
+        document_model = self.document_controller.document_model
+        output_item = list(self.result.output_items)[0]
+        if isinstance(output_item, DataItem.DataItem):
+            return document_model.get_display_item_for_data_item(output_item)
+        return None
+
+
+class ComputationHandler:
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation):
+        self.document_controller = document_controller
+        self.computation = computation
+        self.computation_inputs_model = ListModel.FilteredListModel(container=computation, master_items_key="variables")
+        self.computation_inputs_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type == "data_source")
+        self.computation_parameters_model = ListModel.FilteredListModel(container=computation, master_items_key="variables")
+        self.computation_parameters_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type != "data_source")
+
+    def close(self) -> None:
+        self.computation_inputs_model.close()
+        self.computation_inputs_model = None
+        self.computation_parameters_model.close()
+        self.computation_parameters_model = None
+
+    def create_handler(self, component_id: str, container=None, item=None, **kwargs):
+        if component_id == "variable":
+            return VariableHandler(self.document_controller, self.computation, item)
+        elif component_id == "result":
+            return ResultHandler(self.document_controller, self.computation, item)
+        return None
+
+    def get_resource(self, resource_id: str, container=None, item=None) -> typing.Optional[Declarative.UIDescription]:
+        u = Declarative.DeclarativeUI()
+        if resource_id == "variable":
+            variable = typing.cast(Symbolic.ComputationVariable, item)
+            label = u.create_label(text="@binding(variable.display_label)")
+            if variable.variable_type == "boolean":
+                checkbox = u.create_check_box(text="@binding(variable.display_label)", checked="@binding(variable_value)")
+                return u.define_component(content=u.create_column(checkbox))
+            elif variable.variable_type == "integral" and (True or variable.control_type == "slider") and variable.has_range:
+                slider = u.create_slider(value="@binding(variable_value)", minimum=variable.value_min, maximum=variable.value_max)
+                line_edit = u.create_line_edit(text="@binding(variable_value, converter=int_str_converter)", width=60)
+                return u.define_component(content=u.create_column(label, slider, line_edit, spacing=4))
+            elif variable.variable_type == "integral":
+                line_edit = u.create_line_edit(text="@binding(variable_value, converter=int_str_converter)", width=60)
+                return u.define_component(content=u.create_column(label, line_edit, spacing=4))
+            elif variable.variable_type == "real" and (True or variable.control_type == "slider") and variable.has_range:
+                slider = u.create_slider(value="@binding(variable_value, converter=slider_converter)", minimum=0, maximum=1000)
+                line_edit = u.create_line_edit(text="@binding(variable_value, converter=float_str_converter)", width=60)
+                return u.define_component(content=u.create_column(label, slider, line_edit, spacing=4))
+            elif variable.variable_type == "real":
+                line_edit = u.create_line_edit(text="@binding(variable_value, converter=float_str_converter)", width=60)
+                return u.define_component(content=u.create_column(label, line_edit, spacing=4))
+            elif variable.variable_type == "string" and variable.control_type == "choice":
+                combo_box = u.create_combo_box(items=["None", "Mapped"], current_index="@binding(combo_box_index)")
+                return u.define_component(content=u.create_column(label, combo_box, spacing=4))
+            elif variable.variable_type == "string":
+                line_edit = u.create_line_edit(text="@binding(variable_value)", width=60)
+                return u.define_component(content=u.create_column(label, line_edit, spacing=4))
+            elif variable.variable_type == "data_source":
+                data_source_chooser = {
+                    "type": "data_source_chooser",
+                    "display_item": "@binding(display_item)",
+                    "on_drop_mime_data": "drop_mime_data",
+                    "on_delete": "data_item_delete",
+                    "min_width": 80,
+                    "min_height": 80,
+                }
+                return u.define_component(content=u.create_column(label, data_source_chooser, spacing=4))
+            else:
+                return u.define_component(content=u.create_column(label))
+        if resource_id == "result":
+            result = typing.cast(Symbolic.ComputationOutput, item)
+            label = u.create_label(text="@binding(result.label)")
+            result_items = list(result.output_items)
+            if len(result_items) == 1 and isinstance(result_items[0], DataItem.DataItem):
+                data_source_chooser = {
+                    "type": "data_source_chooser",
+                    "display_item": "@binding(display_item)",
+                    "min_width": 80,
+                    "min_height": 80,
+                }
+                return u.define_component(content=u.create_column(label, data_source_chooser, spacing=4))
+            return u.define_component(content=u.create_column(label))
+        return None
+
+
+class InspectComputationDialog(Declarative.WindowHandler):
+    # tabs for display (?), data items, graphics (?)
+    # make it look nice
+    # error display
+    # output display
+    # handle undo
+    # use api computation?
+    # how to handle computations with multiple outputs?
+    # get set of all computations from associated with direct selection
+    # put each computation into its own tab
+    # direct selection can be display and associated data items; or a single graphic
+    # if 1+ graphics are selected or 1 graphic has no computation, revert to display as selection
+    # improve window placement to be next to selected display panel or data panel
+    # handle case where user edits an input graphic in another display panel (pick)
+    # should focus changed close the window? probably not. but opening again should close previous.
+    # handle computations being added/removed - inspector contents may become invalid
+    # data sources should show crop/interval display/editor if present
+    # data sources should indicate masking if used
+    # data sources should tool tip info about name, size, data type, calibrated size, etc.
+
+    def __init__(self, document_controller: DocumentController.DocumentController):
+        super().__init__()
+
+        self.__document_controller = document_controller
+
+        # close any previous computation inspector associated with the window
+        previous_computation_inspector = getattr(document_controller, "_computation_inspector", None)
+        if isinstance(previous_computation_inspector, InspectComputationDialog):
+            previous_computation_inspector.close_window()
+        document_controller._computation_inspector = self
+
+        # define models that manage the state of the UI
+        self.stack_index_model = Model.PropertyModel(0)
+        self.stack_page_model = Model.PropertyModel(str())
+        self.computations = ListModel.ListModel()
+
+        # determine the computation
+        self.__computation_model = ComputationModel(document_controller)
+        self.__computation_model.set_display_item(document_controller.selected_display_item)
+        computation = self.__computation_model.computation
+
+        # configure the models
+        self.computations.items = [computation] if computation else []
+        self.stack_index_model.value = min(2, len(self.computations.items))
+        self.stack_page_model.value = ["empty", "single", "multi"][self.stack_index_model.value]
+
+        self.__run_inspector(document_controller)
+
+    def close(self) -> None:
+        self.__computation_model.close()
+        self.__computation_model = None
+        self.__document_controller._computation_inspector = None
+        super().close()
+
+    def __run_inspector(self, parent_window: Window) -> None:
+        u = Declarative.DeclarativeUI()
+        main_page = u.create_column(u.create_component_instance("@binding(stack_page_model.value)"), min_width=320 - 24)
+        window = u.create_window(main_page, title=_("Computation"), margin=12, window_style="tool")
+        self.run(window, parent_window=parent_window, persistent_id="computation_inspector")
+        self.__document_controller.register_dialog(self.window)
+
+    def get_resource(self, resource_id: str, container=None, item=None) -> typing.Optional[Declarative.UIDescription]:
+        if resource_id == "empty":
+            u = Declarative.DeclarativeUI()
+            content = u.create_label(text=_("No computation."))
+            component = u.define_component(content=content)
+            return component
+        if resource_id == "single":
+            computation = self.computations.items[0]
+            u = Declarative.DeclarativeUI()
+            label = u.create_label(text=computation.label)
+            inputs = u.create_column(items="computation_inputs_model.items", item_component_id="variable", spacing=8)
+            results = u.create_column(items="computation.results", item_component_id="result")
+            row = u.create_row(
+                u.create_column(inputs),
+                u.create_column(results),
+                spacing=12,
+            )
+            parameters = u.create_column(items="computation_parameters_model.items", item_component_id="variable", spacing=8)
+            component = u.define_component(content=u.create_column(label, row, parameters, spacing=12))
+            return component
+        if resource_id == "multi":
+            u = Declarative.DeclarativeUI()
+            content = u.create_label(text="COMPUTATION+")
+            component = u.define_component(content=content)
+            return component
+        return None
+
+    def create_handler(self, component_id: str, container=None, item=None, **kwargs):
+        if component_id in ("empty", "multi"):
+            class Handler: pass
+            return Handler()
+        if component_id == "single":
+            return ComputationHandler(self.__document_controller, self.computations.items[0])
+        return None
