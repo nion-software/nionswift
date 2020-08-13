@@ -299,7 +299,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         super().close()
 
     @property
-    def project(self) -> "Project.Project":
+    def project(self) -> Project.Project:
         return typing.cast("Project.Project", self.container)
 
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
@@ -332,7 +332,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             container.remove_item(name, item)
             return Changes.UndeleteLog()
 
-    def clone(self) -> "DataItem":
+    def clone(self) -> DataItem:
         data_item = self.__class__()
         data_item.uuid = self.uuid
         return data_item
@@ -362,18 +362,18 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def _suspendable_storage_cache(self):
         return self.__suspendable_storage_cache
 
-    def add_display_data_channel(self, display_data_channel: "DisplayItem.DisplayDataChannel") -> None:
+    def add_display_data_channel(self, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         """Add a display data channel referencing this data item."""
         self.__display_data_channel_refs.add(weakref.ref(display_data_channel))
         self.notify_add_item("display_data_channels", display_data_channel)
 
-    def remove_display_data_channel(self, display_data_channel: "DisplayItem.DisplayDataChannel") -> None:
+    def remove_display_data_channel(self, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         """Remove a display data channel referencing this data item."""
         self.__display_data_channel_refs.remove(weakref.ref(display_data_channel))
         self.notify_discard_item("display_data_channels", display_data_channel)
 
     @property
-    def display_data_channels(self) -> typing.Set["DisplayItem.DisplayDataChannel"]:
+    def display_data_channels(self) -> typing.Set[DisplayItem.DisplayDataChannel]:
         """Return the list of display data channels referencing this data item."""
         return {display_data_channel_ref() for display_data_channel_ref in self.__display_data_channel_refs}
 
@@ -1265,14 +1265,14 @@ def create_mask_data(graphics: typing.Sequence[Graphics.Graphic], shape, calibra
 
 
 class DataSource:
-    def __init__(self, display_item: "DisplayItem.DisplayItem", graphic: Graphics.Graphic, xdata: DataAndMetadata.DataAndMetadata = None):
+    def __init__(self, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, xdata: DataAndMetadata.DataAndMetadata = None):
         self.__display_item = display_item
         self.__data_item = display_item.data_item if display_item else None
         self.__graphic = graphic
         self.__xdata = xdata
 
     @property
-    def display_item(self) -> typing.Optional["DisplayItem.DisplayItem"]:
+    def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
         return self.__display_item
 
     @property
