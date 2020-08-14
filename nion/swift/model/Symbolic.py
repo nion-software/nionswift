@@ -67,7 +67,7 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         super().__init__()
         self.define_type("output")
         self.define_property("name", name, changed=self.__property_changed)
-        self.define_property("label", label if label else name, changed=self.__property_changed)
+        self.define_property("label", label if label else name, hidden=True, changed=self.__property_changed)
         self.define_property("specifier", specifier, changed=self.__property_changed)
         self.define_property("specifiers", specifiers, changed=self.__property_changed)
         self.needs_rebind_event = Event.Event()  # an event to be fired when the computation needs to rebind
@@ -114,6 +114,23 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         elif item:
             return {item.value}
         return set()
+
+    @property
+    def label(self) -> str:
+        # for registered computations, the computation class takes precedence in defining the labels.
+        computation = self.container
+        if isinstance(computation, Computation):
+            compute_class = _computation_types.get(computation.processing_id)
+            if compute_class:
+                label = getattr(compute_class, "outputs", dict()).get(self.name, dict()).get("label")
+                if label:
+                    return label
+        # not a registered computation, fall back to label or name.
+        return self._get_persistent_property_value("label") or self.name
+
+    @label.setter
+    def label(self, value: str) -> None:
+        self._set_persistent_property_value("label", value)
 
 
 class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
@@ -339,7 +356,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             self.__bound_item_removed_event_listener = self.__bound_item.needs_rebind_event.listen(self.needs_rebind_event.fire)
 
     @property
-    def bound_items_model(self):
+    def bound_items_model(self) -> typing.Optional[ListModel.ListModel]:
         return self.__bound_items_model
 
     @property
@@ -475,7 +492,16 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             self.secondary_specifier = secondary_specifier
 
     @property
-    def display_label(self):
+    def display_label(self) -> str:
+        # for registered computations, the computation class takes precedence in defining the labels.
+        computation = self.container
+        if isinstance(computation, Computation):
+            compute_class = _computation_types.get(computation.processing_id)
+            if compute_class:
+                label = getattr(compute_class, "inputs", dict()).get(self.name, dict()).get("label")
+                if label:
+                    return label
+        # not a registered computation, fall back to label or name.
         return self.label or self.name
 
     @property
@@ -1050,7 +1076,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
         self.define_property("original_expression", expression)
         self.define_property("error_text", hidden=True, changed=self.__error_changed)
-        self.define_property("label", changed=self.__label_changed)
+        self.define_property("label", hidden=True, changed=self.__label_changed)
         self.define_property("processing_id")  # see note above
         self.define_relationship("variables", variable_factory)
         self.define_relationship("results", result_factory)
@@ -1141,6 +1167,19 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
         self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
+
+    @property
+    def label(self) -> str:
+        label = self._get_persistent_property_value("label")
+        if not label:
+            compute_class = _computation_types.get(self.processing_id)
+            if compute_class:
+                label = getattr(compute_class, "label", None)
+        return label
+
+    @label.setter
+    def label(self, value: str) -> None:
+        self._set_persistent_property_value("label", value)
 
     @property
     def error_text(self) -> typing.Optional[str]:
@@ -1258,6 +1297,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                     if variable.uuid == uuid_:
                         return variable
         return None
+
+    data_source_types = ("data_source", "data_item", "xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata")
 
     def __resolve_object_specifier(self, specifier, secondary_specifier=None, property_name=None) -> typing.Optional[BoundItemBase]:
         """Resolve the object specifier.
@@ -1643,7 +1684,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 return variable.bound_item.base_objects if variable.bound_item else None
         return None
 
-    def _get_variable(self, variable_name) -> ComputationVariable:
+    def _get_variable(self, variable_name) -> typing.Optional[ComputationVariable]:
         for variable in self.variables:
             if variable.name == variable_name:
                 return variable

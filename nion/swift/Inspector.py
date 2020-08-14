@@ -2835,7 +2835,7 @@ class VariableWidget(Widgets.CompositeWidgetBase):
             widget, closeables = make_field(document_controller, self.__unbinder, computation, variable, Converter.FloatToStringConverter())
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
-        elif variable.variable_type == "data_source":
+        elif variable.variable_type in Symbolic.ComputationVariable.data_item_types:
             self.content_widget.add(make_image_chooser(document_controller, computation, variable))
         elif variable.variable_type == "string" and variable.control_type == "choice":
             widget, closeables = make_choice(document_controller, self.__unbinder, computation, variable, None)

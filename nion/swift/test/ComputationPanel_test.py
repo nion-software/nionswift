@@ -65,10 +65,10 @@ class TestComputationPanelClass(unittest.TestCase):
             document_model.set_data_item_computation(data_item2, computation)
             panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # execute queue
-            panel._text_edit_for_testing.text = ""
+            panel._text_edit_for_testing.text = ""  # no longer clears the computation. cm 2020-08.
             panel._update_button.on_clicked()
             document_controller.periodic()
-            self.assertIsNone(document_model.get_data_item_computation(data_item2))
+            self.assertIsNotNone(document_model.get_data_item_computation(data_item2))
             text2 = panel._text_edit_for_testing.text
             self.assertFalse(text2)
 
@@ -188,7 +188,7 @@ class TestComputationPanelClass(unittest.TestCase):
             # change variable
             variable_specifier = document_model.get_object_specifier(data_item3)
             properties = {"variable_type": "data_item", "specifier": variable_specifier}
-            command = ComputationPanel.ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, **properties)
+            command = ComputationPanel.ChangeVariableCommand(document_controller.document_model, computation, variable, **properties)
             command.perform()
             document_controller.push_undo_command(command)
             # verify change and trigger error
@@ -232,7 +232,7 @@ class TestComputationPanelClass(unittest.TestCase):
             # change variable
             variable_specifier = document_model.get_object_specifier(data_item2)
             properties = {"variable_type": "data_item", "specifier": variable_specifier}
-            command = ComputationPanel.ComputationModel.ChangeVariableCommand(document_controller.document_model, computation, variable, **properties)
+            command = ComputationPanel.ChangeVariableCommand(document_controller.document_model, computation, variable, **properties)
             command.perform()
             document_controller.push_undo_command(command)
             # verify change and trigger computation

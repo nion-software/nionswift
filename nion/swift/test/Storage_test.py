@@ -4089,7 +4089,7 @@ class TestStorageClass(unittest.TestCase):
                 computation = document_model.create_computation()
                 computation.label = "DEF"
                 document_model.append_computation(computation)
-                command = ComputationPanel.ComputationModel.ChangeComputationCommand(document_model, computation, command_id="computation_change_label", is_mergeable=True, label="ABC")
+                command = ComputationPanel.ChangeComputationCommand(document_model, computation, command_id="computation_change_label", is_mergeable=True, label="ABC")
                 command.perform()
                 document_controller.push_undo_command(command)
                 self.assertEqual("ABC", document_model.computations[0].label)
