@@ -2258,6 +2258,27 @@ class TestDocumentModelClass(unittest.TestCase):
                 data_item_reference = document_model.get_data_item_reference("abc")
                 self.assertEqual(document_model.data_items[0], data_item_reference.data_item)
 
+    def test_display_items_with_multiple_data_channels_list_all_sources(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((4, )))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_item2 = document_model.get_invert_new(display_item)
+                display_item2 = document_model.get_display_item_for_data_item(data_item2)
+                data_item3 = document_model.get_invert_new(display_item2)
+                display_item3 = document_model.get_display_item_for_data_item(data_item3)
+                display_item2.append_display_data_channel_for_data_item(data_item3)
+                # check sources. display_item2 should not be included in source items for itself
+                self.assertEqual([], document_model.get_source_display_items(display_item))
+                self.assertEqual([display_item], document_model.get_source_display_items(display_item2))
+                self.assertEqual([display_item2], document_model.get_source_display_items(display_item3))
+                # check dependents. display_item2 should not be included in source items for itself
+                self.assertEqual([display_item2], document_model.get_dependent_display_items(display_item))
+                self.assertEqual([display_item3], document_model.get_dependent_display_items(display_item2))
+                self.assertEqual([], document_model.get_dependent_display_items(display_item3))
+
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)

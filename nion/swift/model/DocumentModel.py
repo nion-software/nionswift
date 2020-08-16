@@ -1394,26 +1394,24 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             return [data_item for data_item in self.__dependency_tree_source_to_target_map.get(weakref.ref(data_item), list()) if isinstance(data_item, DataItem.DataItem)]
 
     def get_source_display_items(self, display_item: DisplayItem.DisplayItem) -> typing.List[DisplayItem.DisplayItem]:
-        data_item = display_item.data_item
-        if data_item:
-            display_items = list()
-            for data_item in self.get_source_data_items(data_item):
-                for display_item in self.get_display_items_for_data_item(data_item):
-                    if display_item not in display_items:
-                        display_items.append(display_item)
-            return display_items
-        return list()
+        display_items = list()
+        for data_item in display_item.data_items:
+            if data_item:  # may be none for missing data
+                for data_item_ in self.get_source_data_items(data_item):
+                    for display_item_ in self.get_display_items_for_data_item(data_item_):
+                        if display_item_ not in display_items and display_item_ != display_item:
+                            display_items.append(display_item_)
+        return display_items
 
     def get_dependent_display_items(self, display_item: DisplayItem.DisplayItem) -> typing.List[DisplayItem.DisplayItem]:
-        data_item = display_item.data_item
-        if data_item:
-            display_items = list()
-            for data_item in self.get_dependent_data_items(data_item):
-                for display_item in self.get_display_items_for_data_item(data_item):
-                    if display_item not in display_items:
-                        display_items.append(display_item)
-            return display_items
-        return list()
+        display_items = list()
+        for data_item in display_item.data_items:
+            if data_item:  # may be none for missing data
+                for data_item_ in self.get_dependent_data_items(data_item):
+                    for display_item_ in self.get_display_items_for_data_item(data_item_):
+                        if display_item_ not in display_items and display_item_ != display_item:
+                            display_items.append(display_item_)
+        return display_items
 
     def transaction_context(self):
         """Return a context object for a document-wide transaction."""
