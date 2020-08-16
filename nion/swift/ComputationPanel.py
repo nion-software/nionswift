@@ -1292,7 +1292,7 @@ class InspectComputationDialog(Declarative.WindowHandler):
     # dynamic combo box
     # progress bar
 
-    def __init__(self, document_controller: DocumentController.DocumentController):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: typing.Optional[DisplayItem.DisplayItem] = None):
         super().__init__()
 
         self.__document_controller = document_controller
@@ -1306,23 +1306,33 @@ class InspectComputationDialog(Declarative.WindowHandler):
         # define models that manage the state of the UI
         self.stack_index_model = Model.PropertyModel(0)
         self.stack_page_model = Model.PropertyModel(str())
-        self.computations = ListModel.ListModel()
+        self.computation_model = Model.PropertyModel()
 
         # determine the computation
-        self.__computation_model = ComputationModel(document_controller)
-        self.__computation_model.set_display_item(document_controller.selected_display_item)
-        computation = self.__computation_model.computation
+        computation_model = ComputationModel(document_controller)
+        computation_model.set_display_item(display_item or document_controller.selected_display_item)
+        computation = computation_model.computation
+        computation_model.close()
 
         # configure the models
-        self.computations.items = [computation] if computation else []
-        self.stack_index_model.value = min(2, len(self.computations.items))
+        self.computation_model.value = computation
+        self.stack_index_model.value = 1 if self.computation_model.value else 0
         self.stack_page_model.value = ["empty", "single"][self.stack_index_model.value]
+
+        # list for computation being removed
+        def remove_computation():
+            self.computation_model.value = None
+            self.stack_index_model.value = 0
+            self.stack_page_model.value = "empty"
+
+        self.__computation_about_to_be_removed_event_listener = computation.about_to_be_removed_event.listen(remove_computation) if computation else None
 
         self.__run_inspector(document_controller)
 
     def close(self) -> None:
-        self.__computation_model.close()
-        self.__computation_model = None
+        if self.__computation_about_to_be_removed_event_listener:
+            self.__computation_about_to_be_removed_event_listener.close()
+            self.__computation_about_to_be_removed_event_listener = None
         self.__document_controller._computation_inspector = None
         super().close()
 
@@ -1340,7 +1350,7 @@ class InspectComputationDialog(Declarative.WindowHandler):
             component = u.define_component(content=content)
             return component
         if resource_id == "single":
-            computation = self.computations.items[0]
+            computation = self.computation_model.value
             u = Declarative.DeclarativeUI()
             label = u.create_label(text=computation.label)
             inputs = u.create_column(items="computation_inputs_model.items", item_component_id="variable", spacing=8)
@@ -1360,5 +1370,5 @@ class InspectComputationDialog(Declarative.WindowHandler):
             class Handler: pass
             return Handler()
         if component_id == "single":
-            return ComputationHandler(self.__document_controller, self.computations.items[0])
+            return ComputationHandler(self.__document_controller, self.computation_model.value)
         return None
