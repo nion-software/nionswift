@@ -1114,7 +1114,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def set_display_property(self, property_name: str, value) -> None:
         display_properties = self.display_properties
-        if value != display_properties.get(property_name):
+        if display_properties.get(property_name) != value:
             if value is not None:
                 display_properties[property_name] = value
             else:
@@ -1384,6 +1384,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             else:
                 new_display_layers.append(display_layer)
         self.display_layers = new_display_layers
+        if len(self.display_layers) == 1:
+            self.set_display_property("legend_position", None)
 
     def __disconnect_display_data_channel(self, display_data_channel: DisplayDataChannel, index: int) -> None:
         self.__display_data_channel_property_changed_event_listeners[index].close()

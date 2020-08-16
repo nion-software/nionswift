@@ -79,6 +79,29 @@ class TestDisplayItemClass(unittest.TestCase):
             display_item.append_display_data_channel_for_data_item(data_item2)
             self.assertEqual(2, len(display_item.display_data_channels))
 
+    def test_appending_then_removing_display_data_channel_returns_to_original(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item1 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item1)
+            self.assertEqual(1, len(display_item.display_data_channels))
+            self.assertEqual(1, len(display_item.display_layers))
+            self.assertEqual(data_item1, display_item.display_data_channel.data_item)
+            display_data_channel_uuid = display_item.display_data_channel.uuid
+            self.assertFalse(display_item.display_properties)
+            self.assertEqual(1, len(display_item.display_layers))
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            self.assertEqual(2, len(display_item.display_data_channels))
+            display_item.remove_display_data_channel(display_item.display_data_channels[-1])
+            self.assertEqual(1, len(display_item.display_data_channels))
+            self.assertEqual(1, len(display_item.display_layers))
+            self.assertEqual(data_item1, display_item.display_data_channel.data_item)
+            self.assertEqual(display_data_channel_uuid, display_item.display_data_channel.uuid)
+            self.assertFalse(display_item.display_properties)
+
     def test_removing_data_item_updates_display_layer_data_indexes(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
