@@ -79,6 +79,16 @@ class DisplayItemAdapter:
 
         self.__display_changed_event_listener = display_item.item_changed_event.listen(display_item_changed) if display_item else None
 
+        def display_item_removed() -> None:
+            if self.__display_changed_event_listener:
+                self.__display_changed_event_listener.close()
+                self.__display_changed_event_listener = None
+            self.__display_item_about_to_be_removed_event_listener.close()
+            self.__display_item_about_to_be_removed_event_listener = None
+            self.__display_item = None
+
+        self.__display_item_about_to_be_removed_event_listener = display_item.about_to_be_removed_event.listen(display_item_removed) if display_item else None
+
         self.__thumbnail_updated_event_listener = None
         self.__thumbnail_source : typing.Optional[Thumbnails.ThumbnailSource] = None
 
@@ -93,6 +103,9 @@ class DisplayItemAdapter:
         if self.__display_changed_event_listener:
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
+        if self.__display_item_about_to_be_removed_event_listener:
+            self.__display_item_about_to_be_removed_event_listener.close()
+            self.__display_item_about_to_be_removed_event_listener = None
 
     @property
     def display_item(self) -> DisplayItem.DisplayItem:
