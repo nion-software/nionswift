@@ -18,6 +18,7 @@ from nion.swift import Inspector
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
+from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
 from nion.ui import TestUI
 from nion.utils import Binding
@@ -1302,6 +1303,41 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual("line_plot", display_item.display_type)
             document_controller.handle_redo()
             self.assertEqual("image", display_item.display_type)
+
+    def test_graphic_property_binding_handles_removed_graphic(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((10, )))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+
+            interval = Graphics.IntervalGraphic()
+            display_item.add_graphic(interval)
+            interval2 = Graphics.IntervalGraphic()
+            display_item.add_graphic(interval2)
+
+            data_item2 = DataItem.DataItem(numpy.zeros((10, )))
+            document_model.append_data_item(data_item2)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            data_item3 = DataItem.DataItem(numpy.zeros((10, )))
+            document_model.append_data_item(data_item3)
+            display_item3 = document_model.get_display_item_for_data_item(data_item3)
+
+            computation = document_model.create_computation()
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_input_item("interval", Symbolic.make_item(interval))
+            computation.create_input_item("interval2", Symbolic.make_item(interval2))
+            computation.create_output_item("dst", Symbolic.make_item(data_item2))
+            computation.create_output_item("dst2", Symbolic.make_item(data_item3))
+            document_model.append_computation(computation)
+            interval2.source = interval
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            display_item.append_display_data_channel_for_data_item(data_item3)
+
+            binding = Inspector.CalibratedValueBinding(-1, display_item, Inspector.ChangeGraphicPropertyBinding(document_controller, display_item, interval2, "start"))
+            with contextlib.closing(binding):
+                display_item.remove_graphic(interval)
 
 
 if __name__ == '__main__':

@@ -423,7 +423,9 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
         self.__document_controller = document_controller
         self.__property_name = property_name
         self.__old_source_setter = self.source_setter
+        self.__old_source_getter = self.source_getter
         self.source_setter = self.__set_value
+        self.source_getter = self.__get_value
 
     def close(self) -> None:
         self.__display_item_proxy.close()
@@ -431,6 +433,13 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
         self.__graphic_proxy.close()
         self.__graphic_proxy = None
         super().close()
+
+    def __get_value(self):
+        display_item = self.__display_item_proxy.item
+        graphic = self.__graphic_proxy.item
+        if display_item and graphic:
+            return getattr(graphic, self.__property_name)
+        return None
 
     def __set_value(self, value):
         display_item = self.__display_item_proxy.item
@@ -1853,7 +1862,7 @@ class CalibratedBinding(Binding.Binding):
     # in this binding, it combines the two source bindings into one.
     def get_target_value(self):
         value = self.__value_binding.get_target_value()
-        return self.converter.convert(value)
+        return self.converter.convert(value) if value is not None else None
 
 
 class CalibratedValueBinding(CalibratedBinding):
