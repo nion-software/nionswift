@@ -70,7 +70,7 @@ class DisplayItemAdapter:
     """
 
     def __init__(self, display_item: DisplayItem.DisplayItem, ui: UserInterface.UserInterface):
-        self.__display_item = display_item
+        self.__display_item: typing.Optional[DisplayItem.DisplayItem] = display_item
         self.ui = ui
         self.needs_update_event = Event.Event()
 
@@ -79,12 +79,15 @@ class DisplayItemAdapter:
 
         self.__display_changed_event_listener = display_item.item_changed_event.listen(display_item_changed) if display_item else None
 
+        self.__display_item_about_to_be_removed_event_listener = None
+
         def display_item_removed() -> None:
             if self.__display_changed_event_listener:
                 self.__display_changed_event_listener.close()
                 self.__display_changed_event_listener = None
-            self.__display_item_about_to_be_removed_event_listener.close()
-            self.__display_item_about_to_be_removed_event_listener = None
+            if self.__display_item_about_to_be_removed_event_listener:
+                self.__display_item_about_to_be_removed_event_listener.close()
+                self.__display_item_about_to_be_removed_event_listener = None
             self.__display_item = None
 
         self.__display_item_about_to_be_removed_event_listener = display_item.about_to_be_removed_event.listen(display_item_removed) if display_item else None
@@ -108,7 +111,7 @@ class DisplayItemAdapter:
             self.__display_item_about_to_be_removed_event_listener = None
 
     @property
-    def display_item(self) -> DisplayItem.DisplayItem:
+    def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
         return self.__display_item
 
     @property
@@ -374,7 +377,7 @@ class DataListController:
         elif len(display_item_adapters) > 1:
             mime_data = self.ui.create_mime_data()
             anchor_index = self.__selection.anchor_index or 0
-            MimeTypes.mime_data_put_display_items(mime_data, [display_item_adapter.display_item for display_item_adapter in display_item_adapters])
+            MimeTypes.mime_data_put_display_items(mime_data, [display_item_adapter.display_item for display_item_adapter in display_item_adapters if display_item_adapter.display_item])
             thumbnail_data = self.__display_item_adapters[anchor_index].calculate_thumbnail_data()
         if mime_data:
             if self.on_drag_started:
@@ -628,7 +631,7 @@ class DataGridController:
         elif len(display_item_adapters) > 1:
             mime_data = self.ui.create_mime_data()
             anchor_index = self.__selection.anchor_index or 0
-            MimeTypes.mime_data_put_display_items(mime_data, [display_item_adapter.display_item for display_item_adapter in display_item_adapters])
+            MimeTypes.mime_data_put_display_items(mime_data, [display_item_adapter.display_item for display_item_adapter in display_item_adapters if display_item_adapter.display_item])
             thumbnail_data = self.__display_item_adapters[anchor_index].calculate_thumbnail_data()
         if mime_data:
             if self.on_drag_started:
@@ -743,7 +746,7 @@ class DataPanel(Panel.Panel):
             self.focused = focused
 
         def delete_display_item_adapters(display_item_adapters: typing.List[DisplayItemAdapter]) -> None:
-            document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters])
+            document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters if display_item_adapter.display_item])
 
         self.data_list_controller = DataListController(document_controller.event_loop, ui, self.__filtered_display_item_adapters_model, self.__selection)
         self.data_list_controller.on_display_item_adapter_selection_changed = display_item_adapter_selection_changed
