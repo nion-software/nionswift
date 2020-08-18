@@ -945,7 +945,7 @@ class DataItem(metaclass=SharedInstance):
     @property
     def __display_item(self) -> DisplayItemModule.DisplayItem:
         # TODO: remove data item / document model hack (required to access display items)
-        display_item = self.__data_item._document_model.get_any_display_item_for_data_item(self.__data_item) if self.__data_item.container else None
+        display_item = self.__data_item._document_model.get_best_display_item_for_data_item(self.__data_item) if self.__data_item.container else None
         return display_item
 
     @property
@@ -1236,7 +1236,7 @@ class DataItem(metaclass=SharedInstance):
 
         .. versionadded:: 1.0
         .. deprecated:: 1.1
-           Use :py:attr:`~nion.swift.Facade.DataItem.graphics` instead.
+           Use :py:attr:`~nion.swift.Facade.Display.graphics` instead.
 
         Scriptable: Yes
         """
@@ -1247,6 +1247,8 @@ class DataItem(metaclass=SharedInstance):
         """Return the graphics attached to this data item.
 
         .. versionadded:: 1.0
+        .. deprecated:: 15
+           Use :py:meth:`~nion.swift.Facade.Display.graphics` instead.
 
         Scriptable: Yes
         """
@@ -1254,6 +1256,12 @@ class DataItem(metaclass=SharedInstance):
 
     @property
     def display(self) -> "Display":
+        """Return a display for the data item, preferring the oldest single data item display.
+
+        If no single data item display exists, return the oldest multi data item display.
+
+        Scriptable: Yes
+        """
         return Display(self.__display_item)
 
     def add_point_region(self, y: float, x: float) -> Graphic:
@@ -1264,6 +1272,8 @@ class DataItem(metaclass=SharedInstance):
         :return: The :py:class:`nion.swift.Facade.Graphic` object that was added.
 
         .. versionadded:: 1.0
+        .. deprecated:: 15
+           Use :py:meth:`~nion.swift.Facade.Display.add_graphic` instead.
 
         Scriptable: Yes
         """
@@ -1483,6 +1493,12 @@ class Display(metaclass=SharedInstance):
 
     @property
     def graphics(self) -> typing.List[Graphic]:
+        """Return the graphics attached to this display.
+
+        .. versionadded:: 15
+
+        Scriptable: Yes
+        """
         return [Graphic(graphic) for graphic in self.__display_item.graphics]
 
     @property
@@ -1493,6 +1509,111 @@ class Display(metaclass=SharedInstance):
     @property
     def data_items(self) -> typing.List[DataItem]:
         return [DataItem(data_item) for data_item in self.__display_item.data_items]
+
+    def add_graphic(self, graphic_description: typing.Mapping) -> typing.Optional[Graphic]:
+        """Add graphic described in graphic_description to the display.
+
+        Graphic description must include a 'type' key with one of the following values:
+            'rect-graphic'
+            'ellipse-graphic'
+            'line-graphic'
+            'point-graphic'
+            'interval-graphic'
+            'channel-graphic'
+            'spot-graphic'
+            'wedge-graphic'
+            'ring-graphic'
+            'lattice-graphic'
+
+        Rectangle and ellipse graphic can include the following keys:
+            'bounds' ((top, left), (height, width)) or Geometry.FloatRect
+            'center' (cy, cx) or Geometry.FloatPoint, default 0.5, 0.5
+            'size' (height, width) or Geometry.FloatSize, default 1.0, 1.0
+            'rotation' (float, default 0)
+
+        Line graphic can include the following keys:
+            'vector' ((start_y, start_x), (end_y, end_x))
+            'start' (y, x) or Geometry.FloatPoint, default 0.0, 0.0
+            'end' (y, x) or Geometry.FloatPoint, default 1.0, 1.0
+            'start_arrow_enabled' (bool, default False)
+            'end_arrow_enabled' (bool, default False)
+            'angle' (float)
+            'length' (float)
+
+        Point graphic can include the following keys:
+            'position' (y, x) or Geometry.FloatPoint, default 0.5, 0.5
+
+        Interval graphic can include the following keys:
+            'start' (float, default 0.0)
+            'end' (float, default 1.0)
+
+        Channel graphic can include the following keys:
+            'position' (int, default 0.5)
+
+        Spot graphic can include the following keys:
+            'bounds' ((top, left), (height, width)) or Geometry.FloatRect
+            'center' (cy, cx) or Geometry.FloatPoint, default 0.5, 0.5
+            'size' (height, width) or Geometry.FloatSize, default 1.0, 1.0
+            'rotation' (float, default 0)
+
+        Wedge graphic can include the following keys:
+            'angle_interval' (tuple(float, float), default 0, math.pi)
+            'start_angle' (float)
+            'end_angle' (float)
+
+        Ring graphic can include the follow keys:
+            'radius_1' (float, default 0.2)
+            'radius_2' (float, default 0.2)
+            'mode' (string ['band-pass', 'high-pass', 'low-pass'], default 'bandpass')
+
+        Lattice graphic can include the follow keys:
+            'u_pos' (y, x) or Geometry.FloatPoint, default ( 0.00, 0.25)
+            'v_pos' (y, x) or Geometry.FloatPoint, default (-0.25, 0.00)
+            'u_count' (integer, default 1)
+            'v_count' (integer, default 1)
+            'radius' (float, 0.1)
+
+        All graphics can optionally include the following attributes:
+            'fill_color' (string, default None)
+            'graphic_id' (string, default None)
+            'is_bounds_constrained' (bool, default False)
+            'is_position_locked' (bool, default False)
+            'is_shape_locked' (bool, default False)
+            'label' (string, default None)
+            'stroke_color' (string, default None)
+            'role' (string, default None)
+
+        Returns the new Graphic.
+
+        .. versionadded:: 15
+
+        Scriptable: Yes
+        """
+        attributes = ["fill_color", "graphic_id", "is_bounds_constrained", "is_position_locked",
+                      "is_shape_locked", "label", "stroke_color", "role"]
+        graphic = None
+        graphic_table = [
+            ["rect-graphic", Graphics.RectangleGraphic, ["bounds", "center", "size", "rotation"]],
+            ["ellipse-graphic", Graphics.EllipseGraphic, ["bounds", "center", "size", "rotation"]],
+            ["line-graphic", Graphics.LineGraphic, ["vector", "start", "end", "start_arrow_enabled", "end_arrow_enabled", "angle", "length"]],
+            ["point-graphic", Graphics.PointGraphic, ["position"]],
+            ["interval-graphic", Graphics.IntervalGraphic, ["start", "end"]],
+            ["channel-graphic", Graphics.ChannelGraphic, ["position"]],
+            ["spot-graphic", Graphics.SpotGraphic, ["bounds", "center", "size", "rotation"]],
+            ["wedge-graphic", Graphics.WedgeGraphic, ["angle_interval", "start_angle", "end_angle"]],
+            ["ring-graphic", Graphics.RingGraphic, ["radius_1", "radius_2", "mode"]],
+            ["lattice-graphic", Graphics.LatticeGraphic, ["u_pos", "v_pos", "u_count", "v_count", "radius"]],
+        ]
+        for graphic_entry in graphic_table:
+            if graphic_description.get("type") == graphic_entry[0]:
+                graphic = graphic_entry[1]()
+                attributes += graphic_entry[2]
+                for attribute in attributes:
+                    if attribute in graphic_description:
+                        setattr(graphic, attribute, graphic_description[attribute])
+                self.__display_item.add_graphic(graphic)
+                return Graphic(graphic)
+        return None
 
     def add_point_graphic(self, y: float, x: float) -> Graphic:
         graphic = Graphics.PointGraphic()

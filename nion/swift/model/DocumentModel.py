@@ -1537,6 +1537,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         display_items = self.get_display_items_for_data_item(data_item)
         return next(iter(display_items)) if len(display_items) == 1 else None
 
+    def get_best_display_item_for_data_item(self, data_item: DataItem.DataItem) -> typing.Optional[DisplayItem.DisplayItem]:
+        display_items = self.get_display_items_for_data_item(data_item)
+        for display_item in display_items:
+            if display_item.data_item == data_item:
+                return display_item
+        return next(iter(display_items)) if len(display_items) == 1 else None
+
     def are_display_items_equal(self, display_item1: DisplayItem.DisplayItem, display_item2: DisplayItem.DisplayItem) -> bool:
         return display_item1 == display_item2
 

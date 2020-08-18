@@ -10,6 +10,7 @@ and improved line plot displays.
 
 Requires Python 3.7 or later.
 
+* (2020-08-17) Add API function to create graphic from dict description.
 * (2020-07-30) Add processing menu item to rebin an image to a specified size.
 * (2020-06-10) Improve internal metadata handling during acquisition.
 * (2020-05-18) Improve tick drawing on line plots.  Also scientific notation.
