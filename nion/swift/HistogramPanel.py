@@ -696,6 +696,7 @@ class TargetRegionStream(Stream.AbstractStream):
         # listen for display changes
         self.__display_stream_listener = display_item_stream.value_stream.listen(self.__display_item_changed)
         self.__graphic_changed_event_listener = None
+        self.__graphic_about_to_be_removed_event_listener = None
         self.__display_item_changed(display_item_stream.value)
 
     def close(self):
@@ -719,21 +720,34 @@ class TargetRegionStream(Stream.AbstractStream):
                     self.__value = new_value
                     def graphic_changed():
                         self.value_stream.fire(self.__value)
+                    def graphic_removed():
+                        self.__value = None
+                        self.value_stream.fire(None)
                     if self.__graphic_changed_event_listener:
                         self.__graphic_changed_event_listener.close()
                         self.__graphic_changed_event_listener = None
+                    if self.__graphic_about_to_be_removed_event_listener:
+                        self.__graphic_about_to_be_removed_event_listener.close()
+                        self.__graphic_about_to_be_removed_event_listener = None
                     if self.__value:
                         self.__graphic_changed_event_listener = self.__value.graphic_changed_event.listen(graphic_changed)
+                        self.__graphic_about_to_be_removed_event_listener = self.__value.about_to_be_removed_event.listen(graphic_removed)
                     graphic_changed()
             elif self.__value is not None:
                 self.__value = None
                 if self.__graphic_changed_event_listener:
                     self.__graphic_changed_event_listener.close()
                     self.__graphic_changed_event_listener = None
+                if self.__graphic_about_to_be_removed_event_listener:
+                    self.__graphic_about_to_be_removed_event_listener.close()
+                    self.__graphic_about_to_be_removed_event_listener = None
                 self.value_stream.fire(None)
         if self.__graphic_changed_event_listener:
             self.__graphic_changed_event_listener.close()
             self.__graphic_changed_event_listener = None
+        if self.__graphic_about_to_be_removed_event_listener:
+            self.__graphic_about_to_be_removed_event_listener.close()
+            self.__graphic_about_to_be_removed_event_listener = None
         if self.__display_graphic_selection_changed_event_listener:
             self.__display_graphic_selection_changed_event_listener.close()
             self.__display_graphic_selection_changed_event_listener = None
