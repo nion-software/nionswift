@@ -1080,7 +1080,9 @@ class VariableHandler:
         self.document_controller = document_controller
         self.computation = computation
         self.variable = variable
-        self.slider_converter = Converter.FloatToScaledIntegerConverter(1000, 0, 100)
+        # use 2000 below to avoid a match slider, which gives rise to a bizarre slider bug https://bugreports.qt.io/browse/QTBUG-77368
+        # also must be a multiple of inspector slider to avoid
+        self.slider_converter = Converter.FloatToScaledIntegerConverter(2000, 0, 100)
         self.float_str_converter = Converter.FloatToStringConverter()
         self.int_str_converter = Converter.IntegerToStringConverter()
         self.property_changed_event = Event.Event()
@@ -1187,7 +1189,7 @@ class VariableHandler:
             line_edit = u.create_line_edit(text="@binding(variable_value, converter=int_str_converter)", width=60)
             return u.create_column(label, line_edit, spacing=4)
         elif variable.variable_type == "real" and (True or variable.control_type == "slider") and variable.has_range:
-            slider = u.create_slider(value="@binding(variable_value, converter=slider_converter)", minimum=0, maximum=1000)
+            slider = u.create_slider(value="@binding(variable_value, converter=slider_converter)", minimum=0, maximum=2000)
             line_edit = u.create_line_edit(text="@binding(variable_value, converter=float_str_converter)", width=60)
             return u.create_column(label, slider, line_edit, spacing=4)
         elif variable.variable_type == "real":
