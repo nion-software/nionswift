@@ -1128,6 +1128,17 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__source_proxy.item = source
         self.source_specifier = source.project.create_specifier(source).write() if source else None
 
+    def is_valid_with_removals(self, items: typing.Set) -> bool:
+        for variable in self.variables:
+            if variable.object_specifiers is not None:
+                input_items = set(variable.input_items)
+                # if removing items results in no bound items and at least some items are in bound items, computation
+                # is no longer valid. all items of at least one set have been removed. do not remove computations with
+                # empty bound items that already exist.
+                if not (input_items - items) and input_items.intersection(items):
+                    return False
+        return True
+
     def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
         self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 

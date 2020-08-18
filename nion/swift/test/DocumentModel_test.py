@@ -699,6 +699,27 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.get_dependent_items(data_item)), 3)
             self.assertEqual(set(document_model.get_dependent_items(data_item)), set(display_item.graphics))
 
+    def test_removing_last_item_from_list_removes_computation(self):
+        Symbolic.register_computation_type("n_graphics", self.NGraphics)
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            graphic = Graphics.PointGraphic()
+            display_item.add_graphic(graphic)
+            graphic2 = Graphics.PointGraphic()
+            display_item.add_graphic(graphic2)
+            computation = document_model.create_computation()
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_input_item("graphics", Symbolic.make_item_list([graphic, graphic2]))
+            document_model.append_computation(computation)
+            self.assertEqual(1, len(document_model.computations))
+            display_item.remove_graphic(graphic2)
+            self.assertEqual(1, len(document_model.computations))
+            display_item.remove_graphic(graphic)
+            self.assertEqual(0, len(document_model.computations))
+
     def test_new_computation_creates_dependency_when_result_created_during_computation(self):
         Symbolic.register_computation_type("set_const", self.SetConst)
         with TestContext.create_memory_context() as test_context:

@@ -1158,7 +1158,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     self.__build_cascade(data_structure, items, dependencies)
             # computations whose source is the item are deleted
             for computation in self.computations:
-                if computation.source == item:
+                if computation.source == item or not computation.is_valid_with_removals(set(items)):
                     if (item, computation) not in dependencies:
                         dependencies.append((item, computation))
                     self.__build_cascade(computation, items, dependencies)
