@@ -1851,6 +1851,21 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.data_items))
             self.assertEqual(0, len(document_model.computations))
 
+    def test_computation_deletes_when_any_input_deleted(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item2)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            data_item3 = document_model.get_cross_correlate_new(display_item1, display_item2)
+            document_model.remove_data_item(data_item2)
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(data_item1, document_model.data_items[0])
+            self.assertEqual(0, len(document_model.computations))
+
     def test_new_computation_with_missing_processor_fails_gracefully(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()

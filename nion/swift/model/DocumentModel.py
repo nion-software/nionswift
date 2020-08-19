@@ -1208,8 +1208,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     computation._inputs -= items_set
                     computation._outputs -= items_set
                     if computation not in items and computation != self.__current_computation:
-                        # computations are auto deleted if all inputs are deleted or any output is deleted
-                        if output_deleted or all(input in items for input in computation._inputs):
+                        # computations are auto deleted if any input or output is deleted.
+                        if output_deleted or not computation._inputs or any(input in items for input in computation._inputs):
                             self.__build_cascade(computation, items, dependencies)
                             cascaded = True
             # print(list(reversed(items)))
