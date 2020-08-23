@@ -23,6 +23,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
+from nion.swift.model import Schema
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
 from nion.ui import Declarative
@@ -35,6 +36,7 @@ from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Model
+from nion.utils import Observable
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -1075,6 +1077,52 @@ class GraphicHandler:
         return u.create_label(text=_("Unsupported Graphic") + f" {graphic.type}")
 
 
+class DataStructureHandler(Observable.Observable):
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, data_structure: DataStructure.DataStructure):
+        super().__init__()
+        self.document_controller = document_controller
+        self.computation = computation
+        self.variable = variable
+        self.data_structure = data_structure
+        self.__entity_choice = None
+        self.__entity_types = list()
+        self.__entity_choices = list()
+        base_entity_type = Schema.get_entity_type(self.variable.entity_id)
+        if base_entity_type:
+            self.__entity_types = base_entity_type.subclasses
+            self.__entity_choices = [DataStructure.DataStructure.entity_names[entity_type.entity_id] for entity_type in self.__entity_types] + ["-", _("None")]
+            # configure the initial value
+            entity = self.data_structure.entity
+            if entity:
+                entity_id = entity.entity_type.entity_id
+                for index, entity_type in enumerate(self.__entity_types):
+                    if entity_id == entity_type.entity_id:
+                        self.__entity_choice = index
+                        break
+            # set initial value to None if nothing else is selected
+            if self.__entity_choice is None:
+                self.__entity_choice = len(self.__entity_types) + 1
+
+    @property
+    def entity_choices(self) -> typing.List[str]:
+        return self.__entity_choices
+
+    @property
+    def entity_choice(self) -> int:
+        return self.__entity_choice
+
+    @entity_choice.setter
+    def entity_choice(self, value: int) -> None:
+        if 0 <= value < len(self.__entity_types):
+            self.__entity_choice = value
+            self.property_changed_event.fire("entity_choice")
+            self.data_structure.structure_type = self.__entity_types[value].entity_id
+        else:
+            self.__entity_choice = len(self.__entity_types) + 1
+            self.property_changed_event.fire("entity_choice")
+            self.data_structure.structure_type = self.variable.entity_id
+
+
 class VariableHandler:
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
         self.document_controller = document_controller
@@ -1157,6 +1205,9 @@ class VariableHandler:
         if component_id == "graphic_item":
             graphic = typing.cast(Graphics.Graphic, item.value) if item and item.value else None
             return GraphicHandler(self.document_controller, self.computation, self.variable, graphic)
+        if component_id == "structure":
+            data_structure = self.variable.bound_item.value if self.variable.bound_item else None
+            return DataStructureHandler(self.document_controller, self.computation, self.variable, data_structure)
         return None
 
     def get_resource(self, resource_id: str, container=None, item=None) -> typing.Optional[Declarative.UIDescription]:
@@ -1172,6 +1223,15 @@ class VariableHandler:
                 u.create_label(text=f"#{container.items.index(item)}"),
                 u.create_stretch(), spacing=8)
             return u.define_component(u.create_column(label_row, graphic_content, spacing=4))
+        if resource_id == "structure":
+            entity_id = self.variable.entity_id
+            if entity_id:
+                entity_types = Schema.get_entity_type(entity_id).subclasses
+                return u.define_component(u.create_row(
+                    u.create_label(text="@binding(variable.display_label)"),
+                    u.create_combo_box(items_ref="entity_choices", current_index="@binding(entity_choice)"),
+                    u.create_stretch(), spacing=8))
+            return u.define_component(u.create_column())
         return None
 
     @classmethod
@@ -1213,6 +1273,8 @@ class VariableHandler:
             return u.create_column(label, data_source_chooser, spacing=4)
         elif variable.variable_type == "graphic":
             return u.create_column(label, u.create_component_instance("graphic"), spacing=4)
+        elif variable.variable_type == "structure":
+            return u.create_column(label, u.create_component_instance("structure"), spacing=4)
         elif variable.bound_items_model:
             return u.create_column(u.create_column(items="variable.bound_items_model.items", item_component_id="graphic_item", spacing=4), spacing=4)
         else:
