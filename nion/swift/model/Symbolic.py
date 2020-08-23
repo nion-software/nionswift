@@ -505,6 +505,17 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         return self.label or self.name
 
     @property
+    def entity_id(self) -> typing.Optional[str]:
+        computation = self.container
+        if isinstance(computation, Computation):
+            compute_class = _computation_types.get(computation.processing_id)
+            if compute_class:
+                label = getattr(compute_class, "inputs", dict()).get(self.name, dict()).get("entity_id")
+                if label:
+                    return label
+        return None
+
+    @property
     def has_range(self):
         return self.value_type is not None and self.value_min is not None and self.value_max is not None
 
@@ -867,15 +878,18 @@ class BoundDataStructure(BoundItemBase):
 
         def data_structure_changed(property_name):
             self.changed_event.fire()
-            if property_name == self.__property_name:
+            if self.__property_name and property_name in self.__property_name:
                 self.property_changed_event.fire(property_name)
 
         def item_registered(item):
             self.__changed_listener = item.data_structure_changed_event.listen(data_structure_changed)
+            self.__property_changed_listener = item.property_changed_event.listen(data_structure_changed)
 
         def item_unregistered(item):
             self.__changed_listener.close()
             self.__changed_listener = None
+            self.__property_changed_listener.close()
+            self.__property_changed_listener = None
             self.needs_rebind_event.fire()
 
         self.__item_proxy.on_item_registered = item_registered

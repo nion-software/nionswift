@@ -1,7 +1,6 @@
 # standard libraries
 import copy
 import typing
-import weakref
 
 # third party libraries
 
@@ -11,6 +10,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Persistence
+from nion.swift.model import Schema
 from nion.utils import Event
 from nion.utils import Observable
 
@@ -19,27 +19,46 @@ if typing.TYPE_CHECKING:
 
 
 class DataStructure(Observable.Observable, Persistence.PersistentObject):
+    entity_types:typing.Dict[str, Schema.EntityType] = dict()
+    entity_names:typing.Dict[str, str] = dict()
+
     # regarding naming: https://en.wikipedia.org/wiki/Passive_data_structure
     def __init__(self, *, structure_type: str=None, source=None):
         super().__init__()
         self.__properties = dict()
         self.__referenced_object_proxies = dict()
         self.define_type("data_structure")
-        self.define_property("structure_type", structure_type)
+        self.define_property("structure_type", structure_type, changed=self.__structure_type_changed)
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
         # properties is handled explicitly
         self.data_structure_changed_event = Event.Event()
         self.referenced_objects_changed_event = Event.Event()
         self.__source_proxy = self.create_item_proxy(item=source)
         self.source_specifier = source.project.create_specifier(source).write() if source else None
+        self.__entity: typing.Optional[Schema.Entity] = None
+        self.__create_entity()
 
     def close(self) -> None:
+        if self.__entity:
+            self.__entity.close()
+            self.__entity = None
         self.__source_proxy.close()
         self.__source_proxy = None
         for referenced_proxy in self.__referenced_object_proxies.values():
             referenced_proxy.close()
         self.__referenced_object_proxies.clear()
         super().close()
+
+    @classmethod
+    def register_entity(cls, entity_type: Schema.EntityType, *, entity_name: str = None, **kwargs) -> None:
+        DataStructure.entity_types[entity_type.entity_id] = entity_type
+        if entity_name:
+            DataStructure.entity_names[entity_type.entity_id] = entity_name
+
+    @classmethod
+    def unregister_entity(cls, structure_type: str) -> None:
+        DataStructure.entity_types.pop(structure_type)
+        DataStructure.entity_names.pop(structure_type, None)
 
     def __getattr__(self, name):
         properties = self.__dict__.get("_DataStructure__properties", dict())
@@ -86,6 +105,29 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         self.__properties = properties.get("properties")
         for property_name, value in self.__properties.items():
             self.__configure_reference_proxy(property_name, value, None)
+        self.__create_entity()
+
+    def __create_entity(self) -> None:
+        if self.__entity:
+            self.__entity.close()
+            self.__entity = None
+
+        if self.structure_type in DataStructure.entity_types:
+            self.__entity = DataStructure.entity_types[self.structure_type].create(self.__properties)
+
+            def write_entity(d: typing.Dict) -> None:
+                for property, value in d.items():
+                    if property != "type":
+                        self.__properties[property] = value
+                        reference_object_proxy = self.__referenced_object_proxies.pop(property, None)
+                        if reference_object_proxy:
+                            reference_object_proxy.close()
+                        self.__configure_reference_proxy(property, value, None)
+                        self.data_structure_changed_event.fire(property)
+                        self.property_changed_event.fire(property)
+                self._update_persistent_property("properties", self.__properties)
+
+            self.__entity.writer = write_entity
 
     def __configure_reference_proxy(self, property_name, value, item):
         if isinstance(value, dict) and value.get("type") in {"data_item", "display_item", "data_source", "graphic", "structure"} and "uuid" in value:
@@ -104,6 +146,14 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
     def source(self, source):
         self.__source_proxy.item = source
         self.source_specifier = source.project.create_specifier(source).write() if source else None
+
+    @property
+    def entity(self) -> typing.Optional[Schema.Entity]:
+        return self.__entity
+
+    def __structure_type_changed(self, name: str, structure_type: str) -> None:
+        self.__create_entity()
+        self.property_changed_event.fire("structure_type")
 
     def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
         self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
@@ -203,3 +253,13 @@ def get_object_specifier(object, object_type: str = None, project=None, *, allow
         if specifier and specifier.context_uuid: d["context_uuid"] = str(specifier.context_uuid)
         return d
     return None
+
+ElementalMappingEdge = Schema.entity("elemental_mapping_edge", None, None, {
+    "atomic_number": Schema.prop(Schema.INT),
+    "shell_number": Schema.prop(Schema.INT),
+    "subshell_index": Schema.prop(Schema.INT),
+    "fit_interval": Schema.fixed_tuple([Schema.prop(Schema.FLOAT), Schema.prop(Schema.FLOAT)]),
+    "signal_interval": Schema.fixed_tuple([Schema.prop(Schema.FLOAT), Schema.prop(Schema.FLOAT)]),
+})
+
+DataStructure.register_entity(ElementalMappingEdge, entity_name="Elemental Mapping Edge")
