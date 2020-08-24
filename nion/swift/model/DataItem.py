@@ -1265,11 +1265,16 @@ def create_mask_data(graphics: typing.Sequence[Graphics.Graphic], shape, calibra
 
 
 class DataSource:
-    def __init__(self, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, xdata: DataAndMetadata.DataAndMetadata = None):
-        self.__display_item = display_item
-        self.__data_item = display_item.data_item if display_item else None
+    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: Graphics.Graphic, xdata: DataAndMetadata.DataAndMetadata = None):
+        self.__display_data_channel = display_data_channel
+        self.__display_item = display_data_channel.container if display_data_channel else None
+        self.__data_item = display_data_channel.data_item if display_data_channel else None
         self.__graphic = graphic
         self.__xdata = xdata
+
+    @property
+    def display_data_channel(self) -> DisplayItem.DisplayDataChannel:
+        return self.__display_data_channel
 
     @property
     def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
@@ -1297,7 +1302,7 @@ class DataSource:
 
     @property
     def display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
+        display_data_channel = self.__display_data_channel
         if display_data_channel:
             if self.__xdata is not None:
                 return Core.function_convert_to_scalar(self.xdata, display_data_channel.complex_display_type)
@@ -1364,14 +1369,14 @@ class DataSource:
 
 
 class MonitoredDataSource(DataSource):
-    def __init__(self, display_data_channel, graphic: Graphics.Graphic, changed_event):
-        super().__init__(display_data_channel.container, graphic)
+    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: Graphics.Graphic, changed_event):
+        super().__init__(display_data_channel, graphic)
         self.__display_item = display_data_channel.container
         self.__graphic = graphic
         self.__changed_event = changed_event  # not public since it is passed in
         self.__data_item = display_data_channel.data_item
-        display_data_channel = self.__display_item.get_display_data_channel_for_data_item(self.__data_item) if self.__display_item else None
-        self.__data_item_changed_event_listener = None
+        # display_data_channel = self.__display_item.get_display_data_channel_for_data_item(self.__data_item) if self.__display_item else None
+        # self.__data_item_changed_event_listener = None
         self.__data_item_changed_event_listener = self.__data_item.data_item_changed_event.listen(self.__changed_event.fire) if self.__data_item else None
         self.__display_values_event_listener = display_data_channel.display_data_will_change_event.listen(self.__changed_event.fire) if display_data_channel else None
         self.__property_changed_listener = None

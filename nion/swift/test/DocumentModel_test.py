@@ -117,7 +117,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            line_profile_data_item = document_model.get_line_profile_new(display_item)
+            line_profile_data_item = document_model.get_line_profile_new(display_item, display_item.data_item)
             self.assertEqual(len(display_item.graphics[0].interval_descriptors), 0)
             interval = Graphics.IntervalGraphic()
             interval.interval = 0.3, 0.6
@@ -132,7 +132,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            pick_data_item = document_model.get_pick_new(display_item)
+            pick_data_item = document_model.get_pick_new(display_item, display_item.data_item)
             pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
             display_data_channel = display_item.display_data_channels[0]
             self.assertEqual(len(display_item.graphics), 1)
@@ -161,7 +161,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inverted_data_item = document_model.get_invert_new(display_item)
+            inverted_data_item = document_model.get_invert_new(display_item, display_item.data_item)
             document_model.remove_data_item(inverted_data_item)
             document_model.recompute_all()
 
@@ -172,7 +172,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inverted_data_item = document_model.get_invert_new(display_item)
+            inverted_data_item = document_model.get_invert_new(display_item, display_item.data_item)
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(inverted_data_item.data, -d))
             data_item.set_data((100 * numpy.random.randn(4, 4)).astype(numpy.int))
@@ -244,7 +244,7 @@ class TestDocumentModelClass(unittest.TestCase):
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
             display_item.add_graphic(crop_region)
             with document_model.item_transaction(data_item):
-                data_item_crop = document_model.get_crop_new(display_item, crop_region)
+                data_item_crop = document_model.get_crop_new(display_item, display_item.data_item, crop_region)
                 self.assertTrue(document_model.is_in_transaction_state(data_item_crop))
             self.assertEqual(0, document_model.transaction_count)
 
@@ -257,7 +257,7 @@ class TestDocumentModelClass(unittest.TestCase):
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
             display_item.add_graphic(crop_region)
-            data_item_crop = document_model.get_crop_new(display_item, crop_region)
+            data_item_crop = document_model.get_crop_new(display_item, display_item.data_item, crop_region)
             with document_model.item_transaction(data_item):
                 document_model.remove_data_item(data_item_crop)
             self.assertEqual(0, document_model.transaction_count)
@@ -294,7 +294,7 @@ class TestDocumentModelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             with document_model.item_transaction(data_item):
                 with document_model.item_transaction(data_item):
-                    line_profile_data_item = document_model.get_line_profile_new(display_item)
+                    line_profile_data_item = document_model.get_line_profile_new(display_item, display_item.data_item)
                     self.assertTrue(document_model.is_in_transaction_state(data_item))
                     self.assertTrue(document_model.is_in_transaction_state(line_profile_data_item))
                 self.assertTrue(document_model.is_in_transaction_state(data_item))
@@ -320,7 +320,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            line_profile_data_item = document_model.get_line_profile_new(display_item)
+            line_profile_data_item = document_model.get_line_profile_new(display_item, display_item.data_item)
             line_profile_display_item = document_model.get_display_item_for_data_item(line_profile_data_item)
             with document_model.item_transaction(data_item):
                 self.assertTrue(line_profile_data_item.in_transaction_state)
@@ -355,7 +355,7 @@ class TestDocumentModelClass(unittest.TestCase):
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
             display_item.add_graphic(crop_region)
-            data_item_crop = document_model.get_crop_new(display_item, crop_region)
+            data_item_crop = document_model.get_crop_new(display_item, display_item.data_item, crop_region)
             self.assertSetEqual(set(document_model.get_dependent_items(data_item)), {data_item_crop})
             self.assertSetEqual(set(document_model.get_dependent_items(crop_region)), {data_item_crop})
             self.assertSetEqual(set(document_model.get_source_items(data_item_crop)), {data_item, crop_region})
@@ -1860,7 +1860,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item2)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
-            data_item3 = document_model.get_cross_correlate_new(display_item1, display_item2)
+            data_item3 = document_model.get_cross_correlate_new(display_item1, display_item1.data_item, display_item2, display_item2.data_item)
             document_model.remove_data_item(data_item2)
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(data_item1, document_model.data_items[0])
@@ -1968,7 +1968,7 @@ class TestDocumentModelClass(unittest.TestCase):
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
             display_item.add_graphic(crop_region)
-            data_item2 = document_model.get_crop_new(display_item, crop_region)
+            data_item2 = document_model.get_crop_new(display_item, display_item.data_item, crop_region)
             data_item3 = DataItem.DataItem()
             document_model.append_data_item(data_item3)
             # create the computation
@@ -2049,7 +2049,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((4, 4, 100)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            pick_data_item = document_model.get_pick_new(display_item)
+            pick_data_item = document_model.get_pick_new(display_item, display_item.data_item)
             pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
             # only even width intervals aligned to pixels are represented exactly by slices
             pick_display_item.graphics[0].interval = (12 / 100, 16 / 100)
@@ -2071,7 +2071,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            line_profile_data_item = document_model.get_line_profile_new(display_item)
+            line_profile_data_item = document_model.get_line_profile_new(display_item, display_item.data_item)
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
             self.assertEqual(1, len(document_model.display_items[0].graphics))
@@ -2102,7 +2102,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            document_model.get_line_profile_new(display_item)
+            document_model.get_line_profile_new(display_item, display_item.data_item)
             # delete the graphic and verify
             undelete_log = display_item.remove_graphic(display_item.graphics[0], safe=True)
             # undelete and verify
@@ -2134,7 +2134,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            line_profile_data_item = document_model.get_line_profile_new(display_item)
+            line_profile_data_item = document_model.get_line_profile_new(display_item, display_item.data_item)
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
             document_model.recompute_all()
@@ -2199,7 +2199,7 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.get_display_item_copy_new(display_item)
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(2, len(document_model.display_items))
-            document_model.get_invert_new(display_item)
+            document_model.get_invert_new(display_item, display_item.data_item)
             self.assertEqual(2, len(document_model.data_items))
             self.assertEqual(3, len(document_model.display_items))
 
@@ -2301,9 +2301,9 @@ class TestDocumentModelClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((4, )))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                data_item2 = document_model.get_invert_new(display_item)
+                data_item2 = document_model.get_invert_new(display_item, display_item.data_item)
                 display_item2 = document_model.get_display_item_for_data_item(data_item2)
-                data_item3 = document_model.get_invert_new(display_item2)
+                data_item3 = document_model.get_invert_new(display_item2, display_item2.data_item)
                 display_item3 = document_model.get_display_item_for_data_item(data_item3)
                 display_item2.append_display_data_channel_for_data_item(data_item3)
                 # check sources. display_item2 should not be included in source items for itself
@@ -2314,6 +2314,25 @@ class TestDocumentModelClass(unittest.TestCase):
                 self.assertEqual([display_item2], document_model.get_dependent_display_items(display_item))
                 self.assertEqual([display_item3], document_model.get_dependent_display_items(display_item2))
                 self.assertEqual([], document_model.get_dependent_display_items(display_item3))
+
+    def test_display_items_with_multiple_data_channels_processing(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((4, )))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_item2 = DataItem.DataItem(numpy.ones((4, )))
+                document_model.append_data_item(data_item2)
+                display_item2 = document_model.get_display_item_for_data_item(data_item2)
+                display_item2.append_display_data_channel_for_data_item(data_item)
+                inverted_data_item = document_model.get_invert_new(display_item2, data_item)
+                # check the data and display_data paths by doing some computations
+                document_model.recompute_all()
+                self.assertAlmostEqual(-4, float(numpy.sum(inverted_data_item.data)))
+                data_item.set_data(numpy.full((4, ), 8))
+                document_model.recompute_all()
+                self.assertAlmostEqual(-32, float(numpy.sum(inverted_data_item.data)))
 
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?

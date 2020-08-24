@@ -233,10 +233,10 @@ class TestDisplayItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            fft_data_item = document_model.get_fft_new(display_item)
+            fft_data_item = document_model.get_fft_new(display_item, display_item.data_item)
             document_model.recompute_all()
             fft_display_item = document_model.get_display_item_for_data_item(fft_data_item)
-            document_model.get_fourier_filter_new(fft_display_item)
+            document_model.get_fourier_filter_new(fft_display_item, fft_data_item)
             document_model.recompute_all()
 
     # test_transaction_does_not_cascade_to_data_item_refs

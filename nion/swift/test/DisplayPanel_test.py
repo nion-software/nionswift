@@ -1396,7 +1396,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
-            data_item = document_model.get_crop_new(display_item1)
+            data_item = document_model.get_crop_new(display_item1, display_item1.data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_type = "line_plot"
             display_panel.set_display_panel_display_item(display_item)
@@ -1531,8 +1531,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
-            document_model.get_crop_new(display_item)
-            document_model.get_line_profile_new(display_item)
+            document_model.get_crop_new(display_item, display_item.data_item)
+            document_model.get_line_profile_new(display_item, display_item.data_item)
             self.assertEqual(3, len(document_model.data_items))
             self.assertEqual(2, len(display_item.graphics))
             self.assertEqual(2, len(document_model.get_dependent_items(data_item)))
@@ -1773,7 +1773,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.random.randn(4, 4))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            line_plot_data_item = document_model.get_line_profile_new(display_item)
+            line_plot_data_item = document_model.get_line_profile_new(display_item, display_item.data_item)
             line_plot_display_item = document_model.get_display_item_for_data_item(line_plot_data_item)
             document_model.recompute_all()
             display_panel = document_controller.selected_display_panel
@@ -1808,7 +1808,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.random.randn(4, 4))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            line_plot_data_item = document_model.get_line_profile_new(display_item)
+            line_plot_data_item = document_model.get_line_profile_new(display_item, display_item.data_item)
             line_plot_display_item = document_model.get_display_item_for_data_item(line_plot_data_item)
             document_model.recompute_all()
             display_panel = document_controller.selected_display_panel
@@ -1882,7 +1882,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
-            fft_data_item = document_model.get_fft_new(display_item)
+            fft_data_item = document_model.get_fft_new(display_item, display_item.data_item)
             display_panel.set_display_panel_display_item(document_model.get_display_item_for_data_item(fft_data_item))
             document_model.recompute_all()
             display_panel.root_container.layout_immediate(Geometry.IntSize(200, 200))
@@ -1901,7 +1901,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
-            line_profile_data_item = document_model.get_line_profile_new(display_item)
+            line_profile_data_item = document_model.get_line_profile_new(display_item, display_item.data_item)
             display_panel.set_display_panel_display_item(document_model.get_display_item_for_data_item(line_profile_data_item))
             document_model.recompute_all()
             display_panel.root_container.layout_immediate(Geometry.IntSize(1000, 200))

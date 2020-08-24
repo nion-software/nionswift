@@ -1469,7 +1469,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         code_lines.extend(expression_lines)
         code = "\n".join(code_lines)
         try:
-            # print(code)
             compiled = compile(code, "expr", "exec")
             exec(compiled, g, l)
         except Exception as e:

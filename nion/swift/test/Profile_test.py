@@ -89,7 +89,7 @@ class TestProfileClass(unittest.TestCase):
             # load first project and check conditions
             document_controller = self.app.open_project_window(profile.project_references[0])
             document_controller.document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
-            document_controller._perform_processing(document_controller.document_model.display_items[0], None, document_controller.document_model.get_fft_new)
+            document_controller._perform_processing(document_controller.document_model.display_items[0], document_controller.document_model.display_items[0].data_item, None, document_controller.document_model.get_fft_new)
             self.assertEqual("loaded", profile.project_references[0].project_state)
             self.assertEqual("unloaded", profile.project_references[1].project_state)
             self.assertEqual(2, len(document_controller.document_model.data_items))

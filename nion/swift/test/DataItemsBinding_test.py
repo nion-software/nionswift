@@ -304,7 +304,7 @@ class TestDataItemsModelModule(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 time.sleep(0.01)
-            data_item = document_model.get_invert_new(document_model.display_items[0])
+            data_item = document_model.get_invert_new(document_model.display_items[0], document_model.display_items[0].data_item)
             document_model.recompute_all()
             self.assertEqual(len(filtered_data_items.items), 5)
             # new data item should be last

@@ -1940,7 +1940,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             self.__display_item.add_graphic(line_profile_region)
             document_controller = self.__document_controller
             document_model = document_controller.document_model
-            line_profile_data_item = document_model.get_line_profile_new(display_item, None, line_profile_region)
+            line_profile_data_item = document_model.get_line_profile_new(display_item, display_item.data_item, None, line_profile_region)
             line_profile_display_item = document_model.get_display_item_for_data_item(line_profile_data_item)
             document_controller.show_display_item(line_profile_display_item)
             return line_profile_region

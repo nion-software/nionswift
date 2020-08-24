@@ -1359,6 +1359,10 @@ class DataSource(metaclass=SharedInstance):
         return ObjectSpecifier("data_source", uuid_module.uuid4())
 
     @property
+    def _display_data_channel(self) -> DisplayItemModule.DisplayDataChannel:
+        return self.__data_source.display_data_channel
+
+    @property
     def display_item(self) -> "Display":
         return Display(self.__data_source.display_item)
 

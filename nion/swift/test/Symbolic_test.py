@@ -1607,7 +1607,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.random.randn(2, 2))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            document_model.get_invert_new(display_item)
+            document_model.get_invert_new(display_item, display_item.data_item)
             computation = document_model.computations[0]
             self.assertIsNotNone(computation.get_input("src"))
             document_model.remove_data_item(document_model.data_items[1])
@@ -1656,7 +1656,7 @@ class TestSymbolicClass(unittest.TestCase):
             display_item.add_graphic(crop_region)
             graphic = Graphics.PointGraphic()
             display_item.add_graphic(graphic)
-            document_model.get_fft_new(display_item, crop_region)
+            document_model.get_fft_new(display_item, display_item.data_item, crop_region)
             display_item.remove_graphic(graphic)
             document_model.recompute_all()
             graphic = Graphics.PointGraphic()

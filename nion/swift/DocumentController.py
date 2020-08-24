@@ -1515,7 +1515,7 @@ class DocumentController(Window.Window):
 
     def _perform_redimension(self, display_item: DisplayItem.DisplayItem, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
         def process() -> DataItem.DataItem:
-            new_data_item = self.document_model.get_redimension_new(display_item, data_descriptor)
+            new_data_item = self.document_model.get_redimension_new(display_item, display_item.data_item, data_descriptor)
             new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
             self.show_display_item(new_display_item)
             return new_data_item
@@ -1530,7 +1530,7 @@ class DocumentController(Window.Window):
 
     def _perform_squeeze(self, display_item: DisplayItem.DisplayItem) -> None:
         def process() -> DataItem.DataItem:
-            new_data_item = self.document_model.get_squeeze_new(display_item)
+            new_data_item = self.document_model.get_squeeze_new(display_item, display_item.data_item)
             new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
             self.show_display_item(new_display_item)
             return new_data_item
@@ -1963,9 +1963,9 @@ class DocumentController(Window.Window):
             return (display_item1, crop_graphic1), (display_item2, crop_graphic2)
         return None
 
-    def _perform_processing2(self, data_item1: DataItem.DataItem, data_item2: DataItem.DataItem, crop_graphic1: typing.Optional[Graphics.Graphic], crop_graphic2: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
+    def _perform_processing2(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_graphic1: typing.Optional[Graphics.Graphic], crop_graphic2: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
         def process() -> DataItem.DataItem:
-            new_data_item = fn(data_item1, data_item2, crop_graphic1, crop_graphic2)
+            new_data_item = fn(display_item1, data_item1, display_item2, data_item2, crop_graphic1, crop_graphic2)
             new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
             self.show_display_item(new_display_item)
             return new_data_item
@@ -1979,9 +1979,9 @@ class DocumentController(Window.Window):
             command.close()
         return None
 
-    def _perform_processing(self, display_item: DisplayItem.DisplayItem, crop_graphic: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
+    def _perform_processing(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_graphic: typing.Optional[Graphics.Graphic], fn) -> None:
         def process() -> DataItem.DataItem:
-            new_data_item = fn(display_item, crop_graphic)
+            new_data_item = fn(display_item, data_item, crop_graphic)
             if new_data_item:
                 new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
                 self.show_display_item(new_display_item)
@@ -1991,17 +1991,20 @@ class DocumentController(Window.Window):
         assert isinstance(command, DocumentController.InsertDataItemCommand)
         if command.data_item:
             self.push_undo_command(command)
-            return command.data_item
         else:
             command.close()
-        return None
 
-    def processing_fourier_filter_new(self):
-        display_item = self.selected_display_item
-        data_item = display_item.data_item if display_item else None
-        if data_item:
-            return self._perform_processing(display_item, None, self.document_model.get_fourier_filter_new)
-        return None
+    def _perform_processing_select(self, display_item: DisplayItem.DisplayItem, crop_graphic: typing.Optional[Graphics.Graphic], fn) -> None:
+        def perform(display_item: DisplayItem.DisplayItem, data_item: typing.Optional[DataItem.DataItem]) -> None:
+            if data_item:
+                window = typing.cast(DocumentController, self)
+                window._perform_processing(display_item, data_item, crop_graphic, fn)
+
+        if display_item.data_item:
+            perform(display_item, display_item.data_item)
+        else:
+            Dialog.pose_select_item_pop_up(display_item.data_items, functools.partial(perform, display_item),
+                                           item_getter=operator.attrgetter("title"), window=self)
 
     def _change_to_previous_workspace(self):
         if self.workspace_controller:
@@ -2779,13 +2782,13 @@ Window.register_action(RemoveGraphicFromMaskAction())
 class ProcessingAction(Window.Action):
 
     def invoke_processing(self, context: Window.ActionContext, fn) -> None:
-        context.window._perform_processing(context.display_item, context.crop_graphic, fn)
+        context.window._perform_processing_select(context.display_item, context.crop_graphic, fn)
 
     def invoke_processing2(self, context: Window.ActionContext, fn) -> None:
         data_sources = context.window._get_two_data_sources()
         if data_sources:
             (display_item1, crop_graphic1), (display_item2, crop_graphic2) = data_sources
-            return context.window._perform_processing2(display_item1, display_item2, crop_graphic1, crop_graphic2, fn)
+            return context.window._perform_processing2(display_item1, display_item1.data_item, display_item2, display_item2.data_item, crop_graphic1, crop_graphic2, fn)
         return None
 
 
@@ -2839,8 +2842,7 @@ class FourierFilterAction(ProcessingAction):
     action_name = _("Fourier Filter")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        if context.data_item:
-            context.window._perform_processing(context.window.display_item, None, context.model.get_fourier_filter_new)
+        context.window._perform_processing_select(context.display_item, None, context.model.get_fourier_filter_new)
         return Window.ActionResult.FINISHED
 
 
@@ -3130,8 +3132,7 @@ class ProcessingComponentAction(ProcessingAction):
         self.__processing_id = processing_id
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        if context.data_item:
-            context.window._perform_processing(context.display_item, context.crop_graphic, functools.partial(context.model.get_processing_new, self.__processing_id))
+        context.window._perform_processing_select(context.display_item, None, functools.partial(context.model.get_processing_new, self.__processing_id))
         return Window.ActionResult.FINISHED
 
 

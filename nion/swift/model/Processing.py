@@ -50,7 +50,7 @@ class ProcessingComputation:
             xdata = data_source.xdata
             self.__xdata = None
             for index in numpy.ndindex(xdata.navigation_dimension_shape):
-                index_data_source = DataItem.DataSource(data_source.display_item._display_item, data_source.graphic._graphic, xdata[index])
+                index_data_source = DataItem.DataSource(data_source._display_data_channel, data_source.graphic._graphic, xdata[index])
                 index_kw_args = {next(iter(kwargs.keys())): index_data_source}
                 for k, v in list(kwargs.items())[1:]:
                     index_kw_args[k] = v

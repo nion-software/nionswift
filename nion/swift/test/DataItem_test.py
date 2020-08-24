@@ -191,7 +191,7 @@ class TestDataItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             crop_region = Graphics.RectangleGraphic()
             display_item.add_graphic(crop_region)
-            data_item1 = document_model.get_crop_new(display_item, crop_region)
+            data_item1 = document_model.get_crop_new(display_item, display_item.data_item, crop_region)
             # verify
             self.assertEqual(document_model.get_source_data_items(data_item1)[0], data_item)
             self.assertEqual(document_model.get_dependent_data_items(data_item)[0], data_item1)
@@ -227,7 +227,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item2)  # add this first
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
-            data_item2a = document_model.get_invert_new(display_item2)
+            data_item2a = document_model.get_invert_new(display_item2, display_item2.data_item)
             # copy the dependent item
             data_item2a_copy = document_model.copy_data_item(data_item2a)
             # verify data source
@@ -243,7 +243,7 @@ class TestDataItemClass(unittest.TestCase):
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25,0.25), (0.5,0.5)
             source_display_item.add_graphic(crop_region)
-            data_item = document_model.get_crop_new(source_display_item, crop_region)
+            data_item = document_model.get_crop_new(source_display_item, source_display_item.data_item, crop_region)
             data_item_copy = document_model.copy_data_item(data_item)
             self.assertNotEqual(document_model.get_data_item_computation(data_item_copy), document_model.get_data_item_computation(data_item))
             document_model.recompute_all()
@@ -370,7 +370,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            data_item_inverted = document_model.get_invert_new(display_item)
+            data_item_inverted = document_model.get_invert_new(display_item, display_item.data_item)
             inverted_display_item = document_model.get_display_item_for_data_item(data_item_inverted)
             document_model.recompute_all()
             with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, inverted_display_item)) as thumbnail_source:
@@ -399,9 +399,9 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item2)  # add this first
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
-            data_item2a = document_model.get_invert_new(display_item2)
+            data_item2a = document_model.get_invert_new(display_item2, display_item2.data_item)
             display_item2a = document_model.get_display_item_for_data_item(data_item2a)
-            data_item2a1 = document_model.get_invert_new(display_item2a)
+            data_item2a1 = document_model.get_invert_new(display_item2a, display_item2a.data_item)
             # remove item (and implicitly its dependency)
             document_model.remove_data_item(data_item2a)
             self.assertEqual(len(document_model.data_items), 1)
@@ -475,7 +475,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(data1)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            data_item_copy = document_model.get_crop_new(display_item)
+            data_item_copy = document_model.get_crop_new(display_item, display_item.data_item)
             document_model.recompute_all()
             data_item_snap = document_model.get_display_item_snapshot_new(document_model.get_display_item_for_data_item(data_item_copy)).data_item
             document_model.recompute_all()
@@ -501,7 +501,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inverted_data_item = document_model.get_invert_new(display_item)
+            inverted_data_item = document_model.get_invert_new(display_item, display_item.data_item)
             document_model.recompute_all()
             inverted_display_item = document_model.get_display_item_for_data_item(inverted_data_item)
             self.assertFalse(document_model.get_data_item_computation(inverted_display_item.data_item).needs_update)
@@ -557,7 +557,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(Graphics.RectangleGraphic())
-            document_model.get_crop_new(display_item)
+            document_model.get_crop_new(display_item, display_item.data_item)
             # should remove properly when shutting down.
 
     def test_removing_derived_data_item_updates_dependency_info_on_source(self):
@@ -567,7 +567,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item1.title = "1"
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
-            data_item1a = document_model.get_invert_new(display_item1)
+            data_item1a = document_model.get_invert_new(display_item1, display_item1.data_item)
             data_item1a.title = "1a"
             self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
             document_model.remove_data_item(data_item1a)
@@ -579,7 +579,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inverted_data_item = document_model.get_invert_new(display_item)
+            inverted_data_item = document_model.get_invert_new(display_item, display_item.data_item)
             inverted_display_item = document_model.get_display_item_for_data_item(inverted_data_item)
             document_model.recompute_all()
             self.assertFalse(inverted_display_item.data_item.is_data_loaded)
@@ -590,7 +590,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            data_item_inverted = document_model.get_invert_new(display_item)
+            data_item_inverted = document_model.get_invert_new(display_item, display_item.data_item)
             inverted_display_item = document_model.get_display_item_for_data_item(data_item_inverted)
             # begin checks
             document_model.recompute_all()
@@ -605,7 +605,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            data_item_inverted = document_model.get_invert_new(display_item)
+            data_item_inverted = document_model.get_invert_new(display_item, display_item.data_item)
             inverted_display_item = document_model.get_display_item_for_data_item(data_item_inverted)
             document_model.recompute_all()
             data_changed_ref = [False]
@@ -623,7 +623,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inverted_data_item = document_model.get_invert_new(display_item)
+            inverted_data_item = document_model.get_invert_new(display_item, display_item.data_item)
             document_model.recompute_all()
             data_item.set_data(numpy.ones((8, 8), numpy.uint32))
             self.assertTrue(document_model.get_data_item_computation(inverted_data_item).needs_update)
@@ -634,7 +634,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inverted_data_item = document_model.get_invert_new(display_item)
+            inverted_data_item = document_model.get_invert_new(display_item, display_item.data_item)
             inverted_display_item = document_model.get_display_item_for_data_item(inverted_data_item)
             document_model.recompute_all()
             display_item.data_item.set_data(numpy.ones((8, 8), numpy.uint32))
@@ -648,9 +648,9 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.full((2, 2), 2, numpy.int32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inverted_data_item = document_model.get_invert_new(display_item)
+            inverted_data_item = document_model.get_invert_new(display_item, display_item.data_item)
             inverted_display_item = document_model.get_display_item_for_data_item(inverted_data_item)
-            inverted2_data_item = document_model.get_invert_new(inverted_display_item)
+            inverted2_data_item = document_model.get_invert_new(inverted_display_item, inverted_display_item.data_item)
             inverted2_display_item = document_model.get_display_item_for_data_item(inverted2_data_item)
             document_model.recompute_all()
             self.assertFalse(document_model.get_data_item_computation(inverted_display_item.data_item).needs_update)
@@ -670,7 +670,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inverted_data_item = document_model.get_invert_new(display_item)
+            inverted_data_item = document_model.get_invert_new(display_item, display_item.data_item)
             inverted_display_item = document_model.get_display_item_for_data_item(inverted_data_item)
             document_model.recompute_all()
             self.assertFalse(document_model.get_data_item_computation(inverted_display_item.data_item).needs_update)
@@ -694,7 +694,7 @@ class TestDataItemClass(unittest.TestCase):
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
             display_item.add_graphic(crop_region)
-            data_item_crop = document_model.get_crop_new(display_item, crop_region)
+            data_item_crop = document_model.get_crop_new(display_item, display_item.data_item, crop_region)
             self.assertEqual(len(display_item.graphics), 1)
             document_model.remove_data_item(data_item_crop)
             self.assertEqual(len(display_item.graphics), 0)
@@ -708,7 +708,7 @@ class TestDataItemClass(unittest.TestCase):
             crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
             display_item.add_graphic(crop_region)
-            data_item_crop = document_model.get_crop_new(display_item, crop_region)
+            data_item_crop = document_model.get_crop_new(display_item, display_item.data_item, crop_region)
             self.assertEqual(len(display_item.graphics), 1)
             document_model.set_data_item_computation(data_item, None)
             # the associated graphic should now be deleted.
@@ -728,7 +728,7 @@ class TestDataItemClass(unittest.TestCase):
             display_item.add_graphic(crop_region)
             display_item = document_model.get_display_item_for_data_item(data_item)
             with contextlib.closing(display_item.graphics_changed_event.listen(graphics_changed)):
-                document_model.get_crop_new(display_item, crop_region)
+                document_model.get_crop_new(display_item, display_item.data_item, crop_region)
                 graphics_changed_ref[0] = False
                 display_item.graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
                 self.assertTrue(graphics_changed_ref[0])
@@ -747,7 +747,7 @@ class TestDataItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(crop_region)
             with contextlib.closing(display_item.graphics_changed_event.listen(graphics_changed)):
-                document_model.get_crop_new(display_item, crop_region)
+                document_model.get_crop_new(display_item, display_item.data_item, crop_region)
                 display_item.graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
                 graphics_changed_ref[0] = False
                 display_item.graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
@@ -784,7 +784,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item2)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
-            document_model.get_cross_correlate_new(display_item1, display_item2)
+            document_model.get_cross_correlate_new(display_item1, display_item1.data_item, display_item2, display_item2.data_item)
 
     def test_region_graphic_gets_added_to_existing_display(self):
         with TestContext.create_memory_context() as test_context:
@@ -842,7 +842,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            line_plot_data_item = document_model.get_line_profile_new(display_item)
+            line_plot_data_item = document_model.get_line_profile_new(display_item, display_item.data_item)
             line_plot_display_item = document_model.get_display_item_for_data_item(line_plot_data_item)
             line_profile_graphic = display_item.graphics[0]
             with contextlib.closing(display_item.graphics_changed_event.listen(graphics_changed)):
@@ -863,7 +863,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             # configure the dependent item
-            data_item2 = document_model.get_invert_new(display_item)
+            data_item2 = document_model.get_invert_new(display_item, display_item.data_item)
             # make sure the dependency list is updated
             self.assertEqual(document_model.get_dependent_data_items(data_item), [data_item2])
 
@@ -875,7 +875,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             # configure the dependent item
-            data_item2 = document_model.get_invert_new(display_item)
+            data_item2 = document_model.get_invert_new(display_item, display_item.data_item)
             # begin the transaction
             with document_model.item_transaction(data_item):
                 self.assertTrue(data_item.in_transaction_state)
@@ -893,7 +893,7 @@ class TestDataItemClass(unittest.TestCase):
             # begin the transaction
             with document_model.item_transaction(data_item):
                 # configure the dependent item
-                data_item2 = document_model.get_invert_new(display_item)
+                data_item2 = document_model.get_invert_new(display_item, display_item.data_item)
                 # check to make sure it is under transaction
                 self.assertTrue(data_item.in_transaction_state)
                 self.assertTrue(data_item2.in_transaction_state)
@@ -912,7 +912,7 @@ class TestDataItemClass(unittest.TestCase):
             display_item.add_graphic(crop_region)
             # begin the transaction
             with document_model.item_transaction(data_item):
-                data_item_crop1 = document_model.get_crop_new(display_item, crop_region)
+                data_item_crop1 = document_model.get_crop_new(display_item, display_item.data_item, crop_region)
                 # change the bounds of the graphic
                 display_item.graphics[0].bounds = ((0.31, 0.32), (0.6, 0.4))
                 # make sure it is connected to the crop computation
@@ -940,7 +940,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             with document_model.data_item_live(data_item):
-                data_item_crop1 = document_model.get_invert_new(display_item)
+                data_item_crop1 = document_model.get_invert_new(display_item, display_item.data_item)
                 self.assertTrue(data_item_crop1.is_live)
             self.assertFalse(data_item.is_live)
             self.assertFalse(data_item_crop1.is_live)
@@ -960,7 +960,7 @@ class TestDataItemClass(unittest.TestCase):
             threading.Thread(target=live_it, args=(1000, )).start()
             with document_model.data_item_live(data_item):
                 for _ in range(100):
-                    data_item_inverted = document_model.get_invert_new(display_item)
+                    data_item_inverted = document_model.get_invert_new(display_item, display_item.data_item)
                     document_model.remove_data_item(data_item_inverted)
 
     def test_changing_metadata_or_data_does_not_mark_the_data_as_stale(self):
@@ -971,7 +971,7 @@ class TestDataItemClass(unittest.TestCase):
             src_data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(src_data_item)
             src_display_item = document_model.get_display_item_for_data_item(src_data_item)
-            data_item = document_model.get_invert_new(src_display_item)
+            data_item = document_model.get_invert_new(src_display_item, src_display_item.data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             document_model.recompute_all()
             self.assertFalse(document_model.get_data_item_computation(display_item.data_item).needs_update)
@@ -987,7 +987,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            copied_data_item = document_model.get_invert_new(display_item)
+            copied_data_item = document_model.get_invert_new(display_item, display_item.data_item)
             copied_display_item = document_model.get_display_item_for_data_item(copied_data_item)
             document_model.recompute_all()
             self.assertFalse(document_model.get_data_item_computation(copied_display_item.data_item).needs_update)
@@ -1001,7 +1001,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            copied_data_item = document_model.get_invert_new(display_item)
+            copied_data_item = document_model.get_invert_new(display_item, display_item.data_item)
             document_model.recompute_all()
             self.assertFalse(document_model.get_data_item_computation(copied_data_item).needs_update)
             document_model.set_data_item_computation(copied_data_item, None)
@@ -1014,7 +1014,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            copied_data_item = document_model.get_gaussian_blur_new(display_item)
+            copied_data_item = document_model.get_gaussian_blur_new(display_item, display_item.data_item)
             copied_display_item = document_model.get_display_item_for_data_item(copied_data_item)
             document_model.recompute_all()
             self.assertFalse(document_model.get_data_item_computation(copied_display_item.data_item).needs_update)
@@ -1027,7 +1027,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inverted_data_item = document_model.get_invert_new(display_item)
+            inverted_data_item = document_model.get_invert_new(display_item, display_item.data_item)
             inverted_display_item = document_model.get_display_item_for_data_item(inverted_data_item)
             document_model.recompute_all()
             self.assertFalse(document_model.get_data_item_computation(inverted_display_item.data_item).needs_update)
@@ -1049,7 +1049,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            data_item_inverted = document_model.get_invert_new(display_item)
+            data_item_inverted = document_model.get_invert_new(display_item, display_item.data_item)
             inverted_display_item = document_model.get_display_item_for_data_item(data_item_inverted)
             document_model.recompute_all()
             self.assertAlmostEqual(inverted_display_item.data_item.data[0, 0], -1.0)
@@ -1066,7 +1066,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inverted_data_item = document_model.get_invert_new(display_item)
+            inverted_data_item = document_model.get_invert_new(display_item, display_item.data_item)
             inverted_display_item = document_model.get_display_item_for_data_item(inverted_data_item)
             document_model.recompute_all()
             self.assertFalse(document_model.get_data_item_computation(inverted_display_item.data_item).needs_update)
@@ -1229,7 +1229,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(src_data_item)
             src_display_item = document_model.get_display_item_for_data_item(src_data_item)
             time.sleep(0.01)
-            data_item = document_model.get_invert_new(src_display_item)
+            data_item = document_model.get_invert_new(src_display_item, src_display_item.data_item)
             document_model.recompute_all()
             self.assertIsNotNone(src_data_item.data_modified)
             self.assertGreaterEqual(data_item.data_modified, src_data_item.data_modified)
@@ -1242,7 +1242,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(src_data_item)
             src_display_item = document_model.get_display_item_for_data_item(src_data_item)
             time.sleep(0.01)
-            data_item = document_model.get_invert_new(src_display_item)
+            data_item = document_model.get_invert_new(src_display_item, src_display_item.data_item)
             document_model.recompute_all()
             self.assertGreaterEqual(data_item.data_modified, src_data_item.created)
 
@@ -1255,7 +1255,7 @@ class TestDataItemClass(unittest.TestCase):
             display_item.data_item.set_dimensional_calibration(0, Calibration.Calibration(3.0, 2.0, u"x"))
             display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(3.0, 2.0, u"x"))
             self.assertEqual(len(display_item.data_item.dimensional_calibrations), 2)
-            data_item_copy = document_model.get_invert_new(display_item)
+            data_item_copy = document_model.get_invert_new(display_item, display_item.data_item)
             display_item2 = document_model.get_display_item_for_data_item(data_item_copy)
             document_model.recompute_all()
             dimensional_calibrations = display_item2.data_item.dimensional_calibrations
@@ -1266,7 +1266,7 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(int(dimensional_calibrations[1].offset), 3)
             self.assertEqual(int(dimensional_calibrations[1].scale), 2)
             self.assertEqual(dimensional_calibrations[1].units, "x")
-            fft_data_item = document_model.get_fft_new(display_item)
+            fft_data_item = document_model.get_fft_new(display_item, display_item.data_item)
             document_model.recompute_all()
             dimensional_calibrations = fft_data_item.dimensional_calibrations
             self.assertEqual(int(dimensional_calibrations[0].offset), 0)
@@ -1280,9 +1280,9 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            data_item2 = document_model.get_invert_new(display_item)
+            data_item2 = document_model.get_invert_new(display_item, display_item.data_item)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
-            data_item3 = document_model.get_invert_new(display_item2)
+            data_item3 = document_model.get_invert_new(display_item2, display_item2.data_item)
             display_item3 = document_model.get_display_item_for_data_item(data_item3)
             document_model.recompute_all()
             self.assertIsNotNone(display_item3.data_item.dimensional_calibrations)
@@ -1303,7 +1303,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            data_item_inverted = document_model.get_invert_new(display_item)
+            data_item_inverted = document_model.get_invert_new(display_item, display_item.data_item)
             inverted_display_item = document_model.get_display_item_for_data_item(data_item_inverted)
             self.assertIsInstance(inverted_display_item.data_item.metadata, dict)
 

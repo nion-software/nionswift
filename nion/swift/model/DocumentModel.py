@@ -2170,9 +2170,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         computation._inputs = input_items
         computation._outputs = output_items
 
-    def make_data_item_with_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
-        return self.__make_computation(processing_id, inputs, region_list_map)
-
     def __digest_requirement(self, requirement: typing.Mapping[str, typing.Any], data_item: DataItem.DataItem) -> bool:
         requirement_type = requirement["type"]
         if requirement_type == "datum_rank":
@@ -2210,7 +2207,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     return False
         return True
 
-    def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None, parameters: typing.Mapping[str, typing.Any]=None) -> typing.Optional[DataItem.DataItem]:
+    def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[DisplayItem.DataItem], typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None, parameters: typing.Mapping[str, typing.Any]=None) -> typing.Optional[DataItem.DataItem]:
         """Create a new data item with computation specified by processing_id, inputs, and region_list_map.
 
         The region_list_map associates a list of graphics corresponding to the required regions with a computation source (key).
@@ -2232,8 +2229,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         region_map = dict()
         for i, (src_dict, input) in enumerate(zip(src_dicts, inputs)):
 
-            display_item = input[0]
-            data_item = display_item.data_items[0] if display_item and len(display_item.data_items) > 0 else None
+            display_item, data_item, _ = input
 
             if not data_item:
                 return None
@@ -2366,11 +2362,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         computation.processing_id = processing_id
         # process the data item inputs
         for src_dict, src_name, src_label, input in zip(src_dicts, src_names, src_labels, inputs):
-            in_display_item = input[0]
+            in_display_item, data_item, graphic = input
             secondary_item = None
             if src_dict.get("croppable", False):
-                secondary_item = input[1]
-            display_data_channel = in_display_item.display_data_channel
+                secondary_item = graphic
+            display_data_channel = in_display_item.get_display_data_channel_for_data_item(data_item)
             computation.create_input_item(src_name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item), label=src_label)
         # process the regions
         for region_name, region, region_label in regions:
@@ -2382,7 +2378,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                                         value_min=param_dict.get("value_min"), value_max=param_dict.get("value_max"),
                                         control_type=param_dict.get("control_type"), label=param_dict.get("label"))
 
-        data_item0 = inputs[0][0].data_items[0]
+        data_item0 = inputs[0][1]
         new_data_item = DataItem.new_data_item()
         prefix = "{} of ".format(processing_description["title"])
         new_data_item.title = prefix + data_item0.title
@@ -2581,80 +2577,79 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             cls._builtin_processing_descriptions = vs
         return cls._builtin_processing_descriptions
 
-    def get_fft_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("fft", [(display_item, crop_region)])
+    def get_fft_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("fft", [(display_item, data_item, crop_region)])
 
-    def get_ifft_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("inverse-fft", [(display_item, crop_region)])
+    def get_ifft_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("inverse-fft", [(display_item, data_item, crop_region)])
 
-    def get_auto_correlate_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("auto-correlate", [(display_item, crop_region)])
+    def get_auto_correlate_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("auto-correlate", [(display_item, data_item, crop_region)])
 
-    def get_cross_correlate_new(self, display_item1: DisplayItem.DisplayItem, display_item2: DisplayItem.DisplayItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("cross-correlate", [(display_item1, crop_region1), (display_item2, crop_region2)])
+    def get_cross_correlate_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("cross-correlate", [(display_item1, data_item1, crop_region1), (display_item2, data_item2, crop_region2)])
 
-    def get_sobel_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("sobel", [(display_item, crop_region)])
+    def get_sobel_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("sobel", [(display_item, data_item, crop_region)])
 
-    def get_laplace_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("laplace", [(display_item, crop_region)])
+    def get_laplace_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("laplace", [(display_item, data_item, crop_region)])
 
-    def get_gaussian_blur_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("gaussian-blur", [(display_item, crop_region)])
+    def get_gaussian_blur_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("gaussian-blur", [(display_item, data_item, crop_region)])
 
-    def get_median_filter_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("median-filter", [(display_item, crop_region)])
+    def get_median_filter_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("median-filter", [(display_item, data_item, crop_region)])
 
-    def get_uniform_filter_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("uniform-filter", [(display_item, crop_region)])
+    def get_uniform_filter_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("uniform-filter", [(display_item, data_item, crop_region)])
 
-    def get_transpose_flip_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("transpose-flip", [(display_item, crop_region)])
+    def get_transpose_flip_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("transpose-flip", [(display_item, data_item, crop_region)])
 
-    def get_rebin_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("rebin", [(display_item, crop_region)])
+    def get_rebin_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("rebin", [(display_item, data_item, crop_region)])
 
-    def get_resample_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("resample", [(display_item, crop_region)])
+    def get_resample_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("resample", [(display_item, data_item, crop_region)])
 
-    def get_resize_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("resize", [(display_item, crop_region)])
+    def get_resize_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("resize", [(display_item, data_item, crop_region)])
 
-    def get_redimension_new(self, display_item: DisplayItem.DisplayItem, data_descriptor: DataAndMetadata.DataDescriptor) -> DataItem.DataItem:
-        return self.__make_computation("redimension", [(display_item, None)], parameters={"is_sequence": data_descriptor.is_sequence, "collection_dims": data_descriptor.collection_dimension_count, "datum_dims": data_descriptor.datum_dimension_count})
+    def get_redimension_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, data_descriptor: DataAndMetadata.DataDescriptor) -> DataItem.DataItem:
+        return self.__make_computation("redimension", [(display_item, data_item, None)], parameters={"is_sequence": data_descriptor.is_sequence, "collection_dims": data_descriptor.collection_dimension_count, "datum_dims": data_descriptor.datum_dimension_count})
 
-    def get_squeeze_new(self, display_item: DisplayItem.DisplayItem) -> DataItem.DataItem:
-        return self.__make_computation("squeeze", [(display_item, None)])
+    def get_squeeze_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem) -> DataItem.DataItem:
+        return self.__make_computation("squeeze", [(display_item, data_item, None)])
 
-    def get_histogram_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("histogram", [(display_item, crop_region)])
+    def get_histogram_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("histogram", [(display_item, data_item, crop_region)])
 
-    def get_add_new(self, display_item1: DisplayItem.DisplayItem, display_item2: DisplayItem.DisplayItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("add", [(display_item1, crop_region1), (display_item2, crop_region2)])
+    def get_add_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("add", [(display_item1, data_item1, crop_region1), (display_item2, data_item2, crop_region2)])
 
-    def get_subtract_new(self, display_item1: DisplayItem.DisplayItem, display_item2: DisplayItem.DisplayItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("subtract", [(display_item1, crop_region1), (display_item2, crop_region2)])
+    def get_subtract_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("subtract", [(display_item1, data_item1, crop_region1), (display_item2, data_item2, crop_region2)])
 
-    def get_multiply_new(self, display_item1: DisplayItem.DisplayItem, display_item2: DisplayItem.DisplayItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("multiply", [(display_item1, crop_region1), (display_item2, crop_region2)])
+    def get_multiply_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("multiply", [(display_item1, data_item1, crop_region1), (display_item2, data_item2, crop_region2)])
 
-    def get_divide_new(self, display_item1: DisplayItem.DisplayItem, display_item2: DisplayItem.DisplayItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("divide", [(display_item1, crop_region1), (display_item2, crop_region2)])
+    def get_divide_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("divide", [(display_item1, data_item1, crop_region1), (display_item2, data_item2, crop_region2)])
 
-    def get_invert_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("invert", [(display_item, crop_region)])
+    def get_invert_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("invert", [(display_item, data_item, crop_region)])
 
-    def get_masked_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("masked", [(display_item, crop_region)])
+    def get_masked_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("masked", [(display_item, data_item, crop_region)])
 
-    def get_mask_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("mask", [(display_item, crop_region)])
+    def get_mask_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("mask", [(display_item, data_item, crop_region)])
 
-    def get_convert_to_scalar_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("convert-to-scalar", [(display_item, crop_region)])
+    def get_convert_to_scalar_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("convert-to-scalar", [(display_item, data_item, crop_region)])
 
-    def get_crop_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        data_item = display_item.data_item
+    def get_crop_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         if data_item and display_item and not crop_region:
             if data_item.is_data_2d:
                 rect_region = Graphics.RectangleGraphic()
@@ -2667,45 +2662,45 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 interval_region.interval = 0.25, 0.75
                 display_item.add_graphic(interval_region)
                 crop_region = interval_region
-        return self.__make_computation("crop", [(display_item, crop_region)])
+        return self.__make_computation("crop", [(display_item, data_item, crop_region)])
 
-    def get_projection_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("sum", [(display_item, crop_region)])
+    def get_projection_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("sum", [(display_item, data_item, crop_region)])
 
-    def get_slice_sum_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("slice", [(display_item, crop_region)])
+    def get_slice_sum_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("slice", [(display_item, data_item, crop_region)])
 
-    def get_pick_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.PointTypeGraphic=None) -> DataItem.DataItem:
-        data_item = self.__make_computation("pick-point", [(display_item, crop_region)], {"src": [pick_region]})
+    def get_pick_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.PointTypeGraphic=None) -> DataItem.DataItem:
+        data_item = self.__make_computation("pick-point", [(display_item, data_item, crop_region)], {"src": [pick_region]})
         if data_item:
             display_data_channel = display_item.display_data_channels[0]
             if display_data_channel.slice_center == 0 and display_data_channel.slice_width == 1:
                 display_data_channel.slice_interval = (0.05, 0.15)
         return data_item
 
-    def get_pick_region_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
-        data_item = self.__make_computation("pick-mask-sum", [(display_item, crop_region)], {"src": [pick_region]})
+    def get_pick_region_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
+        data_item = self.__make_computation("pick-mask-sum", [(display_item, data_item, crop_region)], {"src": [pick_region]})
         if data_item:
             display_data_channel = display_item.display_data_channels[0]
             if display_data_channel.slice_center == 0 and display_data_channel.slice_width == 1:
                 display_data_channel.slice_interval = (0.05, 0.15)
         return data_item
 
-    def get_pick_region_average_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
-        data_item = self.__make_computation("pick-mask-average", [(display_item, crop_region)], {"src": [pick_region]})
+    def get_pick_region_average_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
+        data_item = self.__make_computation("pick-mask-average", [(display_item, data_item, crop_region)], {"src": [pick_region]})
         if data_item:
             display_data_channel = display_item.display_data_channels[0]
             if display_data_channel.slice_center == 0 and display_data_channel.slice_width == 1:
                 display_data_channel.slice_interval = (0.05, 0.15)
         return data_item
 
-    def get_subtract_region_average_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
-        return self.__make_computation("subtract-mask-average", [(display_item, crop_region)], {"src": [pick_region]})
+    def get_subtract_region_average_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
+        return self.__make_computation("subtract-mask-average", [(display_item, data_item, crop_region)], {"src": [pick_region]})
 
-    def get_line_profile_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None, line_region: Graphics.LineTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("line-profile", [(display_item, crop_region)], {"src": [line_region]})
+    def get_line_profile_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, line_region: Graphics.LineTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("line-profile", [(display_item, data_item, crop_region)], {"src": [line_region]})
 
-    def get_fourier_filter_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+    def get_fourier_filter_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         data_item = display_item.data_item
         if data_item and display_item:
             has_mask = False
@@ -2718,28 +2713,28 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 graphic.radius_1 = 0.15
                 graphic.radius_2 = 0.25
                 display_item.add_graphic(graphic)
-        return self.__make_computation("filter", [(display_item, crop_region)])
+        return self.__make_computation("filter", [(display_item, data_item, crop_region)])
 
-    def get_processing_new(self, processing_id: str, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation(processing_id, [(display_item, crop_region)])
+    def get_processing_new(self, processing_id: str, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation(processing_id, [(display_item, data_item, crop_region)])
 
-    def get_sequence_measure_shifts_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("sequence-register", [(display_item, crop_region)])
+    def get_sequence_measure_shifts_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("sequence-register", [(display_item, data_item, crop_region)])
 
-    def get_sequence_align_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("sequence-align", [(display_item, crop_region)])
+    def get_sequence_align_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("sequence-align", [(display_item, data_item, crop_region)])
 
-    def get_sequence_fourier_align_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("sequence-fourier-align", [(display_item, crop_region)])
+    def get_sequence_fourier_align_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("sequence-fourier-align", [(display_item, data_item, crop_region)])
 
-    def get_sequence_integrate_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("sequence-integrate", [(display_item, crop_region)])
+    def get_sequence_integrate_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("sequence-integrate", [(display_item, data_item, crop_region)])
 
-    def get_sequence_trim_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("sequence-trim", [(display_item, crop_region)])
+    def get_sequence_trim_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("sequence-trim", [(display_item, data_item, crop_region)])
 
-    def get_sequence_extract_new(self, display_item: DisplayItem.DisplayItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("sequence-extract", [(display_item, crop_region)])
+    def get_sequence_extract_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("sequence-extract", [(display_item, data_item, crop_region)])
 
 
 class ConnectPickDisplay(Observer.AbstractAction):

@@ -68,7 +68,7 @@ class TestDataGroupClass(unittest.TestCase):
             self.assertIn(display_item1, list(data_group.counted_display_items.keys()))
             # add a child data item and make sure top level and data_group see it
             # also check data item.
-            data_item1a = document_model.get_resample_new(display_item1)
+            data_item1a = document_model.get_resample_new(display_item1, display_item1.data_item)
             display_item1a = document_model.get_display_item_for_data_item(data_item1a)
             data_group.append_display_item(display_item1a)
             self.assertEqual(len(document_model.data_items), 2)
@@ -77,7 +77,7 @@ class TestDataGroupClass(unittest.TestCase):
             self.assertIn(display_item1a, list(data_group.counted_display_items.keys()))
             # add a child data item to the child and make sure top level and data_group match.
             # also check data items.
-            data_item1a1 = document_model.get_resample_new(display_item1a)
+            data_item1a1 = document_model.get_resample_new(display_item1a, display_item1a.data_item)
             display_item1a1 = document_model.get_display_item_for_data_item(data_item1a1)
             data_group.append_display_item(display_item1a1)
             self.assertEqual(len(document_model.data_items), 3)
@@ -89,7 +89,7 @@ class TestDataGroupClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item2)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
-            data_item2a = document_model.get_resample_new(display_item2)
+            data_item2a = document_model.get_resample_new(display_item2, display_item2.data_item)
             display_item2a = document_model.get_display_item_for_data_item(data_item2a)
             data_group.append_display_item(display_item2)
             data_group.append_display_item(display_item2a)
