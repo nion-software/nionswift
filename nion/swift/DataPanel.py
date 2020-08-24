@@ -12,6 +12,7 @@ import typing
 # None
 
 # local libraries
+from nion.data import Image
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Thumbnails
@@ -29,7 +30,6 @@ from nion.utils import ListModel
 if typing.TYPE_CHECKING:
     import numpy
     from nion.swift import DocumentController
-    from nion.swift.model import DocumentModel
     from nion.ui import UserInterface
     from nion.utils import Selection
 
@@ -169,6 +169,8 @@ class DisplayItemAdapter:
     def calculate_thumbnail_data(self) -> typing.Optional[numpy.ndarray]:
         self.__create_thumbnail_source()
         thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
+        if thumbnail_data is not None:
+            thumbnail_data = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data), Geometry.IntSize(w=80, h=80)))
         return thumbnail_data
 
     def draw_list_item(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect) -> None:
