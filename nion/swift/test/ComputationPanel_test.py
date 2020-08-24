@@ -283,7 +283,7 @@ class TestComputationPanelClass(unittest.TestCase):
             display_item.append_display_data_channel_for_data_item(data_item2)
             display_item.append_display_data_channel_for_data_item(data_item3)
 
-            with contextlib.closing(ComputationPanel.InspectComputationDialog(document_controller, display_item)):
+            with contextlib.closing(ComputationPanel.InspectComputationDialog(document_controller, computation)):
                 display_item.remove_graphic(interval)
 
     def disabled_test_expression_updates_when_variable_is_assigned(self):

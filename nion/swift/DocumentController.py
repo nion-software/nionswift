@@ -1,6 +1,5 @@
 # standard libraries
 import copy
-import datetime
 import functools
 import gettext
 import itertools
@@ -39,7 +38,6 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Processing
-from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
@@ -736,7 +734,29 @@ class DocumentController(Window.Window):
             edit_computation_dialog.show()
 
     def new_inspect_computation_dialog(self) -> None:
-        ComputationPanel.InspectComputationDialog(self)
+        document_model = self.document_model
+        display_item = self.selected_display_item
+        if display_item:
+            match_items = set()
+            match_items.add(display_item)
+            match_items.update(display_item.data_items)
+            match_items.update(display_item.graphics)
+            computations_set = set()
+            for computation in document_model.computations:
+                if computation.output_items.intersection(match_items):
+                    computations_set.add(computation)
+            computations = list(computations_set)
+            if len(computations) > 1:
+                def handle_selection(computation: typing.Optional[Symbolic.Computation]) -> None:
+                    if computation:
+                        ComputationPanel.InspectComputationDialog(self, computation)
+
+                Dialog.pose_select_item_pop_up(computations, handle_selection,
+                                               window=self, current_item=0,
+                                               item_getter=operator.attrgetter("label"))
+            else:
+                computation = next(iter(computations)) if len(computations) == 1 else None
+                ComputationPanel.InspectComputationDialog(self, computation)
 
     def new_display_editor_dialog(self, display_item: DisplayItem.DisplayItem=None):
         if not display_item:

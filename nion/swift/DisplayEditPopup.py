@@ -7,62 +7,12 @@ from nion.swift.model import DisplayItem
 from nion.swift import DocumentController
 from nion.swift import Inspector
 from nion.ui import Declarative
-from nion.ui import Window
+from nion.ui import Dialog
 from nion.utils import Event
 from nion.utils import Geometry
 
 
 _ = gettext.gettext
-
-
-class PopupWindow(Window.Window):
-
-    def __init__(self, parent_window: Window.Window, ui_widget: Declarative.UIDescription, ui_handler):
-        super().__init__(parent_window.ui, app=parent_window.app, parent_window=parent_window, window_style="popup")
-
-        def request_close():
-            # this may be called in response to the user clicking a button to close.
-            # make sure that the button is not destructed as a side effect of closing
-            # the window by queueing the close. and it is not possible to use event loop
-            # here because the event loop limitations: not able to run both parent and child
-            # event loops simultaneously.
-            parent_window.queue_task(self.request_close)
-
-        # make and attach closer for the handler; put handler into container closer
-        self.__closer = Declarative.Closer()
-        if ui_handler and hasattr(ui_handler, "close"):
-            ui_handler._closer = Declarative.Closer()
-            self.__closer.push_closeable(ui_handler)
-
-        finishes = list()
-
-        self.widget = Declarative.construct(parent_window.ui, self, ui_widget, ui_handler, finishes)
-
-        self.attach_widget(self.widget)
-
-        for finish in finishes:
-            finish()
-        if ui_handler and hasattr(ui_handler, "init_handler"):
-            ui_handler.init_handler()
-        if ui_handler and hasattr(ui_handler, "init_popup"):
-            ui_handler.init_popup(request_close)
-
-        # TODO: select all works, but edit commands don't work
-        # TODO: tabs don't work
-
-        self._create_menus()
-
-        self.__ui_handler = ui_handler
-
-    def show(self, *, size: Geometry.IntSize=None, position: Geometry.IntPoint=None) -> None:
-        super().show(size=size, position=position)
-        ui_handler = self.__ui_handler
-        if ui_handler and hasattr(ui_handler, "did_show"):
-            self.__ui_handler.did_show()
-
-    def close(self) -> None:
-        self.__closer.close()
-        super().close()
 
 
 def pose_title_edit_popup(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, position: Geometry.IntPoint, size: Geometry.IntSize):
@@ -152,6 +102,6 @@ def pose_title_edit_popup(document_controller: DocumentController.DocumentContro
 
     column = ui.create_column(title_row, caption_row, button_row, margin=4)
 
-    popup = PopupWindow(document_controller, column, ui_handler)
+    popup = Dialog.PopupWindow(document_controller, column, ui_handler)
 
     popup.show(position=position, size=size)

@@ -1356,7 +1356,7 @@ class InspectComputationDialog(Declarative.WindowHandler):
     # dynamic combo box
     # progress bar
 
-    def __init__(self, document_controller: DocumentController.DocumentController, display_item: typing.Optional[DisplayItem.DisplayItem] = None):
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation):
         super().__init__()
 
         self.__document_controller = document_controller
@@ -1371,12 +1371,6 @@ class InspectComputationDialog(Declarative.WindowHandler):
         self.stack_index_model = Model.PropertyModel(0)
         self.stack_page_model = Model.PropertyModel(str())
         self.computation_model = Model.PropertyModel()
-
-        # determine the computation
-        computation_model = ComputationModel(document_controller)
-        computation_model.set_display_item(display_item or document_controller.selected_display_item)
-        computation = computation_model.computation
-        computation_model.close()
 
         # configure the models
         self.computation_model.value = computation
