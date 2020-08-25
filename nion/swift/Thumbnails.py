@@ -33,8 +33,8 @@ class ThumbnailProcessor:
         self.__cached_value_time = 0
         self.__is_recomputing_lock = threading.RLock()
         self.__is_recompute_pending = False
-        self.width = 512
-        self.height = 512
+        self.width = 256
+        self.height = 256
         self.on_thumbnail_updated = None
         self.__recompute_future = None
         self.__recompute_lock = threading.RLock()

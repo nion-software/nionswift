@@ -118,16 +118,6 @@ class DisplayItemAdapter:
     def data_item(self) -> typing.Optional[DataItem.DataItem]:
         return self.__display_item.data_item if self.__display_item else None
 
-    def __create_thumbnail_source(self) -> None:
-        # grab the display specifier and if there is a display, handle thumbnail updating.
-        if self.__display_item and not self.__thumbnail_source:
-            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, self.__display_item)
-
-            def thumbnail_updated():
-                self.needs_update_event.fire()
-
-            self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(thumbnail_updated)
-
     def __create_thumbnail(self, draw_rect: Geometry.IntRect) -> DrawingContext.DrawingContext:
         drawing_context = DrawingContext.DrawingContext()
         if self.__display_item:
@@ -163,15 +153,23 @@ class DisplayItemAdapter:
             if self.__display_item:
                 MimeTypes.mime_data_put_display_item(mime_data, self.__display_item)
             thumbnail_data = self.calculate_thumbnail_data()
+            if thumbnail_data is not None:
+                # scaling is very slow
+                thumbnail_data = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data), Geometry.IntSize(w=80, h=80)))
             return mime_data, thumbnail_data
         return None, None
 
     def calculate_thumbnail_data(self) -> typing.Optional[numpy.ndarray]:
-        self.__create_thumbnail_source()
-        thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
-        if thumbnail_data is not None:
-            thumbnail_data = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data), Geometry.IntSize(w=80, h=80)))
-        return thumbnail_data
+        # grab the display specifier and if there is a display, handle thumbnail updating.
+        if self.__display_item and not self.__thumbnail_source:
+            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, self.__display_item)
+
+            def thumbnail_updated():
+                self.needs_update_event.fire()
+
+            self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(thumbnail_updated)
+
+        return self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
 
     def draw_list_item(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect) -> None:
         with drawing_context.saver():
