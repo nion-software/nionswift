@@ -28,6 +28,44 @@ def make_directory_if_needed(directory_path):
         os.makedirs(directory_path)
 
 
+def get_write_chunk_shape_for_data(data_shape, data_dtype):
+    """
+    Calculate an appropriate write chunk shape for a given data shape and dtype.
+
+    The target chunk size is 580 kB which seems to be a sweet spot according to benchmarks.
+    The algorithm assumes that the data is c-contiguous in memory.
+
+    If the total number of chunks that the calculated chunk shape would lead to is less than 100 (i.e. the file will
+    be less than 58 MB in size) or if the data shape is not suitable for chunking, return None.
+    """
+    data_dtype = numpy.dtype(data_dtype)
+
+    target_chunk_size = 580*1024/data_dtype.itemsize
+    chunk_size = 1
+    counter = len(data_shape)
+    chunk_shape = [1] * len(data_shape)
+    while chunk_size < target_chunk_size and counter > 0:
+        counter -= 1
+        chunk_size *= data_shape[counter]
+        chunk_shape[counter] = data_shape[counter]
+
+    if chunk_size == 0: # This means one of the input dimensions was "0", so chunking cannot be used
+        return None
+
+    chunk_size /= data_shape[counter]
+    remaining_elements = min(max(target_chunk_size // chunk_size, 1), data_shape[counter])
+    chunk_shape[counter] = int(remaining_elements)
+
+    n_chunks = 1
+    for i in range(len(chunk_shape)):
+        n_chunks *= data_shape[i] / chunk_shape[i]
+    if n_chunks < 100:
+        return None
+
+    return tuple(chunk_shape)
+
+
+
 class HDF5Handler(StorageHandler.StorageHandler):
     count = 0  # useful for detecting leaks in tests
 
@@ -117,7 +155,8 @@ class HDF5Handler(StorageHandler.StorageHandler):
             #   3 - 'data' exists and is the same size (overwrite)
             if not "data" in self.__fp:
                 # case 1
-                self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype)
+                chunks = get_write_chunk_shape_for_data(data.shape, data.dtype)
+                self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype, chunks=chunks)
             else:
                 self.__dataset = self.__fp["data"]
                 if self.__dataset.shape != data.shape or self.__dataset.dtype != data.dtype:
@@ -128,7 +167,8 @@ class HDF5Handler(StorageHandler.StorageHandler):
                     self.__fp = None
                     os.remove(self.__file_path)
                     self.__ensure_open()
-                    self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype)
+                    chunks = get_write_chunk_shape_for_data(data.shape, data.dtype)
+                    self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype, chunks=chunks)
             self.__copy_data(data)
             if json_properties is not None:
                 self.__dataset.attrs["properties"] = json_properties
@@ -147,7 +187,8 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 self.__fp = None
                 os.remove(self.__file_path)
                 self.__ensure_open()
-            self.__dataset = self.__fp.require_dataset("data", shape=data_shape, dtype=data_dtype, fillvalue=0)
+                chunks = get_write_chunk_shape_for_data(data_shape, data_dtype)
+            self.__dataset = self.__fp.require_dataset("data", shape=data_shape, dtype=data_dtype, fillvalue=0, chunks=chunks)
             if json_properties is not None:
                 self.__dataset.attrs["properties"] = json_properties
             self.__fp.flush()
