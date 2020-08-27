@@ -3471,7 +3471,7 @@ class TestStorageClass(unittest.TestCase):
             data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_sources"] = [data_source_dict]
-            file_handler = profile_context._file_handlers[1]  # HDF5
+            file_handler = profile_context._file_handlers[-1]  # HDF5
             handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
@@ -4020,8 +4020,10 @@ class TestStorageClass(unittest.TestCase):
             file_path2a_base, file_path2a_ext = os.path.splitext(file_path2a)
             file_path1b_base, file_path1b_ext = os.path.splitext(file_path1b)
             file_path2b_base, file_path2b_ext = os.path.splitext(file_path2b)
-            # check assumptions
-            self.assertNotEqual(file_path1_ext, file_path2_ext)
+            # check assumptions, works for both NData+HDF5 or HDF5 only
+            self.assertTrue(profile_context._file_handlers[0].is_matching(file_path1))
+            self.assertTrue(profile_context._file_handlers[-1].is_matching(file_path2))
+            # self.assertNotEqual(file_path1_ext, file_path2_ext)  # assumes different file formats, use 2 lines above instead
             # check results
             self.assertEqual(file_path1_ext, file_path1a_ext)
             self.assertEqual(file_path2_ext, file_path2a_ext)

@@ -186,6 +186,9 @@ class HDF5Handler(StorageHandler.StorageHandler):
             return self.__dataset
 
     def remove(self):
-        self.close()
+        if self.__fp:
+            self.__fp.close()
+            self.__fp = None
+            self.__dataset = None
         if os.path.isfile(self.__file_path):
             os.remove(self.__file_path)
