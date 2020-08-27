@@ -899,6 +899,34 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 self.assertTrue(numpy.array_equal(document_model.data_items[0].data, zeros))
 
+    def test_data_large_format_does_not_rewrite_partial_updates(self):
+        with create_temp_profile_context() as profile_context:
+            zeros = DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 8), numpy.uint32))
+            ones = DataAndMetadata.new_data_and_metadata(numpy.ones((8, 8), numpy.uint32))
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(large_format=True)
+                document_model.append_data_item(data_item)
+                data_item.set_data_and_metadata_partial(ones.data_metadata,
+                                                  ones, (slice(0,8), slice(0, 8)),
+                                                  (slice(0,8), slice(0, 8)))
+                self.assertTrue(numpy.array_equal(ones.data, data_item.data))
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                data_item = document_model.data_items[0]
+                write_count = data_item.persistent_storage._data_properties_map[data_item.uuid].storage_handler._write_count
+                self.assertTrue(numpy.array_equal(ones.data, data_item.data))
+                data_item.set_data_and_metadata_partial(zeros.data_metadata,
+                                                  zeros, (slice(0,8), slice(0, 8)),
+                                                  (slice(0,8), slice(0, 8)))
+                self.assertTrue(numpy.array_equal(zeros.data, data_item.data))
+                # ensure no explicit writes took place. the data copy will be memory mapped.
+                self.assertEqual(write_count, data_item.persistent_storage._data_properties_map[data_item.uuid].storage_handler._write_count)
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                data_item = document_model.data_items[0]
+                self.assertTrue(numpy.array_equal(zeros.data, data_item.data))
+
     def test_writing_empty_data_item_returns_expected_values(self):
         with create_temp_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)

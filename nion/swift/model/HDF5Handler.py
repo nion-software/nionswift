@@ -36,17 +36,20 @@ class HDF5Handler(StorageHandler.StorageHandler):
         self.__lock = threading.RLock()
         self.__fp = None
         self.__dataset = None
+        self._write_count = 0
         HDF5Handler.count += 1
 
     def close(self):
         HDF5Handler.count -= 1
         if self.__fp:
+            self.__dataset = None
             self.__fp.close()
             self.__fp = None
 
     # called before the file is moved; close but don't count.
     def prepare_move(self) -> None:
         if self.__fp:
+            self.__dataset = None
             self.__fp.close()
             self.__fp = None
 
@@ -101,10 +104,11 @@ class HDF5Handler(StorageHandler.StorageHandler):
     def __ensure_dataset(self):
         with self.__lock:
             self.__ensure_open()
-            if "data" in self.__fp:
-                self.__dataset = self.__fp["data"]
-            else:
-                self.__dataset = self.__fp.create_dataset("data", data=numpy.empty((0,)))
+            if self.__dataset is None:
+                if "data" in self.__fp:
+                    self.__dataset = self.__fp["data"]
+                else:
+                    self.__dataset = self.__fp.create_dataset("data", data=numpy.empty((0,)))
 
     def write_data(self, data, file_datetime):
         with self.__lock:
@@ -119,7 +123,8 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 # case 1
                 self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype)
             else:
-                self.__dataset = self.__fp["data"]
+                if self.__dataset is None:
+                    self.__dataset = self.__fp["data"]
                 if self.__dataset.shape != data.shape or self.__dataset.dtype != data.dtype:
                     # case 2
                     json_properties = self.__dataset.attrs.get("properties", "")
@@ -139,29 +144,26 @@ class HDF5Handler(StorageHandler.StorageHandler):
         with self.__lock:
             self.__ensure_open()
             json_properties = None
+            # first read existing properties and then close existing data set and file.
             if "data" in self.__fp:
-                self.__dataset = self.__fp["data"]
+                if self.__dataset is None:
+                    self.__dataset = self.__fp["data"]
                 json_properties = self.__dataset.attrs.get("properties", "")
                 self.__dataset = None
                 self.__fp.close()
                 self.__fp = None
                 os.remove(self.__file_path)
                 self.__ensure_open()
+            # reserve the data
             self.__dataset = self.__fp.require_dataset("data", shape=data_shape, dtype=data_dtype, fillvalue=0)
             if json_properties is not None:
                 self.__dataset.attrs["properties"] = json_properties
             self.__fp.flush()
 
     def __copy_data(self, data):
-        if len(data.shape) == 4:
-            for r in range(data.shape[0]):
-                for c in range(data.shape[1]):
-                    self.__dataset[r, c, ...] = data[r, c, ...]
-        elif len(data.shape) == 3:
-            for r in range(data.shape[0]):
-                self.__dataset[r, ...] = data[r, ...]
-        else:
+        if id(data) != id(self.__dataset):
             self.__dataset[:] = data
+            self._write_count += 1
 
     def write_properties(self, properties, file_datetime):
         with self.__lock:
@@ -187,8 +189,8 @@ class HDF5Handler(StorageHandler.StorageHandler):
 
     def remove(self):
         if self.__fp:
+            self.__dataset = None
             self.__fp.close()
             self.__fp = None
-            self.__dataset = None
         if os.path.isfile(self.__file_path):
             os.remove(self.__file_path)
