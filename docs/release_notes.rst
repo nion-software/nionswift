@@ -3,7 +3,7 @@
 Release Notes
 =============
 
-Version 0.15.0 (UNRELEASED)
+Version 0.15.0 (2020-08-31)
 ---------------------------
 The highlights of this release are improved display performance, improved reliability,
 improved line plot displays, and an improved computation inspector.
