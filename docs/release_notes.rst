@@ -6,11 +6,16 @@ Release Notes
 Version 0.15.0 (UNRELEASED)
 ---------------------------
 The highlights of this release are improved display performance, improved reliability,
-and improved line plot displays.
+improved line plot displays, and an improved computation inspector.
 
 Requires Python 3.7 or later.
 
+The new computation inspector is accessible with Cmd/Ctrl+E. This key previously opened the
+data item script editor. The data item script editor is now available with Cmd/Ctrl+Shift+E.
+
+* (2020-08-27) Improve HDF5 performance.
 * (2020-08-17) Add API function to create graphic from dict description.
+* (2020-08-10) Add new computation inspector (Cmd/Ctrl+E).
 * (2020-07-30) Add processing menu item to rebin an image to a specified size.
 * (2020-06-10) Improve internal metadata handling during acquisition.
 * (2020-05-18) Improve tick drawing on line plots.  Also scientific notation.
