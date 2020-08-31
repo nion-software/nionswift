@@ -7,6 +7,7 @@ import gettext
 import operator
 import random
 import string
+import sys
 import typing
 import uuid
 import weakref
@@ -1324,6 +1325,7 @@ class ComputationHandler:
         self.computation_inputs_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type in Symbolic.Computation.data_source_types)
         self.computation_parameters_model = ListModel.FilteredListModel(container=computation, master_items_key="variables")
         self.computation_parameters_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type not in Symbolic.Computation.data_source_types)
+        self.is_custom = computation.expression is not None
 
     def close(self) -> None:
         self.computation_inputs_model.close()
@@ -1424,7 +1426,11 @@ class InspectComputationDialog(Declarative.WindowHandler):
                 spacing=12,
             )
             parameters = u.create_column(items="computation_parameters_model.items", item_component_id="variable", spacing=8)
-            component = u.define_component(content=u.create_column(label, row, parameters, spacing=12))
+            if sys.platform == "darwin":
+                note = u.create_row(u.create_label(text=_("Use Command+Shift+E to edit data item script.")), u.create_stretch(), visible="@binding(is_custom)")
+            else:
+                note = u.create_row(u.create_label(text=_("Use Ctrl+Shift+E to edit data item script.")), u.create_stretch(), visible="@binding(is_custom)")
+            component = u.define_component(content=u.create_column(label, row, parameters, note, spacing=12))
             return component
         return None
 
