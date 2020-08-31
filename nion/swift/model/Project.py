@@ -54,8 +54,10 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.define_property("data_item_references", dict(), hidden=True, changed=self.__property_changed)  # map string key to data item, used for data acquisition channels
         self.define_property("mapped_items", list(), changed=self.__property_changed)  # list of item references, used for shortcut variables in scripts
 
+        self.handle_start_read = None
         self.handle_insert_model_item = None
         self.handle_remove_model_item = None
+        self.handle_finish_read = None
 
         self.__has_been_read = False
 
@@ -66,8 +68,10 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.set_storage_system(self.__storage_system)
 
     def close(self) -> None:
+        self.handle_start_read = None
         self.handle_insert_model_item = None
         self.handle_remove_model_item = None
+        self.handle_finish_read = None
         self.__storage_system.close()
         self.__storage_system = None
         super().close()
@@ -239,6 +243,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.uuid = uuid.UUID(self._raw_properties.get("uuid", str(uuid.uuid4())))
 
     def read_project(self) -> None:
+        if callable(self.handle_start_read):
+            self.handle_start_read()
         properties = self._raw_properties
         if properties:
             project_version = properties.get("version", None)
@@ -300,6 +306,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                 self._set_persistent_property_value("data_item_references", properties.get("data_item_references", dict()))
                 self._set_persistent_property_value("mapped_items", properties.get("mapped_items", list()))
                 self.__has_been_read = True
+        if callable(self.handle_finish_read):
+            self.handle_finish_read()
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)

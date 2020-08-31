@@ -578,8 +578,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         self.uuid = self._project.uuid
 
+        project.handle_start_read = self.__start_project_read
         project.handle_insert_model_item = self.insert_model_item
         project.handle_remove_model_item = self.remove_model_item
+        project.handle_finish_read = self.__finish_project_read
 
         self.__project_item_inserted_listener = project.item_inserted_event.listen(self.__project_item_inserted)
         self.__project_item_removed_listener = project.item_removed_event.listen(self.__project_item_removed)
@@ -1041,6 +1043,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         index = self.__display_items.index(display_item)
         self.notify_remove_item("display_items", display_item, index)
         self.__display_items.remove(display_item)
+
+    def __start_project_read(self) -> None:
+        pass
+
+    def __finish_project_read(self) -> None:
+        # clean the display items for each data channel
+        for hardware_source in HardwareSource.HardwareSourceManager().hardware_sources:
+            for data_channel in hardware_source.data_channels:
+                data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id))
+                data_item = data_item_reference.data_item
+                if data_item:
+                    hardware_source.clean_display_items(self, list(self.get_display_items_for_data_item(data_item)))
 
     def insert_model_item(self, container, name, before_index, item):
         container.insert_item(name, before_index, item)
@@ -1919,10 +1933,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__data_channel_start_listeners.setdefault(hardware_source.hardware_source_id, list()).append(data_channel_start_listener)
             data_channel_stop_listener = data_channel.data_channel_stop_event.listen(functools.partial(self.__data_channel_stop, hardware_source, data_channel))
             self.__data_channel_stop_listeners.setdefault(hardware_source.hardware_source_id, list()).append(data_channel_stop_listener)
-            data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id))
-            data_item = data_item_reference.data_item
-            if data_item:
-                hardware_source.clean_display_items(self, list(self.get_display_items_for_data_item(data_item)))
+            # NOTE: clean_display_items is called in __finish_project_read
 
     def __hardware_source_removed(self, hardware_source):
         self.__hardware_source_call_soon_event_listeners[hardware_source.hardware_source_id].close()
