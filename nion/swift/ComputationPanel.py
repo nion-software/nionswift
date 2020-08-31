@@ -1048,6 +1048,28 @@ class EditComputationDialog(Dialog.ActionDialog):
         return self.__computation_model
 
 
+class ClosingTuplePropertyBinding(Binding.TuplePropertyBinding):
+    def __init__(self, source, property_name: str, tuple_index: int, converter=None, fallback=None):
+        super().__init__(source, property_name, tuple_index, converter, fallback)
+        self.__source = source
+
+    def close(self):
+        super().close()
+        self.__source.close()
+        self.__source = None
+
+
+class ClosingPropertyBinding(Binding.PropertyBinding):
+    def __init__(self, source, property_name: str, *, converter=None, validator=None, fallback=None):
+        super().__init__(source, property_name, converter=converter, validator=validator, fallback=fallback)
+        self.__source = source
+
+    def close(self):
+        super().close()
+        self.__source.close()
+        self.__source = None
+
+
 class GraphicHandler:
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, graphic: Graphics.Graphic):
         self.document_controller = document_controller
@@ -1062,6 +1084,27 @@ class GraphicHandler:
                 graphic = source
                 display_item = graphic.container
                 return Inspector.CalibratedValueBinding(-1, display_item, Inspector.ChangeGraphicPropertyBinding(self.document_controller, display_item, graphic, property))
+        if isinstance(source, Graphics.RectangleGraphic):
+            if property in ("center_x", "center_y"):
+                graphic = source
+                display_item = graphic.container
+                index = 1 if property == "center_x" else 0
+                graphic_name = "rectangle"
+                center_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
+                return Inspector.CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(center_model, "value", index))
+            elif property in ("width", "height"):
+                graphic = source
+                display_item = graphic.container
+                index = 1 if property == "width" else 0
+                graphic_name = "rectangle"
+                size_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
+                return Inspector.CalibratedSizeBinding(index, display_item, ClosingTuplePropertyBinding(size_model, "value", index))
+            elif property in ("rotation_deg", ):
+                graphic = source
+                display_item = graphic.container
+                graphic_name = "rectangle"
+                rotation_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
+                return ClosingPropertyBinding(rotation_model, "value", converter=Inspector.RadianToDegreeStringConverter())
         return None
 
     @classmethod
@@ -1075,6 +1118,24 @@ class GraphicHandler:
                 u.create_line_edit(text="@binding(graphic.end)", width=90),
                 u.create_stretch(), spacing=12)
             return graphic_row
+        if isinstance(graphic, Graphics.RectangleGraphic):
+            position_row = u.create_row(
+                u.create_label(text=_("X"), width=24),
+                u.create_line_edit(text="@binding(graphic.center_x)", width=90),
+                u.create_label(text=_("Y"), width=24),
+                u.create_line_edit(text="@binding(graphic.center_y)", width=90),
+                u.create_stretch(), spacing=12)
+            size_row = u.create_row(
+                u.create_label(text=_("W"), width=24),
+                u.create_line_edit(text="@binding(graphic.width)", width=90),
+                u.create_label(text=_("H"), width=24),
+                u.create_line_edit(text="@binding(graphic.height)", width=90),
+                u.create_stretch(), spacing=12)
+            rotation_row = u.create_row(
+                u.create_label(text=_("Rotation (deg)")),
+                u.create_line_edit(text="@binding(graphic.rotation_deg)", width=90),
+                u.create_stretch(), spacing=12)
+            return u.create_column( position_row, size_row, rotation_row, spacing=8)
         return u.create_label(text=_("Unsupported Graphic") + f" {graphic.type}")
 
 
@@ -1229,7 +1290,7 @@ class VariableHandler:
                 u.create_label(text="@binding(variable.display_label)"),
                 u.create_label(text=f"#{container.items.index(item)}"),
                 u.create_stretch(), spacing=8)
-            return u.define_component(u.create_column(label_row, graphic_content, spacing=4))
+            return u.define_component(u.create_column(label_row, graphic_content, spacing=8))
         if resource_id == "structure":
             entity_id = self.variable.entity_id
             if entity_id:
@@ -1250,23 +1311,23 @@ class VariableHandler:
         elif variable.variable_type == "integral" and (True or variable.control_type == "slider") and variable.has_range:
             slider = u.create_slider(value="@binding(variable_value)", minimum=variable.value_min, maximum=variable.value_max)
             line_edit = u.create_line_edit(text="@binding(variable_value, converter=int_str_converter)", width=60)
-            return u.create_column(label, slider, line_edit, spacing=4)
+            return u.create_column(label, slider, line_edit, spacing=8)
         elif variable.variable_type == "integral":
             line_edit = u.create_line_edit(text="@binding(variable_value, converter=int_str_converter)", width=60)
-            return u.create_column(label, line_edit, spacing=4)
+            return u.create_column(label, line_edit, spacing=8)
         elif variable.variable_type == "real" and (True or variable.control_type == "slider") and variable.has_range:
             slider = u.create_slider(value="@binding(variable_value, converter=slider_converter)", minimum=0, maximum=2000)
             line_edit = u.create_line_edit(text="@binding(variable_value, converter=float_str_converter)", width=60)
-            return u.create_column(label, slider, line_edit, spacing=4)
+            return u.create_column(label, slider, line_edit, spacing=8)
         elif variable.variable_type == "real":
             line_edit = u.create_line_edit(text="@binding(variable_value, converter=float_str_converter)", width=60)
-            return u.create_column(label, line_edit, spacing=4)
+            return u.create_column(label, line_edit, spacing=8)
         elif variable.variable_type == "string" and variable.control_type == "choice":
             combo_box = u.create_combo_box(items=["None", "Mapped"], current_index="@binding(combo_box_index)")
-            return u.create_column(label, combo_box, spacing=4)
+            return u.create_column(label, combo_box, spacing=8)
         elif variable.variable_type == "string":
             line_edit = u.create_line_edit(text="@binding(variable_value)", width=60)
-            return u.create_column(label, line_edit, spacing=4)
+            return u.create_column(label, line_edit, spacing=8)
         elif variable.variable_type in Symbolic.Computation.data_source_types:
             data_source_chooser = {
                 "type": "data_source_chooser",
@@ -1276,15 +1337,15 @@ class VariableHandler:
                 "min_width": 80,
                 "min_height": 80,
             }
-            return u.create_column(label, data_source_chooser, spacing=4)
+            return u.create_column(label, data_source_chooser, spacing=8)
         elif variable.variable_type == "graphic":
-            return u.create_column(label, u.create_component_instance("graphic"), spacing=4)
+            return u.create_column(label, u.create_component_instance("graphic"), spacing=8)
         elif variable.variable_type == "structure":
-            return u.create_column(label, u.create_component_instance("structure"), spacing=4)
+            return u.create_column(label, u.create_component_instance("structure"), spacing=8)
         elif variable.bound_items_model:
-            return u.create_column(u.create_column(items="variable.bound_items_model.items", item_component_id="graphic_item", spacing=4), spacing=4)
+            return u.create_column(u.create_column(items="variable.bound_items_model.items", item_component_id="graphic_item", spacing=8), spacing=8)
         else:
-            return u.create_column(label, u.create_label(text=_("Missing") + " " + f"[{variable.variable_type} {variable.specifier}]"), spacing=4)
+            return u.create_column(label, u.create_label(text=_("Missing") + " " + f"[{variable.variable_type} {variable.specifier}]"), spacing=8)
 
 
 class ResultHandler:
@@ -1313,7 +1374,7 @@ class ResultHandler:
                 "min_width": 80,
                 "min_height": 80,
             }
-            return u.create_column(label, data_source_chooser, spacing=4)
+            return u.create_column(label, data_source_chooser, spacing=8)
         return u.create_column(label)
 
 

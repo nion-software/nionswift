@@ -760,25 +760,68 @@ class RectangleTypeGraphic(Graphic):
 
     # dependent property center
     @property
-    def center(self):
-        return self.bounds[0][0] + self.size[0] * 0.5, self.bounds[0][1] + self.size[1] * 0.5
+    def center(self) -> typing.Tuple[float, float]:
+        return tuple(Geometry.FloatPoint(y=self.bounds[0][0] + self.size[0] * 0.5,
+                                         x=self.bounds[0][1] + self.size[1] * 0.5))
 
     @center.setter
-    def center(self, center):
+    def center(self, center: typing.Union[typing.Tuple[float, float], Geometry.FloatPoint]) -> None:
+        center = Geometry.FloatPoint.make(center)
         self.bounds = ((center[0] - self.size[0] * 0.5, center[1] - self.size[1] * 0.5), self.size)
+
+    @property
+    def center_x(self) -> float:
+        return self.center[1]
+
+    @center_x.setter
+    def center_x(self, value: float) -> None:
+        self.center = tuple(Geometry.FloatPoint(y=self.center[0], x=value))
+
+    @property
+    def center_y(self) -> float:
+        return self.center[0]
+
+    @center_y.setter
+    def center_y(self, value: float) -> None:
+        self.center = tuple(Geometry.FloatPoint(y=value, x=self.center[1]))
 
     # dependent property size
     @property
-    def size(self):
+    def size(self) -> typing.Tuple[float, float]:
         return self.bounds[1]
 
     @size.setter
-    def size(self, size):
+    def size(self, size: typing.Union[typing.Tuple[float, float], Geometry.FloatSize]) -> None:
         # keep center the same
+        size = tuple(size)
         old_origin = self.bounds[0]
         old_size = self.bounds[1]
         origin = old_origin[0] - (size[0] - old_size[0]) * 0.5, old_origin[1] - (size[1] - old_size[1]) * 0.5
         self.bounds = (origin, size)
+
+    @property
+    def width(self) -> float:
+        return self.size[1]
+
+    @width.setter
+    def width(self, value: float) -> None:
+        self.size = Geometry.FloatSize(h=self.height, w=value)
+
+    @property
+    def height(self) -> float:
+        return self.size[0]
+
+    @height.setter
+    def height(self, value: float) -> None:
+        self.size = Geometry.FloatSize(h=value, w=self.width)
+
+    @property
+    def rotation_deg(self) -> float:
+        return math.degrees(self.rotation)
+
+    @rotation_deg.setter
+    def rotation_deg(self, value: float) -> None:
+        self.rotation = math.radians(value)
 
     @property
     def _bounds(self):  # useful for testing
