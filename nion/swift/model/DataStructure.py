@@ -21,6 +21,7 @@ if typing.TYPE_CHECKING:
 class DataStructure(Observable.Observable, Persistence.PersistentObject):
     entity_types:typing.Dict[str, Schema.EntityType] = dict()
     entity_names:typing.Dict[str, str] = dict()
+    entity_package_names:typing.Dict[str, str] = dict()
 
     # regarding naming: https://en.wikipedia.org/wiki/Passive_data_structure
     def __init__(self, *, structure_type: str=None, source=None):
@@ -50,15 +51,18 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         super().close()
 
     @classmethod
-    def register_entity(cls, entity_type: Schema.EntityType, *, entity_name: str = None, **kwargs) -> None:
+    def register_entity(cls, entity_type: Schema.EntityType, *, entity_name: str = None, entity_package_name: str = None, **kwargs) -> None:
         DataStructure.entity_types[entity_type.entity_id] = entity_type
         if entity_name:
             DataStructure.entity_names[entity_type.entity_id] = entity_name
+        if entity_package_name:
+            DataStructure.entity_package_names[entity_type.entity_id] = entity_package_name
 
     @classmethod
     def unregister_entity(cls, structure_type: str) -> None:
         DataStructure.entity_types.pop(structure_type)
         DataStructure.entity_names.pop(structure_type, None)
+        DataStructure.entity_package_names.pop(structure_type, None)
 
     def __getattr__(self, name):
         properties = self.__dict__.get("_DataStructure__properties", dict())

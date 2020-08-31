@@ -1090,7 +1090,13 @@ class DataStructureHandler(Observable.Observable):
         base_entity_type = Schema.get_entity_type(self.variable.entity_id)
         if base_entity_type:
             self.__entity_types = base_entity_type.subclasses
-            self.__entity_choices = [DataStructure.DataStructure.entity_names[entity_type.entity_id] for entity_type in self.__entity_types] + ["-", _("None")]
+
+            def name(entity_id: str) -> str:
+                entity_name = DataStructure.DataStructure.entity_names[entity_id]
+                entity_package_name = DataStructure.DataStructure.entity_package_names[entity_id]
+                return f"{entity_name} ({entity_package_name})"
+
+            self.__entity_choices = [name(entity_type.entity_id) for entity_type in self.__entity_types] + ["-", _("None")]
             # configure the initial value
             entity = self.data_structure.entity
             if entity:
@@ -1226,7 +1232,6 @@ class VariableHandler:
         if resource_id == "structure":
             entity_id = self.variable.entity_id
             if entity_id:
-                entity_types = Schema.get_entity_type(entity_id).subclasses
                 return u.define_component(u.create_row(
                     u.create_label(text="@binding(variable.display_label)"),
                     u.create_combo_box(items_ref="entity_choices", current_index="@binding(entity_choice)"),
