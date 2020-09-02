@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import copy
 import functools
@@ -32,6 +34,10 @@ from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Model
 from nion.utils import Observable
+
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
+
 
 _ = gettext.gettext
 
@@ -816,6 +822,11 @@ class ImageDataInspectorSection(InspectorSection):
         # color map
         color_map_row, self.__color_map_changed_listener = make_color_map_chooser(document_controller, display_data_channel)
 
+        # brightness, contrast, gamma
+        brightness_row = make_brightness_control(document_controller, display_data_channel)
+        contrast_row = make_contrast_control(document_controller, display_data_channel)
+        gamma_row = make_gamma_control(document_controller, display_data_channel)
+
         # complex display type
         complex_display_type_row, self.__complex_display_type_changed_listener = make_complex_display_type_chooser(document_controller, display_data_channel)
 
@@ -872,6 +883,9 @@ class ImageDataInspectorSection(InspectorSection):
         self.add_widget_to_content(self.display_limits_range_row)
         self.add_widget_to_content(self.display_limits_limit_row)
         self.add_widget_to_content(color_map_row)
+        self.add_widget_to_content(brightness_row)
+        self.add_widget_to_content(contrast_row)
+        self.add_widget_to_content(gamma_row)
         if complex_display_type_row:
             self.add_widget_to_content(complex_display_type_row)
 
@@ -1444,6 +1458,111 @@ def make_color_map_chooser(document_controller, display_data_channel: DisplayIte
     color_map_row.add_stretch()
     return color_map_row, listener
 
+
+def make_brightness_control(document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> UserInterface.Widget:
+    ui = document_controller.ui
+    row_widget = ui.create_row_widget()  # use 280 pixels in row
+    label_widget = ui.create_label_widget(_("Brightness"), properties={"width": 80})
+    line_edit_widget = ui.create_line_edit_widget(properties={"width": 60})
+    slider_widget = ui.create_slider_widget(properties={"width": 124})
+    slider_widget.minimum = 0
+    slider_widget.maximum = 100
+    slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "brightness", converter=Converter.FloatToScaledIntegerConverter(100, -1.0, 1.0)))
+    line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "brightness", converter=Converter.FloatToStringConverter(format="{:.2f}")))
+    row_widget.add(label_widget)
+    row_widget.add_spacing(8)
+    row_widget.add(slider_widget)
+    row_widget.add_spacing(8)
+    row_widget.add(line_edit_widget)
+    row_widget.add_stretch()
+    return row_widget
+
+
+class ContrastStringConverter:
+
+    def convert(self, value: float) -> str:
+        return f"{value:0.2f}" if value >= 1 else f"1 / {1/value:0.2f}"
+
+    def convert_back(self, value_str: str) -> float:
+        value_str = ''.join(value_str.split())
+        if value_str.startswith("1/"):
+            return 1 / Converter.FloatToStringConverter().convert_back(value_str[2:])
+        else:
+            return Converter.FloatToStringConverter().convert_back(value_str)
+
+
+class ContrastIntegerConverter:
+    def __init__(self, n: int):
+        self.n = n
+
+    def convert(self, value):
+        return int(math.log10(value) * self.n // 2) + (self.n // 2)
+
+    def convert_back(self, value_int):
+        return math.pow(10, (value_int - self.n // 2) / (self.n // 2))
+
+
+def make_contrast_control(document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> UserInterface.Widget:
+    ui = document_controller.ui
+    row_widget = ui.create_row_widget()  # use 280 pixels in row
+    label_widget = ui.create_label_widget(_("Contrast"), properties={"width": 80})
+    line_edit_widget = ui.create_line_edit_widget(properties={"width": 60})
+    slider_widget = ui.create_slider_widget(properties={"width": 124})
+    slider_widget.minimum = 0
+    slider_widget.maximum = 100
+    slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "contrast", converter=ContrastIntegerConverter(100)))
+    line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "contrast", converter=ContrastStringConverter()))
+    row_widget.add(label_widget)
+    row_widget.add_spacing(8)
+    row_widget.add(slider_widget)
+    row_widget.add_spacing(8)
+    row_widget.add(line_edit_widget)
+    row_widget.add_stretch()
+    return row_widget
+
+
+class GammaStringConverter:
+
+    def convert(self, value: float) -> str:
+        return f"{value:0.2f}" if value >= 1 else f"1 / {1/value:0.3f}"
+
+    def convert_back(self, value_str: str) -> float:
+        value_str = ''.join(value_str.split())
+        if value_str.startswith("1/"):
+            return 1 / Converter.FloatToStringConverter().convert_back(value_str[2:])
+        else:
+            return Converter.FloatToStringConverter().convert_back(value_str)
+
+
+class GammaIntegerConverter:
+    # gamma ranges from 1/N to N
+
+    def convert(self, value: float) -> int:
+        return 100 - int(math.log(value, 10) * 50 + 50)
+
+    def convert_back(self, value_int: int) -> float:
+        return math.pow(10, ((100 - value_int) - 50) / 50)
+
+
+def make_gamma_control(document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> UserInterface.Widget:
+    ui = document_controller.ui
+    row_widget = ui.create_row_widget()  # use 280 pixels in row
+    label_widget = ui.create_label_widget(_("Gamma"), properties={"width": 80})
+    line_edit_widget = ui.create_line_edit_widget(properties={"width": 60})
+    slider_widget = ui.create_slider_widget(properties={"width": 124})
+    slider_widget.minimum = 0
+    slider_widget.maximum = 100
+    slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "gamma", converter=GammaIntegerConverter()))
+    line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "gamma", converter=GammaStringConverter()))
+    row_widget.add(label_widget)
+    row_widget.add_spacing(8)
+    row_widget.add(slider_widget)
+    row_widget.add_spacing(8)
+    row_widget.add(line_edit_widget)
+    row_widget.add_stretch()
+    return row_widget
+
+
 def make_complex_display_type_chooser(document_controller, display_data_channel: DisplayItem.DisplayDataChannel, include_log_abs=True):
     if not (display_data_channel.data_item and display_data_channel.data_item.is_data_complex_type):
         return None, None
@@ -1609,10 +1728,10 @@ class SequenceInspectorSection(InspectorSection):
 
         data_item = display_data_channel.data_item
 
-        sequence_index_row_widget = self.ui.create_row_widget()
-        sequence_index_label_widget = self.ui.create_label_widget(_("Index"))
-        sequence_index_line_edit_widget = self.ui.create_line_edit_widget()
-        sequence_index_slider_widget = self.ui.create_slider_widget()
+        sequence_index_row_widget = self.ui.create_row_widget()  # use 280 pixels in row
+        sequence_index_label_widget = self.ui.create_label_widget(_("Index"), properties={"width": 60})
+        sequence_index_line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
+        sequence_index_slider_widget = self.ui.create_slider_widget(properties={"width": 144})
         sequence_index_slider_widget.maximum = data_item.dimensional_shape[0] - 1  # sequence_index
         sequence_index_slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "sequence_index"))
         sequence_index_line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "sequence_index", converter=Converter.IntegerToStringConverter()))
@@ -1648,10 +1767,10 @@ class CollectionIndexInspectorSection(InspectorSection):
         column_widget = self.ui.create_column_widget()
         collection_index_base = 1 if data_item.is_sequence else 0
         for index in range(data_item.collection_dimension_count):
-            index_row_widget = self.ui.create_row_widget()
-            index_label_widget = self.ui.create_label_widget("{}: {}".format(_("Index"), index))
-            index_line_edit_widget = self.ui.create_line_edit_widget()
-            index_slider_widget = self.ui.create_slider_widget()
+            index_row_widget = self.ui.create_row_widget()  # use 280 pixels in row
+            index_label_widget = self.ui.create_label_widget("{}: {}".format(_("Index"), index), properties={"width": 60})
+            index_line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
+            index_slider_widget = self.ui.create_slider_widget(properties={"width": 144})
             index_slider_widget.maximum = data_item.dimensional_shape[collection_index_base + index] - 1
 
             self.__collection_index_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "collection_index", title=_("Change Collection Index"), command_id="change_collection_index")
@@ -1692,10 +1811,10 @@ class SliceInspectorSection(InspectorSection):
 
         data_item = display_data_channel.data_item
 
-        slice_center_row_widget = self.ui.create_row_widget()
-        slice_center_label_widget = self.ui.create_label_widget(_("Slice"))
-        slice_center_line_edit_widget = self.ui.create_line_edit_widget()
-        slice_center_slider_widget = self.ui.create_slider_widget()
+        slice_center_row_widget = self.ui.create_row_widget()  # use 280 pixels in row
+        slice_center_label_widget = self.ui.create_label_widget(_("Slice"), properties={"width": 60})
+        slice_center_line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
+        slice_center_slider_widget = self.ui.create_slider_widget(properties={"width": 144})
         slice_center_slider_widget.maximum = data_item.dimensional_shape[-1] - 1  # signal_index
         slice_center_slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_center"))
         slice_center_line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_center", converter=Converter.IntegerToStringConverter()))
@@ -1706,10 +1825,10 @@ class SliceInspectorSection(InspectorSection):
         slice_center_row_widget.add(slice_center_line_edit_widget)
         slice_center_row_widget.add_stretch()
 
-        slice_width_row_widget = self.ui.create_row_widget()
-        slice_width_label_widget = self.ui.create_label_widget(_("Width"))
-        slice_width_line_edit_widget = self.ui.create_line_edit_widget()
-        slice_width_slider_widget = self.ui.create_slider_widget()
+        slice_width_row_widget = self.ui.create_row_widget()  # use 280 pixels in row
+        slice_width_label_widget = self.ui.create_label_widget(_("Width"), properties={"width": 60})
+        slice_width_line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
+        slice_width_slider_widget = self.ui.create_slider_widget(properties={"width": 144})
         slice_width_slider_widget.maximum = data_item.dimensional_shape[-1] - 1  # signal_index
         slice_width_slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_width"))
         slice_width_line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_width", converter=Converter.IntegerToStringConverter()))

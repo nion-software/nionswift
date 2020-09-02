@@ -228,7 +228,7 @@ class CalibrationStyleFractionalCenter(CalibrationStyle):
 class DisplayValues:
     """Display data used to render the display."""
 
-    def __init__(self, data_and_metadata, sequence_index, collection_index, slice_center, slice_width, display_limits, complex_display_type, color_map_data):
+    def __init__(self, data_and_metadata, sequence_index, collection_index, slice_center, slice_width, display_limits, complex_display_type, color_map_data, brightness, contrast, gamma):
         self.__lock = threading.RLock()
         self.__data_and_metadata = data_and_metadata
         self.__sequence_index = sequence_index
@@ -238,6 +238,9 @@ class DisplayValues:
         self.__display_limits = display_limits
         self.__complex_display_type = complex_display_type
         self.__color_map_data = color_map_data
+        self.__brightness = brightness
+        self.__contrast = contrast
+        self.__gamma = gamma
         self.__element_data_and_metadata_dirty = True
         self.__element_data_and_metadata = None
         self.__display_data_and_metadata_dirty = True
@@ -356,17 +359,49 @@ class DisplayValues:
         with self.__lock:
             if self.__display_rgba_dirty:
                 self.__display_rgba_dirty = False
-                display_data_and_metadata = self.display_data_and_metadata
-                if display_data_and_metadata is not None and self.__data_and_metadata is not None:
+                display_data = self.transformed_display_data
+                if display_data is not None and self.__data_and_metadata is not None:
                     if self.data_range is not None:  # workaround until validating and retrieving data stats is an atomic operation
                         # display_range is just display_limits but calculated if display_limits is None
-                        display_range = self.display_range
-                        self.__display_rgba = Core.function_display_rgba(display_data_and_metadata, display_range, self.__color_map_data).data
+                        display_range = self.transformed_display_range
+                        self.__display_rgba = Core.function_display_rgba(DataAndMetadata.promote_ndarray(display_data),
+                                                                         display_range, self.__color_map_data).data
             return self.__display_rgba
 
     @property
     def display_rgba_timestamp(self):
         return self.__display_rgba_timestamp
+
+    @property
+    def normalized_display_data(self) -> numpy.ndarray:
+        display_limit_low, display_limit_high = self.display_range
+        # normalize the data to [0, 1].
+        m = 1 / (display_limit_high - display_limit_low)
+        b = -display_limit_low
+        return (m * (self.display_data_and_metadata + b)).data
+
+    @property
+    def transformed_display_data(self) -> typing.Optional[numpy.ndarray]:
+        if self.__gamma != 1.0:
+            # compute the gamma adjustment
+            return numpy.power(numpy.clip(self.normalized_display_data, 0.0, 1.0), self.__gamma, dtype=numpy.float32)
+        else:
+            return self.display_data_and_metadata.data if self.display_data_and_metadata else None
+
+    @property
+    def transformed_display_range(self) -> typing.Tuple[float, float]:
+        if self.__gamma != 1.0:
+            # gamma transform has already been applied and data is now in the range of 0.0, 1.0.
+            # brightness and contrast will be applied on top of this transform.
+            display_limit_low, display_limit_high = 0.0, 1.0
+        else:
+            display_limit_low, display_limit_high = self.display_range
+        brightness = self.__brightness
+        contrast = self.__contrast
+        m = (contrast / (display_limit_high - display_limit_low)) if contrast > 0 and display_limit_high != display_limit_low else 1
+        b = 1 / (2 * m) - (1 - brightness) * (display_limit_high - display_limit_low) / 2 - display_limit_low
+        # back calculate the display limits as they would be would be with brightness/contrast adjustments
+        return (0 - m * b) / m, (1 - m * b) / m
 
 
 class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
@@ -379,6 +414,9 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         # data scaling and color (raster)
         self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__property_changed)
         self.define_property("color_map_id", changed=self.__color_map_id_changed)
+        self.define_property("brightness", 0.0, changed=self.__property_changed)
+        self.define_property("contrast", 1.0, changed=self.__property_changed)
+        self.define_property("gamma", 1.0, changed=self.__property_changed)
         # slicing data to 1d or 2d
         self.define_property("sequence_index", 0, validate=self.__validate_sequence_index, changed=self.__property_changed)
         self.define_property("collection_index", (0, 0, 0), validate=self.__validate_collection_index, changed=self.__collection_index_changed)
@@ -478,6 +516,9 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         display_data_channel._set_persistent_property_value("complex_display_type", self._get_persistent_property_value("complex_display_type"))
         display_data_channel._set_persistent_property_value("display_limits", self._get_persistent_property_value("display_limits"))
         display_data_channel._set_persistent_property_value("color_map_id", self._get_persistent_property_value("color_map_id"))
+        display_data_channel._set_persistent_property_value("brightness", self._get_persistent_property_value("brightness"))
+        display_data_channel._set_persistent_property_value("contrast", self._get_persistent_property_value("contrast"))
+        display_data_channel._set_persistent_property_value("gamma", self._get_persistent_property_value("gamma"))
         display_data_channel._set_persistent_property_value("sequence_index", self._get_persistent_property_value("sequence_index"))
         display_data_channel._set_persistent_property_value("collection_index", self._get_persistent_property_value("collection_index"))
         display_data_channel._set_persistent_property_value("slice_center", self._get_persistent_property_value("slice_center"))
@@ -526,6 +567,9 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
     def copy_display_data_properties_from(self, display_data_channel: "DisplayDataChannel") -> None:
         self.complex_display_type = display_data_channel.complex_display_type
         self.display_limits = display_data_channel.display_limits
+        self.brightness = display_data_channel.brightness
+        self.contrast = display_data_channel.contrast
+        self.gamma = display_data_channel.gamma
         self.color_map_id = display_data_channel.color_map_id
         self.sequence_index = display_data_channel.sequence_index
         self.collection_index = display_data_channel.collection_index
@@ -751,7 +795,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
     def __property_changed(self, property_name, value):
         # when one of the defined properties changes, this gets called
         self.notify_property_changed(property_name)
-        if property_name in ("sequence_index", "collection_index", "slice_center", "slice_width", "complex_display_type", "display_limits", "color_map_data"):
+        if property_name in ("sequence_index", "collection_index", "slice_center", "slice_width", "complex_display_type", "display_limits", "brightness", "contrast", "gamma", "color_map_data"):
             self.display_data_will_change_event.fire()
             self.__send_next_calculated_display_values()
 
@@ -759,6 +803,9 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         return (
             self.complex_display_type,
             self.display_limits,
+            self.brightness,
+            self.contrast,
+            self.gamma,
             self.color_map_id,
             self.sequence_index,
             self.collection_index,
@@ -769,11 +816,14 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
     def restore_properties(self, properties: typing.Tuple) -> None:
         self.complex_display_type = properties[0]
         self.display_limits = properties[1]
-        self.color_map_id = properties[2]
-        self.sequence_index = properties[3]
-        self.collection_index = properties[4]
-        self.slice_center = properties[5]
-        self.slice_interval = properties[6]
+        self.brightness = properties[2]
+        self.contrast = properties[3]
+        self.gamma = properties[4]
+        self.color_map_id = properties[5]
+        self.sequence_index = properties[6]
+        self.collection_index = properties[7]
+        self.slice_center = properties[8]
+        self.slice_interval = properties[9]
 
     def update_display_data(self) -> None:
         self.__send_next_calculated_display_values()
@@ -799,7 +849,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         """
         if not immediate or not self.__is_master or not self.__last_display_values:
             if not self.__current_display_values and self.__data_item:
-                self.__current_display_values = DisplayValues(self.__data_item.xdata, self.sequence_index, self.collection_index, self.slice_center, self.slice_width, self.display_limits, self.complex_display_type, self.__color_map_data)
+                self.__current_display_values = DisplayValues(self.__data_item.xdata, self.sequence_index, self.collection_index, self.slice_center, self.slice_width, self.display_limits, self.complex_display_type, self.__color_map_data, self.brightness, self.contrast, self.gamma)
 
                 def finalize(display_values):
                     self.__last_display_values = display_values
