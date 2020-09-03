@@ -123,14 +123,13 @@ class Application(UIApplication.BaseApplication):
 
     def deinitialize(self):
         # shut down hardware source manager, unload plug-ins, and really exit ui
+        if self.__profile:
+            self.__profile.close()
+            self.__profile = None
         HardwareSource.HardwareSourceManager().close()
         PlugInManager.unload_plug_ins()
         self.__class__.count -= 1
         super().deinitialize()
-
-    def run(self):
-        """Alternate start which allows ui to control event loop."""
-        self.ui.run(self)
 
     @property
     def profile(self) -> typing.Optional[Profile.Profile]:
@@ -300,12 +299,12 @@ class Application(UIApplication.BaseApplication):
                     open_project_reference(used_project_references[current_index])
 
             def new_project(self, widget: Declarative.UIWidget) -> None:
-                self.close_window()
                 show_new_project_dialog()
+                self.close_window()
 
             def open_project(self, widget: Declarative.UIWidget) -> None:
-                self.close_window()
                 show_open_project_dialog()
+                self.close_window()
 
         ChooseProjectHandler().run(window, app=self)
 
@@ -326,7 +325,7 @@ class Application(UIApplication.BaseApplication):
         document_controller.show()
         return document_controller
 
-    def _set_profile_for_test(self, profile: Profile.Profile) -> None:
+    def _set_profile_for_test(self, profile: typing.Optional[Profile.Profile]) -> None:
         self.__profile = profile
 
     def __establish_profile(self, profile_path: pathlib.Path) -> typing.Tuple[typing.Optional[Profile.Profile], bool]:

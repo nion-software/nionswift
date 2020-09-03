@@ -186,6 +186,7 @@ class TestProfileClass(unittest.TestCase):
                 self.assertEqual(0, len(profile.project_references))
                 self.assertEqual(0, len(app.windows))
             finally:
+                app._set_profile_for_test(None)
                 app.exit()
                 app.deinitialize()
 
@@ -216,6 +217,7 @@ class TestProfileClass(unittest.TestCase):
                 self.assertEqual(0, len(profile.project_references))
                 self.assertEqual(0, len(app.windows))
             finally:
+                app._set_profile_for_test(None)
                 app.exit()
                 app.deinitialize()
 
@@ -255,6 +257,7 @@ class TestProfileClass(unittest.TestCase):
                 self.assertEqual("loaded", profile.project_references[0].project_state)
                 self.assertEqual(1, len(app.windows))
             finally:
+                app._set_profile_for_test(None)
                 app.exit()
                 app.deinitialize()
 
@@ -301,6 +304,7 @@ class TestProfileClass(unittest.TestCase):
                         self.assertEqual("invalid", profile.project_references[0].project_state)
                         self.assertEqual(0, len(app.windows))
                     finally:
+                        app._set_profile_for_test(None)
                         app.exit()
                         app.deinitialize()
 
@@ -345,6 +349,7 @@ class TestProfileClass(unittest.TestCase):
                 self.assertEqual("needs_upgrade", profile.project_references[0].project_state)
                 self.assertEqual(0, len(app.windows))
             finally:
+                app._set_profile_for_test(None)
                 app.exit()
                 app.deinitialize()
 
@@ -389,6 +394,7 @@ class TestProfileClass(unittest.TestCase):
                 self.assertEqual("loaded", profile.project_references[0].project_state)
                 self.assertEqual(1, len(app.windows))
             finally:
+                app._set_profile_for_test(None)
                 app.exit()
                 app.deinitialize()
 
@@ -436,6 +442,7 @@ class TestProfileClass(unittest.TestCase):
                 self.assertEqual(1, len(profile.project_references))
                 self.assertEqual(0, len(app.windows))
             finally:
+                app._set_profile_for_test(None)
                 app.exit()
                 app.deinitialize()
 
@@ -472,6 +479,7 @@ class TestProfileClass(unittest.TestCase):
                 self.assertEqual(1, len(app.windows))
                 self.assertEqual(profile.last_project_reference, profile.project_references[1].uuid)
             finally:
+                app._set_profile_for_test(None)
                 app.exit()
                 app.deinitialize()
 
@@ -496,6 +504,7 @@ class TestProfileClass(unittest.TestCase):
                 self.assertEqual(1, len(app.windows))
                 self.assertEqual(profile.last_project_reference, profile.project_references[1].uuid)
             finally:
+                app._set_profile_for_test(None)
                 app.exit()
                 app.deinitialize()
 
@@ -555,6 +564,7 @@ class TestProfileClass(unittest.TestCase):
                         self.assertEqual(0, len(app.windows))
                         self.assertEqual(profile.last_project_reference, profile.project_references[0].uuid)
                     finally:
+                        app._set_profile_for_test(None)
                         app.exit()
                         app.deinitialize()
 
