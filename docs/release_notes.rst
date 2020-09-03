@@ -3,6 +3,10 @@
 Release Notes
 =============
 
+Version 0.15.1 (UNRELEASED)
+---------------------------
+* (2020-09-03) Clean up launch workflow when no project already open.
+
 Version 0.15.0 (2020-08-31)
 ---------------------------
 The highlights of this release are improved display performance, improved reliability,

@@ -236,77 +236,87 @@ class Application(UIApplication.BaseApplication):
         return document_controller
 
     def show_open_project_dialog(self) -> None:
-        ui = self.ui
-        filter = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
-        import_dir = ui.get_persistent_string("open_directory", ui.get_document_location())
-        paths, selected_filter, selected_directory = ui.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter)
-        ui.set_persistent_string("open_directory", selected_directory)
-        if len(paths) == 1:
-            project_reference = self.profile.open_project(pathlib.Path(paths[0]))
-            if project_reference:
-                self.open_project_reference(project_reference)
-            else:
-                self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_choose_project_dialog)
+        with self.prevent_close():
+            ui = self.ui
+            filter = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
+            import_dir = ui.get_persistent_string("open_directory", ui.get_document_location())
+            paths, selected_filter, selected_directory = ui.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter)
+            ui.set_persistent_string("open_directory", selected_directory)
+            if len(paths) == 1:
+                project_reference = self.profile.open_project(pathlib.Path(paths[0]))
+                if project_reference:
+                    self.open_project_reference(project_reference)
+                else:
+                    self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_choose_project_dialog)
 
     def show_choose_project_dialog(self) -> None:
-        u = Declarative.DeclarativeUI()
-        button_row = u.create_row(u.create_push_button(text=_("New..."), on_clicked="new_project"),
-                                  u.create_push_button(text=_("Open..."), on_clicked="open_project"),
-                                  u.create_stretch(),
-                                  u.create_push_button(text=_("Cancel"), on_clicked="close_window"),
-                                  u.create_push_button(text=_("Open Recent")),
-                                  spacing=8)
+        with self.prevent_close():
+            u = Declarative.DeclarativeUI()
+            button_row = u.create_row(u.create_push_button(text=_("New..."), on_clicked="new_project"),
+                                      u.create_push_button(text=_("Open..."), on_clicked="open_project"),
+                                      u.create_stretch(),
+                                      u.create_push_button(text=_("Cancel"), on_clicked="close_window"),
+                                      u.create_push_button(text=_("Open Recent"), on_clicked="open_recent"),
+                                      spacing=8)
 
-        used_project_references = list()
-        project_titles = list()
+            used_project_references = list()
+            project_titles = list()
 
-        project_references = filter(lambda pr: pr.project_state != "loaded", self.__profile.project_references)
-        project_references = sorted(project_references, key=operator.attrgetter("last_used"), reverse=True)
-        for project_reference in project_references[:20]:
-            if project_reference.project_state != "loaded":
-                project_title = project_reference.title
-                if project_reference.project_state == "needs_upgrade":
-                    project_title += " " + _("(NEEDS UPGRADE)")
-                elif project_reference.project_state != "unloaded" or project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
-                    project_title += " " + _("(MISSING OR UNREADABLE)")
-                used_project_references.append(project_reference)
-                project_titles.append(project_title)
+            project_references = filter(lambda pr: pr.project_state != "loaded", self.__profile.project_references)
+            project_references = sorted(project_references, key=operator.attrgetter("last_used"), reverse=True)
+            for project_reference in project_references[:20]:
+                if project_reference.project_state != "loaded":
+                    project_title = project_reference.title
+                    if project_reference.project_state == "needs_upgrade":
+                        project_title += " " + _("(NEEDS UPGRADE)")
+                    elif project_reference.project_state != "unloaded" or project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
+                        project_title += " " + _("(MISSING OR UNREADABLE)")
+                    used_project_references.append(project_reference)
+                    project_titles.append(project_title)
 
-        item_list = u.create_list_box(items=project_titles, height=240, min_height=180, size_policy_horizontal="expanding", on_item_selected="recent_item_selected")
+            item_list = u.create_list_box(items=project_titles, current_index="@binding(current_index)", height=240, min_height=180, size_policy_horizontal="expanding", on_item_selected="recent_item_selected")
 
-        main_column = u.create_column(u.create_label(text=_("Recent Projects")),
-                                      item_list,
-                                      u.create_spacing(13),
-                                      button_row, spacing=8, width=380)
-        window = u.create_window(main_column, title=_("Choose Project"), margin=12, window_style="tool")
+            main_column = u.create_column(u.create_label(text=_("Recent Projects")),
+                                          item_list,
+                                          u.create_spacing(13),
+                                          button_row, spacing=8, width=380)
+            window = u.create_window(main_column, title=_("Choose Project"), margin=12, window_style="tool")
 
-        def open_project_reference(project_reference: Profile.ProjectReference) -> None:
-            self.open_project_reference(project_reference)
+            def open_project_reference(project_reference: Profile.ProjectReference) -> None:
+                self.open_project_reference(project_reference)
 
-        def show_open_project_dialog() -> None:
-            self.show_open_project_dialog()
+            def show_open_project_dialog() -> None:
+                self.show_open_project_dialog()
 
-        def show_new_project_dialog() -> None:
-            NewProjectAction().invoke(UIWindow.ActionContext(self, None, None))
+            def show_new_project_dialog() -> None:
+                NewProjectAction().invoke(UIWindow.ActionContext(self, None, None))
 
-        class ChooseProjectHandler(Declarative.WindowHandler):
-            def __init__(self):
-                super().__init__()
+            class ChooseProjectHandler(Declarative.WindowHandler):
+                def __init__(self, application: Application):
+                    super().__init__()
+                    self.__application = application
+                    self.current_index = 0
 
-            def recent_item_selected(self, widget: Declarative.UIWidget, current_index: int) -> None:
-                if 0 <= current_index < len(used_project_references):
-                    self.close_window()
-                    open_project_reference(used_project_references[current_index])
+                def recent_item_selected(self, widget: Declarative.UIWidget, current_index: int) -> None:
+                    if 0 <= current_index < len(used_project_references):
+                        with self.__application.prevent_close():
+                            self.close_window()
+                            open_project_reference(used_project_references[current_index])
 
-            def new_project(self, widget: Declarative.UIWidget) -> None:
-                show_new_project_dialog()
-                self.close_window()
+                def new_project(self, widget: Declarative.UIWidget) -> None:
+                    with self.__application.prevent_close():
+                        show_new_project_dialog()
+                        self.close_window()
 
-            def open_project(self, widget: Declarative.UIWidget) -> None:
-                show_open_project_dialog()
-                self.close_window()
+                def open_project(self, widget: Declarative.UIWidget) -> None:
+                    with self.__application.prevent_close():
+                        show_open_project_dialog()
+                        self.close_window()
 
-        ChooseProjectHandler().run(window, app=self)
+                def open_recent(self, widget: Declarative.UIWidget) -> None:
+                    self.recent_item_selected(widget, self.current_index)
+
+            ChooseProjectHandler(self).run(window, app=self)
 
     def get_recent_library_paths(self):
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
@@ -396,25 +406,26 @@ class Application(UIApplication.BaseApplication):
             self.switch_project_reference(project_reference)
 
     def open_project_reference(self, project_reference: Profile.ProjectReference) -> None:
-        if project_reference.project_version == FileStorageSystem.PROJECT_VERSION and project_reference.project_state == "unloaded":
-            self.switch_project_reference(project_reference)
-        elif project_reference.project_state == "needs_upgrade":
-            def handle_upgrade(result: bool) -> None:
-                if result:
-                    try:
-                        new_project_reference = self.profile.upgrade(project_reference)
-                    except Exception:
-                        self.show_ok_dialog(_("Error Upgrading Project"), _("Unable to upgrade project."))
-                        new_project_reference = None
-                    if new_project_reference:
-                        self.switch_project_reference(new_project_reference)
+        with self.prevent_close():
+            if project_reference.project_version == FileStorageSystem.PROJECT_VERSION and project_reference.project_state == "unloaded":
+                self.switch_project_reference(project_reference)
+            elif project_reference.project_state == "needs_upgrade":
+                def handle_upgrade(result: bool) -> None:
+                    if result:
+                        try:
+                            new_project_reference = self.profile.upgrade(project_reference)
+                        except Exception:
+                            self.show_ok_dialog(_("Error Upgrading Project"), _("Unable to upgrade project."))
+                            new_project_reference = None
+                        if new_project_reference:
+                            self.switch_project_reference(new_project_reference)
 
-            self.show_ok_cancel_dialog(_("Project Needs Upgrade"),
-                                       _("This project needs to be upgraded to work with this version."),
-                                       ok_text=_("Upgrade"),
-                                       completion_fn=handle_upgrade)
-        else:
-            self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_choose_project_dialog)
+                self.show_ok_cancel_dialog(_("Project Needs Upgrade"),
+                                           _("This project needs to be upgraded to work with this version."),
+                                           ok_text=_("Upgrade"),
+                                           completion_fn=handle_upgrade)
+            else:
+                self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_choose_project_dialog)
 
     def switch_project_reference(self, project_reference: Profile.ProjectReference) -> None:
         for window in self.windows:
