@@ -3,7 +3,7 @@
 Release Notes
 =============
 
-Version 0.15.1 (UNRELEASED)
+Version 0.15.1 (2020-09-03)
 ---------------------------
 * (2020-09-03) Clean up launch workflow when no project already open.
 
