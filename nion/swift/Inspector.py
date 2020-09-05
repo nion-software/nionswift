@@ -2731,7 +2731,7 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
     row.add(label_column)
     row.add_spacing(8)
     computation_input = computation.get_input(variable.name)
-    data_item = computation_input.data_item if computation_input else None
+    data_item = computation_input.data_item if computation_input and not isinstance(computation_input, DataItem.DataItem) else None
 
     def drop_mime_data(mime_data, x, y):
         display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)

@@ -90,6 +90,7 @@ class ProcessingBase:
         self.sections = set()
         self.sources = list()
         self.parameters = list()
+        self.attributes = dict()
         self.is_mappable = False
         self.is_scalar = False
 
@@ -241,6 +242,7 @@ class ProcessingMappedSum(ProcessingBase):
         ]
         self.is_mappable = True
         self.is_scalar = True
+        self.attributes["connection_type"] = "map"
 
     def process(self, *, src: DataItem.DataSource, **kwargs) -> typing.Union[DataAndMetadata.DataAndMetadata, DataAndMetadata.ScalarAndMetadata]:
         filtered_xdata = src.filtered_xdata
@@ -258,6 +260,7 @@ class ProcessingMappedAverage(ProcessingBase):
         ]
         self.is_mappable = True
         self.is_scalar = True
+        self.attributes["connection_type"] = "map"
 
     def process(self, *, src: DataItem.DataSource, **kwargs) -> typing.Union[DataAndMetadata.DataAndMetadata, DataAndMetadata.ScalarAndMetadata]:
         filtered_xdata = src.filtered_xdata

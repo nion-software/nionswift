@@ -2369,6 +2369,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         # construct the computation
         computation = self.create_computation(script)
+        computation.attributes.update(processing_description.get("attributes", dict()))
         computation.label = processing_description["title"]
         computation.processing_id = processing_id
         # process the data item inputs
@@ -2470,6 +2471,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     "title": processing_component.title,
                     "sources": processing_component.sources,
                     "parameters": processing_component.parameters,
+                    "attributes": processing_component.attributes,
                 }
                 if processing_component.is_mappable and not processing_component.is_scalar:
                     mapping_param = {"name": "mapping", "label": _("Sequence/Collection Mapping"), "type": "string", "value": "none", "value_default": "none", "control_type": "choice"}
@@ -2895,7 +2897,11 @@ class ImplicitMapConnection:
     def __init__(self, document_model: DocumentModel):
 
         def match_pick(computation: Symbolic.Computation) -> bool:
-            return computation.processing_id in ("mapped_sum", "mapped_average")
+            if computation.get_computation_attribute("connection_type", None) == "map":
+                return True
+            if DocumentModel._builtin_processing_descriptions.get(computation.processing_id, dict()).get("attributes", dict()).get("connection_type", None) == "map":
+                return True
+            return False
 
         def match_graphic(graphic: Graphics.Graphic) -> bool:
             return graphic.role == "collection_index"

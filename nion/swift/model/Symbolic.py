@@ -16,7 +16,6 @@ import threading
 import time
 import typing
 import uuid
-import weakref
 
 # third party libraries
 import numpy
@@ -1094,6 +1093,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_property("processing_id")  # see note above
         self.define_relationship("variables", variable_factory)
         self.define_relationship("results", result_factory)
+        self.attributes = dict()  # not persistent, defined by underlying class
         self.__source_proxy = self.create_item_proxy()
         self.__variable_changed_event_listeners = dict()
         self.__variable_needs_rebind_event_listeners = dict()
@@ -1194,6 +1194,13 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     @label.setter
     def label(self, value: str) -> None:
         self._set_persistent_property_value("label", value)
+
+    def get_computation_attribute(self, attribute: str, default: typing.Any = None) -> typing.Any:
+        """Returns the attribute for the computation."""
+        compute_class = _computation_types.get(self.processing_id)
+        if compute_class:
+            return getattr(compute_class, "attributes", dict()).get(attribute, default)
+        return default
 
     @property
     def error_text(self) -> typing.Optional[str]:
