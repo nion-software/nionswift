@@ -1085,6 +1085,18 @@ class TestProcessingClass(unittest.TestCase):
             document_model.get_processing_new("mapped_sum", display_item, display_item.data_item, crop_region)
             document_model.recompute_all()
 
+    def test_line_profile_on_sequence_works(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((20, 8, 6)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
+            data_item = DataItem.new_data_item(data_and_metadata)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            line_profile_data_item = document_model.get_line_profile_new(display_item, data_item)
+            document_model.recompute_all()
+            self.assertIsNotNone(line_profile_data_item.xdata)
+            self.assertEqual((5, ), line_profile_data_item.xdata.data_shape)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

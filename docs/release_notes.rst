@@ -3,6 +3,10 @@
 Release Notes
 =============
 
+Version 0.15.2 (UNRELEASED)
+---------------------------
+* (2020-09-15) Fixed issue with line plot on sequences/collections of images.
+
 Version 0.15.1 (2020-09-03)
 ---------------------------
 * (2020-09-03) Clean up launch workflow when no project already open.

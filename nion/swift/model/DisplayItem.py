@@ -238,6 +238,8 @@ class DisplayValues:
         self.__display_limits = display_limits
         self.__complex_display_type = complex_display_type
         self.__color_map_data = color_map_data
+        self.__element_data_and_metadata_dirty = True
+        self.__element_data_and_metadata = None
         self.__display_data_and_metadata_dirty = True
         self.__display_data_and_metadata = None
         self.__data_range_dirty = True
@@ -267,14 +269,28 @@ class DisplayValues:
         return self.__data_and_metadata
 
     @property
+    def element_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
+        with self.__lock:
+            if self.__element_data_and_metadata_dirty:
+                self.__element_data_and_metadata_dirty = False
+                data_and_metadata = self.__data_and_metadata
+                if data_and_metadata is not None:
+                    timestamp = data_and_metadata.timestamp
+                    data_and_metadata, modified = Core.function_element_data_no_copy(data_and_metadata, self.__sequence_index, self.__collection_index, self.__slice_center, self.__slice_width)
+                    if data_and_metadata:
+                        data_and_metadata.data_metadata.timestamp = timestamp
+                    self.__element_data_and_metadata = data_and_metadata
+            return self.__element_data_and_metadata
+
+    @property
     def display_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
         with self.__lock:
             if self.__display_data_and_metadata_dirty:
                 self.__display_data_and_metadata_dirty = False
-                data_and_metadata = self.__data_and_metadata
+                data_and_metadata = self.element_data_and_metadata
                 if data_and_metadata is not None:
                     timestamp = data_and_metadata.timestamp
-                    data_and_metadata, modified = Core.function_display_data_no_copy(data_and_metadata, self.__sequence_index, self.__collection_index, self.__slice_center, self.__slice_width, self.__complex_display_type)
+                    data_and_metadata, modified = Core.function_scalar_data_no_copy(data_and_metadata, self.__complex_display_type)
                     if data_and_metadata:
                         data_and_metadata.data_metadata.timestamp = timestamp
                     self.__display_data_and_metadata = data_and_metadata

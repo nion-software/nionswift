@@ -1301,6 +1301,16 @@ class DataSource:
         return None
 
     @property
+    def element_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        display_data_channel = self.__display_data_channel
+        if display_data_channel:
+            if self.__xdata is not None:
+                return Core.function_convert_to_scalar(self.xdata, display_data_channel.complex_display_type)
+            else:
+                return display_data_channel.get_calculated_display_values(True).element_data_and_metadata
+        return None
+
+    @property
     def display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         display_data_channel = self.__display_data_channel
         if display_data_channel:
@@ -1308,6 +1318,23 @@ class DataSource:
                 return Core.function_convert_to_scalar(self.xdata, display_data_channel.complex_display_type)
             else:
                 return display_data_channel.get_calculated_display_values(True).display_data_and_metadata
+        return None
+
+    @property
+    def cropped_element_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        data_item = self.data_item
+        if data_item:
+            element_xdata = self.element_xdata
+            graphic = self.__graphic
+            if graphic:
+                if hasattr(graphic, "bounds") and element_xdata.is_data_2d:
+                    if graphic.rotation:
+                        return Core.function_crop_rotated(element_xdata, graphic.bounds, graphic.rotation)
+                    else:
+                        return Core.function_crop(element_xdata, graphic.bounds)
+                if hasattr(graphic, "interval") and element_xdata.is_data_1d:
+                    return Core.function_crop_interval(element_xdata, graphic.interval)
+            return element_xdata
         return None
 
     @property

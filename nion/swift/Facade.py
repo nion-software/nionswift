@@ -1375,6 +1375,10 @@ class DataSource(metaclass=SharedInstance):
         return Graphic(self.__data_source.graphic)
 
     @property
+    def cropped_element_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.cropped_element_xdata
+
+    @property
     def cropped_display_xdata(self) -> DataAndMetadata.DataAndMetadata:
         return self.__data_source.cropped_display_xdata
 
@@ -1385,6 +1389,10 @@ class DataSource(metaclass=SharedInstance):
     @property
     def data(self) -> numpy.ndarray:
         return self.__data_source.data
+
+    @property
+    def element_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.element_xdata
 
     @property
     def display_xdata(self) -> DataAndMetadata.DataAndMetadata:
