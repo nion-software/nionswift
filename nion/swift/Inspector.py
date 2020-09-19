@@ -825,7 +825,7 @@ class ImageDataInspectorSection(InspectorSection):
         # brightness, contrast, gamma
         brightness_row = make_brightness_control(document_controller, display_data_channel)
         contrast_row = make_contrast_control(document_controller, display_data_channel)
-        gamma_row = make_gamma_control(document_controller, display_data_channel)
+        adjustment_row, self.__adjustment_changed_listener = make_adjustment_chooser(document_controller, display_data_channel)
 
         # complex display type
         complex_display_type_row, self.__complex_display_type_changed_listener = make_complex_display_type_chooser(document_controller, display_data_channel)
@@ -885,7 +885,7 @@ class ImageDataInspectorSection(InspectorSection):
         self.add_widget_to_content(color_map_row)
         self.add_widget_to_content(brightness_row)
         self.add_widget_to_content(contrast_row)
-        self.add_widget_to_content(gamma_row)
+        self.add_widget_to_content(adjustment_row)
         if complex_display_type_row:
             self.add_widget_to_content(complex_display_type_row)
 
@@ -909,6 +909,8 @@ class ImageDataInspectorSection(InspectorSection):
         if self.__complex_display_type_changed_listener:
             self.__complex_display_type_changed_listener.close()
             self.__complex_display_type_changed_listener = None
+        self.__adjustment_changed_listener.close()
+        self.__adjustment_changed_listener = None
         self.__next_calculated_display_values_listener.close()
         self.__next_calculated_display_values_listener = None
         self.__data_range_model.close()
@@ -1544,6 +1546,27 @@ class GammaIntegerConverter:
         return math.pow(10, ((100 - value_int) - 50) / 50)
 
 
+class ChangeDisplayDataChannelAdjustmentPropertyBinding(Binding.PropertyBinding):
+    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, property_name: str, converter, default_value):
+        super().__init__(display_data_channel, "adjustments")
+
+        def set_value(value):
+            if converter.convert_back(value) != display_data_channel.adjustments[0].get(property_name, None):
+                adjustment = display_data_channel.adjustments[0]
+                adjustment[property_name] = converter.convert_back(value)
+                command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, adjustments=[adjustment])
+                command.perform()
+                document_controller.push_undo_command(command)
+
+        def get_value():
+            if len(display_data_channel.adjustments) == 1:
+                return converter.convert(display_data_channel.adjustments[0].get(property_name, default_value))
+            return converter.convert(default_value)
+
+        self.source_setter = set_value
+        self.source_getter = get_value
+
+
 def make_gamma_control(document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> UserInterface.Widget:
     ui = document_controller.ui
     row_widget = ui.create_row_widget()  # use 280 pixels in row
@@ -1552,8 +1575,8 @@ def make_gamma_control(document_controller: DocumentController.DocumentControlle
     slider_widget = ui.create_slider_widget(properties={"width": 124})
     slider_widget.minimum = 0
     slider_widget.maximum = 100
-    slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "gamma", converter=GammaIntegerConverter()))
-    line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "gamma", converter=GammaStringConverter()))
+    slider_widget.bind_value(ChangeDisplayDataChannelAdjustmentPropertyBinding(document_controller, display_data_channel, "gamma", GammaIntegerConverter(), 1.0))
+    line_edit_widget.bind_text(ChangeDisplayDataChannelAdjustmentPropertyBinding(document_controller, display_data_channel, "gamma", GammaStringConverter(), 1.0))
     row_widget.add(label_widget)
     row_widget.add_spacing(8)
     row_widget.add(slider_widget)
@@ -1561,6 +1584,53 @@ def make_gamma_control(document_controller: DocumentController.DocumentControlle
     row_widget.add(line_edit_widget)
     row_widget.add_stretch()
     return row_widget
+
+
+def make_adjustment_chooser(document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> typing.Tuple[UserInterface.Widget, typing.Any]:
+    ui = document_controller.ui
+
+    adjustment_column = ui.create_column_widget()
+
+    adjustment_row = ui.create_row_widget()
+    adjustment_options = [(_("None"), None), (_("Equalized"), "equalized"), (_("Gamma"), "gamma"), (_("Log"), "log")]
+    adjustment_reverse_map = {p[1]: i for i, p in enumerate(adjustment_options)}
+    adjustment_chooser = ui.create_combo_box_widget(items=adjustment_options, item_getter=operator.itemgetter(0))
+
+    def get_current_adjustment_id() -> typing.Optional[str]:
+        return display_data_channel.adjustments[0].get("type") if len(display_data_channel.adjustments) == 1 else None
+
+    def get_current_index() -> int:
+        return adjustment_reverse_map[get_current_adjustment_id()]
+
+    def update_controls() -> None:
+        adjustment_column.children[1].visible = get_current_adjustment_id() == "gamma"
+
+    def property_changed(name: str) -> None:
+        if name == "adjustments":
+            adjustment_chooser.current_index = get_current_index()
+            update_controls()
+
+    listener = display_data_channel.property_changed_event.listen(property_changed)
+
+    def change_adjustment(item) -> None:
+        if get_current_adjustment_id() != item[1]:
+            adjustments = list() if item[1] is None else [{"type": item[1], "uuid": str(uuid.uuid4())}]
+            command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, adjustments=adjustments)
+            command.perform()
+            document_controller.push_undo_command(command)
+
+    adjustment_chooser.on_current_item_changed = change_adjustment
+    adjustment_chooser.current_index = get_current_index()
+    adjustment_row.add(ui.create_label_widget(_("Adjustment:"), properties={"width": 120}))
+    adjustment_row.add(adjustment_chooser)
+    adjustment_row.add_stretch()
+
+    adjustment_column.add(adjustment_row)
+    adjustment_column.add(make_gamma_control(document_controller, display_data_channel))
+
+    update_controls()
+
+    return adjustment_column, listener
 
 
 def make_complex_display_type_chooser(document_controller, display_data_channel: DisplayItem.DisplayDataChannel, include_log_abs=True):
@@ -1591,6 +1661,7 @@ def make_complex_display_type_chooser(document_controller, display_data_channel:
     display_type_row.add(display_type_chooser)
     display_type_row.add_stretch()
     return display_type_row, listener
+
 
 class ImageDisplayInspectorSection(InspectorSection):
     """Display type inspector."""
