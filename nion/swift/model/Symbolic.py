@@ -297,6 +297,17 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             return self.specifier
 
     @property
+    def specified_object(self):
+        return self.__bound_item
+
+    @specified_object.setter
+    def specified_object(self, value):
+        if value:
+            self.specifier = DataStructure.get_object_specifier(value)
+        else:
+            self.specifier = {"type": "data_source", "version": 1, "uuid": str(uuid.uuid4())}
+
+    @property
     def bound_variable(self) -> "BoundItemBase":
         """Return an object with a value property and a changed_event.
 
@@ -406,7 +417,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             return specifier_property or specifier_type
         return None
 
-    data_item_types = ("data_item", "data", "display_data")  # used for backward compatibility
+    data_item_types = ("data_item", "data", "display_data", "data_source")  # used for backward compatibility
 
     @variable_type.setter
     def variable_type(self, value_type: str) -> None:

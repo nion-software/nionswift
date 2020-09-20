@@ -2927,16 +2927,15 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
         display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
         data_item = display_item.data_item if display_item else None
         if data_item:
-            variable_specifier = document_model.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item))
-            command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
+            specified_object = display_item.get_display_data_channel_for_data_item(data_item)
+            command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specified_object=specified_object, title=_("Change Computation Input"))
             command.perform()
             document_controller.push_undo_command(command)
             return "copy"
         return None
 
     def data_item_delete():
-        variable_specifier = {"type": "data_source", "version": 1, "uuid": str(uuid.uuid4())}
-        command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
+        command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specified_object=None, title=_("Change Computation Input"))
         command.perform()
         document_controller.push_undo_command(command)
 

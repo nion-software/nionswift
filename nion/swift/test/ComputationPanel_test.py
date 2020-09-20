@@ -185,9 +185,8 @@ class TestComputationPanelClass(unittest.TestCase):
             document_model.recompute_all()
             document_controller.periodic()
             # change variable
-            variable_specifier = document_model.get_object_specifier(data_item3)
-            properties = {"variable_type": "data_item", "specifier": variable_specifier}
-            command = ComputationPanel.ChangeVariableCommand(document_controller.document_model, computation, variable, **properties)
+            properties = {"variable_type": "data_item", "specified_object": data_item3}
+            command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, **properties)
             command.perform()
             document_controller.push_undo_command(command)
             # verify change and trigger error
@@ -229,9 +228,8 @@ class TestComputationPanelClass(unittest.TestCase):
             document_controller.periodic()
             self.assertIsNotNone(computation.error_text)
             # change variable
-            variable_specifier = document_model.get_object_specifier(data_item2)
-            properties = {"variable_type": "data_item", "specifier": variable_specifier}
-            command = ComputationPanel.ChangeVariableCommand(document_controller.document_model, computation, variable, **properties)
+            properties = {"variable_type": "data_item", "specified_object": data_item2}
+            command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, **properties)
             command.perform()
             document_controller.push_undo_command(command)
             # verify change and trigger computation

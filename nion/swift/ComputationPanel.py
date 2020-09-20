@@ -231,57 +231,6 @@ class ChangeComputationCommand(Undo.UndoableCommand):
         return isinstance(command, ChangeComputationCommand) and self.command_id and self.command_id == command.command_id and self.__computation_proxy.item == command.__computation_proxy.item
 
 
-class ChangeVariableCommand(Undo.UndoableCommand):
-
-    def __init__(self, document_model, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
-        super().__init__(title if title else _("Change Computation Variable"), command_id=command_id, is_mergeable=is_mergeable)
-        self.__document_model = document_model
-        self.__computation_proxy = computation.create_proxy()
-        self.__variable_index = computation.variables.index(variable)
-        self.__property_keys = kwargs.keys()
-        self.__properties = copy.deepcopy(kwargs)
-        self.initialize()
-
-    def close(self):
-        self.__properties = None
-        self.__computation_proxy.close()
-        self.__computation_proxy = None
-        self.__properties = None
-        self.__property_keys = None
-        super().close()
-
-    def perform(self):
-        computation = self.__computation_proxy.item
-        variable = computation.variables[self.__variable_index]
-        properties = self.__properties
-        self.__properties = {key: getattr(variable, key) for key in self.__property_keys}
-        for key, value in properties.items():
-            setattr(variable, key, value)
-
-    def _get_modified_state(self):
-        computation = self.__computation_proxy.item
-        return computation.modified_state, self.__document_model.modified_state
-
-    def _set_modified_state(self, modified_state) -> None:
-        computation = self.__computation_proxy.item
-        computation.modified_state, self.__document_model.modified_state = modified_state
-
-    def _compare_modified_states(self, state1, state2) -> bool:
-        # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
-
-    def _undo(self):
-        computation = self.__computation_proxy.item
-        variable = computation.variables[self.__variable_index]
-        properties = self.__properties
-        self.__properties = {key: getattr(variable, key) for key in self.__property_keys}
-        for key, value in properties.items():
-            setattr(variable, key, value)
-
-    def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeVariableCommand) and self.command_id and self.command_id == command.command_id and self.__computation_proxy.item == command.__computation_proxy.item and self.__variable_index == command.__variable_index
-
-
 def select_computation(document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem) -> typing.Optional[Symbolic.Computation]:
     if display_item:
         match_items = set()
@@ -475,7 +424,7 @@ class ChangeVariableBinding(Binding.PropertyBinding):
 
         def set_value(value):
             if value != getattr(variable, property_name):
-                command = ChangeVariableCommand(document_controller.document_model, computation, self.source, **{self.__property_name: value})
+                command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, self.source, **{self.__property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -709,11 +658,11 @@ class ComputationPanelSection:
         twist_down_canvas_item.on_button_clicked = toggle
 
         def change_type(variable_type):
-            command = ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), variable_type=variable_type)
+            command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), variable_type=variable_type)
             command.perform()
             document_controller.push_undo_command(command)
 
-        def select_stack(stack, variable, specifier):
+        def select_stack(stack, variable):
             stack.remove_all()
             variable_type = variable.variable_type
             if variable_type == "boolean":
@@ -734,11 +683,11 @@ class ComputationPanelSection:
         def do_select_stack():
             # select stack will remove the inspector widgets, so delay it until the
             # current event (combo box changed) has finished by queueing it.
-            queue_task_fn(functools.partial(select_stack, stack, variable, variable.specifier))
+            queue_task_fn(functools.partial(select_stack, stack, variable))
 
         self.__variable_type_changed_event_listener = variable.variable_type_changed_event.listen(do_select_stack)
 
-        select_stack(stack, variable, variable.specifier)
+        select_stack(stack, variable)
 
         self.widget = section_widget
 
@@ -757,7 +706,7 @@ def drop_mime_data(document_controller, computation: Symbolic.Computation, varia
         if graphic:
             secondary_specifier = DataStructure.get_object_specifier(graphic, project=project)
         properties = {"variable_type": "data_source", "secondary_specifier": secondary_specifier, "specifier": variable_specifier}
-        command = ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), **properties)
+        command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), **properties)
         command.perform()
         document_controller.push_undo_command(command)
         return "copy"
@@ -766,7 +715,7 @@ def drop_mime_data(document_controller, computation: Symbolic.Computation, varia
     if data_item:
         variable_specifier = DataStructure.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item), project=project)
         properties = {"variable_type": "data_source", "secondary_specifier": dict(), "specifier": variable_specifier}
-        command = ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), **properties)
+        command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), **properties)
         command.perform()
         document_controller.push_undo_command(command)
         return "copy"
@@ -775,7 +724,7 @@ def drop_mime_data(document_controller, computation: Symbolic.Computation, varia
 
 def data_item_delete(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
     variable_specifier = {"type": variable.variable_type, "version": 1, "uuid": str(uuid.uuid4())}
-    command = ChangeVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Source"), specifier=variable_specifier)
+    command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Source"), specifier=variable_specifier)
     command.perform()
     document_controller.push_undo_command(command)
 
@@ -1225,7 +1174,7 @@ class VariableHandler:
         computation = self.computation
         variable = self.variable
         if value != variable.value:
-            command = ChangeVariableCommand(document_controller.document_model, computation, variable, value=value)
+            command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, value=value)
             command.perform()
             document_controller.push_undo_command(command)
 
@@ -1345,7 +1294,7 @@ class VariableHandler:
         elif variable.bound_items_model:
             return u.create_column(u.create_column(items="variable.bound_items_model.items", item_component_id="graphic_item", spacing=8), spacing=8)
         else:
-            return u.create_column(label, u.create_label(text=_("Missing") + " " + f"[{variable.variable_type} {variable.specifier}]"), spacing=8)
+            return u.create_column(label, u.create_label(text=_("Missing") + " " + f"[{variable.variable_type}]"), spacing=8)
 
 
 class ResultHandler:
