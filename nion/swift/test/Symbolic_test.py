@@ -1157,12 +1157,12 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + 4"))
-            a_specifier = computation.create_input_item("a", Symbolic.make_item(data_item)).specifier
+            a_specifier = computation.create_input_item("a", Symbolic.make_item(data_item))._specifier
             d = computation.write_to_dict()
             read_computation = document_model.create_computation()
             read_computation.read_from_dict(d)
             self.assertEqual(read_computation.variables[0].name, "a")
-            self.assertEqual(read_computation.variables[0].specifier, a_specifier)
+            self.assertEqual(read_computation.variables[0]._specifier, a_specifier)
 
     def test_computation_with_object_reloads(self):
         with TestContext.create_memory_context() as test_context:
@@ -1283,7 +1283,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.data, src_data[0:5, 0:5]))
             # now switch the region uuid
-            r.specifier_uuid_str = str(region2.uuid)
+            r._specifier_uuid_str = str(region2.uuid)
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.data, src_data[5:10, 5:10]))
             # and make sure recompute happens when new region uuid changes

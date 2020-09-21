@@ -67,8 +67,8 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         self.define_type("output")
         self.define_property("name", name, changed=self.__property_changed)
         self.define_property("label", label if label else name, hidden=True, changed=self.__property_changed)
-        self.define_property("specifier", specifier, changed=self.__property_changed)
-        self.define_property("specifiers", specifiers, changed=self.__property_changed)
+        self.define_property("specifier", specifier, hidden=True, changed=self.__property_changed)
+        self.define_property("specifiers", specifiers, hidden=True, changed=self.__property_changed)
         self.needs_rebind_event = Event.Event()  # an event to be fired when the computation needs to rebind
         self.bound_item = None
         self.__needs_rebind_event_listeners = list()
@@ -79,6 +79,22 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
             needs_rebind_event_listener.close()
         self.__needs_rebind_event_listeners = None
         super().close()
+
+    @property
+    def _specifier(self):
+        return self._get_persistent_property_value("specifier")
+
+    @_specifier.setter
+    def _specifier(self, value):
+        self._set_persistent_property_value("specifier", value)
+
+    @property
+    def _specifiers(self):
+        return self._get_persistent_property_value("specifiers")
+
+    @_specifiers.setter
+    def _specifiers(self, value):
+        self._set_persistent_property_value("specifiers", value)
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -91,12 +107,12 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         self.notify_property_changed("bound_item")
 
     def bind(self, resolve_object_specifier_fn):
-        if self.specifier:
-            self.bound_item = resolve_object_specifier_fn(self.specifier)
+        if self._specifier:
+            self.bound_item = resolve_object_specifier_fn(self._specifier)
             if self.bound_item:
                 self.__needs_rebind_event_listeners.append(self.bound_item.needs_rebind_event.listen(self.__unbind))
-        elif self.specifiers is not None:
-            bound_items = [resolve_object_specifier_fn(specifier) for specifier in self.specifiers]
+        elif self._specifiers is not None:
+            bound_items = [resolve_object_specifier_fn(specifier) for specifier in self._specifiers]
             bound_items = [bound_item for bound_item in bound_items if bound_item is not None]
             for bound_item in bound_items:
                 self.__needs_rebind_event_listeners.append(bound_item.needs_rebind_event.listen(self.__unbind))
@@ -166,8 +182,8 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("value_default", value_default, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
         self.define_property("value_min", value_min, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
         self.define_property("value_max", value_max, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
-        self.define_property("specifier", specifier, changed=self.__property_changed)
-        self.define_property("secondary_specifier", secondary_specifier, changed=self.__property_changed)
+        self.define_property("specifier", specifier, hidden=True, changed=self.__property_changed)
+        self.define_property("secondary_specifier", secondary_specifier, hidden=True, changed=self.__property_changed)
         self.define_property("property_name", property_name, changed=self.__property_changed)
         self.define_property("control_type", control_type, changed=self.__property_changed)
         item_specifiers = [DataStructure.get_object_specifier(item.item, item.type, allow_partial=False) if item else None for item in items] if items is not None else None
@@ -195,7 +211,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         super().close()
 
     def __repr__(self):
-        return "{} ({} {} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self.specifier, self.secondary_specifier)
+        return "{} ({} {} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self._specifier, self._secondary_specifier)
 
     def read_from_dict(self, properties: dict) -> None:
         # used for persistence
@@ -207,6 +223,22 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
     def write_to_dict(self) -> dict:
         # used for persistence. left here since read_from_dict is defined.
         return super().write_to_dict()
+
+    @property
+    def _specifier(self):
+        return self._get_persistent_property_value("specifier")
+
+    @_specifier.setter
+    def _specifier(self, value):
+        self._set_persistent_property_value("specifier", value)
+
+    @property
+    def _secondary_specifier(self):
+        return self._get_persistent_property_value("secondary_specifier")
+
+    @_secondary_specifier.setter
+    def _secondary_specifier(self, value):
+        self._set_persistent_property_value("secondary_specifier", value)
 
     def connect_items(self, bound_items: typing.List) -> None:
         self.disconnect_items()
@@ -247,13 +279,13 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
 
     def save_properties(self):
         # used for undo
-        return self.value, self.specifier, self.secondary_specifier
+        return self.value, self._specifier, self._secondary_specifier
 
     def restore_properties(self, properties):
         # used for undo
         self.value = properties[0]
-        self.specifier = properties[1]
-        self.secondary_specifier = properties[2]
+        self._specifier = properties[1]
+        self._secondary_specifier = properties[2]
 
     def __value_reader(self, persistent_property, properties):
         value_type = self.value_type
@@ -286,7 +318,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                 properties[persistent_property.key] = str(value)
 
     @property
-    def variable_specifier(self) -> dict:
+    def _variable_specifier(self) -> dict:
         """Return the variable specifier for this variable.
 
         The specifier can be used to lookup the value of this variable in a computation context.
@@ -294,18 +326,18 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         if self.value_type is not None:
             return {"type": "variable", "version": 1, "uuid": str(self.uuid), "x-name": self.name, "x-value": self.value}
         else:
-            return self.specifier
+            return self._specifier
 
     @property
     def specified_object(self):
-        return self.__bound_item
+        return self.__bound_item.value
 
     @specified_object.setter
     def specified_object(self, value):
         if value:
-            self.specifier = DataStructure.get_object_specifier(value)
+            self._specifier = DataStructure.get_object_specifier(value)
         else:
-            self.specifier = {"type": "data_source", "version": 1, "uuid": str(uuid.uuid4())}
+            self._specifier = {"type": "data_source", "version": 1, "uuid": str(uuid.uuid4())}
 
     @property
     def bound_variable(self) -> "BoundItemBase":
@@ -411,9 +443,9 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
     def variable_type(self) -> typing.Optional[str]:
         if self.value_type is not None:
             return self.value_type
-        elif self.specifier is not None:
-            specifier_type = self.specifier.get("type")
-            specifier_property = self.specifier.get("property")
+        elif self._specifier is not None:
+            specifier_type = self._specifier.get("type")
+            specifier_property = self._specifier.get("property")
             return specifier_property or specifier_type
         return None
 
@@ -423,8 +455,8 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
     def variable_type(self, value_type: str) -> None:
         if value_type != self.variable_type:
             if value_type in ("boolean", "integral", "real", "complex", "string"):
-                self.specifier = None
-                self.secondary_specifier = None
+                self._specifier = None
+                self._secondary_specifier = None
                 self.value_type = value_type
                 self.control_type = self.control_type_default(value_type)
                 if value_type == "boolean":
@@ -445,7 +477,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                 self.value_default = None
                 self.value_min = None
                 self.value_max = None
-                specifier = self.specifier or {"version": 1}
+                specifier = self._specifier or {"version": 1}
                 if not specifier.get("type") in ComputationVariable.data_item_types:
                     specifier.pop("uuid", None)
                 specifier["type"] = "data_source"
@@ -453,20 +485,20 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                     specifier["property"] = value_type
                 else:
                     specifier.pop("property", None)
-                self.specifier = specifier
-                self.secondary_specifier = self.secondary_specifier or {"version": 1}
+                self._specifier = specifier
+                self._secondary_specifier = self._secondary_specifier or {"version": 1}
             elif value_type in ("graphic"):
                 self.value_type = None
                 self.control_type = None
                 self.value_default = None
                 self.value_min = None
                 self.value_max = None
-                specifier = self.specifier or {"version": 1}
+                specifier = self._specifier or {"version": 1}
                 specifier["type"] = value_type
                 specifier.pop("uuid", None)
                 specifier.pop("property", None)
-                self.specifier = specifier
-                self.secondary_specifier = None
+                self._specifier = specifier
+                self._secondary_specifier = None
             self.variable_type_changed_event.fire()
 
     @property
@@ -500,6 +532,38 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             else:
                 secondary_specifier.pop("uuid", None)
             self.secondary_specifier = secondary_specifier
+
+    @property
+    def _specifier_uuid_str(self):
+        return self._specifier.get("uuid") if self._specifier else None
+
+    @_specifier_uuid_str.setter
+    def _specifier_uuid_str(self, value):
+        converter = Converter.UuidToStringConverter()
+        value = converter.convert(converter.convert_back(value))
+        if self._specifier_uuid_str != value and self._specifier:
+            specifier = self._specifier
+            if value:
+                specifier["uuid"] = value
+            else:
+                specifier.pop("uuid", None)
+            self._specifier = specifier
+
+    @property
+    def _secondary_specifier_uuid_str(self):
+        return self._secondary_specifier.get("uuid") if self._secondary_specifier else None
+
+    @_secondary_specifier_uuid_str.setter
+    def _secondary_specifier_uuid_str(self, value):
+        converter = Converter.UuidToStringConverter()
+        value = converter.convert(converter.convert_back(value))
+        if self._secondary_specifier_uuid_str != value and self._secondary_specifier:
+            secondary_specifier = self._secondary_specifier
+            if value:
+                secondary_specifier["uuid"] = value
+            else:
+                secondary_specifier.pop("uuid", None)
+            self._secondary_specifier = secondary_specifier
 
     @property
     def display_label(self) -> str:
@@ -1365,7 +1429,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                     bound_item = BoundDataStructure(project, specifier, property_name)
                 elif specifier_type == "graphic":
                     bound_item = BoundGraphic(project, specifier, property_name)
-        elif variable.specifier is None:
+        elif variable._specifier is None:
             bound_item = variable.bound_variable
         if bound_item and not bound_item.valid:
             bound_item.close()
@@ -1416,9 +1480,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             else:
                 is_resolved = False
         for result in self.results:
-            if result.specifier and not result.bound_item:
+            if result._specifier and not result.bound_item:
                 is_resolved = False
-            if result.specifiers and not all(result.bound_item):
+            if result._specifiers and not all(result.bound_item):
                 is_resolved = False
         return kwargs, is_resolved
 
@@ -1503,12 +1567,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def is_resolved(self):
-        if not all(not v.specifier or v.bound_item for v in self.variables):
+        if not all(not v._specifier or v.bound_item for v in self.variables):
             return False
         for result in self.results:
-            if result.specifier and not result.bound_item:
+            if result._specifier and not result.bound_item:
                 return False
-            if result.specifiers and not all(result.bound_item):
+            if result._specifiers and not all(result.bound_item):
                 return False
         return True
 
@@ -1545,7 +1609,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             variable.connect_items(bound_items)
             variable.bound_item = BoundList(bound_items)
         else:
-            variable.bound_item = self.__resolve_object_specifier(variable.variable_specifier, variable.secondary_specifier, variable.property_name)
+            variable.bound_item = self.__resolve_object_specifier(variable._variable_specifier, variable._secondary_specifier, variable.property_name)
 
     def __unbind_variable(self, variable: ComputationVariable) -> None:
         self.__variable_changed_event_listeners[variable.uuid].close()
@@ -1619,7 +1683,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                         with contextlib.closing(bound_item):
                             input_items.update(bound_item.base_objects)
             else:
-                bound_item = self.__resolve_object_specifier(variable.variable_specifier, variable.secondary_specifier, variable.property_name)
+                bound_item = self.__resolve_object_specifier(variable._variable_specifier, variable._secondary_specifier, variable.property_name)
                 if bound_item:
                     with contextlib.closing(bound_item):
                         input_items.update(bound_item.base_objects)
@@ -1628,13 +1692,13 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def get_preliminary_output_items(self) -> typing.Set:
         output_items = set()
         for result in self.results:
-            if result.specifier:
-                bound_item = self.__resolve_object_specifier(result.specifier)
+            if result._specifier:
+                bound_item = self.__resolve_object_specifier(result._specifier)
                 if bound_item:
                     with contextlib.closing(bound_item):
                         output_items.update(bound_item.base_objects)
-            elif result.specifiers is not None:
-                for specifier in result.specifiers:
+            elif result._specifiers is not None:
+                for specifier in result._specifiers:
                     bound_item = self.__resolve_object_specifier(specifier)
                     if bound_item:
                         with contextlib.closing(bound_item):
@@ -1669,19 +1733,19 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 assert input_item.type is None
                 assert input_item.secondary_item is None
                 assert input_item.items is None
-                variable.specifier = DataStructure.get_object_specifier(input_item.item, allow_partial=False)
+                variable._specifier = DataStructure.get_object_specifier(input_item.item, allow_partial=False)
 
     def set_output_item(self, name:str, output_item: ComputationItem) -> None:
         for result in self.results:
             if result.name == name:
                 if output_item and output_item.items is not None:
-                    result.specifiers = [DataStructure.get_object_specifier(o.item, allow_partial=False) for o in output_item.items]
+                    result._specifiers = [DataStructure.get_object_specifier(o.item, allow_partial=False) for o in output_item.items]
                 else:
                     if output_item:
                         assert output_item.item
                         assert output_item.type is None
                         assert output_item.secondary_item is None
-                    result.specifier = DataStructure.get_object_specifier(output_item.item, allow_partial=False) if output_item else None
+                    result._specifier = DataStructure.get_object_specifier(output_item.item, allow_partial=False) if output_item else None
 
     def get_input(self, name: str):
         for variable in self.variables:

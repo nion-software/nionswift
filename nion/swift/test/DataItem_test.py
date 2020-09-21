@@ -1020,6 +1020,9 @@ class TestDataItemClass(unittest.TestCase):
             self.assertFalse(document_model.get_data_item_computation(copied_display_item.data_item).needs_update)
             document_model.get_data_item_computation(copied_data_item).set_input_value("sigma", 0.1)
             self.assertTrue(document_model.get_data_item_computation(copied_display_item.data_item).needs_update)
+            computation = document_model.get_data_item_computation(copied_display_item.data_item)
+            # import pprint
+            # pprint.pprint(computation.write_to_dict())
 
     def test_reloading_stale_data_should_still_be_stale(self):
         with TestContext.create_memory_context() as test_context:

@@ -1193,8 +1193,7 @@ class TestInspectorClass(unittest.TestCase):
             document_model.recompute_all()
             computation = document_model.get_data_item_computation(new_data_item)
             self.assertEqual({data_item}, computation.get_input_base_items("src"))
-            specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
-            command = Inspector.ChangeComputationVariableCommand(document_model, computation, computation._get_variable("src"), specifier=specifier)
+            command = Inspector.ChangeComputationVariableCommand(document_model, computation, computation._get_variable("src"), specified_object=None)
             command.perform()
             document_controller.push_undo_command(command)
             self.assertIsNone(computation.get_input("src"))

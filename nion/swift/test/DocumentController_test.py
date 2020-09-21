@@ -578,7 +578,6 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertIsNotNone(document_model.get_data_item_computation(data_item_dup))
             self.assertNotEqual(document_model.get_data_item_computation(data_item_dup), document_model.get_data_item_computation(data_item))
             self.assertNotEqual(document_model.get_data_item_computation(data_item_dup).variables[0], document_model.get_data_item_computation(data_item).variables[0])
-            self.assertEqual(document_model.get_data_item_computation(data_item_dup).variables[0].variable_specifier["uuid"], document_model.get_data_item_computation(data_item).variables[0].variable_specifier["uuid"])
             self.assertEqual(document_model.get_data_item_computation(data_item_dup).get_input("src").data_item,
                              document_model.get_data_item_computation(data_item).get_input("src").data_item)
 
