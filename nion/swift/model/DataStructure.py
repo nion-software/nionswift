@@ -257,13 +257,3 @@ def get_object_specifier(object, object_type: str = None, project=None, *, allow
         if specifier and specifier.context_uuid: d["context_uuid"] = str(specifier.context_uuid)
         return d
     return None
-
-ElementalMappingEdge = Schema.entity("elemental_mapping_edge", None, None, {
-    "atomic_number": Schema.prop(Schema.INT),
-    "shell_number": Schema.prop(Schema.INT),
-    "subshell_index": Schema.prop(Schema.INT),
-    "fit_interval": Schema.fixed_tuple([Schema.prop(Schema.FLOAT), Schema.prop(Schema.FLOAT)]),
-    "signal_interval": Schema.fixed_tuple([Schema.prop(Schema.FLOAT), Schema.prop(Schema.FLOAT)]),
-})
-
-DataStructure.register_entity(ElementalMappingEdge, entity_name="Elemental Mapping Edge")
