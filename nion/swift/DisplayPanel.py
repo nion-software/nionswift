@@ -467,7 +467,7 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
     def update_display_values(self, display_values_list) -> None:
         pass
 
-    def update_display_properties(self, display_calibration_info, display_properties, display_layers) -> None:
+    def update_display_properties_and_layers(self, display_calibration_info, display_properties, display_layers) -> None:
         pass
 
     def update_graphics_coordinate_system(self, graphics, graphic_selection, display_calibration_info) -> None:
@@ -561,7 +561,7 @@ class DisplayTracker:
             # this notification does not cover the rgba data, which is handled in the function below.
             # thread safe
             with self.__closing_lock:
-                self.__display_canvas_item.update_display_properties(DisplayItem.DisplayCalibrationInfo(display_item), display_item.display_properties, display_item.display_layers)
+                self.__display_canvas_item.update_display_properties_and_layers(DisplayItem.DisplayCalibrationInfo(display_item), display_item.display_properties, display_item.display_layers)
 
         def display_property_changed(property: str) -> None:
             if property in ("y_min", "y_max", "y_style", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode"):
@@ -2130,7 +2130,7 @@ def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.Displa
         with contextlib.closing(display_canvas_item):
             display_calibration_info = DisplayItem.DisplayCalibrationInfo(display_item)
             display_canvas_item.update_display_values(display_values_list)
-            display_canvas_item.update_display_properties(display_calibration_info, display_item.display_properties, display_item.display_layers)
+            display_canvas_item.update_display_properties_and_layers(display_calibration_info, display_item.display_properties, display_item.display_layers)
             display_canvas_item.update_graphics_coordinate_system(display_item.graphics, DisplayItem.GraphicSelection(), display_calibration_info)
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)

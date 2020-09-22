@@ -278,7 +278,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def update_display_values(self, display_values_list) -> None:
         self.__display_values_list = display_values_list
 
-    def update_display_properties(self, display_calibration_info, display_properties: typing.Mapping, display_layers: typing.Sequence[typing.Mapping]) -> None:
+    def update_display_properties_and_layers(self, display_calibration_info, display_properties: typing.Mapping, display_layers: typing.Sequence[typing.Mapping]) -> None:
         """Update the display values. Called from display panel.
 
         This method saves the display values and data and triggers an update. It should be as fast as possible.

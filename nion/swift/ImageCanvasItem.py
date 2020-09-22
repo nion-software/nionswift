@@ -279,7 +279,7 @@ class ImageCanvasItemDelegate:
 
     def cursor_changed(self, pos): ...
 
-    def update_display_properties(self, display_properties: typing.Mapping, display_layers: typing.Sequence[typing.Mapping]) -> None: ...
+    def update_display_properties(self, display_properties: typing.Mapping) -> None: ...
 
     def update_display_data_channel_properties(self, display_data_channel_properties: typing.Mapping) -> None: ...
 
@@ -494,7 +494,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__display_values = display_values_list[0] if display_values_list else None
         self.__display_values_dirty = True
 
-    def update_display_properties(self, display_calibration_info, display_properties: typing.Mapping, display_layers: typing.Sequence[typing.Mapping]) -> None:
+    def update_display_properties_and_layers(self, display_calibration_info, display_properties: typing.Mapping, display_layers: typing.Sequence[typing.Mapping]) -> None:
         # threadsafe
         data_and_metadata = self.__display_values.data_and_metadata if self.__display_values else None
         if data_and_metadata:
