@@ -1307,7 +1307,7 @@ class DataSource:
             if self.__xdata is not None:
                 return Core.function_convert_to_scalar(self.xdata, display_data_channel.complex_display_type)
             else:
-                return display_data_channel.get_calculated_display_values(True).element_data_and_metadata
+                return display_data_channel.get_calculated_display_values().element_data_and_metadata
         return None
 
     @property
@@ -1317,7 +1317,7 @@ class DataSource:
             if self.__xdata is not None:
                 return Core.function_convert_to_scalar(self.xdata, display_data_channel.complex_display_type)
             else:
-                return display_data_channel.get_calculated_display_values(True).display_data_and_metadata
+                return display_data_channel.get_calculated_display_values().display_data_and_metadata
         return None
 
     @property

@@ -491,7 +491,7 @@ class StandardImportExportHandler(ImportExportHandler):
         return len(data_and_metadata.dimensional_shape) == 2
 
     def write_display_item(self, ui, display_item: DisplayItem.DisplayItem, path_str: str, extension: str) -> None:
-        data = display_item.display_data_channel.get_calculated_display_values(True).display_rgba  # export the display rather than the data for these types
+        data = display_item.display_data_channel.get_calculated_display_values().display_rgba  # export the display rather than the data for these types
         if data is not None:
             ui.save_rgba_data_to_file(data, path_str, extension)
 

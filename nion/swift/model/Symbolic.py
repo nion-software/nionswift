@@ -852,7 +852,7 @@ class BoundDisplayData(BoundDisplayDataChannelBase):
 
     @property
     def value(self):
-        return self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata if self._display_data_channel else None
+        return self._display_data_channel.get_calculated_display_values().display_data_and_metadata if self._display_data_channel else None
 
 
 class BoundCroppedData(BoundDisplayDataChannelBase):
@@ -873,7 +873,7 @@ class BoundCroppedDisplayData(BoundDisplayDataChannelBase):
 
     @property
     def value(self):
-        xdata = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata
+        xdata = self._display_data_channel.get_calculated_display_values().display_data_and_metadata
         graphic = self._graphic
         if graphic:
             if hasattr(graphic, "bounds"):
@@ -891,7 +891,7 @@ class BoundFilterData(BoundDisplayDataChannelBase):
         # no display item is a special case for cascade removing graphics from computations. ugh.
         # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
         if display_item:
-            shape = self._display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape
+            shape = self._display_data_channel.get_calculated_display_values().display_data_and_metadata.data_shape
             calibrated_origin = Geometry.FloatPoint(y=display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
                                                     x=display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
             mask = DataItem.create_mask_data(display_item.graphics, shape, calibrated_origin)

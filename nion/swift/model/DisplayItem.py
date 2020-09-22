@@ -926,7 +926,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
     def auto_display_limits(self):
         """Calculate best display limits and set them."""
-        display_data_and_metadata = self.get_calculated_display_values(True).display_data_and_metadata
+        display_data_and_metadata = self.get_calculated_display_values().display_data_and_metadata
         data = display_data_and_metadata.data if display_data_and_metadata else None
         if data is not None:
             # The old algorithm was a problem during EELS where the signal data

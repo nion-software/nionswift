@@ -1062,7 +1062,7 @@ class DataItem(metaclass=SharedInstance):
         Scriptable: Yes
         """
         display_data_channel = self.__display_item.display_data_channel
-        return display_data_channel.get_calculated_display_values(True).display_data_and_metadata
+        return display_data_channel.get_calculated_display_values().display_data_and_metadata
 
     @property
     def intensity_calibration(self) -> CalibrationModule.Calibration:
