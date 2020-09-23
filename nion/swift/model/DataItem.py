@@ -1321,38 +1321,67 @@ class DataSource:
         return None
 
     @property
-    def cropped_element_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        data_item = self.data_item
-        if data_item:
-            element_xdata = self.element_xdata
-            graphic = self.__graphic
-            if graphic:
-                if hasattr(graphic, "bounds") and element_xdata.is_data_2d:
-                    if graphic.rotation:
-                        return Core.function_crop_rotated(element_xdata, graphic.bounds, graphic.rotation)
-                    else:
-                        return Core.function_crop(element_xdata, graphic.bounds)
-                if hasattr(graphic, "interval") and element_xdata.is_data_1d:
-                    return Core.function_crop_interval(element_xdata, graphic.interval)
-            return element_xdata
+    def normalized_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        display_data_channel = self.__display_data_channel
+        if display_data_channel:
+            if self.__xdata is not None:
+                return Core.function_rescale(self.display_xdata, (0, 1))
+            else:
+                return display_data_channel.get_calculated_display_values().normalized_data_and_metadata
         return None
 
     @property
-    def cropped_display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        data_item = self.data_item
-        if data_item:
-            displayed_xdata = self.display_xdata
-            graphic = self.__graphic
-            if graphic:
-                if hasattr(graphic, "bounds") and displayed_xdata.is_data_2d:
-                    if graphic.rotation:
-                        return Core.function_crop_rotated(displayed_xdata, graphic.bounds, graphic.rotation)
-                    else:
-                        return Core.function_crop(displayed_xdata, graphic.bounds)
-                if hasattr(graphic, "interval") and displayed_xdata.is_data_1d:
-                    return Core.function_crop_interval(displayed_xdata, graphic.interval)
-            return displayed_xdata
+    def adjusted_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        display_data_channel = self.__display_data_channel
+        if display_data_channel:
+            if self.__xdata is not None:
+                return self.normalized_xdata
+            else:
+                return display_data_channel.get_calculated_display_values().adjusted_data_and_metadata
         return None
+
+    @property
+    def transformed_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        display_data_channel = self.__display_data_channel
+        if display_data_channel:
+            if self.__xdata is not None:
+                return self.normalized_xdata
+            else:
+                return display_data_channel.get_calculated_display_values().transformed_data_and_metadata
+        return None
+
+    def __cropped_xdata(self, xdata: typing.Optional[DataAndMetadata.DataAndMetadata]) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        data_item = self.data_item
+        graphic = self.__graphic
+        if data_item and graphic:
+            if hasattr(graphic, "bounds") and xdata.is_data_2d:
+                if graphic.rotation:
+                    return Core.function_crop_rotated(xdata, graphic.bounds, graphic.rotation)
+                else:
+                    return Core.function_crop(xdata, graphic.bounds)
+            if hasattr(graphic, "interval") and xdata.is_data_1d:
+                return Core.function_crop_interval(xdata, graphic.interval)
+        return xdata
+
+    @property
+    def cropped_element_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.__cropped_xdata(self.element_xdata)
+
+    @property
+    def cropped_display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.__cropped_xdata(self.display_xdata)
+
+    @property
+    def cropped_normalized_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.__cropped_xdata(self.normalized_xdata)
+
+    @property
+    def cropped_adjusted_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.__cropped_xdata(self.adjusted_xdata)
+
+    @property
+    def cropped_transformed_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.__cropped_xdata(self.transformed_xdata)
 
     @property
     def cropped_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:

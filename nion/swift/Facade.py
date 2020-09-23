@@ -1383,6 +1383,18 @@ class DataSource(metaclass=SharedInstance):
         return self.__data_source.cropped_display_xdata
 
     @property
+    def cropped_normalized_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.cropped_normalized_xdata
+
+    @property
+    def cropped_adjusted_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.cropped_adjusted_xdata
+
+    @property
+    def cropped_transformed_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.cropped_transformed_xdata
+
+    @property
     def cropped_xdata(self) -> DataAndMetadata.DataAndMetadata:
         return self.__data_source.cropped_xdata
 
@@ -1397,6 +1409,18 @@ class DataSource(metaclass=SharedInstance):
     @property
     def display_xdata(self) -> DataAndMetadata.DataAndMetadata:
         return self.__data_source.display_xdata
+
+    @property
+    def normalized_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.normalized_xdata
+
+    @property
+    def adjusted_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.adjusted_xdata
+
+    @property
+    def transformed_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.transformed_xdata
 
     @property
     def filter_xdata(self) -> DataAndMetadata.DataAndMetadata:

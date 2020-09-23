@@ -278,6 +278,12 @@ class DisplayValues:
         self.__element_data_and_metadata = None
         self.__display_data_and_metadata_dirty = True
         self.__display_data_and_metadata = None
+        self.__normalized_data_and_metadata_dirty = True
+        self.__normalized_data_and_metadata = None
+        self.__adjusted_data_and_metadata_dirty = True
+        self.__adjusted_data_and_metadata = None
+        self.__transformed_data_and_metadata_dirty = True
+        self.__transformed_data_and_metadata = None
         self.__data_range_dirty = True
         self.__data_range = None
         self.__data_sample_dirty = True
@@ -392,13 +398,12 @@ class DisplayValues:
         with self.__lock:
             if self.__display_rgba_dirty:
                 self.__display_rgba_dirty = False
-                display_data = self.transformed_display_data
+                display_data = self.adjusted_data_and_metadata
                 if display_data is not None and self.__data_and_metadata is not None:
                     if self.data_range is not None:  # workaround until validating and retrieving data stats is an atomic operation
                         # display_range is just display_limits but calculated if display_limits is None
                         display_range = self.transformed_display_range
-                        self.__display_rgba = Core.function_display_rgba(DataAndMetadata.promote_ndarray(display_data),
-                                                                         display_range, self.__color_map_data).data
+                        self.__display_rgba = Core.function_display_rgba(display_data, display_range, self.__color_map_data).data
             return self.__display_rgba
 
     @property
@@ -406,33 +411,53 @@ class DisplayValues:
         return self.__display_rgba_timestamp
 
     @property
-    def normalized_display_data(self) -> numpy.ndarray:
-        display_limit_low, display_limit_high = self.display_range
-        # normalize the data to [0, 1].
-        m = 1 / (display_limit_high - display_limit_low)
-        b = -display_limit_low
-        return (m * (self.display_data_and_metadata + b)).data
+    def normalized_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
+        with self.__lock:
+            if self.__normalized_data_and_metadata_dirty:
+                self.__normalized_data_and_metadata_dirty = False
+                display_limit_low, display_limit_high = self.display_range
+                # normalize the data to [0, 1].
+                m = 1 / (display_limit_high - display_limit_low)
+                b = -display_limit_low
+                self.__normalized_data_and_metadata = m * (self.display_data_and_metadata + b)
+            return self.__normalized_data_and_metadata
 
     @property
-    def transformed_display_data(self) -> typing.Optional[numpy.ndarray]:
-        if self.__adjustments:
-            display_data = self.normalized_display_data
-            for adjustment_d in self.__adjustments:
-                adjustment = adjustment_factory(adjustment_d)
-                if adjustment:
-                    display_data = adjustment.transform(display_data, self.display_range)
-            return display_data
-        else:
-            return self.display_data_and_metadata.data if self.display_data_and_metadata else None
+    def adjusted_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
+        with self.__lock:
+            if self.__adjusted_data_and_metadata_dirty:
+                self.__adjusted_data_and_metadata_dirty = False
+                if self.__adjustments:
+                    display_data = self.normalized_data_and_metadata
+                    for adjustment_d in self.__adjustments:
+                        adjustment = adjustment_factory(adjustment_d)
+                        if adjustment:
+                            display_data = DataAndMetadata.new_data_and_metadata(adjustment.transform(display_data.data, self.display_range))
+                    self.__adjusted_data_and_metadata = display_data
+                else:
+                    self.__adjusted_data_and_metadata = self.display_data_and_metadata if self.display_data_and_metadata else None
+            return self.__adjusted_data_and_metadata
 
     @property
-    def transformed_display_range(self) -> typing.Tuple[float, float]:
+    def adjusted_display_range(self) -> typing.Tuple[float, float]:
         if self.__adjustments:
             # transforms have already been applied and data is now in the range of 0.0, 1.0.
             # brightness and contrast will be applied on top of this transform.
-            display_limit_low, display_limit_high = 0.0, 1.0
+            return 0.0, 1.0
         else:
-            display_limit_low, display_limit_high = self.display_range
+            return self.display_range
+
+    @property
+    def transformed_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
+        with self.__lock:
+            if self.__transformed_data_and_metadata_dirty:
+                self.__transformed_data_and_metadata_dirty = False
+                self.__transformed_data_and_metadata = Core.function_rescale(self.adjusted_data_and_metadata, data_range=(0.0, 1.0), in_range=self.transformed_display_range)
+            return self.__transformed_data_and_metadata
+
+    @property
+    def transformed_display_range(self) -> typing.Tuple[float, float]:
+        display_limit_low, display_limit_high = self.adjusted_display_range
         brightness = self.__brightness
         contrast = self.__contrast
         m = (contrast / (display_limit_high - display_limit_low)) if contrast > 0 and display_limit_high != display_limit_low else 1

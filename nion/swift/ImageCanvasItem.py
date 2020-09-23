@@ -1241,8 +1241,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         if self.__data_shape is not None:
             # configure the bitmap canvas item
             display_values = self.__display_values
-            display_data = display_values.transformed_display_data
-            if display_data is not None and display_data.dtype == numpy.float32:
+            display_data = display_values.adjusted_data_and_metadata
+            if display_data and display_data.data_dtype == numpy.float32:
                 display_range = display_values.transformed_display_range
                 color_map_data = display_values.color_map_data
                 display_values.finalize()
@@ -1253,7 +1253,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                     color_map_rgba = color_map_rgba.view(numpy.uint32).reshape(color_map_rgba.shape[:-1])
                 else:
                     color_map_rgba = None
-                self.__bitmap_canvas_item.set_data(display_data, display_range, color_map_rgba, trigger_update=False)
+                self.__bitmap_canvas_item.set_data(display_data.data, display_range, color_map_rgba, trigger_update=False)
             else:
                 data_rgba = display_values.display_rgba
                 display_values.finalize()
