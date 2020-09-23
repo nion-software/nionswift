@@ -444,6 +444,17 @@
                 ]
             },
             {
+                "type": "sub_menu",
+                "menu_id": "processing_rgb",
+                "title": "RGB",
+                "items": [
+                    {
+                        "type": "item",
+                        "action_id": "processing.make_rgb"
+                    }
+                ]
+            },
+            {
                 "type": "item",
                 "action_id": "processing.line_profile"
             },

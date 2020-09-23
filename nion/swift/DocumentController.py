@@ -1979,6 +1979,22 @@ class DocumentController(Window.Window):
             command.close()
         return None
 
+    def _perform_processing3(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, display_item3: DisplayItem.DisplayItem, data_item3: DataItem.DataItem, crop_graphic1: typing.Optional[Graphics.Graphic], crop_graphic2: typing.Optional[Graphics.Graphic], crop_graphic3: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
+        def process() -> DataItem.DataItem:
+            new_data_item = fn(display_item1, data_item1, display_item2, data_item2, display_item3, data_item3, crop_graphic1, crop_graphic2, crop_graphic3)
+            new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
+            self.show_display_item(new_display_item)
+            return new_data_item
+        command = self.create_insert_data_item_command(process)
+        command.perform()
+        assert isinstance(command, DocumentController.InsertDataItemCommand)
+        if command.data_item:
+            self.push_undo_command(command)
+            return command.data_item
+        else:
+            command.close()
+        return None
+
     def _perform_processing(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_graphic: typing.Optional[Graphics.Graphic], fn) -> None:
         def process() -> DataItem.DataItem:
             new_data_item = fn(display_item, data_item, crop_graphic)
@@ -2782,13 +2798,19 @@ Window.register_action(RemoveGraphicFromMaskAction())
 class ProcessingAction(Window.Action):
 
     def invoke_processing(self, context: Window.ActionContext, fn) -> None:
-        context.window._perform_processing_select(context.display_item, context.crop_graphic, fn)
+        typing.cast(DocumentController, context.window)._perform_processing_select(context.display_item, context.crop_graphic, fn)
 
     def invoke_processing2(self, context: Window.ActionContext, fn) -> None:
-        data_sources = context.window._get_two_data_sources()
+        data_sources = typing.cast(DocumentController, context.window)._get_two_data_sources()
         if data_sources:
             (display_item1, crop_graphic1), (display_item2, crop_graphic2) = data_sources
-            return context.window._perform_processing2(display_item1, display_item1.data_item, display_item2, display_item2.data_item, crop_graphic1, crop_graphic2, fn)
+            return typing.cast(DocumentController, context.window)._perform_processing2(display_item1, display_item1.data_item, display_item2, display_item2.data_item, crop_graphic1, crop_graphic2, fn)
+        return None
+
+    def invoke_processing3(self, context: Window.ActionContext, fn) -> None:
+        if context.display_item:
+            display_item, crop_graphic = context.display_item, context.crop_graphic
+            return typing.cast(DocumentController, context.window)._perform_processing3(display_item, display_item.data_item, display_item, display_item.data_item, display_item, display_item.data_item, crop_graphic, crop_graphic, crop_graphic, fn)
         return None
 
 
@@ -3008,6 +3030,15 @@ class ResizeAction(ProcessingAction):
         return Window.ActionResult.FINISHED
 
 
+class RGBAction(ProcessingAction):
+    action_id = "processing.make_rgb"
+    action_name = _("Make RGB")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        self.invoke_processing3(context, context.model.get_rgb_new)
+        return Window.ActionResult.FINISHED
+
+
 class ScalarAction(ProcessingAction):
     action_id = "processing.scalar"
     action_name = _("Convert to Scalar")
@@ -3160,6 +3191,7 @@ Window.register_action(ProjectionSumAction())
 Window.register_action(RebinAction())
 Window.register_action(ResampleAction())
 Window.register_action(ResizeAction())
+Window.register_action(RGBAction())
 Window.register_action(ScalarAction())
 Window.register_action(SliceSumAction())
 Window.register_action(SequenceAlignFourierAction())

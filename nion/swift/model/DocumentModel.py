@@ -2587,6 +2587,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             vs["sequence-extract"] = {"title": _("Extract"), "expression": "xd.sequence_extract({src}.xdata, index)",
                 "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_sequence]}],
                 "parameters": [index_param]}
+            vs["make-rgb"] = {"title": _("Make RGB"), "expression": "xd.rgb({src_red}.cropped_transformed_xdata, {src_green}.cropped_transformed_xdata, {src_blue}.cropped_transformed_xdata)",
+                "sources": [{"name": "src_red", "label": _("Red"), "croppable": True, "requirements": [requirement_2d]},
+                            {"name": "src_green", "label": _("Green"), "croppable": True, "requirements": [requirement_2d]},
+                            {"name": "src_blue", "label": _("Blue"), "croppable": True, "requirements": [requirement_2d]}]}
             cls._builtin_processing_descriptions = vs
         return cls._builtin_processing_descriptions
 
@@ -2748,6 +2752,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def get_sequence_extract_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("sequence-extract", [(display_item, data_item, crop_region)])
+
+    def get_rgb_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, display_item3: DisplayItem.DisplayItem, data_item3: DataItem.DataItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None, crop_region3: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("make-rgb", [(display_item1, data_item1, crop_region1),
+                                                    (display_item2, data_item2, crop_region2),
+                                                    (display_item3, data_item3, crop_region3)])
 
 
 class ConnectPickDisplay(Observer.AbstractAction):
