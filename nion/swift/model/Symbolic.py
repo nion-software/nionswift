@@ -329,15 +329,26 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             return self._specifier
 
     @property
-    def specified_object(self):
+    def specified_object(self) -> typing.Optional[Persistence.PersistentObject]:
         return self.__bound_item.value
 
     @specified_object.setter
-    def specified_object(self, value):
+    def specified_object(self, value: typing.Optional[Persistence.PersistentObject]) -> None:
         if value:
             self._specifier = DataStructure.get_object_specifier(value)
         else:
             self._specifier = {"type": "data_source", "version": 1, "uuid": str(uuid.uuid4())}
+
+    @property
+    def secondary_specified_object(self) -> typing.Optional[Persistence.PersistentObject]:
+        return getattr(self.__bound_item, "_graphic", None)
+
+    @secondary_specified_object.setter
+    def secondary_specified_object(self, value: typing.Optional[Persistence.PersistentObject]) -> None:
+        if value:
+            self._secondary_specifier = DataStructure.get_object_specifier(value)
+        else:
+            self._secondary_specifier = None
 
     @property
     def bound_variable(self) -> "BoundItemBase":
@@ -419,9 +430,9 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         if name in ["name", "label"]:
             self.notify_property_changed("display_label")
         if name in ("specifier"):
-            self.notify_property_changed("specifier_uuid_str")
+            self.notify_property_changed("specified_object")
         if name in ("secondary_specifier"):
-            self.notify_property_changed("secondary_specifier_uuid_str")
+            self.notify_property_changed("secondary_specified_object")
         # send out the changed event
         self.changed_event.fire()
         # finally send out the rebuild event for the inspectors
@@ -500,38 +511,6 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                 self._specifier = specifier
                 self._secondary_specifier = None
             self.variable_type_changed_event.fire()
-
-    @property
-    def specifier_uuid_str(self):
-        return self.specifier.get("uuid") if self.specifier else None
-
-    @specifier_uuid_str.setter
-    def specifier_uuid_str(self, value):
-        converter = Converter.UuidToStringConverter()
-        value = converter.convert(converter.convert_back(value))
-        if self.specifier_uuid_str != value and self.specifier:
-            specifier = self.specifier
-            if value:
-                specifier["uuid"] = value
-            else:
-                specifier.pop("uuid", None)
-            self.specifier = specifier
-
-    @property
-    def secondary_specifier_uuid_str(self):
-        return self.secondary_specifier.get("uuid") if self.secondary_specifier else None
-
-    @secondary_specifier_uuid_str.setter
-    def secondary_specifier_uuid_str(self, value):
-        converter = Converter.UuidToStringConverter()
-        value = converter.convert(converter.convert_back(value))
-        if self.secondary_specifier_uuid_str != value and self.secondary_specifier:
-            secondary_specifier = self.secondary_specifier
-            if value:
-                secondary_specifier["uuid"] = value
-            else:
-                secondary_specifier.pop("uuid", None)
-            self.secondary_specifier = secondary_specifier
 
     @property
     def _specifier_uuid_str(self):
@@ -639,10 +618,10 @@ class BoundData(BoundItemBase):
             if self.__data_changed_event_listener:
                 self.__data_changed_event_listener.close()
                 self.__data_changed_event_listener = None
-            object = self._object
-            if object:
-                self.__data_changed_event_listener = object.data_changed_event.listen(self.changed_event.fire)
-            self.valid = object is not None
+            item = self._item
+            if item:
+                self.__data_changed_event_listener = item.data_changed_event.listen(self.changed_event.fire)
+            self.valid = item is not None
 
         def item_registered(item):
             maintain_data_source()
@@ -666,14 +645,14 @@ class BoundData(BoundItemBase):
 
     @property
     def base_objects(self):
-        return {self._object}
+        return {self._item}
 
     @property
     def value(self):
-        return self._object.xdata
+        return self._item.xdata
 
     @property
-    def _object(self):
+    def _item(self):
         item = self.__item_proxy.item
         if isinstance(item, DisplayItem.DisplayDataChannel):
             item = item.data_item
@@ -1314,8 +1293,14 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.computation_mutated_event.fire()
         self.needs_update = True
 
-    def create_variable(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None) -> ComputationVariable:
-        variable = ComputationVariable(name, value_type=value_type, value=value, value_default=value_default, value_min=value_min, value_max=value_max, control_type=control_type, specifier=specifier, label=label)
+    def create_variable(self, name: str = None, value_type: str = None, value=None, value_default=None, value_min=None,
+                        value_max=None, control_type: str = None,
+                        specified_item: typing.Optional[Persistence.PersistentObject] = None,
+                        label: str = None) -> ComputationVariable:
+        specifier = DataStructure.get_object_specifier(specified_item)
+        variable = ComputationVariable(name, value_type=value_type, value=value, value_default=value_default,
+                                       value_min=value_min, value_max=value_max, control_type=control_type,
+                                       specifier=specifier, label=label)
         self.add_variable(variable)
         return variable
 

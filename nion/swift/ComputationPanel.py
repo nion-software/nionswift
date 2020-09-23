@@ -24,6 +24,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
+from nion.swift.model import Persistence
 from nion.swift.model import Schema
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
@@ -48,7 +49,9 @@ _ = gettext.gettext
 
 class AddVariableCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, computation: Symbolic.Computation, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None):
+    def __init__(self, document_model, computation: Symbolic.Computation, name: str = None, value_type: str = None,
+                 value=None, value_default=None, value_min=None, value_max=None, control_type: str = None,
+                 specified_item: typing.Optional[Persistence.PersistentObject] = None, label: str = None):
         super().__init__(_("Add Computation Variable"))
         self.__document_model = document_model
         self.__computation_proxy = computation.create_proxy()
@@ -59,7 +62,7 @@ class AddVariableCommand(Undo.UndoableCommand):
         self.__value_min = value_min
         self.__value_max = value_max
         self.__control_type = control_type
-        self.__specifier = specifier
+        self.__specified_item = specified_item
         self.__label = label
         self.__variable_index = None
         self.initialize()
@@ -74,14 +77,14 @@ class AddVariableCommand(Undo.UndoableCommand):
         self.__value_min = None
         self.__value_max = None
         self.__control_type = None
-        self.__specifier = None
+        self.__specified_item = None
         self.__label = None
         self.__variable = None
         super().close()
 
     def perform(self):
-        computation = self.__computation_proxy.item
-        variable = computation.create_variable(self.__name, self.__value_type, self.__value, self.__value_default, self.__value_min, self.__value_max, self.__control_type, self.__specifier, self.__label)
+        computation = typing.cast(Symbolic.Computation, self.__computation_proxy.item)
+        variable = computation.create_variable(self.__name, self.__value_type, self.__value, self.__value_default, self.__value_min, self.__value_max, self.__control_type, self.__specified_item, self.__label)
         self.__variable_index = computation.variables.index(variable)
 
     def _get_modified_state(self):
@@ -246,7 +249,7 @@ def select_computation(document_model: DocumentModel.DocumentModel, display_item
 
 
 class ComputationModel:
-    """Represents a computation. Tracks a display specifier for changes to it and its computation content.
+    """Represents a computation. Tracks a computation for changes to it and its content.
 
     Provides read/write access to the computation_text via the property.
 
@@ -292,10 +295,12 @@ class ComputationModel:
     def set_display_item(self, display_item):
         self.__set_display_item(display_item)
 
-    def add_variable(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None) -> None:
+    def add_variable(self, name: str = None, value_type: str = None, value=None, value_default=None, value_min=None,
+                     value_max=None, control_type: str = None,
+                     specified_item: typing.Optional[Persistence.PersistentObject] = None, label: str = None) -> None:
         computation = self.computation
         if computation:
-            command = AddVariableCommand(self.document_controller.document_model, computation, name, value_type, value, value_default, value_min, value_max, control_type, specifier, label)
+            command = AddVariableCommand(self.document_controller.document_model, computation, name, value_type, value, value_default, value_min, value_max, control_type, specified_item, label)
             command.perform()
             self.document_controller.push_undo_command(command)
 
@@ -604,21 +609,10 @@ class ComputationPanelSection:
 
             return column
 
-        def make_specifier_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn, *, include_secondary=False):
+        def make_specifier_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
             column = ui.create_column_widget()
 
             name_type_row = make_name_type_row(ui, variable, on_change_type_fn, on_remove_fn)
-
-            def make_uuid_row(label, binding_identifier):
-                uuid_text_edit = ui.create_line_edit_widget()
-                uuid_row = ui.create_row_widget()
-                uuid_row.add_spacing(8)
-                uuid_row.add(ui.create_label_widget(label))
-                uuid_row.add_spacing(8)
-                uuid_row.add(uuid_text_edit)
-                uuid_row.add_spacing(8)
-                uuid_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, binding_identifier))
-                return uuid_row
 
             label_text_edit = ui.create_line_edit_widget()
             label_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "label"))
@@ -631,9 +625,6 @@ class ComputationPanelSection:
             display_row.add_stretch()
 
             column.add(name_type_row)
-            column.add(make_uuid_row(_("Data Item UUID"), "specifier_uuid_str"))
-            if include_secondary:
-                column.add(make_uuid_row(_("Region UUID"), "secondary_specifier_uuid_str"))
             column.add(display_row)
 
             return column
@@ -674,7 +665,7 @@ class ComputationPanelSection:
             elif variable_type == "string":
                 stack.add(make_string_row(ui, variable, None, change_type, on_remove))
             elif variable_type == "data_source":
-                stack.add(make_specifier_row(ui, variable, change_type, on_remove, include_secondary=True))
+                stack.add(make_specifier_row(ui, variable, change_type, on_remove))
             elif variable_type == "graphic":
                 stack.add(make_specifier_row(ui, variable, change_type, on_remove))
             else:
@@ -697,15 +688,10 @@ class ComputationPanelSection:
 
 
 def drop_mime_data(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
-    project = computation.project  # all variables/specifiers will go into the same project as the computation
     display_item, graphic = MimeTypes.mime_data_get_data_source(mime_data, document_controller.document_model)
     data_item = display_item.data_item if display_item else None
     if data_item:
-        variable_specifier = DataStructure.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item), project=project)
-        secondary_specifier = None
-        if graphic:
-            secondary_specifier = DataStructure.get_object_specifier(graphic, project=project)
-        properties = {"variable_type": "data_source", "secondary_specifier": secondary_specifier, "specifier": variable_specifier}
+        properties = {"variable_type": "data_source", "secondary_specified_object": graphic, "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
         command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), **properties)
         command.perform()
         document_controller.push_undo_command(command)
@@ -713,8 +699,7 @@ def drop_mime_data(document_controller, computation: Symbolic.Computation, varia
     display_item = MimeTypes.mime_data_get_display_item(mime_data, document_controller.document_model)
     data_item = display_item.data_item if display_item else None
     if data_item:
-        variable_specifier = DataStructure.get_object_specifier(display_item.get_display_data_channel_for_data_item(data_item), project=project)
-        properties = {"variable_type": "data_source", "secondary_specifier": dict(), "specifier": variable_specifier}
+        properties = {"variable_type": "data_source", "secondary_specified_object": None, "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
         command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), **properties)
         command.perform()
         document_controller.push_undo_command(command)
@@ -723,8 +708,7 @@ def drop_mime_data(document_controller, computation: Symbolic.Computation, varia
 
 
 def data_item_delete(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
-    variable_specifier = {"type": variable.variable_type, "version": 1, "uuid": str(uuid.uuid4())}
-    command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Source"), specifier=variable_specifier)
+    command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Source"), specified_object=None)
     command.perform()
     document_controller.push_undo_command(command)
 
@@ -756,7 +740,7 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
     data_item_chooser_widget.on_drop_mime_data = functools.partial(drop_mime_data, document_controller, computation, variable)
 
     def property_changed(key):
-        if key == "specifier":
+        if key == "specified_object":
             computation_input = computation.get_input(variable.name)
             data_item = computation_input.data_item if computation_input else None
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -844,8 +828,7 @@ class EditComputationDialog(Dialog.ActionDialog):
 
         def add_object_pressed():
             document_model = document_controller.document_model
-            object_specifier = document_model.get_object_specifier(document_model.data_items[0])
-            self.__computation_model.add_variable("".join([random.choice(string.ascii_lowercase) for _ in range(4)]), specifier=object_specifier)
+            self.__computation_model.add_variable("".join([random.choice(string.ascii_lowercase) for _ in range(4)]), specified_item=document_model.data_items[0])
 
         add_object_button.on_clicked = add_object_pressed
 
@@ -1151,14 +1134,14 @@ class VariableHandler:
         self.float_str_converter = Converter.FloatToStringConverter()
         self.int_str_converter = Converter.IntegerToStringConverter()
         self.property_changed_event = Event.Event()
-        self.__specifier_changed_listener = variable.property_changed_event.listen(self.__variable_property_changed)
+        self.__variable_property_changed_listener = variable.property_changed_event.listen(self.__variable_property_changed)
 
     def close(self) -> None:
-        self.__specifier_changed_listener.close()
-        self.__specifier_changed_listener = None
+        self.__variable_property_changed_listener.close()
+        self.__variable_property_changed_listener = None
 
     def __variable_property_changed(self, property_name: str) -> None:
-        if property_name in ("specifier", "secondary_specifier"):
+        if property_name in ("specified_object", "secondary_specified_object"):
             self.property_changed_event.fire("display_item")
         elif property_name == "value":
             self.property_changed_event.fire("variable_value")
