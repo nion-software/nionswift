@@ -311,20 +311,30 @@ class TestImportExportManagerClass(unittest.TestCase):
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         self.assertTrue(data_item.large_format)
 
+    def test_importing_rgb_does_not_set_large_format(self):
+        data_item = DataItem.DataItem(numpy.zeros((8, 8, 4), dtype=numpy.float))
+        data_item_rgb = DataItem.DataItem(numpy.zeros((8, 8, 4), dtype=numpy.uint8))
+        data_element = ImportExportManager.create_data_element_from_data_item(data_item, include_data=True)
+        data_element_rgb = ImportExportManager.create_data_element_from_data_item(data_item_rgb, include_data=True)
+        data_element.pop("large_format")
+        data_element_rgb.pop("large_format")
+        data_item = ImportExportManager.create_data_item_from_data_element(data_element)
+        data_item_rgb = ImportExportManager.create_data_item_from_data_element(data_element_rgb)
+        self.assertTrue(data_item.large_format)
+        self.assertFalse(data_item_rgb.large_format)
+
     def test_importing_large_numpy_file_sets_large_format_flag(self):
-        with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
-            current_working_directory = os.getcwd()
-            file_path_npy = os.path.join(current_working_directory, "__file.npy")
-            numpy.save(file_path_npy, numpy.zeros((4, 4, 4)))
-            handler = ImportExportManager.NumPyImportExportHandler("numpy-io-handler", "npy", ["npy"])
-            try:
-                data_items = handler.read_data_items(None, "npy", file_path_npy)
-                self.assertEqual(len(data_items), 1)
-                data_item = data_items[0]
-                self.assertTrue(data_item.large_format)
-            finally:
-                os.remove(file_path_npy)
+        current_working_directory = os.getcwd()
+        file_path_npy = os.path.join(current_working_directory, "__file.npy")
+        numpy.save(file_path_npy, numpy.zeros((4, 4, 4)))
+        handler = ImportExportManager.NumPyImportExportHandler("numpy-io-handler", "npy", ["npy"])
+        try:
+            data_items = handler.read_data_items(None, "npy", file_path_npy)
+            self.assertEqual(len(data_items), 1)
+            data_item = data_items[0]
+            self.assertTrue(data_item.large_format)
+        finally:
+            os.remove(file_path_npy)
 
 
 if __name__ == '__main__':

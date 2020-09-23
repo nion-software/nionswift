@@ -191,7 +191,7 @@ def create_data_item_from_data_element(data_element, data_file_path=None):
     large_format = data_element.get("large_format")
     if large_format is None:
         data = data_element.get("data")
-        large_format = len(data.shape) > 2 if data is not None else False
+        large_format = len(data.shape) > 2 and data.dtype != numpy.uint8 if data is not None else False
     data_item = DataItem.DataItem(item_uuid=uuid_, large_format=large_format)
     update_data_item_from_data_element(data_item, data_element, data_file_path)
     return data_item
