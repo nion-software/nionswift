@@ -1411,6 +1411,10 @@ class DataSource(metaclass=SharedInstance):
         return self.__data_source.display_xdata
 
     @property
+    def display_rgba(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.display_rgba
+
+    @property
     def normalized_xdata(self) -> DataAndMetadata.DataAndMetadata:
         return self.__data_source.normalized_xdata
 

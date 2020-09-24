@@ -2859,6 +2859,51 @@ class DivideAction(ProcessingAction):
         return Window.ActionResult.FINISHED
 
 
+class ExtractAlphaAction(ProcessingAction):
+    action_id = "processing.rgb_alpha"
+    action_name = _("Extract Alpha Channel")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        self.invoke_processing3(context, context.model.get_rgb_alpha_new)
+        return Window.ActionResult.FINISHED
+
+
+class ExtractBlueAction(ProcessingAction):
+    action_id = "processing.rgb_blue"
+    action_name = _("Extract Blue Channel")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        self.invoke_processing(context, context.model.get_rgb_blue_new)
+        return Window.ActionResult.FINISHED
+
+
+class ExtractGreenAction(ProcessingAction):
+    action_id = "processing.rgb_green"
+    action_name = _("Extract Green Channel")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        self.invoke_processing(context, context.model.get_rgb_green_new)
+        return Window.ActionResult.FINISHED
+
+
+class ExtractLuminanceAction(ProcessingAction):
+    action_id = "processing.rgb_luminance"
+    action_name = _("Extract Luminance")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        self.invoke_processing(context, context.model.get_rgb_luminance_new)
+        return Window.ActionResult.FINISHED
+
+
+class ExtractRedAction(ProcessingAction):
+    action_id = "processing.rgb_red"
+    action_name = _("Extract Red Channel")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        self.invoke_processing(context, context.model.get_rgb_red_new)
+        return Window.ActionResult.FINISHED
+
+
 class FourierFilterAction(ProcessingAction):
     action_id = "processing.fourier_filter"
     action_name = _("Fourier Filter")
@@ -3172,6 +3217,11 @@ Window.register_action(AutoCorrelateAction())
 Window.register_action(CropAction())
 Window.register_action(CrossCorrelateAction())
 Window.register_action(DivideAction())
+Window.register_action(ExtractAlphaAction())
+Window.register_action(ExtractBlueAction())
+Window.register_action(ExtractGreenAction())
+Window.register_action(ExtractLuminanceAction())
+Window.register_action(ExtractRedAction())
 Window.register_action(FourierFilterAction())
 Window.register_action(FFTAction())
 Window.register_action(GaussianFilterAction())

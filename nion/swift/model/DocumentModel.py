@@ -2199,10 +2199,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 return False
             if max_dimension is not None and dimensionality > max_dimension:
                 return False
+        if requirement_type == "is_rgb_type":
+            if not data_item.xdata.is_data_rgb_type:
+                return False
         if requirement_type == "is_sequence":
             if not data_item.is_sequence:
                 return False
-
         if requirement_type == "bool":
             operator = requirement["operator"]
             for operand in requirement["operands"]:
@@ -2457,6 +2459,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             requirement_4d = {"type": "dimensionality", "min": 4, "max": 4}
             requirement_2d_to_3d = {"type": "dimensionality", "min": 2, "max": 3}
             requirement_2d_to_4d = {"type": "dimensionality", "min": 2, "max": 4}
+            requirement_is_rgb_type = {"type": "is_rgb_type"}
             requirement_is_sequence = {"type": "is_sequence"}
             requirement_is_not_sequence = {"type": "bool", "operator": "not", "operands": [requirement_is_sequence]}
             requirement_4d_if_sequence_else_3d = {"type": "bool", "operator": "or",
@@ -2587,10 +2590,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             vs["sequence-extract"] = {"title": _("Extract"), "expression": "xd.sequence_extract({src}.xdata, index)",
                 "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_sequence]}],
                 "parameters": [index_param]}
-            vs["make-rgb"] = {"title": _("Make RGB"), "expression": "xd.rgb({src_red}.cropped_transformed_xdata, {src_green}.cropped_transformed_xdata, {src_blue}.cropped_transformed_xdata)",
+            vs["make-rgb"] = {"title": _("RGB"), "expression": "xd.rgb({src_red}.cropped_transformed_xdata, {src_green}.cropped_transformed_xdata, {src_blue}.cropped_transformed_xdata)",
                 "sources": [{"name": "src_red", "label": _("Red"), "croppable": True, "requirements": [requirement_2d]},
                             {"name": "src_green", "label": _("Green"), "croppable": True, "requirements": [requirement_2d]},
                             {"name": "src_blue", "label": _("Blue"), "croppable": True, "requirements": [requirement_2d]}]}
+            vs["extract-luminance"] = {"title": _("Luminance"), "expression": "xd.luminance({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_rgb_type]}]}
+            vs["extract-red"] = {"title": _("Red"), "expression": "xd.red({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_rgb_type]}]}
+            vs["extract-green"] = {"title": _("Green"), "expression": "xd.green({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_rgb_type]}]}
+            vs["extract-blue"] = {"title": _("Blue"), "expression": "xd.blue({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_rgb_type]}]}
+            vs["extract-alpha"] = {"title": _("Alpha"), "expression": "xd.alpha({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_rgb_type]}]}
             cls._builtin_processing_descriptions = vs
         return cls._builtin_processing_descriptions
 
@@ -2757,6 +2765,21 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         return self.__make_computation("make-rgb", [(display_item1, data_item1, crop_region1),
                                                     (display_item2, data_item2, crop_region2),
                                                     (display_item3, data_item3, crop_region3)])
+
+    def get_rgb_alpha_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("extract-alpha", [(display_item, data_item, crop_region)])
+
+    def get_rgb_blue_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("extract-blue", [(display_item, data_item, crop_region)])
+
+    def get_rgb_green_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("extract-green", [(display_item, data_item, crop_region)])
+
+    def get_rgb_luminance_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("extract-luminance", [(display_item, data_item, crop_region)])
+
+    def get_rgb_red_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("extract-red", [(display_item, data_item, crop_region)])
 
 
 class ConnectPickDisplay(Observer.AbstractAction):

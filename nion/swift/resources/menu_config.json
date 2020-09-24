@@ -451,6 +451,26 @@
                     {
                         "type": "item",
                         "action_id": "processing.make_rgb"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "processing.rgb_luminance"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "processing.rgb_red"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "processing.rgb_green"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "processing.rgb_blue"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "processing.rgb_alpha"
                     }
                 ]
             },

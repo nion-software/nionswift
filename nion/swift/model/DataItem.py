@@ -1321,6 +1321,17 @@ class DataSource:
         return None
 
     @property
+    def display_rgba(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        display_data_channel = self.__display_data_channel
+        if display_data_channel:
+            if self.__xdata is not None:
+                return self.xdata
+            else:
+                display_rgba = display_data_channel.get_calculated_display_values().display_rgba
+                return DataAndMetadata.new_data_and_metadata(Image.get_byte_view(display_rgba)) if display_rgba is not None else None
+        return None
+
+    @property
     def normalized_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         display_data_channel = self.__display_data_channel
         if display_data_channel:
