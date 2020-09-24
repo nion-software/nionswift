@@ -1146,15 +1146,61 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertAlmostEqual(region.end[1], 0.25)
 
     def test_dragging_to_add_line_profile_makes_desired_line_profile(self):
-        self.document_controller.tool_mode = "line-profile"
-        self.display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
-        self.assertEqual(len(self.display_item.graphics), 1)
-        region = self.display_item.graphics[0]
-        self.assertEqual(region.type, "line-profile-graphic")
-        self.assertAlmostEqual(region.start[0], 0.1)
-        self.assertAlmostEqual(region.start[1], 0.125)
-        self.assertAlmostEqual(region.end[0], 0.2)
-        self.assertAlmostEqual(region.end[1], 0.25)
+        with TestContext.create_memory_context() as test_context:
+            # set up the layout
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.workspace_controller.display_panels[0]
+            document_controller.tool_mode = "line-profile"
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            header_height = self.display_panel.header_canvas_item.header_height
+            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height), immediate=True)
+            # drag for the line profile
+            display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
+            # check results
+            self.assertEqual(len(display_item.graphics), 1)
+            region = display_item.graphics[0]
+            self.assertEqual(region.type, "line-profile-graphic")
+            self.assertAlmostEqual(region.start[0], 0.1)
+            self.assertAlmostEqual(region.start[1], 0.125)
+            self.assertAlmostEqual(region.end[0], 0.2)
+            self.assertAlmostEqual(region.end[1], 0.25)
+
+    def test_dragging_to_add_line_profile_puts_source_and_destination_under_transaction(self):
+        with TestContext.create_memory_context() as test_context:
+            # set up the layout
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.workspace_controller.display_panels[0]
+            document_controller.tool_mode = "line-profile"
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            header_height = self.display_panel.header_canvas_item.header_height
+            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height), immediate=True)
+            # drag and check transactions
+            self.assertFalse(data_item.in_transaction_state)
+            self.assertFalse(display_item.in_transaction_state)
+            modifiers = CanvasItem.KeyboardModifiers()
+            display_panel.display_canvas_item.mouse_pressed(100, 100, modifiers)
+            display_panel.display_canvas_item.mouse_position_changed(125, 125, modifiers)
+            self.assertTrue(data_item.in_transaction_state)
+            self.assertTrue(display_item.in_transaction_state)
+            line_plot_data_item = document_model.data_items[-1]
+            line_plot_display_item = document_model.display_items[-1]
+            self.assertTrue(line_plot_data_item.in_transaction_state)
+            self.assertTrue(line_plot_display_item.in_transaction_state)
+            display_panel.display_canvas_item.mouse_released(200, 200, modifiers)
+            self.assertFalse(data_item.in_transaction_state)
+            self.assertFalse(display_item.in_transaction_state)
+            self.assertFalse(line_plot_data_item.in_transaction_state)
+            self.assertFalse(line_plot_display_item.in_transaction_state)
 
     def test_dragging_to_add_line_profile_works_when_line_profile_is_filtered_from_data_panel(self):
         with TestContext.create_memory_context() as test_context:
