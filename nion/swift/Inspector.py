@@ -164,10 +164,8 @@ class InspectorPanel(Panel.Panel):
             self.__display_graphic_selection_changed_event_listener = self.__display_item.graphic_selection_changed_event.listen(display_graphic_selection_changed)
             self.__display_about_to_be_removed_listener = self.__display_item.about_to_be_removed_event.listen(display_item_about_to_be_removed)
 
-        self.column.add(self.__display_inspector)
-        stretch_column = self.ui.create_column_widget()
-        stretch_column.add_stretch()
-        self.column.add(stretch_column)
+        self.column.add_stretch()
+        self.column.insert(self.__display_inspector, 0)
 
     # not thread safe
     def __set_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
