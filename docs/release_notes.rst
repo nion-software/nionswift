@@ -5,6 +5,11 @@ Release Notes
 
 Version 0.15.2 (UNRELEASED)
 ---------------------------
+* (2020-10-06) Fix issue dragging spot graphic.
+* (2020-10-06) Partially fix performance when dragging graphics on complex data.
+* (2020-09-23) Add RGB processing commands (beta). Fix related RGB issues.
+* (2020-09-21) Fix issue where line plot would sometimes fail to update properly.
+* (2020-09-18) Introduce brightness/contrast/gamma/log controls (beta).
 * (2020-09-15) Fixed issue with line plot on sequences/collections of images.
 
 Version 0.15.1 (2020-09-03)

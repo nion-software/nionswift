@@ -8,6 +8,8 @@ jobs:
       dist: xenial
     - python: 3.8
       dist: xenial
+    - python: 3.9
+      dist: xenial
     - python: nightly
       dist: xenial
     - name: Python (homebrew)
@@ -26,7 +28,7 @@ jobs:
       os: windows
       language: shell       # 'language: python' is an error on Travis CI Windows
       before_install:
-        - choco install python3
+        - choco install python3 --version=3.8.6
         - python -m pip install --upgrade pip
         # - powershell -Command Get-TimeZone
         # - powershell -Command Set-TimeZone -Id \"Central Asia Standard Time\"
@@ -35,6 +37,7 @@ jobs:
       env: PATH=/c/Python38:/c/Python38/Scripts:$PATH
   allow_failures:
     - python: nightly
+    - python: 3.9
 
 branches:
   only:
