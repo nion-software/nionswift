@@ -127,6 +127,26 @@ class TestGraphicsClass(unittest.TestCase):
                 self.assertIsInstance(graphic, graphic_type)
                 display_item.remove_graphic(graphic)
 
+    def test_spot_mask_inverted(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            spot_graphic = Graphics.SpotGraphic()
+            display_item.add_graphic(spot_graphic)
+            initial_bounds = Geometry.FloatRect.from_center_and_size((0.25, 0.25), (0.25, 0.25))
+            spot_graphic.bounds = initial_bounds
+            display_panel.display_canvas_item.simulate_drag((250, 250), (250, 500))
+            self.assertNotEqual(initial_bounds, Geometry.FloatRect.make(spot_graphic.bounds))
+            display_panel.display_canvas_item.simulate_drag((-250, -500), (-250, -250))
+            self.assertEqual(initial_bounds, Geometry.FloatRect.make(spot_graphic.bounds))
+
     def test_spot_mask_is_sensible_when_smaller_than_one_pixel(self):
         spot_graphic = Graphics.SpotGraphic()
         spot_graphic.bounds = (0.0, 0.0), (0.05, 0.05)

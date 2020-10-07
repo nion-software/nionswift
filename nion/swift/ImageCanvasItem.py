@@ -716,7 +716,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             part_spec = specific_part_spec if specific_part_spec is not None else part_specs[-1] if len(part_specs) > 0 else None
             if part_spec is not None:
                 graphic_index, graphic, already_selected, part = part_spec
-                part = part if specific_part_spec is not None else "all"
+                part = part if specific_part_spec is not None else part_spec[-1]
                 # select item and prepare for drag
                 self.graphic_drag_item_was_selected = already_selected
                 if not self.graphic_drag_item_was_selected:
