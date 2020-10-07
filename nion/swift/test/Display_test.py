@@ -13,6 +13,7 @@ from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import Facade
 from nion.swift.model import DataItem
+from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.swift.test import TestContext
@@ -168,6 +169,29 @@ class TestDisplayClass(unittest.TestCase):
                 display_item.data_item.set_data(irow // 2 + 4)
                 self.assertEqual(o.data_range, (4, 11))
                 self.assertEqual(o.display_range, (4, 11))
+
+    def test_changing_graphic_does_not_notify_display_values_change(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            # this is used to update the inspector
+            data_item = DataItem.DataItem(numpy.zeros((4, 4)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            graphic = Graphics.RectangleGraphic()
+            display_item.add_graphic(graphic)
+            display_data_channel = display_item.display_data_channels[0]
+            class Observer:
+                def __init__(self):
+                    self.count = 0
+                def next_calculated_display_values(self):
+                    self.count += 1
+            o = Observer()
+            with contextlib.closing(display_data_channel.add_calculated_display_values_listener(o.next_calculated_display_values)):
+                display_data_channel.get_calculated_display_values()
+                self.assertEqual(1, o.count)  # 1 will be sent when adding the listener
+                with display_item.display_item_changes():
+                    graphic.bounds = ((0, 0), (1, 1))
+                self.assertEqual(1, o.count)  # 1 will be sent when adding the listener
 
     def test_data_item_copy_initialized_display_data_range(self):
         with TestContext.create_memory_context() as test_context:

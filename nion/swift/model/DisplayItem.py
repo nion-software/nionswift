@@ -491,6 +491,8 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         # # the display_data_channel will listen for that event and update last display values.
         self.__last_display_values = None
         self.__current_display_values = None
+        self.__current_data_item = None
+        self.__current_data_item_modified_count = 0
         self.__is_master = True
         self.__display_ref_count = 0
 
@@ -645,6 +647,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
     def __data_item_reference_changed(self, name: str, data_item_reference: str) -> None:
         item_uuid = uuid.UUID(data_item_reference) if data_item_reference else None
         self.__data_item_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
+        self.__current_display_values = None
 
     def __connect_data_item_events(self):
 
@@ -859,6 +862,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.notify_property_changed(property_name)
         if property_name in ("sequence_index", "collection_index", "slice_center", "slice_width", "complex_display_type", "display_limits", "brightness", "contrast", "adjustments", "color_map_data"):
             self.display_data_will_change_event.fire()
+            self.__current_display_values = None
             self.__send_next_calculated_display_values()
 
     def save_properties(self) -> typing.Tuple:
@@ -888,7 +892,9 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.slice_interval = properties[9]
 
     def update_display_data(self) -> None:
-        self.__send_next_calculated_display_values()
+        if self.__data_item != self.__current_data_item or (self.__data_item and self.__data_item.modified_count != self.__current_data_item_modified_count):
+            self.__current_display_values = None
+            self.__send_next_calculated_display_values()
 
     def add_calculated_display_values_listener(self, callback, send=True):
         listener = self.__calculated_display_values_available_event.listen(callback)
@@ -898,7 +904,6 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
     def __send_next_calculated_display_values(self) -> None:
         """Fire event to signal new display values are available."""
-        self.__current_display_values = None
         self.__calculated_display_values_available_event.fire()
 
     def get_calculated_display_values(self, immediate: bool=False) -> DisplayValues:
@@ -911,6 +916,8 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         """
         if not immediate or not self.__is_master or not self.__last_display_values:
             if not self.__current_display_values and self.__data_item:
+                self.__current_data_item = self.__data_item
+                self.__current_data_item_modified_count = self.__data_item.modified_count if self.__data_item else 0
                 self.__current_display_values = DisplayValues(self.__data_item.xdata, self.sequence_index, self.collection_index, self.slice_center, self.slice_width, self.display_limits, self.complex_display_type, self.__color_map_data, self.brightness, self.contrast, self.adjustments)
 
                 def finalize(display_values):
