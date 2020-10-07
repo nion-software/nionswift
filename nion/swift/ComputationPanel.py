@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
-import copy
+import collections
 import functools
 import gettext
 import operator
@@ -9,7 +9,6 @@ import random
 import string
 import sys
 import typing
-import uuid
 import weakref
 
 # third party libraries
@@ -1085,10 +1084,16 @@ class DataStructureHandler(Observable.Observable):
         if base_entity_type:
             self.__entity_types = base_entity_type.subclasses
 
+            entity_info_list = [(DataStructure.DataStructure.entity_names[entity_type.entity_id],
+                                 DataStructure.DataStructure.entity_package_names[entity_type.entity_id])
+                                 for entity_type in self.__entity_types]
+
+            counts = collections.Counter([entity_info[0] for entity_info in entity_info_list])
+
             def name(entity_id: str) -> str:
                 entity_name = DataStructure.DataStructure.entity_names[entity_id]
                 entity_package_name = DataStructure.DataStructure.entity_package_names[entity_id]
-                return f"{entity_name} ({entity_package_name})"
+                return f"{entity_name} ({entity_package_name})" if counts[entity_name] > 1 else entity_name
 
             self.__entity_choices = [name(entity_type.entity_id) for entity_type in self.__entity_types] + ["-", _("None")]
             # configure the initial value
@@ -1273,7 +1278,7 @@ class VariableHandler:
         elif variable.variable_type == "graphic":
             return u.create_column(label, u.create_component_instance("graphic"), spacing=8)
         elif variable.variable_type == "structure":
-            return u.create_column(label, u.create_component_instance("structure"), spacing=8)
+            return u.create_column(u.create_component_instance("structure"), spacing=8)
         elif variable.bound_items_model:
             return u.create_column(u.create_column(items="variable.bound_items_model.items", item_component_id="graphic_item", spacing=8), spacing=8)
         else:
