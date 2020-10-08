@@ -2649,7 +2649,7 @@ class Library(metaclass=SharedInstance):
         """
         desc = Metadata.session_key_map.get(key)
         if desc is not None:
-            field_id = desc['path'][-1]
+            field_id = desc["paths"][-1]
             return bool(getattr(ApplicationData.get_session_metadata_model(), field_id, None))
         return False
 
@@ -2664,7 +2664,7 @@ class Library(metaclass=SharedInstance):
         """
         desc = Metadata.session_key_map.get(key)
         if desc is not None:
-            field_id = desc['path'][-1]
+            field_id = desc["paths"][-1]
             return getattr(ApplicationData.get_session_metadata_model(), field_id)
         raise KeyError()
 
@@ -2679,7 +2679,7 @@ class Library(metaclass=SharedInstance):
         """
         desc = Metadata.session_key_map.get(key)
         if desc is not None:
-            field_id = desc['path'][-1]
+            field_id = desc["paths"][-1]
             setattr(ApplicationData.get_session_metadata_model(), field_id, value)
             return
         raise KeyError()
@@ -2695,7 +2695,7 @@ class Library(metaclass=SharedInstance):
         """
         desc = Metadata.session_key_map.get(key)
         if desc is not None:
-            field_id = desc['path'][-1]
+            field_id = desc["paths"][-1]
             setattr(ApplicationData.get_session_metadata_model(), field_id, None)
             return
         raise KeyError()

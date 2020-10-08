@@ -465,6 +465,19 @@ class TestFacadeClass(unittest.TestCase):
             self.assertEqual(display_item1, api.application.document_windows[0].target_display._display_item)
             self.assertEqual(display_item1_ref, api.application.document_windows[0].target_display)
 
+    def test_metadata_functions(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            api = Facade.get_api("~1.0", "~1.0")
+            self.assertFalse(api.library.has_library_value("stem.session.instrument"))
+            self.assertIsNone(api.library.get_library_value("stem.session.instrument"))
+            api.library.set_library_value("stem.session.instrument", "em")
+            self.assertTrue(api.library.has_library_value("stem.session.instrument"))
+            self.assertEqual("em", api.library.get_library_value("stem.session.instrument"))
+            api.library.delete_library_value("stem.session.instrument")
+            self.assertFalse(api.library.has_library_value("stem.session.instrument"))
+            self.assertIsNone(api.library.get_library_value("stem.session.instrument"))
+
 
 if __name__ == '__main__':
     unittest.main()
