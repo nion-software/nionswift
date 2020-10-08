@@ -1129,6 +1129,18 @@ class TestDataItemClass(unittest.TestCase):
             data_item.set_data(numpy.zeros((2, 2)))
             self.assertGreater(data_item.modified, modified)
 
+    def test_changing_partial_data_on_data_item_updates_modified(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
+            document_model.append_data_item(data_item)
+            data_item._set_modified(datetime.datetime(2000, 1, 1))
+            modified = data_item.modified
+            time.sleep(0.001)  # windows has a time resolution of 1ms. sleep to avoid duplicate.
+            data_item.set_data_and_metadata_partial(data_item.xdata.data_metadata, data_item.xdata, [slice(0, 1, 1), slice(0, 2, 1)], [slice(0, 1, 1), slice(0, 2, 1)], update_metadata=True)
+            # data_item.set_data(numpy.zeros((2, 2)))
+            self.assertGreater(data_item.modified, modified)
+
     def test_changing_data_updates_xdata_timestamp(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()

@@ -1113,7 +1113,9 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                     assert self.__data_and_metadata.data_shape == data_metadata.data_shape
                     assert self.__data_and_metadata.data_dtype == data_metadata.data_dtype
                     assert self.__data_and_metadata.data_dtype == data_and_metadata.data_dtype
-                    self.__data_and_metadata.data[dst] = data_and_metadata.data[src]
+                    self.__data_and_metadata.data[tuple(dst)] = data_and_metadata.data[tuple(src)]
+                    # set data_shape as a way to update 'modified' property
+                    self._set_persistent_property_value("data_shape", self.__data_and_metadata.data_shape)
                     if self.persistent_object_context and not self.is_write_delayed:
                         self.write_external_data("data", self.__data_and_metadata.data)
                         self.__data_and_metadata.unloadable = True
