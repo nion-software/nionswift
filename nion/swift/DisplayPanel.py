@@ -35,6 +35,7 @@ from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
 from nion.ui import UserInterface
+from nion.ui import Window
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
@@ -1681,22 +1682,32 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def show_context_menu(self, menu, gx, gy):
 
-        workspace_controller = self.__document_controller.workspace_controller
+        def add_menu_action(menu: UserInterface.Menu, action_id: str) -> None:
+            action = Window.actions.get(action_id)
+            if action:
+                key_sequence = Window.action_shortcuts.get(action_id, dict()).get("window")
+                assert menu is not None
+                menu_action = menu.add_menu_item(action.action_name,
+                                                 functools.partial(self.__document_controller.perform_action, action_id),
+                                                 key_sequence=key_sequence, action_id=action_id)
+                action_context = self.__document_controller._get_action_context()
+                title = action.get_action_name(action_context)
+                enabled = action and action.is_enabled(action_context)
+                checked = action and action.is_checked(action_context)
+                menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
 
-        def split_vertical():
-            if workspace_controller:
-                command = workspace_controller.insert_display_panel(self, "bottom")
-                self.__document_controller.push_undo_command(command)
-
-        def split_horizontal():
-            if workspace_controller:
-                command = workspace_controller.insert_display_panel(self, "right")
-                self.__document_controller.push_undo_command(command)
 
         menu.add_separator()
-        menu.add_menu_item(_("Split Into Top and Bottom"), split_vertical)
-        menu.add_menu_item(_("Split Into Left and Right"), split_horizontal)
+        add_menu_action(menu, "workspace.split_vertical")
+        add_menu_action(menu, "workspace.split_horizontal")
         menu.add_separator()
+        add_menu_action(menu, "display_panel.clear")
+        menu.add_separator()
+        add_menu_action(menu, "display_panel.show_item")
+        add_menu_action(menu, "display_panel.show_thumbnail_browser")
+        add_menu_action(menu, "display_panel.show_grid_browser")
+        menu.add_separator()
+
         DisplayPanelManager().build_menu(menu, self.__document_controller, self)
         menu.popup(gx, gy)
         return True
@@ -2091,29 +2102,6 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         controllers (for instance, a scan acquisition controller), may add its own menu items.
         """
         dynamic_live_actions = list()
-
-        def switch_to_display_content(display_panel_type):
-            self.switch_to_display_content(document_controller, display_panel, display_panel_type, display_panel.display_item)
-
-        empty_action = display_type_menu.add_menu_item(_("Clear Display Panel"), functools.partial(switch_to_display_content, "empty-display-panel"))
-        display_type_menu.add_separator()
-
-        data_item_display_action = display_type_menu.add_menu_item(_("Display Item"), functools.partial(switch_to_display_content, "data-display-panel"))
-        thumbnail_browser_action = display_type_menu.add_menu_item(_("Thumbnail Browser"), functools.partial(switch_to_display_content, "thumbnail-browser-display-panel"))
-        grid_browser_action = display_type_menu.add_menu_item(_("Grid Browser"), functools.partial(switch_to_display_content, "browser-display-panel"))
-        display_type_menu.add_separator()
-
-        display_panel_type = display_panel.display_panel_type
-
-        empty_action.checked = display_panel_type == "empty" and display_panel.display_panel_controller is None
-        data_item_display_action.checked = display_panel_type == "data_item"
-        thumbnail_browser_action.checked = display_panel_type == "horizontal"
-        grid_browser_action.checked = display_panel_type == "grid"
-
-        dynamic_live_actions.append(empty_action)
-        dynamic_live_actions.append(data_item_display_action)
-        dynamic_live_actions.append(thumbnail_browser_action)
-        dynamic_live_actions.append(grid_browser_action)
 
         for factory in self.__display_controller_factories.values():
             dynamic_live_actions.extend(factory.build_menu(display_type_menu, display_panel))
