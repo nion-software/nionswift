@@ -1,14 +1,14 @@
 {
-    "display.fit_view": {
+    "display_panel.fit_view": {
         "display_panel": "0"
     },
-    "display.fill_view": {
+    "display_panel.fill_view": {
         "display_panel": "Shift+0"
     },
-    "display.1_view": {
+    "display_panel.1_view": {
         "display_panel": "1"
     },
-    "display.2_view": {
+    "display_panel.2_view": {
         "display_panel": "2"
     },
     "item.assign_variable_reference": {

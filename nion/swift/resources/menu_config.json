@@ -514,19 +514,41 @@
             },
             {
                 "type": "item",
-                "action_id": "display.fit_view"
+                "action_id": "display_panel.clear"
+            },
+            {
+                "type": "separator"
             },
             {
                 "type": "item",
-                "action_id": "display.fill_view"
+                "action_id": "display_panel.show_item"
             },
             {
                 "type": "item",
-                "action_id": "display.1_view"
+                "action_id": "display_panel.show_thumbnail_browser"
             },
             {
                 "type": "item",
-                "action_id": "display.2_view"
+                "action_id": "display_panel.show_grid_browser"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
+                "action_id": "display_panel.fit_view"
+            },
+            {
+                "type": "item",
+                "action_id": "display_panel.fill_view"
+            },
+            {
+                "type": "item",
+                "action_id": "display_panel.1_view"
+            },
+            {
+                "type": "item",
+                "action_id": "display_panel.2_view"
             },
             {
                 "type": "separator"
@@ -564,6 +586,17 @@
             {
                 "type": "item",
                 "action_id": "workspace.clone"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
+                "action_id": "workspace.split_horizontal"
+            },
+            {
+                "type": "item",
+                "action_id": "workspace.split_vertical"
             },
             {
                 "type": "separator"

@@ -1549,7 +1549,7 @@ class DocumentController(Window.Window):
         elif menu.menu_id == "display_panel_type":
             self.__about_to_show_display_type_menu(menu)
         elif menu.menu_id == "view":
-            self.__adjust_view_menu(menu)
+            self.__adjust_workspace_menu(menu)
             super()._menu_about_to_show(menu)
         elif menu.menu_id == "window":
             self.__adjust_window_menu(menu)
@@ -1566,7 +1566,8 @@ class DocumentController(Window.Window):
             menu.add_action(toggle_action)
             self.__dynamic_window_actions.append(toggle_action)
 
-    def __adjust_view_menu(self, menu: UserInterface.Menu) -> None:
+    def __adjust_workspace_menu(self, menu: UserInterface.Menu) -> None:
+        menu.add_separator()
         for dynamic_view_action in self.__dynamic_view_actions:
             menu.remove_action(dynamic_view_action)
         self.__dynamic_view_actions = []
@@ -2533,12 +2534,42 @@ class WorkspaceRenameAction(Window.Action):
         return Window.ActionResult.FINISHED
 
 
+class WorkspaceSplitHorizontalAction(Window.Action):
+    action_id = "workspace.split_horizontal"
+    action_name = _("Split Panel Into Left and Right")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            command = workspace_controller.insert_display_panel(context.display_panel, "right")
+            window.push_undo_command(command)
+        return Window.ActionResult.FINISHED
+
+
+class WorkspaceSplitVerticalAction(Window.Action):
+    action_id = "workspace.split_vertical"
+    action_name = _("Split Panel Into Top and Bottom")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            command = workspace_controller.insert_display_panel(context.display_panel, "bottom")
+            window.push_undo_command(command)
+        return Window.ActionResult.FINISHED
+
+
 Window.register_action(WorkspaceCloneAction())
 Window.register_action(WorkspaceNewAction())
 Window.register_action(WorkspaceNextAction())
 Window.register_action(WorkspacePreviousAction())
 Window.register_action(WorkspaceRemoveAction())
 Window.register_action(WorkspaceRenameAction())
+Window.register_action(WorkspaceSplitHorizontalAction())
+Window.register_action(WorkspaceSplitVerticalAction())
 
 
 class AddGroupAction(Window.Action):
@@ -2564,38 +2595,102 @@ class DisplayCopyAction(Window.Action):
         return Window.ActionResult.FINISHED
 
 
-class DisplayFitToViewAction(Window.Action):
-    action_id = "display.fit_view"
-    action_name = _("Fit to View")
+class DisplayPanelClearAction(Window.Action):
+
+    action_id = "display_panel.clear"
+    action_name = _("Clear Display Panel")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.display_panel.perform_action("set_fit_mode")
+        context = typing.cast(DocumentController.ActionContext, context)
+        display_panel = context.display_panel
+        DisplayPanel.DisplayPanelManager().switch_to_display_content(context.window, display_panel, "empty-display-panel", display_panel.display_item)
         return Window.ActionResult.FINISHED
 
 
-class DisplayFillViewAction(Window.Action):
-    action_id = "display.fill_view"
+class DisplayPanelFillViewAction(Window.Action):
+    action_id = "display_panel.fill_view"
     action_name = _("Fill View")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
         context.display_panel.perform_action("set_fill_mode")
         return Window.ActionResult.FINISHED
 
 
-class DisplayOneViewAction(Window.Action):
-    action_id = "display.1_view"
+class DisplayPanelFitToViewAction(Window.Action):
+    action_id = "display_panel.fit_view"
+    action_name = _("Fit to View")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        context.display_panel.perform_action("set_fit_mode")
+        return Window.ActionResult.FINISHED
+
+
+class DisplayPanelOneViewAction(Window.Action):
+    action_id = "display_panel.1_view"
     action_name = _("1:1 View")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
         context.display_panel.perform_action("set_one_to_one_mode")
         return Window.ActionResult.FINISHED
 
 
-class DisplayTwoViewAction(Window.Action):
-    action_id = "display.2_view"
+class DisplayPanelShowItemAction(Window.Action):
+
+    action_id = "display_panel.show_item"
+    action_name = _("Display Item")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        display_panel = context.display_panel
+        DisplayPanel.DisplayPanelManager().switch_to_display_content(context.window, display_panel, "data-display-panel", display_panel.display_item)
+        return Window.ActionResult.FINISHED
+
+    def is_checked(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel and context.display_panel.display_panel_type == "data_item"
+
+
+class DisplayPanelShowGridBrowserAction(Window.Action):
+
+    action_id = "display_panel.show_grid_browser"
+    action_name = _("Grid Browser")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        display_panel = context.display_panel
+        DisplayPanel.DisplayPanelManager().switch_to_display_content(context.window, display_panel, "browser-display-panel", display_panel.display_item)
+        return Window.ActionResult.FINISHED
+
+    def is_checked(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel and context.display_panel.display_panel_type == "grid"
+
+
+class DisplayPanelShowThumbnailBrowserAction(Window.Action):
+
+    action_id = "display_panel.show_thumbnail_browser"
+    action_name = _("Thumbnail Browser")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        display_panel = context.display_panel
+        DisplayPanel.DisplayPanelManager().switch_to_display_content(context.window, display_panel, "thumbnail-browser-display-panel", display_panel.display_item)
+        return Window.ActionResult.FINISHED
+
+    def is_checked(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel and context.display_panel.display_panel_type == "horizontal"
+
+
+class DisplayPanelTwoViewAction(Window.Action):
+    action_id = "display_panel.2_view"
     action_name = _("2:1 View")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
         context.display_panel.perform_action("set_two_to_one_mode")
         return Window.ActionResult.FINISHED
 
@@ -2614,10 +2709,14 @@ class DisplayRemoveAction(Window.Action):
 
 
 Window.register_action(DisplayCopyAction())
-Window.register_action(DisplayFitToViewAction())
-Window.register_action(DisplayFillViewAction())
-Window.register_action(DisplayOneViewAction())
-Window.register_action(DisplayTwoViewAction())
+Window.register_action(DisplayPanelClearAction())
+Window.register_action(DisplayPanelFitToViewAction())
+Window.register_action(DisplayPanelFillViewAction())
+Window.register_action(DisplayPanelOneViewAction())
+Window.register_action(DisplayPanelShowItemAction())
+Window.register_action(DisplayPanelShowGridBrowserAction())
+Window.register_action(DisplayPanelShowThumbnailBrowserAction())
+Window.register_action(DisplayPanelTwoViewAction())
 Window.register_action(DisplayRemoveAction())
 
 
