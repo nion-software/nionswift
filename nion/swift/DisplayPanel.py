@@ -1680,45 +1680,35 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             return True
         return DisplayPanelManager().key_released(self, key)
 
-    def show_context_menu(self, menu, gx, gy):
-
-        def add_menu_action(menu: UserInterface.Menu, action_id: str) -> None:
-            action = Window.actions.get(action_id)
-            if action:
-                key_sequence = Window.action_shortcuts.get(action_id, dict()).get("window")
-                assert menu is not None
-                menu_action = menu.add_menu_item(action.action_name,
-                                                 functools.partial(self.__document_controller.perform_action, action_id),
-                                                 key_sequence=key_sequence, action_id=action_id)
-                action_context = self.__document_controller._get_action_context()
-                title = action.get_action_name(action_context)
-                enabled = action and action.is_enabled(action_context)
-                checked = action and action.is_checked(action_context)
-                menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
-
-
+    def __show_context_menu(self, display_items: typing.Sequence[DisplayItem.DisplayItem], gx: int, gy: int) -> bool:
+        menu = self.document_controller.create_context_menu()
+        action_context = self.document_controller._get_action_context_for_display_items(display_items)
+        self.document_controller.populate_context_menu(menu, action_context)
         menu.add_separator()
-        add_menu_action(menu, "workspace.split_vertical")
-        add_menu_action(menu, "workspace.split_horizontal")
+        self.__document_controller.add_action_to_menu(menu, "workspace.split_vertical", action_context)
+        self.__document_controller.add_action_to_menu(menu, "workspace.split_horizontal", action_context)
         menu.add_separator()
-        add_menu_action(menu, "display_panel.clear")
+        self.__document_controller.add_action_to_menu(menu, "display_panel.clear", action_context)
         menu.add_separator()
-        add_menu_action(menu, "display_panel.show_item")
-        add_menu_action(menu, "display_panel.show_thumbnail_browser")
-        add_menu_action(menu, "display_panel.show_grid_browser")
+        self.__document_controller.add_action_to_menu(menu, "display_panel.show_item", action_context)
+        self.__document_controller.add_action_to_menu(menu, "display_panel.show_thumbnail_browser", action_context)
+        self.__document_controller.add_action_to_menu(menu, "display_panel.show_grid_browser", action_context)
         menu.add_separator()
-
         DisplayPanelManager().build_menu(menu, self.__document_controller, self)
         menu.popup(gx, gy)
         return True
 
-    def __handle_context_menu_event(self, x, y, gx, gy):
-        menu = self.__document_controller.create_context_menu()
-        return self.show_context_menu(menu, gx, gy)
+    def __handle_context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
+        # this handles the context menu when display panel is empty
+        return self.__show_context_menu([], gx, gy)
 
     def __handle_context_menu_for_display(self, display_item: typing.Optional[DisplayItem.DisplayItem], x: int, y: int, gx: int, gy: int) -> bool:
-        menu = self.__document_controller.create_context_menu_for_display(display_item, use_selection=True)
-        return self.show_context_menu(menu, gx, gy)
+        # this handles the context menu when requested from the thumbnail/grid browser
+        return self.__show_context_menu(self.__document_controller.selected_display_items, gx, gy)
+
+    def show_display_context_menu(self, gx, gy) -> bool:
+        # this handles the context menu when requested from the display item
+        return self.__show_context_menu([self.__display_item] if self.__display_item else [], gx, gy)
 
     def perform_action(self, fn, *args, **keywords):
         display_canvas_item = self.display_canvas_item
@@ -1806,11 +1796,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     @tool_mode.setter
     def tool_mode(self, value):
         self.__document_controller.tool_mode = value
-
-    def show_display_context_menu(self, gx, gy) -> bool:
-        document_controller = self.__document_controller
-        menu = document_controller.create_context_menu_for_display(self.__display_item, container=document_controller.document_model, use_selection=False)
-        return self.show_context_menu(menu, gx, gy)
 
     def begin_mouse_tracking(self):
         self.__mouse_tracking_transaction = self.__document_controller.document_model.begin_display_item_transaction(self.__display_item)

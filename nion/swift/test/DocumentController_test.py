@@ -613,9 +613,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             document_controller.select_display_items_in_data_panel([display_item])
-            with contextlib.closing(document_controller.create_context_menu_for_display(None)):
+            with contextlib.closing(document_controller.create_context_menu_for_display(list())):
                 pass
-            with contextlib.closing(document_controller.create_context_menu_for_display(None, use_selection=True)):
+            with contextlib.closing(document_controller.create_context_menu_for_display(list())):
                 pass
 
     def test_delete_by_context_menu_actually_deletes_item_from_library(self):
@@ -625,9 +625,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
-            context_menu = document_controller.create_context_menu_for_display(source_display_item)
+            context_menu = document_controller.create_context_menu_for_display([source_display_item])
             context_menu_items = context_menu.items
-            delete_item = next(x for x in context_menu_items if x.title == "Delete Data Item")
+            delete_item = next(x for x in context_menu_items if x.title.startswith("Delete Data Item"))
             delete_item.callback()
             self.assertEqual(len(document_model.data_items), 0)
 
@@ -642,9 +642,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(extra_data_item)
             document_controller.selection.set(0)
             document_controller.selection.add(1)
-            context_menu = document_controller.create_context_menu_for_display(source_display_item, use_selection=False)
+            context_menu = document_controller.create_context_menu_for_display([source_display_item])
             context_menu_items = context_menu.items
-            delete_item = next(x for x in context_menu_items if x.title == "Delete Data Item")
+            delete_item = next(x for x in context_menu_items if x.title.startswith("Delete Data Item"))
             delete_item.callback()
             self.assertEqual(len(document_model.data_items), 1)
             self.assertEqual(len(document_controller.selection.indexes), 1)
@@ -660,9 +660,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(extra_data_item)
             document_controller.selection.set(0)
             document_controller.selection.add(1)
-            context_menu = document_controller.create_context_menu_for_display(source_display_item, use_selection=True)
+            context_menu = document_controller.create_context_menu_for_display(document_controller.selected_display_items)
             context_menu_items = context_menu.items
-            delete_item = next(x for x in context_menu_items if x.title == "Delete Data Item")
+            delete_item = next(x for x in context_menu_items if x.title == "Delete Display Items")
             delete_item.callback()
             self.assertEqual(len(document_model.data_items), 0)
             self.assertEqual(len(document_controller.selection.indexes), 0)
