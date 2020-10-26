@@ -536,6 +536,13 @@
             },
             {
                 "type": "item",
+                "action_id": "display.reveal"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
                 "action_id": "display_panel.fit_view"
             },
             {

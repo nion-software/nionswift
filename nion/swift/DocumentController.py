@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import copy
 import functools
@@ -633,15 +635,6 @@ class DocumentController(Window.Window):
         paths, selected_filter, selected_directory = self.get_file_paths_dialog(_("Import File(s)"), import_dir, filter)
         self.ui.set_persistent_string("import_directory", selected_directory)
         self.receive_files(paths, display_panel=self.next_result_display_panel())
-
-    def handle_export_files(self):
-        selected_display_items = self.selected_display_items
-        if len(selected_display_items) > 1:
-            self.export_files(selected_display_items)
-        elif len(selected_display_items) == 1:
-            self.export_file(selected_display_items[0])
-        elif self.selected_display_item:
-            self.export_file(self.selected_display_item)
 
     def export_file(self, display_item: DisplayItem.DisplayItem) -> None:
         # present a loadfile dialog to the user
@@ -2238,61 +2231,19 @@ class DocumentController(Window.Window):
         else:
             return receive_files_on_thread(file_paths, data_group, index, functools.partial(receive_files_complete, index))
 
-    def create_context_menu_for_display(self, display_item: typing.Optional[DisplayItem.DisplayItem], container=None, *, use_selection: bool=True) -> UserInterface.Menu:
-        if use_selection:
-            selected_display_items = self.selected_display_items
-        else:
-            selected_display_items = [display_item] if display_item else list()
-
+    def create_context_menu_for_display(self, display_items: typing.List[DisplayItem.DisplayItem]) -> UserInterface.Menu:
         menu = self.create_context_menu()
+        action_context = self._get_action_context_for_display_items(display_items)
+        self.populate_context_menu(menu, action_context)
+        return menu
 
-        data_item = display_item.data_item if display_item else None
+    def populate_context_menu(self, menu: UserInterface.Menu, action_context: DocumentController.ActionContext) -> None:
+        self.add_action_to_menu(menu, "display.reveal", action_context)
+        self.add_action_to_menu(menu, "file.export", action_context)
+        menu.add_separator()
+        self.add_action_to_menu(menu, "file.delete_item", action_context)
 
-        if display_item:
-
-            def show():
-                self.select_display_items_in_data_panel([display_item])
-
-            menu.add_menu_item(_("Reveal"), show)
-
-            # when exporting, queue the task so that the pop-up is allowed to close before the dialog appears.
-            # without queueing, it originally led to a crash (tested in Qt 5.4.1 on Windows 7).
-
-            def export_files():
-                if display_item in selected_display_items:
-                    self.export_files(selected_display_items)
-                else:
-                    self.export_file(display_item)
-
-            menu.add_menu_item(_("Export..."), functools.partial(self.queue_task, export_files))  # queued to avoid pop-up menu issue
-
-        if data_item and len(self.document_model.get_display_items_for_data_item(data_item)) == 1:
-
-            def delete_data_item():
-                # if the display item is not in the selected display items,
-                # only delete that specific display item. otherwise, it is
-                # part of the group, so delete all selected display items.
-                if not display_item in selected_display_items:
-                    self.delete_display_items([display_item], container)
-                else:
-                    self.delete_display_items(selected_display_items, container)
-
-            menu.add_separator()
-            menu.add_menu_item(_("Delete Data Item"), delete_data_item)
-
-        elif display_item:
-
-            def delete_display_item():
-                # if the display item is not in the selected display items,
-                # only delete that specific display item. otherwise, it is
-                # part of the group, so delete all selected display items.
-                if not display_item in selected_display_items:
-                    self.delete_display_items([display_item], container)
-                else:
-                    self.delete_display_items(selected_display_items, container)
-
-            menu.add_separator()
-            menu.add_menu_item(_("Delete Display Item"), delete_display_item)
+        data_item = action_context.data_item
 
         if data_item:
 
@@ -2317,21 +2268,22 @@ class DocumentController(Window.Window):
                     truncated_title = self.ui.truncate_string_to_width(str(), dependent_data_item.title, 280, UserInterface.TruncateModeType.MIDDLE)
                     menu.add_menu_item("{0} \"{1}\"".format(_("Go to Dependent "), truncated_title),
                                        functools.partial(show_dependent_data_item, dependent_data_item))
-        return menu
 
     class ActionContext(Window.ActionContext):
-        def __init__(self, application: "Application.Application",
-                     window: "DocumentController",
+        def __init__(self, application: Application.Application,
+                     window: DocumentController,
                      focus_widget: typing.Optional[UserInterface.Widget],
                      display_panel: typing.Optional[DisplayPanel.DisplayPanel],
                      model: DocumentModel.DocumentModel,
                      display_item: typing.Optional[DisplayItem.DisplayItem],
+                     display_items: typing.Sequence[DisplayItem.DisplayItem],
                      crop_graphic: typing.Optional[Graphics.Graphic],
                      data_item: typing.Optional[DataItem.DataItem]):
             super().__init__(application, window, focus_widget)
             self.display_panel = display_panel
             self.model = model
             self.display_item = display_item
+            self.display_items = display_items
             self.crop_graphic = crop_graphic
             self.data_item = data_item
 
@@ -2340,9 +2292,19 @@ class DocumentController(Window.Window):
         display_panel = self.selected_display_panel
         model = self.document_model
         display_item = self.selected_display_item
+        display_items = self.selected_display_items
         crop_graphic = self._get_crop_graphic(display_item)
         data_item = display_item.data_item if display_item else None
-        return DocumentController.ActionContext(self.app, self, focus_widget, display_panel, model, display_item, crop_graphic, data_item)
+        return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget, display_panel, model, display_item, display_items, crop_graphic, data_item)
+
+    def _get_action_context_for_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> ActionContext:
+        focus_widget = self.focus_widget
+        display_panel = self.selected_display_panel
+        model = self.document_model
+        display_item = display_items[0] if len(display_items) == 1 else None
+        crop_graphic = self._get_crop_graphic(display_item)
+        data_item = display_item.data_item if display_item else None
+        return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget, display_panel, model, display_item, display_items, crop_graphic, data_item)
 
     def perform_display_panel_command(self, key) -> bool:
         action_id = Window.get_action_id_for_key("display_panel", key)
@@ -2352,13 +2314,53 @@ class DocumentController(Window.Window):
         return False
 
 
+class DeleteItemAction(Window.Action):
+    action_id = "file.delete_item"
+    action_name = _("Delete Item")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        selected_display_items = context.display_items
+        window.delete_display_items(selected_display_items)
+        return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.display_items) > 0
+
+    def get_action_name(self, context: Window.ActionContext) -> str:
+        context = typing.cast(DocumentController.ActionContext, context)
+        data_item = context.data_item
+        if data_item and len(context.model.get_display_items_for_data_item(data_item)) == 1:
+            return _("Delete Data Item") + f" \"{data_item.title}\""
+        elif context.display_item:
+            return _("Delete Display Item")
+        elif context.display_items:
+            return _("Delete Display Items")
+        return self.action_name
+
+
 class ExportAction(Window.Action):
     action_id = "file.export"
     action_name = _("Export...")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.handle_export_files()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        selected_display_item = context.display_item
+        selected_display_items = context.display_items
+        if len(selected_display_items) > 1:
+            window.export_files(selected_display_items)
+        elif len(selected_display_items) == 1:
+            window.export_file(selected_display_items[0])
+        elif selected_display_item:
+            window.export_file(selected_display_item)
         return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.display_items) > 0 or context.display_item is not None
 
 
 class ExportSVGAction(Window.Action):
@@ -2378,7 +2380,8 @@ class ImportDataAction(Window.Action):
     action_name = _("Import Data...")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.import_file()
+        window = typing.cast(DocumentController, context.window)
+        window.import_file()
         return Window.ActionResult.FINISHED
 
 
@@ -2387,10 +2390,12 @@ class ImportFolderAction(Window.Action):
     action_name = _("Import Folder...")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window._import_folder()
+        window = typing.cast(DocumentController, context.window)
+        window._import_folder()
         return Window.ActionResult.FINISHED
 
 
+Window.register_action(DeleteItemAction())
 Window.register_action(ExportAction())
 Window.register_action(ExportSVGAction())
 Window.register_action(ImportDataAction())
@@ -2708,6 +2713,21 @@ class DisplayRemoveAction(Window.Action):
         return len(display_items) > 1
 
 
+class DisplayRevealAction(Window.Action):
+    action_id = "display.reveal"
+    action_name = _("Reveal in Data Panel")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.select_display_items_in_data_panel([context.display_item])
+        return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None
+
+
 Window.register_action(DisplayCopyAction())
 Window.register_action(DisplayPanelClearAction())
 Window.register_action(DisplayPanelFitToViewAction())
@@ -2718,6 +2738,7 @@ Window.register_action(DisplayPanelShowGridBrowserAction())
 Window.register_action(DisplayPanelShowThumbnailBrowserAction())
 Window.register_action(DisplayPanelTwoViewAction())
 Window.register_action(DisplayRemoveAction())
+Window.register_action(DisplayRevealAction())
 
 
 class AssignVariableReference(Window.Action):

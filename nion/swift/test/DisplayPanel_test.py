@@ -1261,8 +1261,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.root_container.refresh_layout_immediate()
         self.display_panel.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
-        # show, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
-        self.assertEqual(len(self.document_controller.ui.popup.items), 10)
+        # reveal, export, sep, del, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
+        self.assertEqual(len(self.document_controller.ui.popup.items), 14)
 
     def test_empty_display_panel_produces_context_menu_with_correct_item_count(self):
         d = {"type": "image", "display-panel-type": "empty-display-panel"}
@@ -1270,8 +1270,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.root_container.refresh_layout_immediate()
         self.display_panel.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
-        # sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
-        self.assertEqual(len(self.document_controller.ui.popup.items), 10)
+        # reveal, export, sep, del, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
+        self.assertEqual(len(self.document_controller.ui.popup.items), 14)
 
     def test_browser_display_panel_produces_context_menu_with_correct_item_count_over_data_item(self):
         d = {"type": "image", "display-panel-type": "browser-display-panel"}
@@ -1290,8 +1290,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.root_container.refresh_layout_immediate()
         self.display_panel.root_container.canvas_widget.on_context_menu_event(300, 40, 300, 40)
-        # sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
-        self.assertEqual(len(self.document_controller.ui.popup.items), 10)
+        # reveal, export, sep, del, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
+        self.assertEqual(len(self.document_controller.ui.popup.items), 14)
 
     def test_browser_display_panel_produces_context_menu_with_correct_item_count_below_last_data_item(self):
         d = {"type": "image", "display-panel-type": "browser-display-panel"}
@@ -1300,8 +1300,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.root_container.refresh_layout_immediate()
         self.display_panel.root_container.canvas_widget.on_context_menu_event(300, 300, 300, 300)
-        # sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
-        self.assertEqual(len(self.document_controller.ui.popup.items), 10)
+        # reveal, export, sep, del, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
+        self.assertEqual(len(self.document_controller.ui.popup.items), 14)
 
     def test_browser_context_menu_deletes_all_selected_items(self):
         d = {"type": "image", "display-panel-type": "browser-display-panel"}
@@ -1318,7 +1318,9 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
         self.document_controller.periodic()
         # reveal, export, sep, delete, sep, split h, split v, sep, clear, sep, display, thumbnail, grid, sep
-        self.document_controller.ui.popup.items[3].callback()
+        delete_item = next(x for x in self.document_controller.ui.popup.items if x.title == "Delete Display Items")
+        delete_item.callback()
+        # self.document_controller.ui.popup.items[3].callback()
         self.assertEqual(len(self.document_model.data_items), 0)
 
     def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):

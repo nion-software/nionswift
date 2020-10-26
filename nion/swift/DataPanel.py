@@ -712,7 +712,9 @@ class DataPanel(Panel.Panel):
         ui = document_controller.ui
 
         def show_context_menu(display_item: typing.Optional[DisplayItem.DisplayItem], x: int, y: int, gx: int, gy: int) -> bool:
-            menu = document_controller.create_context_menu_for_display(display_item, use_selection=True)
+            menu = self.document_controller.create_context_menu()
+            action_context = self.document_controller._get_action_context_for_display_items([display_item] if display_item else [])
+            self.document_controller.populate_context_menu(menu, action_context)
             menu.popup(gx, gy)
             return True
 
