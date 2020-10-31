@@ -828,12 +828,11 @@ class DataPanel(Panel.Panel):
         self.__view_button_group = None
 
     def __notify_focus_changed(self) -> None:
+        # this is called when the keyboard focus for the data panel is changed.
+        # if we are receiving focus, tell the window (document_controller) that
+        # we now have the focus.
         if self.__focused:
-            if len(self.__selection.indexes) == 1:
-                display_item_adapter = self.__filtered_display_item_adapters_model.display_item_adapters[list(self.__selection.indexes)[0]]
-                self.document_controller.notify_focused_display_changed(display_item_adapter.display_item)
-            else:
-                self.document_controller.notify_focused_display_changed(None)
+            self.document_controller.data_panel_focused()
 
     @property
     def focused(self) -> bool:

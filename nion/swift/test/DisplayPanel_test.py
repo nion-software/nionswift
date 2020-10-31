@@ -1310,18 +1310,16 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
         self.document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
         self.assertEqual(len(self.document_model.data_items), 4)
-        self.document_controller.periodic()
-        self.document_controller.select_data_items_in_data_panel(self.document_model.data_items)
-        self.document_controller.periodic()
         self.assertIsNone(self.document_controller.ui.popup)
+        self.assertEqual(self.display_panel, self.document_controller.selected_display_panel)
+        self.display_panel._selection_for_test.add_range(range(0, 4))
         self.display_panel.root_container.refresh_layout_immediate()
         self.display_panel.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
         self.document_controller.periodic()
         # reveal, export, sep, delete, sep, split h, split v, sep, clear, sep, display, thumbnail, grid, sep
-        delete_item = next(x for x in self.document_controller.ui.popup.items if x.title == "Delete Display Items")
+        delete_item = next(x for x in self.document_controller.ui.popup.items if x.title.startswith("Delete Display Items"))
         delete_item.callback()
-        # self.document_controller.ui.popup.items[3].callback()
-        self.assertEqual(len(self.document_model.data_items), 0)
+        self.assertEqual(0, len(self.document_model.data_items))
 
     def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):
         self.assertEqual(self.display_panel.header_canvas_item.title, self.data_item.displayed_title)
@@ -1565,11 +1563,11 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            self.assertEqual(data_item, document_controller.focused_data_item)
+            self.assertEqual(data_item, document_controller.selected_data_item)
             display_panel._select()
-            self.assertEqual(data_item, document_controller.focused_data_item)
+            self.assertEqual(data_item, document_controller.selected_data_item)
             display_panel.set_display_item(document_model.get_display_item_for_data_item(data_item2))
-            self.assertEqual(data_item2, document_controller.focused_data_item)
+            self.assertEqual(data_item2, document_controller.selected_data_item)
 
     def test_dependency_icons_updated_properly_when_one_of_two_dependents_are_removed(self):
         with TestContext.create_memory_context() as test_context:

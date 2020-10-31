@@ -132,7 +132,9 @@ class DocumentController(Window.Window):
 
         self.focused_display_item_changed_event = Event.Event()
         self.__focused_display_item = None
-        self.notify_focused_display_changed(None)
+        self.__selected_display_items: typing.List[DisplayItem.DisplayItem] = list()
+        self.__selected_display_item: typing.Optional[DisplayItem.DisplayItem] = None
+        self.__selection_changed_listener = self.selection.changed_event.listen(self.__update_selected_display_items)
 
         self.__consoles = list()
 
@@ -171,6 +173,8 @@ class DocumentController(Window.Window):
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
+        self.__selection_changed_listener.close()
+        self.__selection_changed_listener = None
         self.__call_soon_event_listener.close()
         self.__call_soon_event_listener = None
         self.__filtered_display_items_model.close()
@@ -464,21 +468,56 @@ class DocumentController(Window.Window):
         return self.project.project_filter
 
     @property
+    def selected_display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
+        """Return the selected display item.
+
+        The selected display is the display ite that has keyboard focus in the data panel or a display panel.
+        """
+        return self.__selected_display_item
+
+    @property
+    def selected_data_item(self) -> typing.Optional[DataItem.DataItem]:
+        selected_display_item = self.selected_display_item
+        return selected_display_item.data_item if selected_display_item else None
+
+    @property
     def selected_display_items(self) -> typing.List[DisplayItem.DisplayItem]:
-        selected_display_items = list()
-        display_items = self.__filtered_display_items_model.display_items
-        for index in self.selection.ordered_indexes:
-            selected_display_items.append(display_items[index])
-        return selected_display_items
+        """Return the selected display items.
+
+        The selected display items are the display items that have keyboard focus in the display panel
+         or the data panel.
+        """
+        return list(self.__selected_display_items)  # copy
 
     @property
     def selected_data_items(self) -> typing.List[DataItem.DataItem]:
-        selected_display_items = list()
+        selected_data_items = list()
         for display_item in self.selected_display_items:
             for data_item in display_item.data_items:
-                if not data_item in selected_display_items:
-                    selected_display_items.append(data_item)
-        return selected_display_items
+                if not data_item in selected_data_items:
+                    selected_data_items.append(data_item)
+        return selected_data_items
+
+    # when the focused display panel or focused data panel changes or when the selection in
+    # one of those items changes, this is called to figure out the new selected display items
+    # and issue notifications if changed. if the selected display panel is not None, it gets
+    # gets the display items from the display panel, otherwise it gets them from the data panel.
+    def __update_selected_display_items(self) -> None:
+        old_selected_display_item = self.__selected_display_item
+        display_panel = self.selected_display_panel
+        if display_panel:
+            self.__selected_display_items = display_panel.display_items
+        else:
+            self.__selected_display_items = list()
+            display_items = self.__filtered_display_items_model.display_items
+            for index in self.selection.ordered_indexes:
+                self.__selected_display_items.append(display_items[index])
+        if len(self.__selected_display_items) == 1:
+            self.__selected_display_item = next(iter(self.__selected_display_items))
+        else:
+            self.__selected_display_item = None
+        if self.__selected_display_item != old_selected_display_item:
+            self.focused_display_item_changed_event.fire(self.__selected_display_item)
 
     def select_display_items_in_data_panel(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
         filtered_display_items = self.filtered_display_items_model.display_items
@@ -506,14 +545,9 @@ class DocumentController(Window.Window):
             self.focused_display_item_changed_event.fire(display_item)
 
     @property
-    def focused_data_item(self) -> typing.Optional[DataItem.DataItem]:
-        """Return the data item with keyboard focus."""
-        return self.__focused_display_item.data_item if self.__focused_display_item else None
-
-    @property
     def focused_display_item(self) -> DisplayItem.DisplayItem:
         """Return the display with keyboard focus."""
-        return self.__focused_display_item
+        return self.__selected_display_item
 
     def select_data_item_in_data_panel(self, data_item: DataItem.DataItem) -> None:
         """Select the data item in the data panel."""
@@ -528,24 +562,6 @@ class DocumentController(Window.Window):
         # used for testing only
         self.set_filter(filter_id)
 
-    @property
-    def selected_display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
-        """Return the selected display item.
-
-        The selected display is the display ite that has keyboard focus in the data panel or a display panel.
-        """
-        # first check for the [focused] data browser
-        display_item = self.focused_display_item
-        if not display_item:
-            selected_display_panel = self.selected_display_panel
-            display_item = selected_display_panel.display_item if selected_display_panel else None
-        return display_item
-
-    @property
-    def selected_data_item(self) -> typing.Optional[DataItem.DataItem]:
-        selected_display_item = self.selected_display_item
-        return selected_display_item.data_item if selected_display_item else None
-
     def delete_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], container=None) -> None:
         container = container if container else self.__display_items_model.container
         if container is self.document_model:
@@ -559,29 +575,38 @@ class DocumentController(Window.Window):
                 command.perform()
                 self.push_undo_command(command)
 
-    def register_display_panel(self, display_panel):
+    def register_display_panel(self, display_panel: DisplayPanel.DisplayPanel) -> None:
         pass
 
-    def unregister_display_panel(self, display_panel):
+    def unregister_display_panel(self, display_panel: DisplayPanel.DisplayPanel) -> None:
         if self.selected_display_panel == display_panel:
             self.selected_display_panel = None
 
     @property
-    def selected_display_panel(self):
+    def selected_display_panel(self) -> typing.Optional[DisplayPanel.DisplayPanel]:
         return self.__weak_selected_display_panel() if self.__weak_selected_display_panel else None
 
     @selected_display_panel.setter
-    def selected_display_panel(self, selected_display_panel):
+    def selected_display_panel(self, selected_display_panel: typing.Optional[DisplayPanel.DisplayPanel]) -> None:
         weak_selected_display_panel = weakref.ref(selected_display_panel) if selected_display_panel else None
         if weak_selected_display_panel != self.__weak_selected_display_panel:
             # save the selected panel
             self.__weak_selected_display_panel = weak_selected_display_panel
             # tell the workspace the selected image panel changed so that it can update the focus/selected rings
             self.workspace_controller.selected_display_panel_changed(self.selected_display_panel)
-            # notify listeners that the data item has changed. in this case, a changing data item
-            # means that which selected data item is selected has changed.
-            display_item = selected_display_panel.display_item if selected_display_panel else None
-            self.notify_focused_display_changed(display_item)
+            # update the selected display items
+            self.__update_selected_display_items()
+        self.__selection_changed_listener.close()
+        if self.selected_display_panel:
+            self.__selection_changed_listener = self.selected_display_panel.display_items_changed_event.listen(self.__update_selected_display_items)
+        else:
+            self.__selection_changed_listener = self.selection.changed_event.listen(self.__update_selected_display_items)
+
+    def data_panel_focused(self) -> None:
+        # the data panel will call this when it gets keyboard focus.
+        # deselect the selected display panel and update the selected display items.
+        self.selected_display_panel = None
+        self.__update_selected_display_items()
 
     def next_result_display_panel(self):
         for display_panel in self.workspace.display_panels:
@@ -1501,7 +1526,6 @@ class DocumentController(Window.Window):
                 result_display_panel.request_focus()
         self.select_display_items_in_data_panel([display_item])
         if request_focus:
-            self.notify_focused_display_changed(display_item)
             inspector_panel = self.find_dock_panel("inspector-panel")
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
@@ -1748,8 +1772,6 @@ class DocumentController(Window.Window):
             new_data_item.title = _("Clone of ") + data_item.title
             new_data_item.category = data_item.category
             self.select_data_item_in_data_panel(new_data_item)
-            new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
-            self.notify_focused_display_changed(new_display_item)
             inspector_panel = self.find_dock_panel("inspector-panel")
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
@@ -1800,7 +1822,6 @@ class DocumentController(Window.Window):
             if request_focus:
                 # see https://github.com/nion-software/nionswift/issues/145
                 document_controller.select_display_items_in_data_panel([snapshot_display_item])
-                document_controller.notify_focused_display_changed(snapshot_display_item)
                 inspector_panel = document_controller.find_dock_panel("inspector-panel")
                 if inspector_panel is not None:
                     inspector_panel.request_focus = True
@@ -2049,7 +2070,7 @@ class DocumentController(Window.Window):
         self.workspace_controller.filter_row.visible = not self.workspace_controller.filter_row.visible
 
     def prepare_data_item_script(self, *, do_log: bool=True) -> None:
-        data_item = self.focused_data_item
+        data_item = self.selected_data_item
         if data_item:
             data_item_var = self.document_model.assign_variable_to_data_item(data_item)
             if do_log: logging.debug("{} = Data Item with UUID {}".format(data_item_var, data_item.uuid))
@@ -2241,7 +2262,7 @@ class DocumentController(Window.Window):
         self.add_action_to_menu(menu, "display.reveal", action_context)
         self.add_action_to_menu(menu, "file.export", action_context)
         menu.add_separator()
-        self.add_action_to_menu(menu, "file.delete_item", action_context)
+        self.add_action_to_menu(menu, "item.delete", action_context)
 
         data_item = action_context.data_item
 
@@ -2315,7 +2336,7 @@ class DocumentController(Window.Window):
 
 
 class DeleteItemAction(Window.Action):
-    action_id = "file.delete_item"
+    action_id = "item.delete"
     action_name = _("Delete Item")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:

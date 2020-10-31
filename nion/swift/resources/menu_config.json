@@ -142,6 +142,13 @@
             },
             {
                 "type": "item",
+                "action_id": "item.delete"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
                 "action_id": "application.preferences"
             }
         ]
