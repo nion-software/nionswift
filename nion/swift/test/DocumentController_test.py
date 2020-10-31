@@ -20,6 +20,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
 from nion.ui import TestUI
+from nion.utils import Geometry
 
 
 Facade.initialize()
@@ -642,12 +643,14 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(extra_data_item)
             document_controller.selection.set(0)
             document_controller.selection.add(1)
+            document_controller.selected_display_panel = None  # use the document controller selection
+            self.assertEqual(2, len(document_controller.selected_display_items))
             context_menu = document_controller.create_context_menu_for_display([source_display_item])
             context_menu_items = context_menu.items
             delete_item = next(x for x in context_menu_items if x.title.startswith("Delete Data Item"))
             delete_item.callback()
-            self.assertEqual(len(document_model.data_items), 1)
-            self.assertEqual(len(document_controller.selection.indexes), 1)
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(document_controller.selection.indexes))
 
     def test_delete_by_data_panel_context_menu_only_deletes_all_selected_data_items(self):
         with TestContext.create_memory_context() as test_context:
@@ -660,12 +663,76 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(extra_data_item)
             document_controller.selection.set(0)
             document_controller.selection.add(1)
+            document_controller.selected_display_panel = None  # this would occur when user clicks in data panel
             context_menu = document_controller.create_context_menu_for_display(document_controller.selected_display_items)
             context_menu_items = context_menu.items
             delete_item = next(x for x in context_menu_items if x.title == "Delete Display Items")
             delete_item.callback()
             self.assertEqual(len(document_model.data_items), 0)
             self.assertEqual(len(document_controller.selection.indexes), 0)
+
+    def test_selected_display_items_is_non_empty_for_single_focused_display_panel_with_display_item(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            self.assertEqual(display_item, document_controller.selected_display_item)
+            self.assertEqual([display_item], document_controller.selected_display_items)
+
+    def test_selected_display_items_is_empty_after_clearing_display_panel(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            # clear the display panel
+            display_panel.set_display_panel_display_item(None)
+            self.assertEqual(None, document_controller.selected_display_item)
+            self.assertEqual([], document_controller.selected_display_items)
+
+    def test_selected_display_item_is_empty_after_selecting_multiple_items_in_browser(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            self.assertEqual(len(document_model.data_items), 4)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            d = {"type": "image", "display-panel-type": "browser-display-panel"}
+            display_panel.change_display_panel_content(d)
+            display_panel.set_display_panel_display_item(display_item)
+            self.assertEqual(display_item, document_controller.selected_display_item)
+            self.assertEqual([display_item], document_controller.selected_display_items)
+            # change the selection in the display panel
+            display_panel._selection_for_test.add_range(range(0, 4))
+            self.assertEqual(None, document_controller.selected_display_item)
+            self.assertEqual(set(document_model.display_items), set(document_controller.selected_display_items))
+
+    def test_selected_display_item_is_empty_after_deleting_item_in_display_panel(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            self.assertEqual(display_item, document_controller.selected_display_item)
+            self.assertEqual([display_item], document_controller.selected_display_items)
+            document_controller.delete_display_items([display_item])
+            self.assertEqual(None, document_controller.selected_display_item)
+            self.assertEqual([], document_controller.selected_display_items)
 
     def test_putting_data_item_in_selected_empty_display_updates_selected_data_item_binding(self):
         with TestContext.create_memory_context() as test_context:
@@ -676,7 +743,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
-            self.assertEqual(document_controller.focused_data_item, data_item)
+            self.assertEqual(document_controller.selected_data_item, data_item)
 
     def test_creating_r_var_on_data_item(self):
         with TestContext.create_memory_context() as test_context:

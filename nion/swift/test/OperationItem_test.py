@@ -871,11 +871,12 @@ class TestProcessingClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item2)
             self.assertIsNone(document_controller._get_two_data_sources())
+            document_controller.selected_display_panel = None  # use data panel selection
             document_controller.select_data_items_in_data_panel([data_item1, data_item2])
             data_sources = document_controller._get_two_data_sources()
-            self.assertEqual(data_sources[0][0], document_model.get_display_item_for_data_item(data_item1))
+            self.assertIn(document_model.get_display_item_for_data_item(data_item1), (data_sources[0][0], data_sources[1][0]))
+            self.assertIn(document_model.get_display_item_for_data_item(data_item2), (data_sources[0][0], data_sources[1][0]))
             self.assertEqual(data_sources[0][1], None)
-            self.assertEqual(data_sources[1][0], document_model.get_display_item_for_data_item(data_item2))
             self.assertEqual(data_sources[1][1], None)
 
     def test_get_two_data_sources_handles_three_selected_data_items(self):

@@ -35,10 +35,10 @@ from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
 from nion.ui import UserInterface
-from nion.ui import Window
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
+from nion.utils import Selection
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -1154,8 +1154,14 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__display_composition_canvas_item.add_canvas_item(self.__related_icons_canvas_item)
 
         self.__selection = document_controller.filtered_display_items_model.make_selection()
-
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(self.__selection_changed)
+
+        # display_items_changed() is fired when the list of display items changes. after firing
+        # display_items and display_item will return the proper values.
+        self.display_items_changed_event = Event.Event()
+        # the cached __display_items value is used to determine whether the display items have
+        # changed since the last time the display_items_changed_event was fired.
+        self.__display_items = list()
 
         def data_list_drag_started(mime_data, thumbnail_data):
             self.content_canvas_item.drag(mime_data, thumbnail_data)
@@ -1174,25 +1180,24 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         self.__filtered_display_item_adapters_model = ListModel.MappedListModel(container=document_controller.filtered_display_items_model, master_items_key="display_items", items_key="display_item_adapters", map_fn=map_display_item_to_display_item_adapter, unmap_fn=unmap_display_item_to_display_item_adapter)
 
-        def notify_focus_changed():
-            self.__document_controller.notify_focused_display_changed(self.__display_item)
-
         def display_item_adapter_selection_changed(display_item_adapters):
             indexes = set()
             for index, display_item_adapter in enumerate(self.__filtered_display_item_adapters_model.display_item_adapters):
                 if display_item_adapter in display_item_adapters:
                     indexes.add(index)
             self.__selection.set_multiple(indexes)
-            notify_focus_changed()
 
         def double_clicked(display_item_adapter):
             display_item_adapter_selection_changed([display_item_adapter])
             self.__cycle_display()
             return True
 
-        def focus_changed(focused):
+        def focus_changed(focused: bool) -> None:
+            # this is called when one of the browser items (grid or thumbnail) changes focus.
+            # if receiving focus, tell the window (document_controller) that this display panel
+            # is now the selected display panel.
             if focused:
-                notify_focus_changed()
+                self.__document_controller.selected_display_panel = self
 
         def delete_display_item_adapters(display_item_adapters):
             document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters])
@@ -1259,7 +1264,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__document_controller.filtered_display_items_model.release_selection(self.__selection)
         self.__filtered_display_item_adapters_model.close()
         self.__filtered_display_item_adapters_model = None
-        self.__selection = None
+
+        # define the selection used in the thumbnail and grid browsers.
+        self.__selection = Selection.IndexedSelection()
 
         self.__content_canvas_item.on_focus_changed = None  # only necessary during tests
 
@@ -1290,6 +1297,10 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     @property
     def _display_item_adapters_for_test(self):
         return self.__filtered_display_item_adapters_model.display_item_adapters
+
+    @property
+    def _selection_for_test(self):
+        return self.__selection
 
     @property
     def _related_icons_canvas_item(self):
@@ -1329,7 +1340,28 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     @property
     def display_item(self) -> DisplayItem.DisplayItem:
+        """Return the display item selected in the display panel, if any."""
         return self.__display_item
+
+    @property
+    def display_items(self) -> typing.Sequence[DisplayItem.DisplayItem]:
+        """Return the display items selected in the display panel."""
+        return self.__display_items
+
+    def __update_display_items(self, old_display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
+        # update the cached display items and fire the display_items_changed event if anything changes.
+        # the display items may be a single display item that might not be in the filtered display items.
+        # otherwise it is the selected items from the filtered display items.
+        display_items = list()
+        if self.__display_item:
+            display_items.append(self.__display_item)
+        else:
+            filtered_display_items = self.__document_controller.filtered_display_items_model.display_items
+            for index in self.__selection.ordered_indexes:
+                display_items.append(filtered_display_items[index])
+        self.__display_items = display_items
+        if self.__display_items != old_display_items:
+            self.display_items_changed_event.fire()
 
     def save_contents(self):
         d = dict()
@@ -1362,7 +1394,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                     display_item_specifier = Persistence.PersistentObjectSpecifier.read(d["display_item_specifier"])
                     display_item = self.document_controller.document_model.resolve_item_specifier(display_item_specifier)
                 self.set_display_item(display_item)
-                self.__update_selection_to_display()
                 if d.get("browser_type") == "horizontal":
                     self.__switch_to_horizontal_browser()
                 elif d.get("browser_type") == "grid":
@@ -1503,17 +1534,18 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         if is_focused:
             self.request_focus()
 
-        if is_selected:
-            document_controller.notify_focused_display_changed(self.__display_item)
-
         if callable(self.on_contents_changed):
             self.on_contents_changed()
 
-    # sets the data item that this panel displays
-    # not thread safe
-    def set_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
-        # listen for changes to display content and parameters, metadata, or the selection
-        # changes to the underlying data will trigger changes in the display content
+    def set_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem], *, update_selection: bool = True) -> None:
+        # sets the display item that this panel displays. this item does not have to be in the filtered display items.
+        # the update_selection parameter can be set to false if this is being called in response to the selection of
+        # filtered display items changing. otherwise, the selection is set to correspond to the display_item if it
+        # exists in the filtered display items.
+        # update the canvas item and handle title changes too.
+        # this method is not thread safe.
+
+        old_display_items = copy.copy(self.__display_items)
 
         did_display_change = self.__display_item != display_item
 
@@ -1546,7 +1578,13 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             if old_display_tracker:
                 old_display_tracker.close()
 
-        self.__display_item = display_item
+            self.__display_item = display_item
+
+            if update_selection:
+                self.__update_selection_to_display()
+
+        # always update display items - this may be called when selection changes
+        self.__update_display_items(old_display_items)
 
         # ensure the graphics get updated by triggering the graphics changed event.
         if self.__display_item:
@@ -1561,10 +1599,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         if self.__display_composition_canvas_item:  # may be closed
             self.__display_composition_canvas_item.wants_mouse_events = self.display_canvas_item is None
             self.__display_composition_canvas_item.selected = display_item and self._is_selected()
-
-        if did_display_change:
-            if self._is_focused:
-                self.__document_controller.notify_focused_display_changed(self.__display_item)
 
     def _select(self):
         self.content_canvas_item.request_focus()
@@ -1583,11 +1617,12 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.__content_canvas_item.selected
 
     # this message comes from the canvas items via the on_focus_changed when their focus changes
-    def set_focused(self, focused):
+    # if the display panel is receiving focus, tell the window (document_controller) about it so
+    # it can update the selected display items. also tell the display panel manager about it.
+    def set_focused(self, focused: bool) -> None:
         self.__content_canvas_item.focused = focused
         if focused:
-            self.__document_controller.selected_display_panel = self  # MARK
-            self.__document_controller.notify_focused_display_changed(self.__display_item)
+            self.__document_controller.selected_display_panel = self
         DisplayPanelManager().focus_changed(self, focused)
 
     def _is_focused(self):
@@ -1632,11 +1667,20 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__display_changed = False
 
     def __update_selection_to_display(self):
-        display_items = [display_item_adapter.display_item for display_item_adapter in self.__filtered_display_item_adapters_model.display_item_adapters]
+        # match the selection in the browsers (thumbnail and grid) to the display item.
+        # if the display item is not in the filtered display items, clear the selection.
+        display_items = [display_item_adapter.display_item for display_item_adapter in self.__filtered_display_item_adapters_model.display_item_adapters if display_item_adapter.display_item is not None]
+        # selection changed listener is only intended to observe external changes.
+        # disable it here and re-enable it after we adjust the selection.
+        self.__selection_changed_event_listener.close()
+        self.__selection_changed_event_listener = None
         if self.__display_item in display_items:
             self.__selection.set(display_items.index(self.__display_item))
             self.__horizontal_data_grid_controller.make_selection_visible()
             self.__grid_data_grid_controller.make_selection_visible()
+        else:
+            self.__selection.clear()
+        self.__selection_changed_event_listener = self.__selection.changed_event.listen(self.__selection_changed)
 
     def __switch_to_no_browser(self):
         self.__display_composition_canvas_item.visible = True
@@ -1727,7 +1771,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             display_item = self.__filtered_display_item_adapters_model.display_item_adapters[index].display_item
         else:
             display_item = None
-        self.set_display_item(display_item)
+        self.set_display_item(display_item, update_selection=False)  # do not sync the selection - it's already known
         self.__display_changed = True
 
     # messages from the display canvas item

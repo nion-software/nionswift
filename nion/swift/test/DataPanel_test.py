@@ -237,11 +237,11 @@ class TestDataPanelClass(unittest.TestCase):
             data_panel = document_controller.find_dock_panel("data-panel")
             data_panel.focused = True
             document_controller.select_data_item_in_data_panel(document_model.data_items[0])
-            self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
+            self.assertEqual(document_model.data_items[0], document_controller.selected_data_item)
             document_controller.select_data_item_in_data_panel(document_model.data_items[1])
-            self.assertEqual(document_model.data_items[1], document_controller.focused_data_item)
+            self.assertEqual(document_model.data_items[1], document_controller.selected_data_item)
 
-    def test_data_panel_clears_focused_data_item_when_multiple_items_selected_when_focused(self):
+    def test_data_panel_clears_selected_data_item_when_multiple_items_selected_when_focused(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
@@ -250,11 +250,11 @@ class TestDataPanelClass(unittest.TestCase):
             data_panel = document_controller.find_dock_panel("data-panel")
             data_panel.focused = True
             document_controller.select_data_item_in_data_panel(document_model.data_items[0])
-            self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
+            self.assertEqual(document_model.data_items[0], document_controller.selected_data_item)
             document_controller.select_data_items_in_data_panel(document_model.data_items)
-            self.assertEqual(None, document_controller.focused_data_item)
+            self.assertEqual(None, document_controller.selected_data_item)
 
-    def test_data_panel_clears_focused_data_item_when_clearing_selection_when_focused(self):
+    def test_data_panel_clears_selected_data_item_when_clearing_selection_when_focused(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
@@ -263,27 +263,9 @@ class TestDataPanelClass(unittest.TestCase):
             data_panel = document_controller.find_dock_panel("data-panel")
             data_panel.focused = True
             document_controller.select_data_item_in_data_panel(document_model.data_items[0])
-            self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
+            self.assertEqual(document_model.data_items[0], document_controller.selected_data_item)
             document_controller.select_data_items_in_data_panel([])
-            self.assertEqual(None, document_controller.focused_data_item)
-
-    def test_data_panel_has_no_effect_on_focused_data_item_when_clearing_selection_when_not_focused(self):
-        with TestContext.create_memory_context() as test_context:
-            document_controller = test_context.create_document_controller()
-            document_model = document_controller.document_model
-            document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
-            document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
-            data_panel = document_controller.find_dock_panel("data-panel")
-            data_panel.focused = True
-            document_controller.select_data_item_in_data_panel(document_model.data_items[0])
-            self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
-            data_panel.focused = False
-            document_controller.select_data_items_in_data_panel(document_model.data_items)
-            self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
-            document_controller.select_data_items_in_data_panel([])
-            self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
-            document_controller.select_data_item_in_data_panel(document_model.data_items[1])
-            self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
+            self.assertEqual(None, document_controller.selected_data_item)
 
     def test_selection_during_operations(self):
         with TestContext.create_memory_context() as test_context:
