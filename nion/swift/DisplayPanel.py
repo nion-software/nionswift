@@ -1726,7 +1726,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def __show_context_menu(self, display_items: typing.Sequence[DisplayItem.DisplayItem], gx: int, gy: int) -> bool:
         menu = self.document_controller.create_context_menu()
-        action_context = self.document_controller._get_action_context_for_display_items(display_items)
+        action_context = self.document_controller._get_action_context_for_display_items(display_items, self)
         self.document_controller.populate_context_menu(menu, action_context)
         menu.add_separator()
         self.__document_controller.add_action_to_menu(menu, "workspace.split_vertical", action_context)

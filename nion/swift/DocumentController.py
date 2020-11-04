@@ -2254,7 +2254,7 @@ class DocumentController(Window.Window):
 
     def create_context_menu_for_display(self, display_items: typing.List[DisplayItem.DisplayItem]) -> UserInterface.Menu:
         menu = self.create_context_menu()
-        action_context = self._get_action_context_for_display_items(display_items)
+        action_context = self._get_action_context_for_display_items(display_items, None)
         self.populate_context_menu(menu, action_context)
         return menu
 
@@ -2318,9 +2318,9 @@ class DocumentController(Window.Window):
         data_item = display_item.data_item if display_item else None
         return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget, display_panel, model, display_item, display_items, crop_graphic, data_item)
 
-    def _get_action_context_for_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> ActionContext:
+    def _get_action_context_for_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], display_panel: typing.Optional[DisplayPanel.DisplayPanel]) -> ActionContext:
         focus_widget = self.focus_widget
-        display_panel = self.selected_display_panel
+        display_panel = display_panel
         model = self.document_model
         display_item = display_items[0] if len(display_items) == 1 else None
         crop_graphic = self._get_crop_graphic(display_item)
