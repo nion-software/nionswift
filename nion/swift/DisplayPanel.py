@@ -1154,6 +1154,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__display_composition_canvas_item.add_canvas_item(self.__related_icons_canvas_item)
 
         self.__selection = document_controller.filtered_display_items_model.make_selection()
+        self.__selection.expanded_changed_event = True
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(self.__selection_changed)
 
         # display_items_changed() is fired when the list of display items changes. after firing
@@ -1203,7 +1204,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters])
 
         self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
-        self.__horizontal_data_grid_controller.on_display_item_adapter_selection_changed = display_item_adapter_selection_changed
         self.__horizontal_data_grid_controller.on_context_menu_event = self.__handle_context_menu_for_display
         self.__horizontal_data_grid_controller.on_display_item_adapter_double_clicked = double_clicked
         self.__horizontal_data_grid_controller.on_focus_changed = focus_changed
@@ -1212,7 +1212,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__horizontal_data_grid_controller.on_key_pressed = key_pressed
 
         self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection)
-        self.__grid_data_grid_controller.on_display_item_adapter_selection_changed = display_item_adapter_selection_changed
         self.__grid_data_grid_controller.on_context_menu_event = self.__handle_context_menu_for_display
         self.__grid_data_grid_controller.on_display_item_adapter_double_clicked = double_clicked
         self.__grid_data_grid_controller.on_focus_changed = focus_changed
@@ -1766,13 +1765,22 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return True
 
     def __selection_changed(self):
-        if len(self.__selection.indexes) == 1:
-            index = list(self.__selection.indexes)[0]
-            display_item = self.__filtered_display_item_adapters_model.display_item_adapters[index].display_item
+        # item displayed user deselects last item in browser => item gets undisplayed
+        # item displayed but filter changes and no item remains => item stays displayed
+        # item not displayed but user selects one item in browser => item gets displayed
+        # item displayed but gets deleted => no display
+        is_ui_interaction = self.__grid_browser_canvas_item.is_ui_interaction_active or self.__horizontal_browser_canvas_item.is_ui_interaction_active
+        if is_ui_interaction:
+            # user initiated this action
+            if len(self.__selection.indexes) == 1:
+                index = list(self.__selection.indexes)[0]
+                display_item = self.__filtered_display_item_adapters_model.display_item_adapters[index].display_item
+            else:
+                display_item = None
+            self.set_display_item(display_item, update_selection=False)  # do not sync the selection - it's already known
+            self.__display_changed = True
         else:
-            display_item = None
-        self.set_display_item(display_item, update_selection=False)  # do not sync the selection - it's already known
-        self.__display_changed = True
+            pass
 
     # messages from the display canvas item
 

@@ -96,6 +96,7 @@ class DocumentController(Window.Window):
         self.__weak_periodic_listeners_mutex = threading.RLock()
 
         self.selection = Selection.IndexedSelection()
+        self.selection.expanded_changed_event = True
 
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.

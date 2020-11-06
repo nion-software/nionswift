@@ -715,7 +715,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(display_item, document_controller.selected_display_item)
             self.assertEqual([display_item], document_controller.selected_display_items)
             # change the selection in the display panel
-            display_panel._selection_for_test.add_range(range(0, 4))
+            with display_panel.root_container._ui_interaction():
+                display_panel._selection_for_test.add_range(range(0, 4))
             self.assertEqual(None, document_controller.selected_display_item)
             self.assertEqual(set(document_model.display_items), set(document_controller.selected_display_items))
 
@@ -731,6 +732,23 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(display_item, document_controller.selected_display_item)
             self.assertEqual([display_item], document_controller.selected_display_items)
             document_controller.delete_display_items([display_item])
+            self.assertEqual(None, document_controller.selected_display_item)
+            self.assertEqual([], document_controller.selected_display_items)
+
+    def test_selected_display_item_is_empty_after_deleting_item_in_data_panel(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(data_item)
+            document_controller.selection.set(0)
+            document_controller.selected_display_panel = None  # this would occur when user clicks in data panel
+            context_menu = document_controller.create_context_menu_for_display(document_controller.selected_display_items)
+            context_menu_items = context_menu.items
+            delete_item = next(x for x in context_menu_items if x.title.startswith("Delete Data Item"))
+            delete_item.callback()
+            self.assertEqual(len(document_model.data_items), 0)
+            self.assertEqual(len(document_controller.selection.indexes), 0)
             self.assertEqual(None, document_controller.selected_display_item)
             self.assertEqual([], document_controller.selected_display_items)
 

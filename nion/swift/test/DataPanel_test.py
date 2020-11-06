@@ -439,17 +439,6 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.select_data_items_in_data_panel(document_model.data_items[:-1])
             self.assertEqual({1, 2}, document_controller.selection.indexes)  # items are ordered newest to oldest
 
-    def test_setting_data_browser_selection_to_multiple_items_via_data_list_controller_updates_selection_object(self):
-        with TestContext.create_memory_context() as test_context:
-            document_controller = test_context.create_document_controller()
-            document_model = document_controller.document_model
-            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
-            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
-            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
-            data_panel = document_controller.find_dock_panel("data-panel")
-            data_panel.data_list_controller.on_display_item_adapter_selection_changed(data_panel.data_list_controller.display_item_adapters[1:])
-            self.assertEqual(document_controller.selection.indexes, {1, 2})  # items are ordered newest to oldest
-
     def test_data_panel_remove_group(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

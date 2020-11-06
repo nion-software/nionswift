@@ -202,7 +202,6 @@ class DataListController:
     The controller provides the following callbacks:
         on_delete_display_item_adapters(display_item_adapters)
         on_key_pressed(key)
-        on_display_item_adapter_selection_changed(display_item_adapters)
         on_focus_changed(focused)
         on_context_menu_event(display_item_adapter, x, y, gx, gy)
 
@@ -279,13 +278,10 @@ class DataListController:
 
         def selection_changed() -> None:
             self.selected_indexes = list(self.__selection.indexes)
-            if callable(self.on_display_item_adapter_selection_changed):
-                self.on_display_item_adapter_selection_changed([self.__display_item_adapters[index] for index in list(self.__selection.indexes)])
             self.__list_canvas_item.make_selection_visible()
 
         self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
-        self.on_display_item_adapter_selection_changed : typing.Optional[typing.Callable[[typing.List[DisplayItemAdapter]], None]] = None
         self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
         self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
         self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, numpy.ndarray], None]] = None
@@ -315,7 +311,6 @@ class DataListController:
         self.__display_item_adapter_end_changes_event_listener.close()
         self.__display_item_adapter_end_changes_event_listener = None
         self.__display_item_adapters = typing.cast(typing.List, None)
-        self.on_display_item_adapter_selection_changed = None
         self.on_context_menu_event = None
         self.on_drag_started = None
         self.on_focus_changed = None
@@ -424,7 +419,6 @@ class DataGridController:
     The controller provides the following callbacks:
         on_delete_display_item_adapters(display_item_adapters)
         on_key_pressed(key)
-        on_display_item_adapter_selection_changed(display_item_adapters)
         on_display_item_adapter_double_clicked(display_item_adapter)
         on_focus_changed(focused)
         on_context_menu_event(display_item_adapter, x, y, gx, gy)
@@ -450,7 +444,6 @@ class DataGridController:
         self.on_delete_display_item_adapters : typing.Optional[typing.Callable[[typing.List[DisplayItemAdapter]], None]] = None
         self.on_key_pressed : typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
         self.on_display_item_adapter_double_clicked : typing.Optional[typing.Callable[[DisplayItemAdapter], bool]] = None
-        self.on_display_item_adapter_selection_changed : typing.Optional[typing.Callable[[typing.List[DisplayItemAdapter]], None]] = None
         self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
         self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
         self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, numpy.ndarray], None]] = None
@@ -527,8 +520,6 @@ class DataGridController:
 
         def selection_changed() -> None:
             self.selected_indexes = list(self.__selection.indexes)
-            if callable(self.on_display_item_adapter_selection_changed):
-                self.on_display_item_adapter_selection_changed([self.__display_item_adapters[index] for index in list(self.__selection.indexes)])
             self.icon_view_canvas_item.make_selection_visible()
 
         self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
@@ -562,7 +553,6 @@ class DataGridController:
             display_item_adapter_needs_update_listener.close()
         self.__display_item_adapter_needs_update_listeners = typing.cast(typing.List, None)
         self.__display_item_adapters = typing.cast(typing.List, None)
-        self.on_display_item_adapter_selection_changed = None
         self.on_context_menu_event = None
         self.on_drag_started = None
         self.on_focus_changed = None
@@ -751,13 +741,11 @@ class DataPanel(Panel.Panel):
             document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters if display_item_adapter.display_item])
 
         self.data_list_controller = DataListController(document_controller.event_loop, ui, self.__filtered_display_item_adapters_model, self.__selection)
-        self.data_list_controller.on_display_item_adapter_selection_changed = display_item_adapter_selection_changed
         self.data_list_controller.on_context_menu_event = show_context_menu
         self.data_list_controller.on_focus_changed = focus_changed
         self.data_list_controller.on_delete_display_item_adapters = delete_display_item_adapters
 
         self.data_grid_controller = DataGridController(document_controller.event_loop, ui, self.__filtered_display_item_adapters_model, self.__selection)
-        self.data_grid_controller.on_display_item_adapter_selection_changed = display_item_adapter_selection_changed
         self.data_grid_controller.on_context_menu_event = show_context_menu
         self.data_grid_controller.on_focus_changed = focus_changed
         self.data_grid_controller.on_delete_display_item_adapters = delete_display_item_adapters
