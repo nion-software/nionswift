@@ -1566,7 +1566,7 @@ class DocumentController(Window.Window):
             self.__adjust_redimension_data_menu(menu)
         elif menu.menu_id == "display_panel_type":
             self.__about_to_show_display_type_menu(menu)
-        elif menu.menu_id == "view":
+        elif menu.menu_id == "workspace":
             self.__adjust_workspace_menu(menu)
             super()._menu_about_to_show(menu)
         elif menu.menu_id == "window":

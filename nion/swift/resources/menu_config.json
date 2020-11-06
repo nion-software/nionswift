@@ -64,6 +64,20 @@
             },
             {
                 "type": "item",
+                "action_id": "window.toggle_filter"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
+                "action_id": "window.data_item_recorder"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
                 "action_id": "project.add_group"
             },
             {
@@ -155,54 +169,123 @@
     },
     {
         "type": "menu",
-        "menu_id": "processing",
-        "title": "Processing",
+        "menu_id": "display",
+        "title": "Display",
         "items": [
             {
-                "type": "sub_menu",
-                "menu_id": "processing_transform",
-                "title": "Graphics",
-                "items": [
-                    {
-                        "type": "item",
-                        "action_id": "graphics.add_line_graphic"
-                    },
-                    {
-                        "type": "item",
-                        "action_id": "graphics.add_ellipse_graphic"
-                    },
-                    {
-                        "type": "item",
-                        "action_id": "graphics.add_rectangle_graphic"
-                    },
-                    {
-                        "type": "item",
-                        "action_id": "graphics.add_point_graphic"
-                    },
-                    {
-                        "type": "item",
-                        "action_id": "graphics.add_interval_graphic"
-                    },
-                    {
-                        "type": "item",
-                        "action_id": "graphics.add_channel_graphic"
-                    },
-                    {
-                        "type": "separator"
-                    },
-                    {
-                        "type": "item",
-                        "action_id": "graphics.add_graphic_mask"
-                    },
-                    {
-                        "type": "item",
-                        "action_id": "graphics.remove_graphic_mask"
-                    }
-                ]
+                "type": "item",
+                "action_id": "display_panel.clear"
             },
             {
                 "type": "separator"
             },
+            {
+                "type": "item",
+                "action_id": "display_panel.show_item"
+            },
+            {
+                "type": "item",
+                "action_id": "display_panel.show_thumbnail_browser"
+            },
+            {
+                "type": "item",
+                "action_id": "display_panel.show_grid_browser"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
+                "action_id": "display.reveal"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "sub_menu",
+                "menu_id": "display_panel_type",
+                "title": "Display Panel Type",
+                "items": []
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
+                "action_id": "display.copy_display"
+            },
+            {
+                "type": "item",
+                "action_id": "display.remove_display"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
+                "action_id": "display_panel.fit_view"
+            },
+            {
+                "type": "item",
+                "action_id": "display_panel.fill_view"
+            },
+            {
+                "type": "item",
+                "action_id": "display_panel.1_view"
+            },
+            {
+                "type": "item",
+                "action_id": "display_panel.2_view"
+            }
+        ]
+    },
+    {
+        "type": "menu",
+        "menu_id": "graphics",
+        "title": "Graphics",
+        "items": [
+            {
+                "type": "item",
+                "action_id": "graphics.add_line_graphic"
+            },
+            {
+                "type": "item",
+                "action_id": "graphics.add_ellipse_graphic"
+            },
+            {
+                "type": "item",
+                "action_id": "graphics.add_rectangle_graphic"
+            },
+            {
+                "type": "item",
+                "action_id": "graphics.add_point_graphic"
+            },
+            {
+                "type": "item",
+                "action_id": "graphics.add_interval_graphic"
+            },
+            {
+                "type": "item",
+                "action_id": "graphics.add_channel_graphic"
+             },
+             {
+                 "type": "separator"
+             },
+             {
+                 "type": "item",
+                "action_id": "graphics.add_graphic_mask"
+            },
+            {
+                "type": "item",
+                "action_id": "graphics.remove_graphic_mask"
+            }
+        ]
+    },
+    {
+        "type": "menu",
+        "menu_id": "processing",
+        "title": "Processing",
+        "items": [
             {
                 "type": "item",
                 "action_id": "item.snapshot"
@@ -496,84 +579,9 @@
     },
     {
         "type": "menu",
-        "menu_id": "view",
-        "title": "View",
+        "menu_id": "workspace",
+        "title": "Workspace",
         "items": [
-            {
-                "type": "sub_menu",
-                "menu_id": "display_panel_type",
-                "title": "Display Panel Type",
-                "items": []
-            },
-            {
-                "type": "separator"
-            },
-            {
-                "type": "item",
-                "action_id": "display.copy_display"
-            },
-            {
-                "type": "item",
-                "action_id": "display.remove_display"
-            },
-            {
-                "type": "separator"
-            },
-            {
-                "type": "item",
-                "action_id": "display_panel.clear"
-            },
-            {
-                "type": "separator"
-            },
-            {
-                "type": "item",
-                "action_id": "display_panel.show_item"
-            },
-            {
-                "type": "item",
-                "action_id": "display_panel.show_thumbnail_browser"
-            },
-            {
-                "type": "item",
-                "action_id": "display_panel.show_grid_browser"
-            },
-            {
-                "type": "separator"
-            },
-            {
-                "type": "item",
-                "action_id": "display.reveal"
-            },
-            {
-                "type": "separator"
-            },
-            {
-                "type": "item",
-                "action_id": "display_panel.fit_view"
-            },
-            {
-                "type": "item",
-                "action_id": "display_panel.fill_view"
-            },
-            {
-                "type": "item",
-                "action_id": "display_panel.1_view"
-            },
-            {
-                "type": "item",
-                "action_id": "display_panel.2_view"
-            },
-            {
-                "type": "separator"
-            },
-            {
-                "type": "item",
-                "action_id": "window.toggle_filter"
-            },
-            {
-                "type": "separator"
-            },
             {
                 "type": "item",
                 "action_id": "workspace.previous"
@@ -611,13 +619,6 @@
             {
                 "type": "item",
                 "action_id": "workspace.split_vertical"
-            },
-            {
-                "type": "separator"
-            },
-            {
-                "type": "item",
-                "action_id": "window.data_item_recorder"
             }
         ]
     },
