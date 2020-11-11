@@ -517,18 +517,19 @@ If a key or set of keys should be added, Nion maintains a registry of keys. Plea
 
 |
 
-====================================== ====
+====================================== ===========  =
 **Camera Values**
-====================================== ====
+====================================== ===========  =
 ``stem.camera.binning``                integer
 ``stem.camera.channel_id``             string
 ``stem.camera.channel_index``          integer
 ``stem.camera.channel_name``           string
 ``stem.camera.exposure_s``             real
-``stem.camera.frame_index``            integer
+``stem.camera.frame_index``            integer      high level index. reset when played.
+``stem.camera.frame_number``           integer      low level index. reset at application startup.
 ``stem.camera.valid_rows``             integer
 ``stem.camera.detector_current``       real
-====================================== ====
+====================================== ===========  =
 
 |
 

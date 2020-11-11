@@ -60,6 +60,7 @@ key_map = {
     'stem.camera.exposure': {'paths': ['hardware_source.exposure'], 'type': 'real'},
     'stem.camera.exposure_s': {'paths': ['hardware_source.exposure'], 'type': 'real'},
     'stem.camera.frame_index': {'paths': ['hardware_source.frame_index'], 'type': 'integer'},
+    'stem.camera.frame_number': {'paths': ['hardware_source.frame_number'], 'type': 'integer'},
     'stem.camera.valid_rows': {'paths': ['hardware_source.valid_rows'], 'type': 'integer'},
     'stem.camera.detector_current': {'paths': ['hardware_source.detector_current'], 'type': 'real'},
 
