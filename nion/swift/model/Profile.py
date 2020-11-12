@@ -82,6 +82,9 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
+        self.establish_last_used()
+
+    def establish_last_used(self) -> None:
         if not self.last_used:
             self.last_used = self._get_last_used()
 
@@ -473,18 +476,21 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         project_reference = IndexProjectReference()
         project_reference.project_path = project_path
         project_reference.project_uuid = project_reference.read_project_uuid(self.profile_context)
+        project_reference.establish_last_used()
         return self.add_project_reference(project_reference, load)
 
     def add_project_folder(self, project_folder_path: pathlib.Path, load: bool = True) -> ProjectReference:
         project_reference = FolderProjectReference()
         project_reference.project_folder_path = project_folder_path
         project_reference.project_uuid = project_reference.read_project_uuid(self.profile_context)
+        project_reference.establish_last_used()
         return self.add_project_reference(project_reference, load)
 
     def add_project_memory(self, _uuid: uuid.UUID = None, load: bool = True) -> ProjectReference:
         assert callable(project_reference_factory_hook)
         project_reference = project_reference_factory_hook("project_memory")
         project_reference.project_uuid = _uuid or uuid.uuid4()
+        project_reference.establish_last_used()
         return self.add_project_reference(project_reference, load)
 
     def upgrade(self, project_reference: ProjectReference) -> typing.Optional[ProjectReference]:
