@@ -121,6 +121,13 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         return _("Untited")
 
     @property
+    def path(self) -> pathlib.Path:
+        project_reference_parts = self.project_reference_parts
+        if project_reference_parts:
+            return pathlib.Path(*project_reference_parts)
+        return pathlib.Path()
+
+    @property
     def project_reference_parts(self) -> typing.Tuple[str]:
         raise NotImplementedError()
 

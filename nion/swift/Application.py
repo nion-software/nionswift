@@ -322,9 +322,22 @@ class Application(UIApplication.BaseApplication):
                     elif project_reference.project_state != "unloaded" or project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
                         project_title += " " + _("(MISSING OR UNREADABLE)")
                     used_project_references.append(project_reference)
-                    project_titles.append(project_title)
 
-            item_list = u.create_list_box(items=project_titles, current_index="@binding(current_index)", height=240, min_height=180, size_policy_horizontal="expanding", on_item_selected="recent_item_selected")
+                    class ProjectReferenceItem:
+                        # provides a str converter and a tool tip.
+                        def __init__(self, s: str, t: str):
+                            self.s = s
+                            self.tool_tip = t
+
+                        def __str__(self) -> str:
+                            return self.s
+
+                    project_titles.append(ProjectReferenceItem(project_title, str(project_reference.path)))
+
+            item_list = u.create_list_box(items=project_titles, current_index="@binding(current_index)",
+                                          height=240, min_height=180, size_policy_horizontal="expanding",
+                                          on_item_selected="recent_item_selected",
+                                          on_item_handle_context_menu="item_handle_context_menu")
 
             main_column = u.create_column(u.create_label(text=_("Recent Projects")),
                                           item_list,
@@ -365,6 +378,16 @@ class Application(UIApplication.BaseApplication):
 
                 def open_recent(self, widget: Declarative.UIWidget) -> None:
                     self.recent_item_selected(widget, self.current_index)
+
+                def item_handle_context_menu(self, widget: Declarative.UIWidget, *,
+                                             gx: int, gy: int,
+                                             index: typing.Optional[int], **kwargs) -> bool:
+                    if index is not None:
+                        project_reference = used_project_references[index]
+                        menu = self.window.create_context_menu()
+                        menu.add_menu_item(_(f"Open Project Location"), functools.partial(ProjectPanel.reveal_project, project_reference))
+                        menu.popup(gx, gy)
+                    return True
 
             ChooseProjectHandler(self).run(window, app=self)
 

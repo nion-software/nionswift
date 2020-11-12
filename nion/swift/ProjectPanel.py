@@ -32,7 +32,8 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
-def reveal_project(project_path: pathlib.Path) -> None:
+def reveal_project(project_reference: Profile.ProjectReference) -> None:
+    project_path = project_reference.path
     if sys.platform == "darwin":
         subprocess.Popen(["open", "-R", str(project_path)])
     elif sys.platform == 'win32':
@@ -346,7 +347,7 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         display_item = self.__tree_model.value[index]
         menu = self.__window.ui.create_context_menu(self.__window)
         if isinstance(display_item, ProjectPanelProjectItem) and display_item.project_reference.project:
-            menu.add_menu_item(_(f"Open Project Location"), functools.partial(reveal_project, display_item.project_reference.project.storage_system_path))
+            menu.add_menu_item(_(f"Open Project Location"), functools.partial(reveal_project, display_item.project_reference))
         elif isinstance(display_item, ProjectPanelFolderItem):
             menu.add_menu_item(_(f"Open Folder Location"), functools.partial(open_location, pathlib.Path(display_item.folder_key)))
         menu.popup(gx, gy)
