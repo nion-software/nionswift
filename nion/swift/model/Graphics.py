@@ -1696,7 +1696,7 @@ class SpotGraphic(Graphic):
 
     def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
         data_shape = Geometry.FloatSize.make(data_shape)
-        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[0] * 0.5 + 0.5)
+        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=data_shape)
         origin = Geometry.map_point(calibrated_origin, data_rect, Geometry.FloatRect.unit_rect())
         bounds = Geometry.FloatRect.make(self.bounds)
@@ -1951,7 +1951,7 @@ class WedgeGraphic(Graphic):
         return None, None
 
     def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
-        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[0] * 0.5 + 0.5)
+        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         mask1 = numpy.zeros(data_shape)
         mask2 = numpy.zeros(data_shape)
         a, b = calibrated_origin.y, calibrated_origin.x
@@ -2094,7 +2094,7 @@ class RingGraphic(Graphic):
         return None, None
 
     def get_mask(self, data_shape: typing.Tuple[int], calibrated_origin: Geometry.FloatPoint = None):
-        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[0] * 0.5 + 0.5)
+        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         mask = numpy.zeros(data_shape, dtype=numpy.float)
         bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
         a, b = calibrated_origin.y, calibrated_origin.x
@@ -2401,10 +2401,10 @@ class LatticeGraphic(Graphic):
         return None, None
 
     def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
-        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[0] * 0.5 + 0.5)
+        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         mask = numpy.zeros(data_shape)
 
-        start = Geometry.FloatPoint(y=calibrated_origin.y / data_shape[0], x=calibrated_origin.x / data_shape[0])
+        start = Geometry.FloatPoint(y=calibrated_origin.y / data_shape[0], x=calibrated_origin.x / data_shape[1])
         u_pos = Geometry.FloatPoint.make(self.u_pos)
         v_pos = Geometry.FloatPoint.make(self.v_pos)
         radius = self.radius
