@@ -181,6 +181,7 @@ class Application(UIApplication.BaseApplication):
         # if it was created, it probably means it is migrating from an old version. so add all recent projects.
         # they will initially be disabled and the user will have to explicitly upgrade them.
         if is_created:
+            # present a dialog for showing progress while finding existing projects
             u = Declarative.DeclarativeUI()
             task_message = u.create_label(text=_("Looking for existing projects..."))
             progress = u.create_progress_bar(value="@binding(progress_value_model.value)", width=300 - 24)
@@ -188,27 +189,38 @@ class Application(UIApplication.BaseApplication):
             main_column = u.create_column(task_message, progress, progress_message, spacing=8, width=300)
             window = u.create_window(main_column, title=_("Locating Existing Projects"), margin=12, window_style="tool")
 
+            # handler for the progress window. defines two value models: progress, an int 0-100; and message, a string.
             class FindExistingProjectsWindowHandler(Declarative.WindowHandler):
                 def __init__(self, *, completion_fn: typing.Optional[typing.Callable[[], None]] = None):
                     super().__init__(completion_fn=completion_fn)
                     self.progress_value_model = Model.PropertyModel(0)
                     self.message_str_model = Model.PropertyModel(str())
 
+            # construct the window handler and run it. when the dialog closes, it will continue by
+            # calling open default project.
             window_handler = FindExistingProjectsWindowHandler(completion_fn=functools.partial(self.__open_default_project, profile_dir, is_created))
             window_handler.run(window, app=self)
 
+            # define an async routine that will perform the finding of the existing projects.
+            # this is just a loop that yields via asyncio.sleep periodically. the loop loads
+            # the projects and updates the progress and message value models in the dialog.
+            # when finished, it asks the window to close on its next periodic call. it is
+            # necessary to close this way because the close request may close the event loop
+            # in which we're executing. so queueing the close request avoids that.
             async def find_existing_projects():
                 recent_library_paths = self.get_recent_library_paths()
                 for index, library_path in enumerate(recent_library_paths):
                     window_handler.progress_value_model.value = 100 * index // len(recent_library_paths)
                     window_handler.message_str_model.value = str(library_path.name)
                     logging.getLogger("loader").info(f"Adding existing project {index + 1}/{len(recent_library_paths)} {library_path}")
+                    await asyncio.sleep(0)
                     profile.add_project_folder(pathlib.Path(library_path), load=False)
                 window_handler.progress_value_model.value = 100
                 window_handler.message_str_model.value = _("Finished")
                 await asyncio.sleep(1)
                 window_handler.window.queue_request_close()
 
+            # launch the find existing projects task asynchronously.
             window_handler.window.event_loop.create_task(find_existing_projects())
             return True
         else:
