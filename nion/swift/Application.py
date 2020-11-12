@@ -46,6 +46,7 @@ from nion.ui import UserInterface
 from nion.ui import Window as UIWindow
 from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import Model
 from nion.utils import Registry
 
 _ = gettext.gettext
@@ -173,16 +174,53 @@ class Application(UIApplication.BaseApplication):
             profile, is_created = self.__establish_profile(profile_path)
         self.__profile = profile
 
-        # if it was created, it probably means it is migrating from an old version. so add all recent projects.
-        # they will initially be disabled and the user will have to explicitly upgrade them.
-        if is_created:
-            for library_path in self.get_recent_library_paths():
-                logging.getLogger("loader").info(f"Adding legacy project {library_path}")
-                profile.add_project_folder(pathlib.Path(library_path), load=False)
-
         # configure the document model object.
         DocumentModel.DocumentModel.computation_min_period = 0.1
         DocumentModel.DocumentModel.computation_min_factor = 1.0
+
+        # if it was created, it probably means it is migrating from an old version. so add all recent projects.
+        # they will initially be disabled and the user will have to explicitly upgrade them.
+        if is_created:
+            u = Declarative.DeclarativeUI()
+            task_message = u.create_label(text=_("Looking for existing projects..."))
+            progress = u.create_progress_bar(value="@binding(progress_value_model.value)", width=300 - 24)
+            progress_message = u.create_label(text="@binding(message_str_model.value)")
+            main_column = u.create_column(task_message, progress, progress_message, spacing=8, width=300)
+            window = u.create_window(main_column, title=_("Locating Existing Projects"), margin=12, window_style="tool")
+
+            class FindExistingProjectsWindowHandler(Declarative.WindowHandler):
+                def __init__(self, *, completion_fn: typing.Optional[typing.Callable[[], None]] = None):
+                    super().__init__(completion_fn=completion_fn)
+                    self.progress_value_model = Model.PropertyModel(0)
+                    self.message_str_model = Model.PropertyModel(str())
+
+            window_handler = FindExistingProjectsWindowHandler(completion_fn=functools.partial(self.__open_default_project, profile_dir, is_created))
+            window_handler.run(window, app=self)
+
+            async def find_existing_projects():
+                recent_library_paths = self.get_recent_library_paths()
+                for index, library_path in enumerate(recent_library_paths):
+                    window_handler.progress_value_model.value = 100 * index // len(recent_library_paths)
+                    window_handler.message_str_model.value = str(library_path.name)
+                    logging.getLogger("loader").info(f"Adding existing project {index + 1}/{len(recent_library_paths)} {library_path}")
+                    profile.add_project_folder(pathlib.Path(library_path), load=False)
+                window_handler.progress_value_model.value = 100
+                window_handler.message_str_model.value = _("Finished")
+                await asyncio.sleep(1)
+                window_handler.window.queue_request_close()
+
+            window_handler.window.event_loop.create_task(find_existing_projects())
+            return True
+        else:
+            # continue with opening the default project
+            return self.__open_default_project(profile_dir, is_created)
+
+    def __open_default_project(self, profile_dir: pathlib.Path, is_created: bool) -> bool:
+        # if the default project is known, open it.
+        # if it fails, ask the user to select another project.
+        # if no default project is known, ask the user to choose one.
+
+        profile = self.__profile
 
         project_reference: typing.Optional[Profile.ProjectReference] = None
 
@@ -318,9 +356,9 @@ class Application(UIApplication.BaseApplication):
 
             ChooseProjectHandler(self).run(window, app=self)
 
-    def get_recent_library_paths(self):
+    def get_recent_library_paths(self) -> typing.List[pathlib.Path]:
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
-        return [file_path for file_path in workspace_history if os.path.exists(file_path)]
+        return [pathlib.Path(file_path) for file_path in workspace_history if os.path.exists(file_path)]
 
     def create_document_controller(self, document_model, workspace_id, display_item=None):
         self._set_document_model(document_model)  # required to allow API to find document model
