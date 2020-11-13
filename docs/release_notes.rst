@@ -7,6 +7,12 @@ Release Notes
 
 Version 0.15.2 (UNRELEASED)
 ---------------------------
+* (2020-11-13) Add documentation about upgrading. Also other minor documentation changes.
+* (2020-11-12) Add progress bar when finding existing projects upon first launch.
+* (2020-11-06) Split View menu into Display and Workspace menus. Add Graphics menu.
+* (2020-11-06) Ensure all context menu items are also in main menus.
+* (2020-10-08) Fix issue with reading metadata from scripts.
+* (2020-10-08) Fix issue with images updating during partial acquisition.
 * (2020-10-06) Fix issue dragging spot graphic.
 * (2020-10-06) Partially fix performance when dragging graphics on complex data.
 * (2020-09-23) Add RGB processing commands (beta). Fix related RGB issues.
