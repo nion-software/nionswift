@@ -6,6 +6,10 @@ Nion Swift is open source scientific image processing software integrating hardw
 visualization, processing, and analysis using Python. Nion Swift is easily extended using Python. It runs on
 Windows, Linux, and macOS.
 
+.. image:: graphics/workspace.png
+  :width: 640
+  :alt: The Swift Workspace
+
 Nion Swift has been primarily developed for the operation of Nion electron microscopes and also as an offline tool to
 visualize, process, and analyze scientific data from electron microscopes, other instrumentation, and other scientific
 fields.
