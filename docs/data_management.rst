@@ -2,8 +2,11 @@
 
 .. _data-management:
 
+Data Management
+===============
+
 Import/Exporting
-================
+----------------
 
 - Drop on data panel library.
 - Drop on data panel data group.
@@ -11,8 +14,8 @@ Import/Exporting
 - Menu item Import file.
 - Drop on display panel.
 
-Basic Acquisition
-=================
+Managing Projects
+-----------------
 
-Acquisition Recorder
-====================
+Backup
+------
