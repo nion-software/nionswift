@@ -1313,16 +1313,13 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(self.document_model.data_items), 4)
         self.assertIsNone(self.document_controller.ui.popup)
         self.assertEqual(self.display_panel, self.document_controller.selected_display_panel)
-        with self.display_panel.root_container._ui_interaction():
-            self.display_panel._selection_for_test.add_range(range(0, 4))
+        self.display_panel._selection_for_test.add_range(range(0, 4))
         self.display_panel.root_container.refresh_layout_immediate()
         self.display_panel.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
         self.document_controller.periodic()
         # reveal, export, sep, delete, sep, split h, split v, sep, clear, sep, display, thumbnail, grid, sep
         delete_item = next(x for x in self.document_controller.ui.popup.items if x.title.startswith("Delete Display Items"))
-        with self.display_panel.root_container._ui_interaction():
-            # should actions set the ui_interaction flag somehow? not for now. maybe in the future.
-            delete_item.callback()
+        delete_item.callback()
         self.assertEqual(0, len(self.document_model.data_items))
 
     def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):

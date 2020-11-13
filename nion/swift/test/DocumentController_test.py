@@ -715,8 +715,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(display_item, document_controller.selected_display_item)
             self.assertEqual([display_item], document_controller.selected_display_items)
             # change the selection in the display panel
-            with display_panel.root_container._ui_interaction():
-                display_panel._selection_for_test.add_range(range(0, 4))
+            display_panel._selection_for_test.add_range(range(0, 4))
             self.assertEqual(None, document_controller.selected_display_item)
             self.assertEqual(set(document_model.display_items), set(document_controller.selected_display_items))
 

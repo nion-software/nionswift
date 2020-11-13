@@ -1225,6 +1225,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         self.__grid_browser_canvas_item = self.__grid_data_grid_controller.canvas_item
         self.__grid_browser_canvas_item.visible = False
+        self.__grid_browser_canvas_item._tt = True
 
         # the column composition layout permits displaying data item and horizontal browser simultaneously and also the
         # data item and grid as the only items just by selecting hiding/showing individual canvas items.
@@ -1765,22 +1766,19 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return True
 
     def __selection_changed(self):
-        # item displayed user deselects last item in browser => item gets undisplayed
+        # item displayed user deselects last item in browser => item stays displayed
         # item displayed but filter changes and no item remains => item stays displayed
         # item not displayed but user selects one item in browser => item gets displayed
         # item displayed but gets deleted => no display
-        is_ui_interaction = self.__grid_browser_canvas_item.is_ui_interaction_active or self.__horizontal_browser_canvas_item.is_ui_interaction_active
-        if is_ui_interaction:
-            # user initiated this action
-            if len(self.__selection.indexes) == 1:
-                index = list(self.__selection.indexes)[0]
-                display_item = self.__filtered_display_item_adapters_model.display_item_adapters[index].display_item
-            else:
-                display_item = None
+        if len(self.__selection.indexes) == 1:
+            index = list(self.__selection.indexes)[0]
+            display_item = self.__filtered_display_item_adapters_model.display_item_adapters[index].display_item
             self.set_display_item(display_item, update_selection=False)  # do not sync the selection - it's already known
             self.__display_changed = True
-        else:
-            pass
+        elif len(self.__selection.indexes) > 1:
+            display_item = None
+            self.set_display_item(display_item, update_selection=False)  # do not sync the selection - it's already known
+            self.__display_changed = True
 
     # messages from the display canvas item
 
