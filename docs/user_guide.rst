@@ -25,6 +25,7 @@ Outline
     * Tools
 * :ref:`data-management`
 * Data Management
+    * Backing up projects
     * Importing/Exporting
     * Recorder
     * Acquisition
