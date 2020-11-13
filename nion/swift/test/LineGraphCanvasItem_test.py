@@ -1,4 +1,5 @@
 # standard libraries
+import contextlib
 import logging
 import math
 import unittest
@@ -17,6 +18,10 @@ from nion.swift.model import Graphics
 from nion.swift.test import TestContext
 from nion.ui import DrawingContext
 from nion.ui import TestUI
+
+
+def create_memory_profile_context() -> TestContext.MemoryProfileContext:
+    return TestContext.MemoryProfileContext()
 
 
 class TestLineGraphCanvasItem(unittest.TestCase):
@@ -343,6 +348,18 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             LineGraphCanvasItem.draw_line_graph(drawing_context, 480, 100, 0, 0, display_xdata, calibrated_data_min, calibrated_data_range, axes.calibrated_left_channel, axes.calibrated_right_channel, axes.x_calibration, "black", "black", None, axes.data_style)
             # ensure that the drawing commands are sufficiently populated to have drawn the graph
             self.assertGreater(len(drawing_context.commands), 100)
+
+    def test_line_plot_with_many_lines_displays_gracefully(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.ones((100,100), numpy.float))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
 
     def test_check_exponents(self):
         e = LineGraphCanvasItem.Exponenter()
