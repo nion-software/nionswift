@@ -46,6 +46,7 @@ from nion.ui import UserInterface
 from nion.ui import Window as UIWindow
 from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Registry
 
@@ -309,32 +310,36 @@ class Application(UIApplication.BaseApplication):
                                       u.create_push_button(text=_("Open Recent"), on_clicked="open_recent"),
                                       spacing=8)
 
-            used_project_references = list()
-            project_titles = list()
+            project_references_model = ListModel.FilteredListModel(container=self.__profile, items_key="project_references")
+            project_references_model.filter = ListModel.PredicateFilter(lambda pr: pr.project_state != "loaded")
+            project_references_model.sort_key = lambda pr: pr.last_used
+            project_references_model.sort_reverse = True
 
-            project_references = filter(lambda pr: pr.project_state != "loaded", self.__profile.project_references)
-            project_references = sorted(project_references, key=operator.attrgetter("last_used"), reverse=True)
-            for project_reference in project_references[:20]:
-                if project_reference.project_state != "loaded":
+            class ProjectReferenceItem:
+                # provides a str converter and a tool tip.
+                def __init__(self, project_reference: Profile.ProjectReference):
+                    self.project_reference = project_reference
+
+                def __str__(self) -> str:
+                    project_reference = self.project_reference
                     project_title = project_reference.title
                     if project_reference.project_state == "needs_upgrade":
                         project_title += " " + _("(NEEDS UPGRADE)")
                     elif project_reference.project_state != "unloaded" or project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
                         project_title += " " + _("(MISSING OR UNREADABLE)")
-                    used_project_references.append(project_reference)
+                    return project_title
 
-                    class ProjectReferenceItem:
-                        # provides a str converter and a tool tip.
-                        def __init__(self, s: str, t: str):
-                            self.s = s
-                            self.tool_tip = t
+                @property
+                def tool_tip(self) -> str:
+                    return str(self.project_reference.path)
 
-                        def __str__(self) -> str:
-                            return self.s
+            project_reference_items_model = ListModel.MappedListModel(container=project_references_model,
+                                                                      master_items_key="project_references",
+                                                                      items_key="project_reference_items",
+                                                                      map_fn=ProjectReferenceItem)
 
-                    project_titles.append(ProjectReferenceItem(project_title, str(project_reference.path)))
-
-            item_list = u.create_list_box(items=project_titles, current_index="@binding(current_index)",
+            item_list = u.create_list_box(items_ref="@binding(list_property_model.value)",
+                                          current_index="@binding(current_index)",
                                           height=240, min_height=180, size_policy_horizontal="expanding",
                                           on_item_selected="recent_item_selected",
                                           on_item_handle_context_menu="item_handle_context_menu")
@@ -354,24 +359,59 @@ class Application(UIApplication.BaseApplication):
             def show_new_project_dialog() -> None:
                 NewProjectAction().invoke(UIWindow.ActionContext(self, None, None))
 
+            from nion.utils import Observable
+
+            class ListPropertyModel(Observable.Observable):
+                # copied from nionutils to avoid requiring new version.
+                # remove this code once nionutils 0.3.24+ is released.
+
+                def __init__(self, list_model):
+                    super().__init__()
+                    self.__list_model = list_model
+                    self.__item_inserted_event_listener = list_model.item_inserted_event.listen(self.__item_inserted)
+                    self.__item_removed_event_listener = list_model.item_removed_event.listen(self.__item_removed)
+
+                def close(self) -> None:
+                    self.__list_model = None
+                    self.__item_inserted_event_listener = None
+                    self.__item_removed_event_listener = None
+
+                def __item_inserted(self, key: str, item, before_index: int) -> None:
+                    self.notify_property_changed("value")
+
+                def __item_removed(self, key: str, item, index: int) -> None:
+                    self.notify_property_changed("value")
+
+                @property
+                def value(self):
+                    return self.__list_model.items
+
             class ChooseProjectHandler(Declarative.WindowHandler):
                 def __init__(self, application: Application):
                     super().__init__()
                     self.__application = application
                     self.current_index = 0
+                    self.list_property_model = ListPropertyModel(project_reference_items_model)
 
                 def recent_item_selected(self, widget: Declarative.UIWidget, current_index: int) -> None:
-                    if 0 <= current_index < len(used_project_references):
+                    if 0 <= current_index < len(project_reference_items_model.project_reference_items):
+                        # to ensure the application does not close upon closing the last window, force it
+                        # to stay open while the window is closed and another reopened.
                         with self.__application.prevent_close():
                             self.close_window()
-                            open_project_reference(used_project_references[current_index])
+                            project_reference_item = project_reference_items_model.project_reference_items[current_index]
+                            open_project_reference(project_reference_item.project_reference)
 
                 def new_project(self, widget: Declarative.UIWidget) -> None:
+                    # to ensure the application does not close upon closing the last window, force it
+                    # to stay open while the window is closed and another reopened.
                     with self.__application.prevent_close():
                         show_new_project_dialog()
                         self.close_window()
 
                 def open_project(self, widget: Declarative.UIWidget) -> None:
+                    # to ensure the application does not close upon closing the last window, force it
+                    # to stay open while the window is closed and another reopened.
                     with self.__application.prevent_close():
                         show_open_project_dialog()
                         self.close_window()
@@ -383,9 +423,16 @@ class Application(UIApplication.BaseApplication):
                                              gx: int, gy: int,
                                              index: typing.Optional[int], **kwargs) -> bool:
                     if index is not None:
-                        project_reference = used_project_references[index]
+                        project_reference_item = project_reference_items_model.project_reference_items[index]
                         menu = self.window.create_context_menu()
-                        menu.add_menu_item(_(f"Open Project Location"), functools.partial(ProjectPanel.reveal_project, project_reference))
+                        menu.add_menu_item(_(f"Open Project Location"), functools.partial(ProjectPanel.reveal_project, project_reference_item.project_reference))
+                        menu.add_separator()
+
+                        def remove_project(index: int) -> None:
+                            project_reference_item = project_reference_items_model.project_reference_items[index]
+                            self.__application.profile.remove_project_reference(project_reference_item.project_reference)
+
+                        menu.add_menu_item(_(f"Remove Project from List"), functools.partial(remove_project, index))
                         menu.popup(gx, gy)
                     return True
 
