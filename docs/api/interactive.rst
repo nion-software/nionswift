@@ -1,3 +1,5 @@
+:orphan:
+
 .. _interactive-guide:
 
 Python Interactive Scripting Guide

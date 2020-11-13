@@ -1,3 +1,5 @@
+:orphan:
+
 .. _basic-use:
 
 Introduction Tutorial

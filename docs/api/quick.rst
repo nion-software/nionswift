@@ -1,3 +1,5 @@
+:orphan:
+
 .. _api-quick:
 
 API Quick Summary

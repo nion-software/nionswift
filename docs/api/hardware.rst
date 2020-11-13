@@ -1,3 +1,5 @@
+:orphan:
+
 .. _hardware-guide:
 
 Hardware Guide

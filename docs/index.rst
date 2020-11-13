@@ -53,31 +53,6 @@ Nion Swift Links
 Indices and Tables
 ==================
 
-Contents
---------
-.. toctree::
-    installation
-    release_notes
-    basic_use
-    user_guide
-    data_management
-    coordinates
-    python_console
-    scripting
-    api/architecture.rst
-    api/concepts.rst
-    api/extended_data.rst
-    api/external.rst
-    api/hardware.rst
-    api/interactive.rst
-    api/plugins.rst
-    api/quick.rst
-    api/reference.rst
-    api/scripting.rst
-    api/userinterface.rst
-    :maxdepth: 1
-    :caption: Contents:
-
 Links
 -----
 * :ref:`genindex`

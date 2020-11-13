@@ -1,3 +1,5 @@
+:orphan:
+
 .. _user-guide:
 
 User Guide

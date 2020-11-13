@@ -1,3 +1,5 @@
+:orphan:
+
 .. _plugins-guide:
 
 Customization Using Python Packages and Modules

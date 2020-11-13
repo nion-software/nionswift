@@ -1,3 +1,5 @@
+:orphan:
+
 .. _xdata-guide:
 
 Extended Data Guide

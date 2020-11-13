@@ -1,3 +1,5 @@
+:orphan:
+
 .. _python-console:
 
 Python Console

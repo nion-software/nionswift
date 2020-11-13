@@ -1,3 +1,5 @@
+:orphan:
+
 .. _api-reference:
 
 API Reference

@@ -1,3 +1,5 @@
+:orphan:
+
 .. _scripting:
 
 Python Scripting Overview

@@ -1,3 +1,5 @@
+:orphan:
+
 .. _api-architecture:
 
 API Architecture

@@ -1,3 +1,5 @@
+:orphan:
+
 .. _installation:
 
 Nion Swift Installation
