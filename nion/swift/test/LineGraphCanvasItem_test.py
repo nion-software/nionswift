@@ -361,6 +361,36 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
 
+    def test_line_plot_with_too_few_layers_displays_gracefully(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.ones((8,100), numpy.float))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
+            self.assertEqual(8, len(display_item.display_layers))
+            display_item.display_layers = display_item.display_layers[0:4]
+            self.assertEqual(4, len(display_item.display_layers))
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+
+    def test_line_plot_displays_gracefully_when_switching_layers(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.ones((8,100), numpy.float))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_item.display_type = "line_plot"
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_item.display_type = None
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+
     def test_check_exponents(self):
         e = LineGraphCanvasItem.Exponenter()
         e.add_label("5e+05")

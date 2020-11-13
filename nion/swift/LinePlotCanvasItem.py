@@ -520,8 +520,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                                 display_layers.append({"fill_color": colors[index] if index == 0 else None, "stroke_color": colors[index] if index > 0 else None, "data_index": scalar_index, "data_row": row})
                                 index += 1
 
-            display_layer_count = len(display_layers)
-
             self.___has_valid_drawn_graph_data = False
 
             for index, display_layer in enumerate(self.__display_layers[0:len(self.__line_graph_stack.canvas_items)]):
