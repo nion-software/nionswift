@@ -5,7 +5,7 @@
 Release Notes
 =============
 
-Version 0.15.2 (UNRELEASED)
+Version 0.15.2 (2020-11-13)
 ---------------------------
 * (2020-11-13) Add documentation about upgrading. Also other minor documentation changes.
 * (2020-11-12) Add progress bar when finding existing projects upon first launch.
