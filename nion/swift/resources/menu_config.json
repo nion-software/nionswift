@@ -156,7 +156,7 @@
             },
             {
                 "type": "item",
-                "action_id": "item.delete"
+                "action_id": "item.delete_data_item"
             },
             {
                 "type": "separator"
@@ -213,6 +213,9 @@
             {
                 "type": "item",
                 "action_id": "display.copy_display"
+            },
+            {
+                "type": "separator"
             },
             {
                 "type": "item",

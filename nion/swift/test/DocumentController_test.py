@@ -658,7 +658,6 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model = document_controller.document_model
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
-            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
             extra_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(extra_data_item)
             document_controller.selection.set(0)
@@ -666,7 +665,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_controller.selected_display_panel = None  # this would occur when user clicks in data panel
             context_menu = document_controller.create_context_menu_for_display(document_controller.selected_display_items)
             context_menu_items = context_menu.items
-            delete_item = next(x for x in context_menu_items if x.title == "Delete Display Items")
+            delete_item = next(x for x in context_menu_items if x.title.startswith("Delete Display Items"))
             delete_item.callback()
             self.assertEqual(len(document_model.data_items), 0)
             self.assertEqual(len(document_controller.selection.indexes), 0)

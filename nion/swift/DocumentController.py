@@ -576,6 +576,12 @@ class DocumentController(Window.Window):
                 command.perform()
                 self.push_undo_command(command)
 
+    def delete_data_items(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
+        if data_items:
+            command = self.create_remove_data_items_command(data_items)
+            command.perform()
+            self.push_undo_command(command)
+
     def register_display_panel(self, display_panel: DisplayPanel.DisplayPanel) -> None:
         pass
 
@@ -2300,7 +2306,8 @@ class DocumentController(Window.Window):
                      display_item: typing.Optional[DisplayItem.DisplayItem],
                      display_items: typing.Sequence[DisplayItem.DisplayItem],
                      crop_graphic: typing.Optional[Graphics.Graphic],
-                     data_item: typing.Optional[DataItem.DataItem]):
+                     data_item: typing.Optional[DataItem.DataItem],
+                     data_items: typing.Sequence[DataItem.DataItem]):
             super().__init__(application, window, focus_widget)
             self.display_panel = display_panel
             self.model = model
@@ -2308,6 +2315,7 @@ class DocumentController(Window.Window):
             self.display_items = display_items
             self.crop_graphic = crop_graphic
             self.data_item = data_item
+            self.data_items = data_items
 
     def _get_action_context(self) -> ActionContext:
         focus_widget = self.focus_widget
@@ -2317,7 +2325,8 @@ class DocumentController(Window.Window):
         display_items = self.selected_display_items
         crop_graphic = self._get_crop_graphic(display_item)
         data_item = display_item.data_item if display_item else None
-        return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget, display_panel, model, display_item, display_items, crop_graphic, data_item)
+        data_items = self.selected_data_items
+        return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget, display_panel, model, display_item, display_items, crop_graphic, data_item, data_items)
 
     def _get_action_context_for_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], display_panel: typing.Optional[DisplayPanel.DisplayPanel]) -> ActionContext:
         focus_widget = self.focus_widget
@@ -2326,7 +2335,8 @@ class DocumentController(Window.Window):
         display_item = display_items[0] if len(display_items) == 1 else None
         crop_graphic = self._get_crop_graphic(display_item)
         data_item = display_item.data_item if display_item else None
-        return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget, display_panel, model, display_item, display_items, crop_graphic, data_item)
+        data_items = display_item.data_items if display_item else list()
+        return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget, display_panel, model, display_item, display_items, crop_graphic, data_item, data_items)
 
     def perform_display_panel_command(self, key) -> bool:
         action_id = Window.get_action_id_for_key("display_panel", key)
@@ -2354,12 +2364,37 @@ class DeleteItemAction(Window.Action):
     def get_action_name(self, context: Window.ActionContext) -> str:
         context = typing.cast(DocumentController.ActionContext, context)
         data_item = context.data_item
+        display_item = context.display_item
         if data_item and len(context.model.get_display_items_for_data_item(data_item)) == 1:
             return _("Delete Data Item") + f" \"{data_item.title}\""
-        elif context.display_item:
-            return _("Delete Display Item")
+        elif display_item:
+            return _("Delete Display Item") + f" \"{display_item.title}\""
         elif context.display_items:
-            return _("Delete Display Items")
+            return _("Delete Display Items") + f" ({len(context.display_items)})"
+        return self.action_name
+
+
+class DeleteDataItemAction(Window.Action):
+    action_id = "item.delete_data_item"
+    action_name = _("Delete Data Item")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.delete_data_items(context.data_items)
+        return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.data_items) > 0
+
+    def get_action_name(self, context: Window.ActionContext) -> str:
+        context = typing.cast(DocumentController.ActionContext, context)
+        data_item = context.data_item
+        if data_item:
+            return _("Delete Data Item") + f" \"{data_item.title}\""
+        elif context.data_items:
+            return _("Delete Data Items") + f" ({len(context.data_items)})"
         return self.action_name
 
 
@@ -2418,6 +2453,7 @@ class ImportFolderAction(Window.Action):
 
 
 Window.register_action(DeleteItemAction())
+Window.register_action(DeleteDataItemAction())
 Window.register_action(ExportAction())
 Window.register_action(ExportSVGAction())
 Window.register_action(ImportDataAction())
@@ -2615,10 +2651,12 @@ Window.register_action(AddGroupAction())
 
 class DisplayCopyAction(Window.Action):
     action_id = "display.copy_display"
-    action_name = _("Display Copy")
+    action_name = _("Duplicate Display Item")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.processing_display_copy()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.processing_display_copy()
         return Window.ActionResult.FINISHED
 
 
@@ -2724,15 +2762,26 @@ class DisplayPanelTwoViewAction(Window.Action):
 
 class DisplayRemoveAction(Window.Action):
     action_id = "display.remove_display"
-    action_name = _("Display Remove")
+    action_name = _("Delete Display Item")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.processing_display_remove()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.processing_display_remove()
         return Window.ActionResult.FINISHED
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
-        display_items = context.model.get_display_items_for_data_item(context.data_item) if context.data_item else list()
-        return len(display_items) > 1
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.display_items) >= 1
+
+    def get_action_name(self, context: Window.ActionContext) -> str:
+        context = typing.cast(DocumentController.ActionContext, context)
+        display_item = context.display_item
+        if context.display_item:
+            return _("Delete Display Item") + f" \"{display_item.title}\""
+        elif context.display_items:
+            return _("Delete Display Items") + f" ({len(context.display_items)})"
+        return self.action_name
 
 
 class DisplayRevealAction(Window.Action):
