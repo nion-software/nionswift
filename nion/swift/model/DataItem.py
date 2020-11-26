@@ -245,7 +245,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__content_changed = False
         self.__suspendable_storage_cache = None
         self.__display_data_channel_refs = set()  # display data channels referencing this data item
-        self.r_var = None
         if data is not None:
             data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, timezone=self.timezone, timezone_offset=self.timezone_offset)
             self.__set_data_metadata_direct(data_and_metadata)
@@ -623,20 +622,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             self.__data_and_metadata.data_metadata.timezone = self.timezone
             self.__data_and_metadata.data_metadata.timezone_offset = self.timezone_offset
         self.notify_property_changed(name)
-
-    def set_r_value(self, r_var: str, *, notify_changed=True) -> None:
-        """Used to signal changes to the ref var, which are kept in document controller. ugh."""
-        self.r_var = r_var
-        self._description_changed()
-        if notify_changed:  # set to False to set the r-value at startup; avoid marking it as a change
-            self.__notify_description_changed()
-
-    @property
-    def displayed_title(self):
-        if self.r_var:
-            return "{0} ({1})".format(self.title, self.r_var)
-        else:
-            return self.title
 
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener by using the method
