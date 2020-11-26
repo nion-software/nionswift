@@ -1241,8 +1241,13 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         self.__change_display_panel_content(document_controller, d)
 
+        self.__mapped_item_listener = DocumentModel.MappedItemManager().changed_event.listen(self.__update_title)
+
     def close(self):
         self.on_contents_changed = None
+
+        self.__mapped_item_listener.close()
+        self.__mapped_item_listener = None
 
         if self.__data_item_reference_changed_task:
             self.__data_item_reference_changed_task.cancel()
@@ -1563,7 +1568,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                     self.set_display_item(None)
 
                 def handle_title_changed(title: str) -> None:
-                    self.header_canvas_item.title = title
+                    self.__update_title()
 
                 def replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item):
                     self.__display_composition_canvas_item.replace_canvas_item(old_display_canvas_item, new_display_canvas_item)
@@ -1592,8 +1597,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         # update the related icons canvas item with the new display.
         self.__related_icons_canvas_item.set_display_item(display_item)
-
-        self.header_canvas_item.title = display_item.displayed_title if display_item else None
+        self.__update_title()
 
         # update want mouse and selected status.
         if self.__display_composition_canvas_item:  # may be closed
@@ -1602,6 +1606,16 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def _select(self):
         self.content_canvas_item.request_focus()
+
+    def __update_title(self) -> None:
+        if self.__display_item:
+            displayed_title = self.__display_item.displayed_title
+            r_var = DocumentModel.MappedItemManager().get_item_r_var(self.__display_item)
+            if r_var:
+                displayed_title = f"{displayed_title} ({r_var})"
+            self.header_canvas_item.title = displayed_title
+        else:
+            self.header_canvas_item.title = None
 
     # handle selection. selection means that the display panel is the most recent
     # item to have focus within the workspace, although it can be selected without

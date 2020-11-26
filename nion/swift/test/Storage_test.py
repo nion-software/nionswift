@@ -169,6 +169,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(0, Cache.DbStorageCache.count)
         self.assertEqual(0, NDataHandler.NDataHandler.count)
         self.assertEqual(0, HDF5Handler.HDF5Handler.count)
+        self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.items()))
 
     """
     document
@@ -437,7 +438,7 @@ class TestStorageClass(unittest.TestCase):
             # read it back
             document_controller = profile_context.create_document_controller(auto_close=False)
             document_model = document_controller.document_model
-            with contextlib.closing(document_model):
+            with contextlib.closing(document_controller):
                 self.assertEqual(data_items_count, len(document_model.data_items))
                 self.assertEqual(data_items_type, type(document_model.data_items))
 
@@ -1418,7 +1419,7 @@ class TestStorageClass(unittest.TestCase):
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 document_model.get_invert_new(display_item, display_item.data_item)
                 document_model.recompute_all()
-                document_model.assign_variable_to_data_item(data_item)
+                document_model.assign_variable_to_display_item(display_item)
             # read it back
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
@@ -4188,12 +4189,13 @@ class TestStorageClass(unittest.TestCase):
                 item_uuid = uuid.uuid4()
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid)
                 document_model.append_data_item(data_item)
-                key = document_model.assign_variable_to_data_item(data_item)
-                self.assertEqual(key, document_model.data_items[0].r_var)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                r_var = document_model.assign_variable_to_display_item(display_item)
+                self.assertEqual(r_var, DocumentModel.MappedItemManager().get_item_r_var(display_item))
             self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.keys()))
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
-                self.assertIsNotNone(document_model.data_items[0].r_var)
+                self.assertIsNotNone(DocumentModel.MappedItemManager().get_item_r_var(document_model.display_items[0]))
             self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.keys()))
 
     def disabled_test_document_controller_disposes_threads(self):

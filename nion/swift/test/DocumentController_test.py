@@ -16,6 +16,7 @@ from nion.swift import Facade
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
+from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
@@ -361,8 +362,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             data = ((numpy.random.randn(2, 2) + 1) * 10).astype(numpy.int32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            data_item_r = document_model.assign_variable_to_data_item(data_item)
-            computed_data_item = document_controller.processing_computation("target.xdata = {0}.xdata * 2".format(data_item_r))
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            r_var = document_model.assign_variable_to_display_item(display_item)
+            computed_data_item = document_controller.processing_computation(f"target.xdata = {r_var}.xdata * 2")
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.data, data*2))
 
@@ -377,10 +379,13 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             data_item3 = DataItem.DataItem(numpy.copy(data))
             document_model.append_data_item(data_item3)
-            data_item_r = document_model.assign_variable_to_data_item(data_item)
-            data_item_r2 = document_model.assign_variable_to_data_item(data_item2)
-            document_model.assign_variable_to_data_item(data_item3)
-            computed_data_item = document_controller.processing_computation("target.xdata = {0}.xdata * 2 + {1}.xdata".format(data_item_r, data_item_r2))
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            display_item3 = document_model.get_display_item_for_data_item(data_item3)
+            r_var = document_model.assign_variable_to_display_item(display_item)
+            r_var2 = document_model.assign_variable_to_display_item(display_item2)
+            document_model.assign_variable_to_display_item(display_item3)
+            computed_data_item = document_controller.processing_computation(f"target.xdata = {r_var}.xdata * 2 + {r_var2}.xdata")
             self.assertEqual(len(document_model.get_data_item_computation(computed_data_item).variables), 2)
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.data, data*2 + data))
@@ -770,8 +775,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            document_controller.prepare_data_item_script(do_log=False)
-            self.assertEqual(data_item.r_var, "r01")
+            document_model.assign_variable_to_display_item(display_item)
+            self.assertEqual(DocumentModel.MappedItemManager().get_item_r_var(display_item), "r01")
 
     def test_display_data_channel_when_it_is_immediately_filtered(self):
         with TestContext.create_memory_context() as test_context:

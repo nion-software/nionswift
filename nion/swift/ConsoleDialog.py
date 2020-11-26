@@ -12,6 +12,7 @@ import typing
 # local libraries
 from nion.swift import Panel
 from nion.swift.model import DocumentModel
+from nion.swift.model import Persistence
 from nion.ui import Dialog
 from nion.ui import UserInterface
 from nion.ui import Widgets
@@ -359,5 +360,5 @@ class ConsoleDialog(Dialog.ActionDialog):
         self.__document_controller.unregister_console(self)
         super().close()
 
-    def assign_data_item_var(self, data_item_var, data_item):
-        self.__console_widget.insert_lines(["{} = api.library.get_data_item_by_uuid(uuid.UUID(\"{}\"))".format(data_item_var, data_item.uuid)])
+    def assign_item_var(self, item_var: str, item: Persistence.PersistentObject) -> None:
+        self.__console_widget.insert_lines([f"{item_var} = api.library.get_item_by_specifier(api.create_specifier(uuid.UUID(\"{item.uuid}\"), None))"])

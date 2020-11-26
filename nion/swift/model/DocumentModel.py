@@ -529,10 +529,11 @@ class MappedItemManager(metaclass=Registry.Singleton):
         self.__item_map = dict()
         self.__item_listener_map = dict()
         self.__document_map = dict()
+        self.changed_event = Event.Event()
 
     def register(self, document_model: DocumentModel, item: Persistence.PersistentObject) -> str:
         for r in range(1, 1000000):
-            r_var = "r{:02d}".format(r)
+            r_var = f"r{r:02d}"
             if not r_var in self.__item_map:
                 self.__item_map[r_var] = item
                 self.__document_map.setdefault(document_model, set()).add(r_var)
@@ -541,8 +542,10 @@ class MappedItemManager(metaclass=Registry.Singleton):
                     self.__item_map.pop(r_var)
                     self.__item_listener_map.pop(r_var).close()
                     self.__document_map.setdefault(document_model, set()).remove(r_var)
+                    self.changed_event.fire()
 
                 self.__item_listener_map[r_var] = item.about_to_be_removed_event.listen(remove_item)
+                self.changed_event.fire()
 
                 return r_var
         return str()
@@ -552,10 +555,17 @@ class MappedItemManager(metaclass=Registry.Singleton):
         for r_var in r_vars:
             self.__item_map.pop(r_var, None)
             self.__item_listener_map.pop(r_var).close()
+        self.changed_event.fire()
 
     @property
     def item_map(self) -> typing.Mapping[str, Persistence.PersistentObject]:
         return dict(self.__item_map)
+
+    def get_item_r_var(self, item: Persistence.PersistentObject) -> typing.Optional[str]:
+        for k, v in self.__item_map.items():
+            if v == item:
+                return k
+        return None
 
 
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, DataItem.SessionManager):
@@ -685,16 +695,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def __resolve_mapped_items(self):
         # handle the reference variable assignments
-        new_mapped_items = list()
         for mapped_item in self._project.mapped_items:
             item_proxy = self._project.create_item_proxy(
                 item_specifier=Persistence.PersistentObjectSpecifier.read(mapped_item))
-            if isinstance(item_proxy.item, DataItem.DataItem):
-                data_item = typing.cast(DataItem.DataItem, item_proxy.item)
-                if not data_item in MappedItemManager().item_map.values():
-                    data_item.set_r_value(MappedItemManager().register(self, item_proxy.item), notify_changed=False)
-                    new_mapped_items.append(data_item.item_specifier.write())
-        # self._project.mapped_items = new_mapped_items
+            if isinstance(item_proxy.item, DisplayItem.DisplayItem):
+                display_item = typing.cast(Persistence.PersistentObject, item_proxy.item)
+                if not display_item in MappedItemManager().item_map.values():
+                    MappedItemManager().register(self, item_proxy.item)
 
     def __resolve_data_item_references(self):
         # update the data item references
@@ -950,9 +957,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         assert data_item is not None
         assert data_item in self.data_items
         index = self.data_items.index(data_item)
-        # TODO: remove mapped item for data item. requires cleaning up of specifiers.
-        if data_item.r_var:
-            data_item.r_var = None
         self.__data_items.remove(data_item)
         self.notify_remove_item("data_items", data_item, index)
 
@@ -1076,13 +1080,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
         return self.__cascade_delete(item, safe=safe)
 
-    def assign_variable_to_data_item(self, data_item: DataItem.DataItem) -> str:
-        if not data_item.r_var:
-            data_item.set_r_value(MappedItemManager().register(self, data_item))
+    def assign_variable_to_display_item(self, display_item: DisplayItem.DisplayItem) -> str:
+        r_var = MappedItemManager().get_item_r_var(display_item)
+        if not r_var:
+            r_var = MappedItemManager().register(self, display_item)
             mapped_items = self._project.mapped_items
-            mapped_items.append(data_item.project.create_specifier(data_item).write())
+            mapped_items.append(display_item.project.create_specifier(display_item).write())
             self._project.mapped_items = mapped_items
-        return data_item.r_var
+        return r_var
 
     def __build_cascade(self, item, items: list, dependencies: list) -> None:
         # build a list of items to delete using item as the base. put the leafs at the end of the list.

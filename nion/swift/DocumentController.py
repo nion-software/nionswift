@@ -203,11 +203,15 @@ class DocumentController(Window.Window):
             self.workspace_controller.save_geometry_state(geometry, state)
         super().about_to_close(geometry, state)
 
-    def register_console(self, console):
+    def register_console(self, console: ConsoleDialog.ConsoleDialog) -> None:
         self.__consoles.append(console)
 
-    def unregister_console(self, console):
+    def unregister_console(self, console: ConsoleDialog.ConsoleDialog) -> None:
         self.__consoles.remove(console)
+
+    @property
+    def consoles(self) -> typing.Sequence[ConsoleDialog.ConsoleDialog]:
+        return self.__consoles
 
     def _create_menus(self):
         # don't use default implementation
@@ -1925,8 +1929,10 @@ class DocumentController(Window.Window):
     def processing_computation(self, expression, map: typing.Mapping[str, Symbolic.ComputationItem]=None):
         if map is None:
             map = dict()
-            for variable_name, data_item in DocumentModel.MappedItemManager().item_map.items():
-                map[variable_name] = Symbolic.make_item(data_item)
+            for variable_name, display_item in DocumentModel.MappedItemManager().item_map.items():
+                # add r_vars that can be evaluated to data_item, for backward compatibility
+                if display_item.data_item:
+                    map[variable_name] = Symbolic.make_item(display_item.data_item)
         data_item = DataItem.DataItem()
         data_item.ensure_data_source()
         data_item.title = _("Computation on ") + data_item.title
@@ -2075,14 +2081,6 @@ class DocumentController(Window.Window):
         else:
             self.display_filter = self.__last_display_filter
         self.workspace_controller.filter_row.visible = not self.workspace_controller.filter_row.visible
-
-    def prepare_data_item_script(self, *, do_log: bool=True) -> None:
-        data_item = self.selected_data_item
-        if data_item:
-            data_item_var = self.document_model.assign_variable_to_data_item(data_item)
-            if do_log: logging.debug("{} = Data Item with UUID {}".format(data_item_var, data_item.uuid))
-            for console in self.__consoles:
-                console.assign_data_item_var(data_item_var, data_item)
 
     def copy_uuid(self):
         display_item = self.selected_display_item
@@ -2817,7 +2815,14 @@ class AssignVariableReference(Window.Action):
     action_name = _("Assign Variable Reference")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.prepare_data_item_script()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        display_item = context.display_item
+        if display_item:
+            r_var = context.model.assign_variable_to_display_item(display_item)
+            logging.debug("{} = Display Item with UUID {}".format(r_var, display_item.uuid))
+            for console in window.consoles:
+                console.assign_item_var(r_var, display_item)
         return Window.ActionResult.FINISHED
 
 

@@ -1453,11 +1453,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         return " ".join([self.displayed_title, self.caption, self.description, self.size_and_data_format_as_string])
 
     @property
-    def displayed_title(self):
-        if self.data_item and getattr(self.data_item, "displayed_title", None):
-            return self.data_item.displayed_title
-        else:
-            return self.title
+    def displayed_title(self) -> str:
+        return self.title
 
     @property
     def title(self) -> str:

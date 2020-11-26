@@ -1550,6 +1550,18 @@ class Display(metaclass=SharedInstance):
     def data_items(self) -> typing.List[DataItem]:
         return [DataItem(data_item) for data_item in self.__display_item.data_items]
 
+    @property
+    def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.data_item.xdata if self.data_item else None
+
+    @property
+    def data(self) -> typing.Optional[numpy.ndarray]:
+        return self.data_item.data if self.data_item else None
+
+    @property
+    def metadata(self) -> typing.Optional[typing.Dict]:
+        return self.data_item.metadata if self.data_item else None
+
     def add_graphic(self, graphic_description: typing.Mapping) -> typing.Optional[Graphic]:
         """Add graphic described in graphic_description to the display.
 
@@ -3490,6 +3502,8 @@ def _new_api_object(object):
         return Library(object)
     if isinstance(object, DataItemModule.DataItem):
         return DataItem(object)
+    if isinstance(object, DisplayItemModule.DisplayItem):
+        return Display(object)
     if isinstance(object, Graphics.Graphic):
         return Graphic(object)
     if isinstance(object, DataItemModule.DataSource):
