@@ -530,9 +530,9 @@ class MappedItemManager(metaclass=Registry.Singleton):
         self.__item_listener_map = dict()
         self.__document_map = dict()
 
-    def register(self, document_model: DocumentModel, item: Persistence.PersistentObject) -> str:
+    def register(self, document_model: DocumentModel, item: Persistence.PersistentObject, c: str) -> str:
         for r in range(1, 1000000):
-            r_var = "r{:02d}".format(r)
+            r_var = f"{c}{r:02d}"
             if not r_var in self.__item_map:
                 self.__item_map[r_var] = item
                 self.__document_map.setdefault(document_model, set()).add(r_var)
@@ -689,10 +689,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for mapped_item in self._project.mapped_items:
             item_proxy = self._project.create_item_proxy(
                 item_specifier=Persistence.PersistentObjectSpecifier.read(mapped_item))
-            if isinstance(item_proxy.item, DataItem.DataItem):
-                data_item = typing.cast(DataItem.DataItem, item_proxy.item)
+            if isinstance(item_proxy.item, (DataItem.DataItem, DisplayItem.DisplayItem)):
+                data_item = typing.cast(Persistence.PersistentObject, item_proxy.item)
                 if not data_item in MappedItemManager().item_map.values():
-                    data_item.set_r_value(MappedItemManager().register(self, item_proxy.item), notify_changed=False)
+                    c = "r" if isinstance(data_item, DataItem.DataItem) else "y"
+                    data_item.set_r_value(MappedItemManager().register(self, item_proxy.item, c), notify_changed=False)
                     new_mapped_items.append(data_item.item_specifier.write())
         # self._project.mapped_items = new_mapped_items
 
@@ -1076,13 +1077,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
         return self.__cascade_delete(item, safe=safe)
 
-    def assign_variable_to_data_item(self, data_item: DataItem.DataItem) -> str:
+    def assign_variable_to_display_item(self, display_item: DisplayItem.DisplayItem) -> typing.Tuple[typing.Optional[str], str]:
+        data_item = display_item.data_item
+        if not display_item.r_var:
+            display_item.set_r_value(MappedItemManager().register(self, display_item, "y"))
+            mapped_items = self._project.mapped_items
+            mapped_items.append(display_item.project.create_specifier(display_item).write())
+            self._project.mapped_items = mapped_items
         if not data_item.r_var:
-            data_item.set_r_value(MappedItemManager().register(self, data_item))
+            data_item.set_r_value(MappedItemManager().register(self, data_item, "r"))
             mapped_items = self._project.mapped_items
             mapped_items.append(data_item.project.create_specifier(data_item).write())
             self._project.mapped_items = mapped_items
-        return data_item.r_var
+        return data_item.r_var if data_item else None, display_item.r_var
 
     def __build_cascade(self, item, items: list, dependencies: list) -> None:
         # build a list of items to delete using item as the base. put the leafs at the end of the list.

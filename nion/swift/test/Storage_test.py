@@ -1418,7 +1418,7 @@ class TestStorageClass(unittest.TestCase):
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 document_model.get_invert_new(display_item, display_item.data_item)
                 document_model.recompute_all()
-                document_model.assign_variable_to_data_item(data_item)
+                document_model.assign_variable_to_display_item(display_item)
             # read it back
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
@@ -4188,7 +4188,8 @@ class TestStorageClass(unittest.TestCase):
                 item_uuid = uuid.uuid4()
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid)
                 document_model.append_data_item(data_item)
-                key = document_model.assign_variable_to_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                key, _ = document_model.assign_variable_to_display_item(display_item)
                 self.assertEqual(key, document_model.data_items[0].r_var)
             self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.keys()))
             document_model = profile_context.create_document_model(auto_close=False)

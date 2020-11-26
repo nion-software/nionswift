@@ -1033,6 +1033,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
         self.__graphic_selection_changed_event_listener = self.graphic_selection.changed_event.listen(graphic_selection_changed)
 
+        self.r_var = None
+
         if data_item:
             self.append_display_data_channel_for_data_item(data_item)
 
@@ -1452,12 +1454,23 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def text_for_filter(self) -> str:
         return " ".join([self.displayed_title, self.caption, self.description, self.size_and_data_format_as_string])
 
+    def set_r_value(self, r_var: str, *, notify_changed=True) -> None:
+        """Used to signal changes to the ref var, which are kept in document controller. ugh."""
+        self.r_var = r_var
+        if notify_changed:
+            self._description_changed()
+
     @property
-    def displayed_title(self):
-        if self.data_item and getattr(self.data_item, "displayed_title", None):
-            return self.data_item.displayed_title
-        else:
-            return self.title
+    def displayed_title(self) -> str:
+        title = self.title
+        title_adornments = list()
+        if self.data_item and self.data_item.r_var:
+            title_adornments.append(self.data_item.r_var)
+        if self.r_var:
+            title_adornments.append(self.r_var)
+        if title_adornments:
+            title = f"{title} ({', '.join(title_adornments)})"
+        return title
 
     @property
     def title(self) -> str:

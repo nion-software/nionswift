@@ -208,7 +208,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.zeros((2, 2)))
             document_model.append_data_item(data_item)
-            data_item_r = document_model.assign_variable_to_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            data_item_r, display_item_r = document_model.assign_variable_to_display_item(display_item)
             self.assertIsNotNone(data_item.r_var)
             self.assertEqual(data_item_r, data_item.r_var)
 
@@ -2343,9 +2344,10 @@ class TestDocumentModelClass(unittest.TestCase):
                 item_uuid = uuid.uuid4()
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid)
                 document_model.append_data_item(data_item)
-                key = document_model.assign_variable_to_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                key, _ = document_model.assign_variable_to_display_item(display_item)
                 self.assertEqual(key, document_model.data_items[0].r_var)
-                self.assertEqual(1, len(DocumentModel.MappedItemManager().item_map.keys()))
+                self.assertEqual(2, len(DocumentModel.MappedItemManager().item_map.keys()))
                 document_model.remove_data_item(data_item)
                 self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.keys()))
 

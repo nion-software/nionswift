@@ -3490,6 +3490,8 @@ def _new_api_object(object):
         return Library(object)
     if isinstance(object, DataItemModule.DataItem):
         return DataItem(object)
+    if isinstance(object, DisplayItemModule.DisplayItem):
+        return Display(object)
     if isinstance(object, Graphics.Graphic):
         return Graphic(object)
     if isinstance(object, DataItemModule.DataSource):
