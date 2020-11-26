@@ -19,6 +19,7 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
+from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
@@ -2333,6 +2334,20 @@ class TestDocumentModelClass(unittest.TestCase):
                 data_item.set_data(numpy.full((4, ), 8))
                 document_model.recompute_all()
                 self.assertAlmostEqual(-32, float(numpy.sum(inverted_data_item.data)))
+
+    def test_item_variable_is_removed_after_item_is_deleted(self):
+        with create_memory_profile_context() as profile_context:
+            self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.keys()))
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                item_uuid = uuid.uuid4()
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid)
+                document_model.append_data_item(data_item)
+                key = document_model.assign_variable_to_data_item(data_item)
+                self.assertEqual(key, document_model.data_items[0].r_var)
+                self.assertEqual(1, len(DocumentModel.MappedItemManager().item_map.keys()))
+                document_model.remove_data_item(data_item)
+                self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.keys()))
 
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?

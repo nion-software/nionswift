@@ -527,6 +527,7 @@ class MappedItemManager(metaclass=Registry.Singleton):
 
     def __init__(self):
         self.__item_map = dict()
+        self.__item_listener_map = dict()
         self.__document_map = dict()
 
     def register(self, document_model: DocumentModel, item: Persistence.PersistentObject) -> str:
@@ -535,6 +536,14 @@ class MappedItemManager(metaclass=Registry.Singleton):
             if not r_var in self.__item_map:
                 self.__item_map[r_var] = item
                 self.__document_map.setdefault(document_model, set()).add(r_var)
+
+                def remove_item():
+                    self.__item_map.pop(r_var)
+                    self.__item_listener_map.pop(r_var).close()
+                    self.__document_map.setdefault(document_model, set()).remove(r_var)
+
+                self.__item_listener_map[r_var] = item.about_to_be_removed_event.listen(remove_item)
+
                 return r_var
         return str()
 
@@ -542,6 +551,7 @@ class MappedItemManager(metaclass=Registry.Singleton):
         r_vars = self.__document_map.pop(document_model, set())
         for r_var in r_vars:
             self.__item_map.pop(r_var, None)
+            self.__item_listener_map.pop(r_var).close()
 
     @property
     def item_map(self) -> typing.Mapping[str, Persistence.PersistentObject]:
