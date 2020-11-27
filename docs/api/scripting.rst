@@ -36,22 +36,20 @@ configures the ``api`` variable for you. The ``api`` is the latest version. ::
    >>> len(window.library.data_items)
    126
 
-Accessing a Specific Data Item
-------------------------------
-You may want to access a specific data item. To do this, you must ask Nion Swift to assign a variable representing the
-data item.
+Accessing a Specific Display Item
+---------------------------------
+You may want to access a specific display item. To do this, you assign a variable representing the display item.
 
-You do this by clicking either on the display panel containing the data item or on the data item within the data panel list.
+You do this by clicking either on the display panel containing the display item or on the display item within the data panel list.
 
-After you have selected the desired data item, press Ctrl-Shift-K (Windows/Linux) or Cmd-Shift-K (macOS). When you do this,
-Nion Swift will show the variable in the title of the data item; it will also print the variable in any Python Console windows
-that are open at the time. ::
+After you have selected the desired display item, press Ctrl+Shift+K (Windows/Linux) or Cmd+Shift+K (macOS). When you do this, Nion Swift will show the variable in the title of the display item shown in the display panel header; it will also print the variable in any Python Console windows that are open at the time. ::
 
-   >>> r522 = api.library.get_data_item_by_uuid(uuid.UUID("c860b841-cc77-4e85-8dcc-aeea7da137a5"))
-   >>> numpy.amin(r522.data)
+   >>> r01 = api.library.get_item_by_specifier(api.create_specifier(uuid.UUID("647feb15-8407-4693-8b9d-0cec90e94b7c"), None))
+   >>> numpy.amin(r01.data)
 
-The first line above will be added automatically when you press Ctrl/Cmd-Shift-K. Once it appears, you can type the second
-line, substituting the actual r-variable for ``r522``.
+The first line above will be added automatically when you press Ctrl/Cmd+Shift+K. Once it appears, you can type the second line, substituting the actual r-variable for ``r01``.
+
+The r-variables reference display items. Display items will often contain a single data item that can be referenced with the ``data_item`` property. For convenience, ``xdata``, ``data``, and ``metadata`` properties are available on display items. They return the parallel properties of the ``data_item`` property if it exists or else they return ``None``.
 
 Accessing the Target Data Item
 ------------------------------
