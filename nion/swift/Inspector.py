@@ -3193,12 +3193,12 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
         section_title_row = ui.create_row_widget()
         section_title_label_widget = ui.create_label_widget()
         section_title_label_widget.text_font = "bold"
-        section_title_label_widget.text = "{} #{}".format(_("Data"), index + 1)
+        section_title_label_widget.text = "{} #{}".format(_("Data"), index)
         section_title_row.add_spacing(20)
         section_title_row.add(section_title_label_widget)
         section_title_row.add_stretch()
         section_title_row.add(remove_display_data_channel_button)
-        section_title_row.add_spacing(12)
+        section_title_row.add_spacing(20)
 
         self.content_widget.add(section_title_row)
         self.content_widget.add_spacing(4)
