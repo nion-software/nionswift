@@ -371,9 +371,11 @@ class TestDataPanelClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
+            # create data group
             data_group = DataGroup.DataGroup()
             data_group.title = "data_group"
             document_controller.document_model.append_data_group(data_group)
+            # put three data items in data group
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item1)
             data_item1.title = "data_item1"
@@ -389,6 +391,7 @@ class TestDataPanelClass(unittest.TestCase):
             display_item3 = document_model.get_display_item_for_data_item(data_item3)
             data_item3.title = "data_item3"
             data_group.append_display_item(document_model.get_display_item_for_data_item(data_item3))
+            # set up the data panel
             data_panel = document_controller.find_dock_panel("data-panel")
             document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item2)
             document_controller.periodic()

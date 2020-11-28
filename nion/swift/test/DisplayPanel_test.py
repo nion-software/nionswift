@@ -28,7 +28,7 @@ from nion.ui import DrawingContext
 from nion.ui import TestUI
 from nion.ui import UserInterface
 from nion.utils import Geometry
-
+from nion.utils import ListModel
 
 Facade.initialize()
 
@@ -2162,6 +2162,23 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(2, len(display_item4.display_layers))
             self.assertEqual(2, len(display_item4.display_data_channels))
             self.assertEqual(new_legend_position, display_item4.get_display_property("legend_position"))
+
+    def test_selection_updated_when_filter_is_updated(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            display_panel = document_controller.selected_display_panel
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.ones(8, ))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            data_item1 = document_controller.processing_invert().data_item
+            display_panel.set_displayed_data_item(data_item1)
+            document_controller.processing_invert()
+            display_panel.set_displayed_data_item(data_item1)
+            document_controller.periodic()
+            document_controller.display_filter = ListModel.TextFilter("text_for_filter", "99")
+            data_item.set_data(numpy.zeros(8, ))
+            document_controller.periodic()
 
 
 if __name__ == '__main__':
