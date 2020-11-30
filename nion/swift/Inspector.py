@@ -6,6 +6,7 @@ import functools
 import gettext
 import math
 import operator
+import sys
 import threading
 import typing
 import uuid
@@ -695,10 +696,10 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 label_row.add_spacing(12)
                 label_edit_widget.on_editing_finished = functools.partial(change_label, label_edit_widget, index)
                 # move up, move down, add layer, remove layer
-                move_forward_button_widget = ui.create_push_button_widget("\N{UPWARDS WHITE ARROW}")
-                move_backward_button_widget = ui.create_push_button_widget("\N{DOWNWARDS WHITE ARROW}")
-                add_layer_button_widget = ui.create_push_button_widget("\N{PLUS SIGN}")
-                remove_layer_button_widget = ui.create_push_button_widget("\N{MINUS SIGN}")
+                move_forward_button_widget = TextPushButtonWidget(ui, "\N{UPWARDS WHITE ARROW}")
+                move_backward_button_widget = TextPushButtonWidget(ui, "\N{DOWNWARDS WHITE ARROW}")
+                add_layer_button_widget = TextPushButtonWidget(ui, "\N{PLUS SIGN}")
+                remove_layer_button_widget = TextPushButtonWidget(ui, "\N{MINUS SIGN}")
                 button_row = ui.create_row_widget()
                 button_row.add(move_forward_button_widget)
                 button_row.add(move_backward_button_widget)
@@ -706,10 +707,10 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 button_row.add(add_layer_button_widget)
                 button_row.add(remove_layer_button_widget)
                 button_row.add_spacing(12)
-                move_forward_button_widget.on_clicked = functools.partial(move_layer_forward, index)
-                move_backward_button_widget.on_clicked = functools.partial(move_layer_backward, index)
-                add_layer_button_widget.on_clicked = functools.partial(add_layer, index + 1)
-                remove_layer_button_widget.on_clicked = functools.partial(remove_layer, index)
+                move_forward_button_widget.on_button_clicked = functools.partial(move_layer_forward, index)
+                move_backward_button_widget.on_button_clicked = functools.partial(move_layer_backward, index)
+                add_layer_button_widget.on_button_clicked = functools.partial(add_layer, index + 1)
+                remove_layer_button_widget.on_button_clicked = functools.partial(remove_layer, index)
                 # content: display data channel, row
                 display_data_channel_index_widget = ui.create_line_edit_widget(properties={"width": 36})
                 display_data_channel_row_widget = ui.create_line_edit_widget(properties={"width": 36})
@@ -3188,7 +3189,8 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
     def __init__(self, ui, document_controller, display_item: DisplayItem.DisplayItem, index: int):
         super().__init__(ui.create_column_widget())
 
-        remove_display_data_channel_button = TextPushButtonWidget(ui, "\N{MULTIPLICATION X}")
+        remove_icon = "\N{MULTIPLICATION X}" if sys.platform != "darwin" else "\N{BALLOT X}"
+        remove_display_data_channel_button = TextPushButtonWidget(ui, remove_icon)
 
         section_title_row = ui.create_row_widget()
         section_title_label_widget = ui.create_label_widget()
