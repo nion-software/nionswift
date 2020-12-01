@@ -259,7 +259,20 @@ def adjustment_factory(adjustment_d: typing.Mapping):
 
 
 class DisplayValues:
-    """Display data used to render the display."""
+    """Calculate display data used to render the display.
+
+    The display calculation goes through the following steps:
+
+    1. start with raw data
+    2. extract the raw data element using sequence and/or collection indexes and/or slices if required
+    3. produce display data by applying complex to real conversion if required
+    4. apply adjustments by normalizing display data and performing adjustment operation
+    5. calculate rgb display data by scaling display range and applying color table
+
+    data -> element -> display -> normalized -> adjusted -> display_rgba
+
+    Display renderers may request data at any stage of this pipeline.
+    """
 
     def __init__(self, data_and_metadata, sequence_index, collection_index, slice_center, slice_width, display_limits, complex_display_type, color_map_data, brightness, contrast, adjustments):
         self.__lock = threading.RLock()
@@ -707,8 +720,119 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         return self.__data_item.size_and_data_format_as_string if self.__data_item else None
 
     @property
+    def has_valid_data(self) -> bool:
+        data_item = self.data_item
+        display_data_shape = self.display_data_shape
+        return (data_item is not None) and (functools.reduce(operator.mul, display_data_shape) > 0 if display_data_shape else False)
+
+    @property
     def display_data_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
-        return self.__data_item.display_data_shape if self.__data_item else tuple()
+        data_item = self.__data_item
+        if not data_item:
+            return None
+        dimensional_shape = data_item.dimensional_shape
+        next_dimension = 0
+        if data_item.is_sequence:
+            next_dimension += 1
+        if data_item.is_collection:
+            collection_dimension_count = data_item.collection_dimension_count
+            datum_dimension_count = data_item.datum_dimension_count
+            # next dimensions are treated as collection indexes.
+            if collection_dimension_count == 1 and datum_dimension_count == 1:
+                return tuple(dimensional_shape[next_dimension:next_dimension + collection_dimension_count + datum_dimension_count])
+            elif collection_dimension_count == 2 and datum_dimension_count == 1:
+                return tuple(dimensional_shape[next_dimension:next_dimension + collection_dimension_count])
+            else:  # default, "pick"
+                return tuple(dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count])
+        else:
+            return tuple(dimensional_shape[next_dimension:])
+
+    def get_display_position_as_data_position(self, pos: typing.Optional[typing.Tuple[int]]) -> typing.Optional[typing.Tuple[int]]:
+        data_and_metadata = self.__data_item.xdata
+        is_sequence = data_and_metadata.is_sequence
+        collection_dimension_count = data_and_metadata.collection_dimension_count
+        datum_dimension_count = data_and_metadata.datum_dimension_count
+        if is_sequence:
+            pos = (self.sequence_index, ) + pos
+        if self.is_sliced:
+            pos = pos + (self.slice_center, )
+        else:
+            # reduce collection dimensions for case where 2 pos dimensions are supplied on 1 pos datum (line plot display as image)
+            non_collection_dimension_count = datum_dimension_count + (1 if is_sequence else 0)
+            collection_dimension_count -= len(pos) - non_collection_dimension_count
+            # adjust position for collection dimensions
+            pos = tuple(self.collection_index[0:collection_dimension_count]) + pos
+
+        while len(pos) < data_and_metadata.datum_dimension_count:
+            pos = (0,) + tuple(pos)
+
+        assert len(pos) == len(data_and_metadata.dimensional_shape)
+
+        return pos
+
+    @property
+    def dimensional_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
+        return self.__data_item.dimensional_shape if self.__data_item else None
+
+    @property
+    def is_sequence(self) -> bool:
+        return self.__data_item and self.__data_item.is_sequence
+
+    @property
+    def is_collection(self) -> bool:
+        return self.__data_item and self.__data_item.is_collection
+
+    @property
+    def is_sliced(self) -> bool:
+        return self.__data_item and self.__data_item.is_collection and self.__data_item.collection_dimension_count == 2 and self.__data_item.datum_dimension_count == 1
+
+    @property
+    def is_display_1d_preferred(self) -> bool:
+        data_item = self.data_item
+        if not data_item:
+            return False
+        if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
+            return False
+        return data_item.datum_dimension_count == 1 or (data_item.datum_dimension_count == 2 and data_item.datum_dimension_shape[0] == 1)
+
+    @property
+    def is_display_2d_preferred(self) -> bool:
+        data_item = self.data_item
+        if not data_item:
+            return False
+        display_data_shape = self.display_data_shape
+        if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
+            return True
+        elif len(display_data_shape) == 2 and not self.is_display_1d_preferred:
+            return True
+        return False
+
+    def get_datum_calibrations(self, dimensional_calibrations: typing.Sequence[Calibration.Calibration]) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
+        if self.__data_item:
+            next_dimension = 0
+            if self.__data_item.is_sequence:
+                next_dimension += 1
+            if self.__data_item.is_collection:
+                collection_dimension_count = self.__data_item.collection_dimension_count
+                datum_dimension_count = self.__data_item.datum_dimension_count
+                # next dimensions are treated as collection indexes.
+                if collection_dimension_count == 1 and datum_dimension_count == 1:
+                    return dimensional_calibrations[next_dimension:next_dimension + collection_dimension_count + datum_dimension_count]
+                elif collection_dimension_count == 2 and datum_dimension_count == 1:
+                    return dimensional_calibrations[next_dimension:next_dimension + collection_dimension_count]
+                else:  # default, "pick"
+                    return dimensional_calibrations[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
+            else:
+                return dimensional_calibrations[next_dimension:]
+        return None
+
+    @property
+    def datum_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
+        """The calibrations for only datum dimensions."""
+        return self.get_datum_calibrations(self.__data_item.dimensional_calibrations) if self.__data_item else None
+
+    def get_data_value(self, pos: DataAndMetadata.ShapeType) -> typing.Any:
+        return self.__data_item.get_data_value(pos)
 
     def _get_data_metadata(self) -> typing.Optional[DataAndMetadata.DataMetadata]:
         return self.__data_item.data_metadata if self.__data_item else None
@@ -1009,7 +1133,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__write_delay_modified_count = 0
 
         # the most recent data to be displayed. should have immediate data available.
-        self.__data_and_metadata = None
         self.__is_composite_data = False
         self.__dimensional_calibrations = None
         self.__intensity_calibration = None
@@ -1376,9 +1499,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.display_changed_event.fire()
 
     @property
-    def display_data_channel(self) -> DisplayDataChannel:
+    def display_data_channel(self) -> typing.Optional[DisplayDataChannel]:
         display_data_channels = self.display_data_channels
-        return display_data_channels[0] if len(display_data_channels) > 0 else None
+        return display_data_channels[0] if len(display_data_channels) == 1 else None
 
     def get_display_data_channel_for_data_item(self, data_item: DataItem.DataItem) -> typing.Optional[DisplayDataChannel]:
         for display_data_channel in self.display_data_channels:
@@ -1418,7 +1541,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             self.__intensity_calibration = None
             self.__scales = 0, 1
             self.__dimensional_shape = None
-        self.__data_and_metadata = xdata_list[0] if len(xdata_list) == 1 else None
         self.__is_composite_data = len(xdata_list) > 1
         self.display_property_changed_event.fire("displayed_dimensional_scales")
         self.display_property_changed_event.fire("displayed_dimensional_calibrations")
@@ -1635,32 +1757,14 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def display_data_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
-        if not self.__data_and_metadata:
+        if not self.display_data_channel:
             return self.displayed_dimensional_scales if self.__is_composite_data else None
-        data_and_metadata = self.__data_and_metadata
-        dimensional_shape = data_and_metadata.dimensional_shape
-        next_dimension = 0
-        if data_and_metadata.is_sequence:
-            next_dimension += 1
-        if data_and_metadata.is_collection:
-            collection_dimension_count = data_and_metadata.collection_dimension_count
-            datum_dimension_count = data_and_metadata.datum_dimension_count
-            # next dimensions are treated as collection indexes.
-            if collection_dimension_count == 1 and datum_dimension_count == 1:
-                return dimensional_shape[next_dimension:next_dimension + collection_dimension_count + datum_dimension_count]
-            elif collection_dimension_count == 2 and datum_dimension_count == 1:
-                return dimensional_shape[next_dimension:next_dimension + collection_dimension_count]
-            else:  # default, "pick"
-                return dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
-        else:
-            return dimensional_shape[next_dimension:]
+        return self.display_data_channel.display_data_shape
 
     @property
     def dimensional_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
         """Shape of the underlying data, if only one."""
-        if not self.__data_and_metadata:
-            return None
-        return self.__data_and_metadata.dimensional_shape
+        return self.display_data_channel.dimensional_shape if self.display_data_channel else None
 
     @property
     def displayed_dimensional_scales(self) -> typing.Sequence[float]:
@@ -1675,24 +1779,10 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     @property
     def datum_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         """The calibrations for only datum dimensions."""
-        data_and_metadata = self.__data_and_metadata
-        if data_and_metadata:
-            dimensional_calibrations = data_and_metadata.dimensional_calibrations
-            next_dimension = 0
-            if data_and_metadata.is_sequence:
-                next_dimension += 1
-            if data_and_metadata.is_collection:
-                collection_dimension_count = data_and_metadata.collection_dimension_count
-                datum_dimension_count = data_and_metadata.datum_dimension_count
-                # next dimensions are treated as collection indexes.
-                if collection_dimension_count == 1 and datum_dimension_count == 1:
-                    return dimensional_calibrations[next_dimension:next_dimension + collection_dimension_count + datum_dimension_count]
-                elif collection_dimension_count == 2 and datum_dimension_count == 1:
-                    return dimensional_calibrations[next_dimension:next_dimension + collection_dimension_count]
-                else:  # default, "pick"
-                    return dimensional_calibrations[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
-            else:
-                return dimensional_calibrations[next_dimension:]
+        if self.display_data_channel:
+            datum_calibrations = self.display_data_channel.datum_calibrations
+            if datum_calibrations is not None:
+                return datum_calibrations
         return [Calibration.Calibration() for c in self.__dimensional_calibrations] if self.__dimensional_calibrations else [Calibration.Calibration()]
 
     @property
@@ -1709,24 +1799,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         """The calibrations for only datum dimensions, in the displayed calibration style."""
         calibration_style = self.__get_calibration_style_for_id(self.calibration_style_id)
         calibration_style = CalibrationStyleNative() if not calibration_style else calibration_style
-        if self.__dimensional_calibrations and self.__data_and_metadata:
+        if self.__dimensional_calibrations and self.display_data_channel:
             calibrations = calibration_style.get_dimensional_calibrations(self.__dimensional_shape, self.__dimensional_calibrations)
-            data_and_metadata = self.__data_and_metadata
-            next_dimension = 0
-            if data_and_metadata.is_sequence:
-                next_dimension += 1
-            if data_and_metadata.is_collection:
-                collection_dimension_count = data_and_metadata.collection_dimension_count
-                datum_dimension_count = data_and_metadata.datum_dimension_count
-                # next dimensions are treated as collection indexes.
-                if collection_dimension_count == 1 and datum_dimension_count == 1:
-                    return calibrations[next_dimension:next_dimension + collection_dimension_count + datum_dimension_count]
-                elif collection_dimension_count == 2 and datum_dimension_count == 1:
-                    return calibrations[next_dimension:next_dimension + collection_dimension_count]
-                else:  # default, "pick"
-                    return calibrations[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
-            else:
-                return calibrations[next_dimension:]
+            return self.display_data_channel.get_datum_calibrations(calibrations)
         if self.__is_composite_data:
             return self.displayed_dimensional_calibrations
         return [Calibration.Calibration() for c in self.__dimensional_calibrations] if self.__dimensional_calibrations else [Calibration.Calibration()]
@@ -1807,15 +1882,11 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def used_display_type(self) -> str:
         display_type = self.display_type
         if not display_type in ("line_plot", "image", "display_script"):
-            for data_item in self.data_items:
-                display_data_shape = data_item.display_data_shape if data_item else None
-                valid_data = (data_item is not None) and (functools.reduce(operator.mul, display_data_shape) > 0 if display_data_shape else False)
-                if valid_data:
-                    if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
-                        display_type = "image"
-                    elif data_item.datum_dimension_count == 1 or (data_item.datum_dimension_count == 2 and data_item.datum_dimension_shape[0] == 1):
+            for display_data_channel in self.display_data_channels:
+                if display_data_channel.has_valid_data:
+                    if display_data_channel.is_display_1d_preferred:
                         display_type = "line_plot"
-                    elif data_item.datum_dimension_count == 2:
+                    elif display_data_channel.is_display_2d_preferred:
                         display_type = "image"
                     # override
                     if self.get_display_property("display_script"):
@@ -1858,87 +1929,73 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         else:
             return str(value)
 
-    def get_value_and_position_text(self, display_data_channel, pos) -> (str, str):
-        data_and_metadata = self.__data_and_metadata
+    def get_value_and_position_text(self, pos: typing.Optional[typing.Tuple[int]]) -> (str, str):
+        display_data_channel = self.display_data_channel
         dimensional_calibrations = self.displayed_dimensional_calibrations
         intensity_calibration = self.displayed_intensity_calibration
 
-        if data_and_metadata is None or pos is None:
+        if display_data_channel is None or pos is None:
             if self.__is_composite_data and (pos is not None and len(pos) == 1):
                 return u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0])), str()
             return str(), str()
 
-        is_sequence = data_and_metadata.is_sequence
-        collection_dimension_count = data_and_metadata.collection_dimension_count
-        datum_dimension_count = data_and_metadata.datum_dimension_count
-        if is_sequence:
-            pos = (display_data_channel.sequence_index, ) + pos
-        if collection_dimension_count == 2 and datum_dimension_count == 1:
-            pos = pos + (display_data_channel.slice_center, )
-        else:
-            # reduce collection dimensions for case where 2 pos dimensions are supplied on 1 pos datum (line plot display as image)
-            non_collection_dimension_count = datum_dimension_count + (1 if is_sequence else 0)
-            collection_dimension_count -= len(pos) - non_collection_dimension_count
-            # adjust position for collection dimensions
-            pos = tuple(display_data_channel.collection_index[0:collection_dimension_count]) + pos
-
-        while len(pos) < data_and_metadata.datum_dimension_count:
-            pos = (0,) + tuple(pos)
-
-        assert len(pos) == len(data_and_metadata.dimensional_shape)
+        # pass in the position of the cursor as reported by the display. it will be 1D or 2D position.
+        # convert it to a position that is an index into the data.
+        pos = self.display_data_channel.get_display_position_as_data_position(pos)
+        assert pos is not None
 
         position_text = ""
         value_text = ""
-        data_shape = data_and_metadata.data_shape
+        dimensional_shape = display_data_channel.dimensional_shape  # don't include the RGB part of the shape
         if len(pos) == 4:
             # 4d image
             # make sure the position is within the bounds of the image
-            if 0 <= pos[0] < data_shape[0] and 0 <= pos[1] < data_shape[1] and 0 <= pos[2] < data_shape[2] and 0 <= pos[3] < data_shape[3]:
+            if 0 <= pos[0] < dimensional_shape[0] and 0 <= pos[1] < dimensional_shape[1] and 0 <= pos[2] < dimensional_shape[2] and 0 <= pos[3] < dimensional_shape[3]:
                 position_text = u"{0}, {1}, {2}, {3}".format(
-                    dimensional_calibrations[3].convert_to_calibrated_value_str(pos[3], value_range=(0, data_shape[3]), samples=data_shape[3]),
-                    dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, data_shape[2]), samples=data_shape[2]),
-                    dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1]),
-                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0]))
-                value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(pos), intensity_calibration)
+                    dimensional_calibrations[3].convert_to_calibrated_value_str(pos[3], value_range=(0, dimensional_shape[3]), samples=dimensional_shape[3]),
+                    dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, dimensional_shape[2]), samples=dimensional_shape[2]),
+                    dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, dimensional_shape[1]), samples=dimensional_shape[1]),
+                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0]))
+                value_text = self.__get_calibrated_value_text(display_data_channel.get_data_value(pos), intensity_calibration)
         if len(pos) == 3:
             # 3d image
             # make sure the position is within the bounds of the image
-            if 0 <= pos[0] < data_shape[0] and 0 <= pos[1] < data_shape[1] and 0 <= pos[2] < data_shape[2]:
-                position_text = u"{0}, {1}, {2}".format(dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, data_shape[2]), samples=data_shape[2]),
-                    dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1]),
-                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0]))
-                value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(pos), intensity_calibration)
+            if 0 <= pos[0] < dimensional_shape[0] and 0 <= pos[1] < dimensional_shape[1] and 0 <= pos[2] < dimensional_shape[2]:
+                position_text = u"{0}, {1}, {2}".format(dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, dimensional_shape[2]), samples=dimensional_shape[2]),
+                    dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, dimensional_shape[1]), samples=dimensional_shape[1]),
+                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0]))
+                value_text = self.__get_calibrated_value_text(display_data_channel.get_data_value(pos), intensity_calibration)
         if len(pos) == 2:
             # 2d image
             # make sure the position is within the bounds of the image
-            if len(data_shape) == 1:
-                if pos[-1] >= 0 and pos[-1] < data_shape[-1]:
-                    position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[-1], value_range=(0, data_shape[-1]), samples=data_shape[-1]))
-                    full_pos = [0, ] * len(data_shape)
+            if len(dimensional_shape) == 1:
+                if pos[-1] >= 0 and pos[-1] < dimensional_shape[-1]:
+                    position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[-1], value_range=(0, dimensional_shape[-1]), samples=dimensional_shape[-1]))
+                    full_pos = [0, ] * len(dimensional_shape)
                     full_pos[-1] = pos[-1]
-                    value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(full_pos), intensity_calibration)
+                    value_text = self.__get_calibrated_value_text(display_data_channel.get_data_value(tuple(full_pos)), intensity_calibration)
             else:
-                if pos[0] >= 0 and pos[0] < data_shape[0] and pos[1] >= 0 and pos[1] < data_shape[1]:
+                if pos[0] >= 0 and pos[0] < dimensional_shape[0] and pos[1] >= 0 and pos[1] < dimensional_shape[1]:
                     is_polar = dimensional_calibrations[0].units.startswith("1/") and dimensional_calibrations[0].units == dimensional_calibrations[1].units
                     if is_polar:
                         x = dimensional_calibrations[1].convert_to_calibrated_value(pos[1])
                         y = dimensional_calibrations[0].convert_to_calibrated_value(pos[0])
                         r = math.sqrt(x * x + y * y)
                         angle = -math.atan2(y, x)
-                        r_str = dimensional_calibrations[0].convert_to_calibrated_value_str(dimensional_calibrations[0].convert_from_calibrated_value(r), value_range=(0, data_shape[0]), samples=data_shape[0], display_inverted=True)
+                        r_str = dimensional_calibrations[0].convert_to_calibrated_value_str(dimensional_calibrations[0].convert_from_calibrated_value(r), value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0], display_inverted=True)
                         position_text = u"{0}, {1:.4f}° ({2})".format(r_str, math.degrees(angle), _("polar"))
                     else:
-                        position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1], display_inverted=True),
-                            dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0], display_inverted=True))
-                    value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(pos), intensity_calibration)
+                        position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, dimensional_shape[1]), samples=dimensional_shape[1], display_inverted=True),
+                            dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0], display_inverted=True))
+                    value_text = self.__get_calibrated_value_text(display_data_channel.get_data_value(pos), intensity_calibration)
         if len(pos) == 1:
             # 1d plot
             # make sure the position is within the bounds of the line plot
-            if pos[0] >= 0 and pos[0] < data_shape[-1]:
-                position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[-1]), samples=data_shape[-1]))
-                full_pos = [0, ] * len(data_shape)
+            if pos[0] >= 0 and pos[0] < dimensional_shape[-1]:
+                position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[-1]), samples=dimensional_shape[-1]))
+                full_pos = [0, ] * len(dimensional_shape)
                 full_pos[-1] = pos[0]
-                value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(full_pos), intensity_calibration)
+                value_text = self.__get_calibrated_value_text(display_data_channel.get_data_value(tuple(full_pos)), intensity_calibration)
         return position_text, value_text
 
 

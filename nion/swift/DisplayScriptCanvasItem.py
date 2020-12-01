@@ -1,5 +1,6 @@
 # standard libraries
 import threading
+import typing
 
 # third party libraries
 # None
@@ -23,7 +24,7 @@ class DisplayScriptCanvasItemDelegate:
 
     def enter_key_pressed(self) -> None: ...
 
-    def cursor_changed(self, pos): ...
+    def cursor_changed(self, pos: typing.Optional[typing.Tuple[int]]) -> None: ...
 
     def show_display_context_menu(self, gx, gy) -> bool: ...
 

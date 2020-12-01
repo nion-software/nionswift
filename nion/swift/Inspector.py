@@ -2143,12 +2143,10 @@ def make_point_type_inspector(document_controller, display_item: DisplayItem.Dis
     graphic_widget.add(graphic_position_row)
     graphic_widget.add_spacing(4)
 
-    data_item = display_item.data_item if display_item else None
-
     position_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "position", title=_("Change Position"), command_id="change_point_position")
 
-    image_size = data_item.display_data_shape
-    if (len(image_size) > 1):
+    display_data_shape = display_item.display_data_shape if display_item else None
+    if display_data_shape and len(display_data_shape) > 1:
         # calculate values from rectangle type graphic
         # signal_index
         position_x_binding = CalibratedValueBinding(1, display_item, Binding.TuplePropertyBinding(position_model, "value", 1))
@@ -2226,14 +2224,12 @@ def make_line_type_inspector(document_controller, display_item: DisplayItem.Disp
     graphic_widget.add(graphic_param_row)
     graphic_widget.add_spacing(4)
 
-    data_item = display_item.data_item if display_item else None
-
     start_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "start", title=_("Change Line Start"), command_id="change_line_start")
 
     end_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "end", title=_("Change Line End"), command_id="change_line_end")
 
-    image_size = data_item.display_data_shape
-    if len(image_size) > 1:
+    display_data_shape = display_item.display_data_shape if display_item else None
+    if display_data_shape and len(display_data_shape) > 1:
         # configure the bindings
         # signal_index
         start_x_binding = CalibratedValueBinding(1, display_item, Binding.TuplePropertyBinding(start_model, "value", 1))
@@ -2330,15 +2326,13 @@ def make_rectangle_type_inspector(document_controller, display_item: DisplayItem
     graphic_widget.add(graphic_size_row)
     graphic_widget.add_spacing(4)
 
-    data_item = display_item.data_item if display_item else None
-
     center_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
 
     size_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
 
     # calculate values from rectangle type graphic
-    image_size = data_item.display_data_shape
-    if len(image_size) > 1:
+    display_data_shape = display_item.display_data_shape if display_item else None
+    if display_data_shape and len(display_data_shape) > 1:
         # signal_index
         center_x_binding = CalibratedValueBinding(1, display_item, Binding.TuplePropertyBinding(center_model, "value", 1))
         center_y_binding = CalibratedValueBinding(0, display_item, Binding.TuplePropertyBinding(center_model, "value", 0))
@@ -2429,15 +2423,13 @@ def make_spot_inspector(document_controller, display_item: DisplayItem.DisplayIt
     graphic_widget.add(graphic_size_row)
     graphic_widget.add_spacing(4)
 
-    data_item = display_item.data_item if display_item else None
-
     center_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
 
     size_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
 
     # calculate values from rectangle type graphic
-    image_size = data_item.display_data_shape
-    if len(image_size) > 1:
+    display_data_shape = display_item.display_data_shape if display_item else None
+    if display_data_shape and len(display_data_shape) > 1:
         # signal_index
         center_x_binding = CalibratedSizeBinding(1, display_item, Binding.TuplePropertyBinding(center_model, "value", 1))
         center_y_binding = CalibratedSizeBinding(0, display_item, Binding.TuplePropertyBinding(center_model, "value", 0))
@@ -3323,13 +3315,12 @@ class DataItemGroupWidget(Widgets.CompositeWidgetBase):
         self.content_widget.add(DataInfoInspectorSection(self.__document_controller, display_data_channel))
         self.content_widget.add(CalibrationsInspectorSection(self.__document_controller, display_data_channel, self.__display_item))
         self.content_widget.add(SessionInspectorSection(self.__document_controller, data_item))
-        if data_item and data_item.is_sequence:
+        if display_data_channel.is_sequence:
             self.content_widget.add(SequenceInspectorSection(self.__document_controller, display_data_channel))
-        if data_item and data_item.is_collection:
-            if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
-                self.content_widget.add(SliceInspectorSection(self.__document_controller, display_data_channel))
-            else:  # default, pick
-                self.content_widget.add(CollectionIndexInspectorSection(self.__document_controller, display_data_channel))
+        if display_data_channel.is_sliced:
+            self.content_widget.add(SliceInspectorSection(self.__document_controller, display_data_channel))
+        elif display_data_channel.is_collection:
+            self.content_widget.add(CollectionIndexInspectorSection(self.__document_controller, display_data_channel))
         self.content_widget.add(ComputationInspectorSection(self.__document_controller, data_item))
 
 
@@ -3396,13 +3387,12 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
                 inspector_sections.append(ImageDataInspectorSection(document_controller, display_data_channel, display_item))
                 inspector_sections.append(CalibrationsInspectorSection(document_controller, display_data_channel, display_item))
                 inspector_sections.append(SessionInspectorSection(document_controller, data_item))
-                if data_item and data_item.is_sequence:
+                if display_data_channel.is_sequence:
                     inspector_sections.append(SequenceInspectorSection(document_controller, display_data_channel))
-                if data_item and data_item.is_collection:
-                    if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
-                        inspector_sections.append(SliceInspectorSection(document_controller, display_data_channel))
-                    else:  # default, pick
-                        inspector_sections.append(CollectionIndexInspectorSection(document_controller, display_data_channel))
+                if display_data_channel.is_sliced:
+                    inspector_sections.append(SliceInspectorSection(document_controller, display_data_channel))
+                elif display_data_channel.is_collection:
+                    inspector_sections.append(CollectionIndexInspectorSection(document_controller, display_data_channel))
                 inspector_sections.append(ComputationInspectorSection(document_controller, data_item))
             if len(display_item.graphics) > 0:
                 inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))

@@ -627,7 +627,7 @@ class DocumentController(Window.Window):
 
     # this can be called from any user interface element that wants to update the cursor info
     # in the data panel. this would typically be from the image or line plot canvas.
-    def cursor_changed(self, text_items: typing.List[str]) -> None:
+    def cursor_changed(self, text_items: typing.Optional[typing.List[str]]) -> None:
         self.cursor_changed_event.fire(text_items)
 
     @property

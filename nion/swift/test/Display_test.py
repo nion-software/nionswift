@@ -585,9 +585,9 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape, (2, 8))
-            self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
-            self.assertEqual(display_data_channel.display_data_shape, (2, 8))
+            self.assertEqual((2, 8), display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape)
+            self.assertEqual(numpy.float64, display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype)
+            self.assertEqual((2, 8), display_data_channel.display_data_shape)
 
     def test_sequence_index_validates_when_data_changes(self):
         with TestContext.create_memory_context() as test_context:

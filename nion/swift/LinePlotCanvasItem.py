@@ -55,7 +55,7 @@ class LinePlotCanvasItemDelegate:
 
     def enter_key_pressed(self) -> None: ...
 
-    def cursor_changed(self, pos): ...
+    def cursor_changed(self, pos: typing.Optional[typing.Tuple[int]]) -> None: ...
 
     def update_display_properties(self, display_properties: dict) -> None: ...
 
@@ -464,8 +464,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             scalar_xdata_list = list()
             for xdata in xdata_list:
                 if xdata:
-                    scalar_data = Image.scalar_from_array(xdata.data)
-                    scalar_data = Image.convert_to_grayscale(scalar_data)
+                    scalar_data = Image.convert_to_grayscale(xdata.data)
                     scalar_intensity_calibration = calibration_style.get_intensity_calibration(xdata)
                     scalar_dimensional_calibrations = calibration_style.get_dimensional_calibrations(xdata.dimensional_shape, xdata.dimensional_calibrations)
                     if displayed_dimensional_calibration.units == scalar_dimensional_calibrations[-1].units and intensity_calibration.units == scalar_intensity_calibration.units:

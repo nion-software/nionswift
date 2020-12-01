@@ -1187,25 +1187,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def is_data_bool(self) -> bool:
         return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_bool
 
-    @property
-    def display_data_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
-        dimensional_shape = self.dimensional_shape
-        next_dimension = 0
-        if self.is_sequence:
-            next_dimension += 1
-        if self.is_collection:
-            collection_dimension_count = self.collection_dimension_count
-            datum_dimension_count = self.datum_dimension_count
-            # next dimensions are treated as collection indexes.
-            if collection_dimension_count == 1 and datum_dimension_count == 1:
-                return tuple(dimensional_shape[next_dimension:next_dimension + collection_dimension_count + datum_dimension_count])
-            elif collection_dimension_count == 2 and datum_dimension_count == 1:
-                return tuple(dimensional_shape[next_dimension:next_dimension + collection_dimension_count])
-            else:  # default, "pick"
-                return tuple(dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count])
-        else:
-            return tuple(dimensional_shape[next_dimension:])
-
     def get_data_value(self, pos):
         return self.__data_and_metadata.get_data_value(pos) if self.__data_and_metadata else None
 

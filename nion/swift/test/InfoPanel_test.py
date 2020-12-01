@@ -34,9 +34,9 @@ class TestInfoPanelClass(unittest.TestCase):
             display_item.display_type = "line_plot"
             display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
             display_item.calibration_style_id = "pixels-top-left"
-            p, v = display_item.get_value_and_position_text(display_item.display_data_channel, (25, ))
-            self.assertEqual(p, "25")
-            self.assertEqual(v, "")
+            p, v = display_item.get_value_and_position_text((25, ))
+            self.assertEqual("25", p)
+            self.assertEqual("", v)
 
     def test_cursor_over_1d_data_displays_without_exception(self):
         with TestContext.create_memory_context() as test_context:
@@ -77,7 +77,7 @@ class TestInfoPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.calibration_style_id = "pixels-top-left"
-            p, v = display_item.get_value_and_position_text(display_item.display_data_channel, (500,))
+            p, v = display_item.get_value_and_position_text((500,))
             self.assertEqual(p, "500.0, 0.0")
             self.assertEqual(v, "0")
 
@@ -89,7 +89,7 @@ class TestInfoPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.calibration_style_id = "pixels-top-left"
-            p, v = display_item.get_value_and_position_text(display_item.display_data_channel, (500,))
+            p, v = display_item.get_value_and_position_text((500,))
             self.assertEqual(p, "500.0, 0.0")
             self.assertEqual(v, "0")
 
@@ -101,7 +101,7 @@ class TestInfoPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.calibration_style_id = "pixels-top-left"
-            p, v = display_item.get_value_and_position_text(display_item.display_data_channel, (500,))
+            p, v = display_item.get_value_and_position_text((500,))
             self.assertEqual(p, "500.0, 0.0")
             self.assertEqual(v, "0")
 
@@ -112,7 +112,7 @@ class TestInfoPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.calibration_style_id = "pixels-top-left"
-            p, v = display_item.get_value_and_position_text(display_item.display_data_channel, (25, ))
+            p, v = display_item.get_value_and_position_text((25, ))
             self.assertEqual(p, "25.0")
             self.assertEqual(v, "0")
 
@@ -123,7 +123,7 @@ class TestInfoPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_type = "image"
-            p, v = display_item.get_value_and_position_text(display_item.display_data_channel, (2, 20))
+            p, v = display_item.get_value_and_position_text((2, 20))
             self.assertEqual(p, "20.0, 2.0")
             self.assertEqual(v, "0")
 

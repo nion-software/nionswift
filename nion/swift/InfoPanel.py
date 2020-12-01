@@ -64,8 +64,8 @@ class InfoPanel(Panel.Panel):
         super(InfoPanel, self).close()
 
     # this message is received from the document controller.
-    def __cursor_changed(self, text_items: typing.List[str]) -> None:
-        def update_position_and_value(text_items: typing.List[str]):
+    def __cursor_changed(self, text_items: typing.Optional[typing.List[str]]) -> None:
+        def update_position_and_value(text_items: typing.Optional[typing.List[str]]):
             self.label_row_1.text = text_items[0] if text_items and len(text_items) > 0 else None
             self.label_row_2.text = text_items[1] if text_items and len(text_items) > 1 else None
             self.label_row_3.text = text_items[2] if text_items and len(text_items) > 2 else None

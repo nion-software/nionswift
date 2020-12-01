@@ -1894,11 +1894,11 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             command.close()
         return result
 
-    def cursor_changed(self, pos):
+    def cursor_changed(self, pos: typing.Optional[typing.Tuple[int]]) -> None:
         position_text, value_text = str(), str()
         try:
             if pos is not None:
-                position_text, value_text = self.__display_item.get_value_and_position_text(self.__display_item.display_data_channel, pos)
+                position_text, value_text = self.__display_item.get_value_and_position_text(pos)
         except Exception as e:
             global _test_log_exceptions
             if _test_log_exceptions:
