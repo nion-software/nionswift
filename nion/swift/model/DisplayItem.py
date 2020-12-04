@@ -331,7 +331,12 @@ class DisplayValues:
                 data_and_metadata = self.__data_and_metadata
                 if data_and_metadata is not None:
                     timestamp = data_and_metadata.timestamp
-                    data_and_metadata, modified = Core.function_element_data_no_copy(data_and_metadata, self.__sequence_index, self.__collection_index, self.__slice_center, self.__slice_width)
+                    data_and_metadata, modified = Core.function_element_data_no_copy(data_and_metadata,
+                                                                                     self.__sequence_index,
+                                                                                     self.__collection_index,
+                                                                                     self.__slice_center,
+                                                                                     self.__slice_width,
+                                                                                     flag16=False)
                     if data_and_metadata:
                         data_and_metadata.data_metadata.timestamp = timestamp
                     self.__element_data_and_metadata = data_and_metadata
@@ -738,9 +743,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
             collection_dimension_count = data_item.collection_dimension_count
             datum_dimension_count = data_item.datum_dimension_count
             # next dimensions are treated as collection indexes.
-            if collection_dimension_count == 1 and datum_dimension_count == 1:
-                return tuple(dimensional_shape[next_dimension:next_dimension + collection_dimension_count + datum_dimension_count])
-            elif collection_dimension_count == 2 and datum_dimension_count == 1:
+            if collection_dimension_count == 2 and datum_dimension_count == 1:
                 return tuple(dimensional_shape[next_dimension:next_dimension + collection_dimension_count])
             else:  # default, "pick"
                 return tuple(dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count])
@@ -816,9 +819,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
                 collection_dimension_count = self.__data_item.collection_dimension_count
                 datum_dimension_count = self.__data_item.datum_dimension_count
                 # next dimensions are treated as collection indexes.
-                if collection_dimension_count == 1 and datum_dimension_count == 1:
-                    return dimensional_calibrations[next_dimension:next_dimension + collection_dimension_count + datum_dimension_count]
-                elif collection_dimension_count == 2 and datum_dimension_count == 1:
+                if collection_dimension_count == 2 and datum_dimension_count == 1:
                     return dimensional_calibrations[next_dimension:next_dimension + collection_dimension_count]
                 else:  # default, "pick"
                     return dimensional_calibrations[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]

@@ -576,7 +576,8 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
             self.assertEqual(display_data_channel.display_data_shape, (8, 8))
 
-    def test_display_data_is_2d_for_collection_of_1d_datum(self):
+    def test_display_data_is_1d_for_collection_of_1d_datum(self):
+        # this tests the changes of 1d collections of 1d data. see #529.
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
@@ -585,9 +586,10 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual((2, 8), display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape)
+            self.assertEqual((8,), display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape)
             self.assertEqual(numpy.float64, display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype)
-            self.assertEqual((2, 8), display_data_channel.display_data_shape)
+            self.assertEqual((8,), display_data_channel.display_data_shape)
+            self.assertEqual(1, len(display_data_channel.get_datum_calibrations(data_item.dimensional_calibrations)))
 
     def test_sequence_index_validates_when_data_changes(self):
         with TestContext.create_memory_context() as test_context:
