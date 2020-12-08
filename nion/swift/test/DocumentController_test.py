@@ -635,6 +635,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             context_menu_items = context_menu.items
             delete_item = next(x for x in context_menu_items if x.title.startswith("Delete Data Item"))
             delete_item.callback()
+            document_controller.periodic()
             self.assertEqual(len(document_model.data_items), 0)
 
     def test_delete_by_display_panel_context_menu_only_deletes_data_item_in_display_panel(self):
@@ -654,6 +655,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             context_menu_items = context_menu.items
             delete_item = next(x for x in context_menu_items if x.title.startswith("Delete Data Item"))
             delete_item.callback()
+            document_controller.periodic()
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(1, len(document_controller.selection.indexes))
 
@@ -672,6 +674,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             context_menu_items = context_menu.items
             delete_item = next(x for x in context_menu_items if x.title.startswith("Delete Display Items"))
             delete_item.callback()
+            document_controller.periodic()
             self.assertEqual(len(document_model.data_items), 0)
             self.assertEqual(len(document_controller.selection.indexes), 0)
 
@@ -750,6 +753,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             context_menu_items = context_menu.items
             delete_item = next(x for x in context_menu_items if x.title.startswith("Delete Data Item"))
             delete_item.callback()
+            document_controller.periodic()
             self.assertEqual(len(document_model.data_items), 0)
             self.assertEqual(len(document_controller.selection.indexes), 0)
             self.assertEqual(None, document_controller.selected_display_item)

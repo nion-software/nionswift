@@ -1305,22 +1305,33 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(self.document_controller.ui.popup.items), 14)
 
     def test_browser_context_menu_deletes_all_selected_items(self):
-        d = {"type": "image", "display-panel-type": "browser-display-panel"}
-        self.display_panel.change_display_panel_content(d)
-        self.document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
-        self.document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
-        self.document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
-        self.assertEqual(len(self.document_model.data_items), 4)
-        self.assertIsNone(self.document_controller.ui.popup)
-        self.assertEqual(self.display_panel, self.document_controller.selected_display_panel)
-        self.display_panel._selection_for_test.add_range(range(0, 4))
-        self.display_panel.root_container.refresh_layout_immediate()
-        self.display_panel.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
-        self.document_controller.periodic()
-        # reveal, export, sep, delete, sep, split h, split v, sep, clear, sep, display, thumbnail, grid, sep
-        delete_item = next(x for x in self.document_controller.ui.popup.items if x.title.startswith("Delete Display Items"))
-        delete_item.callback()
-        self.assertEqual(0, len(self.document_model.data_items))
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
+            d = {"type": "image", "display-panel-type": "browser-display-panel"}
+            display_panel.change_display_panel_content(d)
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            self.assertEqual(len(document_model.data_items), 4)
+            self.assertIsNone(document_controller.ui.popup)
+            self.assertEqual(display_panel, document_controller.selected_display_panel)
+            display_panel._selection_for_test.add_range(range(0, 4))
+            display_panel.root_container.refresh_layout_immediate()
+            display_panel.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
+            document_controller.periodic()
+            # reveal, export, sep, delete, sep, split h, split v, sep, clear, sep, display, thumbnail, grid, sep
+            delete_item = next(x for x in document_controller.ui.popup.items if x.title.startswith("Delete Display Items"))
+            delete_item.callback()
+            document_controller.periodic()
+            self.assertEqual(0, len(document_model.data_items))
 
     def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):
         self.assertEqual(self.display_panel.header_canvas_item.title, self.data_item.title)
