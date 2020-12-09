@@ -1620,7 +1620,7 @@ class DocumentController(Window.Window):
             menu.remove_action(action)
         self.__data_menu_actions = list()
         selected_display_panel = self.selected_display_panel
-        display_item = selected_display_panel.display_item
+        display_item = selected_display_panel.display_item if selected_display_panel else None
         data_item = display_item.data_item if display_item else None
         if data_item:
 
