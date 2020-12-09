@@ -1423,14 +1423,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.insert_display_layer(before_index, **display_layer_copy)
         self.__auto_display_legend()
 
-    def populate_display_layers(self) -> None:
-        if len(self.display_layers) == 0:
-            # create basic display layers here
-            while len(self.display_layers) < len(self.display_data_channels):
-                self.__add_display_layer_auto(dict(), len(self.display_layers))
-
     def append_display_data_channel_for_data_item(self, data_item: DataItem.DataItem) -> None:
-        self.populate_display_layers()
         if not data_item in self.data_items:
             display_data_channel = DisplayDataChannel(data_item)
             self.append_display_data_channel(display_data_channel, display_layer=dict())
