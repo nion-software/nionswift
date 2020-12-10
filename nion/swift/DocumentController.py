@@ -2262,6 +2262,8 @@ class DocumentController(Window.Window):
         menu = self.create_context_menu()
         action_context = self._get_action_context_for_display_items(display_items, None)
         self.populate_context_menu(menu, action_context)
+        menu.add_separator()
+        self.add_action_to_menu(menu, "item.delete", action_context)
         return menu
 
     def populate_context_menu(self, menu: UserInterface.Menu, action_context: DocumentController.ActionContext) -> None:
