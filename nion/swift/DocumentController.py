@@ -2258,6 +2258,7 @@ class DocumentController(Window.Window):
             return receive_files_on_thread(file_paths, data_group, index, functools.partial(receive_files_complete, index))
 
     def create_context_menu_for_display(self, display_items: typing.List[DisplayItem.DisplayItem]) -> UserInterface.Menu:
+        # only used in tests
         menu = self.create_context_menu()
         action_context = self._get_action_context_for_display_items(display_items, None)
         self.populate_context_menu(menu, action_context)
@@ -2266,8 +2267,6 @@ class DocumentController(Window.Window):
     def populate_context_menu(self, menu: UserInterface.Menu, action_context: DocumentController.ActionContext) -> None:
         self.add_action_to_menu(menu, "display.reveal", action_context)
         self.add_action_to_menu(menu, "file.export", action_context)
-        menu.add_separator()
-        self.add_action_to_menu(menu, "item.delete", action_context)
 
         data_item = action_context.data_item
 
@@ -2994,7 +2993,8 @@ Window.register_action(RemoveGraphicFromMaskAction())
 class ProcessingAction(Window.Action):
 
     def invoke_processing(self, context: Window.ActionContext, fn) -> None:
-        typing.cast(DocumentController, context.window)._perform_processing_select(context.display_item, context.crop_graphic, fn)
+        if context.display_item:
+            typing.cast(DocumentController, context.window)._perform_processing_select(context.display_item, context.crop_graphic, fn)
 
     def invoke_processing2(self, context: Window.ActionContext, fn) -> None:
         data_sources = typing.cast(DocumentController, context.window)._get_two_data_sources()
