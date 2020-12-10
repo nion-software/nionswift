@@ -504,24 +504,28 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
             colors = ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00")
 
+            max_layer_count = len(self.__line_graph_stack.canvas_items)
+
             display_layers = list(self.__display_layers)
 
             if len(display_layers) == 0:
                 index = 0
                 for scalar_index, scalar_xdata in enumerate(scalar_xdata_list):
                     if scalar_xdata and scalar_xdata.is_data_1d:
-                        if index < len(self.__line_graph_stack.canvas_items):
+                        if index < max_layer_count:
                             display_layers.append({"fill_color": colors[index] if index == 0 else None, "stroke_color": colors[index] if index > 0 else None, "data_index": scalar_index})
                             index += 1
                     if scalar_xdata and scalar_xdata.is_data_2d:
-                        for row in range(min(scalar_xdata.data_shape[-1], len(self.__line_graph_stack.canvas_items))):
-                            if index < len(self.__line_graph_stack.canvas_items):
+                        for row in range(min(scalar_xdata.data_shape[-1], max_layer_count)):
+                            if index < max_layer_count:
                                 display_layers.append({"fill_color": colors[index] if index == 0 else None, "stroke_color": colors[index] if index > 0 else None, "data_index": scalar_index, "data_row": row})
                                 index += 1
 
             self.___has_valid_drawn_graph_data = False
 
-            for index, display_layer in enumerate(self.__display_layers[0:len(self.__line_graph_stack.canvas_items)]):
+            display_layer_count = len(self.__display_layers[0:max_layer_count])
+
+            for index, display_layer in enumerate(self.__display_layers[0:max_layer_count]):
                 fill_color = display_layer.get("fill_color")
                 stroke_color = display_layer.get("stroke_color")
                 data_index = display_layer.get("data_index", 0)
@@ -535,14 +539,15 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                         if scalar_xdata.is_data_2d:
                             scalar_data = scalar_xdata.data[data_row:data_row + 1, :].reshape((scalar_xdata.dimensional_shape[-1],))
                             scalar_xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
-                    line_graph_canvas_item = self.__line_graph_stack.canvas_items[index]
+                    line_graph_canvas_item = self.__line_graph_stack.canvas_items[display_layer_count - (index + 1)]
                     line_graph_canvas_item.set_fill_color(fill_color)
                     line_graph_canvas_item.set_stroke_color(stroke_color)
                     line_graph_canvas_item.set_axes(axes)
                     line_graph_canvas_item.set_uncalibrated_xdata(scalar_xdata)
                     self.___has_valid_drawn_graph_data = scalar_xdata is not None
 
-            for index in range(len(display_layers), len(self.__line_graph_stack.canvas_items)):
+            # clear the remaining layers
+            for index in range(len(display_layers), max_layer_count):
                 line_graph_canvas_item = self.__line_graph_stack.canvas_items[index]
                 line_graph_canvas_item.set_axes(None)
                 line_graph_canvas_item.set_uncalibrated_xdata(None)
@@ -550,7 +555,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             legend_position = self.__legend_position
             LegendEntry = collections.namedtuple("LegendEntry", ["label", "fill_color", "stroke_color"])
             legend_entries = list()
-            for index, display_layer in enumerate(self.__display_layers[0:len(self.__line_graph_stack.canvas_items)]):
+            for index, display_layer in enumerate(self.__display_layers[0:max_layer_count]):
                 data_index = display_layer.get("data_index", None)
                 data_row = display_layer.get("data_row", None)
                 label = display_layer.get("label", str())
