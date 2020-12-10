@@ -5,6 +5,14 @@
 Release Notes
 =============
 
+Version 0.15.3 (2020-12-10)
+---------------------------
+* (2020-12-09) Fix regression (0.15.2) of drawing composite line plot layers in reverse order.
+* (2020-12-07) Fix issue with export and other items crashing after context menu.
+* (2020-12-03) Change collections of 1D data to show single line plot with navigation in inspector.
+* (2020-11-26) Change console script r-var's to refer to display not data item.
+* (2020-11-24) Improve menu and context menu layout (Display, Graphics, Workspace).
+
 Version 0.15.2 (2020-11-13)
 ---------------------------
 * (2020-11-13) Add documentation about upgrading. Also other minor documentation changes.
