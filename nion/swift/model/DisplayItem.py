@@ -1398,6 +1398,11 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def _set_display_layer_property(self, index: int, property_name: str, value) -> None:
         self.display_layers = set_display_layer_property(self.display_layers, index, property_name, value)
 
+    def _set_display_layer_properties(self, index: int, **kwargs) -> None:
+        display_layers = self.display_layers
+        display_layers[index].update(**kwargs)
+        self.display_layers = display_layers
+
     def add_display_layer(self, **kwargs) -> None:
         self.display_layers = add_display_layer(self.display_layers, **kwargs)
 
@@ -1413,6 +1418,12 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def move_display_layer_backward(self, index: int) -> None:
         self.display_layers = move_display_layer_backward(self.display_layers, index)
 
+    def move_display_layer_at_index_forward(self, index: int) -> None:
+        self.display_layers = move_display_layer_forward(self.display_layers, index)
+
+    def move_display_layer_at_index_backward(self, index: int) -> None:
+        self.display_layers = move_display_layer_backward(self.display_layers, index)
+
     def copy_display_layer(self, before_index: int, display_item: "DisplayItem", display_layer: typing.Dict) -> None:
         display_layer_copy = copy.deepcopy(display_layer)
         display_data_channel_copy = copy.deepcopy(display_item.display_data_channels[display_layer_copy["data_index"]])
@@ -1422,6 +1433,10 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_layer_copy["fill_color"] = display_layer["fill_color"]
         self.insert_display_layer(before_index, **display_layer_copy)
         self.__auto_display_legend()
+
+    def _add_display_layer_for_data_item(self, data_item: DataItem.DataItem, **kwargs) -> None:
+        kwargs["data_index"] = self.data_items.index(data_item)
+        self.add_display_layer(**kwargs)
 
     def append_display_data_channel_for_data_item(self, data_item: DataItem.DataItem) -> None:
         if not data_item in self.data_items:
