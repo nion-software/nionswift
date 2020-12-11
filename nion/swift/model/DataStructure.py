@@ -37,10 +37,13 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         self.__source_proxy = self.create_item_proxy(item=source)
         self.source_specifier = source.project.create_specifier(source).write() if source else None
         self.__entity: typing.Optional[Schema.Entity] = None
+        self.__entity_property_changed_event_listener: typing.Optional[Event.EventListener] = None
         self.__create_entity()
 
     def close(self) -> None:
         if self.__entity:
+            self.__entity_property_changed_event_listener.close()
+            self.__entity_property_changed_event_listener = None
             self.__entity.close()
             self.__entity = None
         self.__source_proxy.close()
@@ -59,10 +62,10 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
             DataStructure.entity_package_names[entity_type.entity_id] = entity_package_name
 
     @classmethod
-    def unregister_entity(cls, structure_type: str) -> None:
-        DataStructure.entity_types.pop(structure_type)
-        DataStructure.entity_names.pop(structure_type, None)
-        DataStructure.entity_package_names.pop(structure_type, None)
+    def unregister_entity(cls, entity_type: Schema.EntityType) -> None:
+        DataStructure.entity_types.pop(entity_type.entity_id)
+        DataStructure.entity_names.pop(entity_type.entity_id, None)
+        DataStructure.entity_package_names.pop(entity_type.entity_id, None)
 
     def __getattr__(self, name):
         properties = self.__dict__.get("_DataStructure__properties", dict())
@@ -113,25 +116,27 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
 
     def __create_entity(self) -> None:
         if self.__entity:
+            self.__entity_property_changed_event_listener.close()
+            self.__entity_property_changed_event_listener = None
             self.__entity.close()
             self.__entity = None
 
         if self.structure_type in DataStructure.entity_types:
             self.__entity = DataStructure.entity_types[self.structure_type].create(self.__properties)
 
-            def write_entity(d: typing.Dict) -> None:
-                for property, value in d.items():
-                    if property != "type":
-                        self.__properties[property] = value
-                        reference_object_proxy = self.__referenced_object_proxies.pop(property, None)
-                        if reference_object_proxy:
-                            reference_object_proxy.close()
-                        self.__configure_reference_proxy(property, value, None)
-                        self.data_structure_changed_event.fire(property)
-                        self.property_changed_event.fire(property)
+            def entity_property_changed(name: str) -> None:
+                if name != "type":
+                    value = getattr(self.__entity, name)
+                    self.__properties[name] = value
+                    reference_object_proxy = self.__referenced_object_proxies.pop(name, None)
+                    if reference_object_proxy:
+                        reference_object_proxy.close()
+                    self.__configure_reference_proxy(name, value, None)
+                    self.data_structure_changed_event.fire(name)
+                    self.property_changed_event.fire(name)
                 self._update_persistent_property("properties", self.__properties)
 
-            self.__entity.writer = write_entity
+            self.__entity_property_changed_event_listener = self.__entity.property_changed_event.listen(entity_property_changed)
 
     def __configure_reference_proxy(self, property_name, value, item):
         if isinstance(value, dict) and value.get("type") in {"data_item", "display_item", "data_source", "graphic", "structure"} and "uuid" in value:

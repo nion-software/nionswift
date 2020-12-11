@@ -439,14 +439,17 @@ class ComponentType(FieldType):
 
 
 class Entity(Observable.Observable):
-    def __init__(self, type: EntityType, version: typing.Optional[int], field_type_map: typing.Mapping[str, FieldType], renames: typing.Mapping[str, str]):
+    def __init__(self,
+                 type: EntityType,
+                 version: typing.Optional[int],
+                 field_type_map: typing.Mapping[str, FieldType],
+                 renames: typing.Mapping[str, str]):
         super().__init__()
         self.__entity_type = type
         self.__version = version
         self.__field_type_map = field_type_map
         self.__field_dict : typing.Dict[str, Field] = dict()
         self.__renames = renames
-        self.writer: typing.Optional[typing.Callable[[typing.Dict], None]] = None
 
     def close(self) -> None:
         pass
@@ -488,8 +491,6 @@ class Entity(Observable.Observable):
     def __set_field_value(self, name: str, value: typing.Any) -> None:
         self.__field_dict[name].field_value = value
         self.property_changed_event.fire(name)
-        if callable(self.writer):
-            self.writer(self.write_to_dict())
 
 
 class EntityType:
