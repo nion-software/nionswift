@@ -33,7 +33,7 @@ def register_entity_type(entity_id: str, entity: EntityType) -> None:
     entity_types[entity_id] = entity
 
 def get_entity_type(entity_id: str) -> EntityType:
-    return entity_types.get(entity_id)
+    return entity_types[entity_id]
 
 def build_value(type: str, value) -> typing.Any:
     if value is None:
@@ -75,7 +75,7 @@ def dict_value(type: str, value):
     return value
 
 
-DictValue = typing.Optional[typing.Union[typing.Dict, typing.List, typing.Tuple, str]]
+DictValue = typing.Optional[typing.Union[typing.Dict, typing.List, typing.Tuple, str, int]]
 
 
 class Field(abc.ABC):
@@ -88,13 +88,13 @@ class Field(abc.ABC):
     @abc.abstractmethod
     def write(self) -> DictValue: ...
 
+    # not abstract to avoid type checking issues until mypy supports abstract properties
     @property
-    @abc.abstractmethod
-    def field_value(self) -> typing.Any: ...
+    def field_value(self) -> typing.Any: return None
 
+    # not abstract to avoid type checking issues until mypy supports abstract properties
     @field_value.setter
-    @abc.abstractmethod
-    def field_value(self, value: typing.Any) -> None: ...
+    def field_value(self, value: typing.Any) -> None: pass
 
 
 class PropertyField(Field):
@@ -127,7 +127,7 @@ class TupleField(Field):
         self.__type = type
         self.__optional = optional
         self.__default_values = list(default_values) if default_values is not None else None
-        self.__fields = None
+        self.__fields: typing.Optional[typing.Tuple[Field, ...]] = None
         self.read(default_values)
 
     def close(self) -> None:
@@ -154,7 +154,7 @@ class TupleField(Field):
 
     @property
     def field_value(self) -> typing.Any:
-        return [field.field_value for field in self.__fields]
+        return [field.field_value for field in self.__fields] if self.__fields else None
 
     @field_value.setter
     def field_value(self, value: typing.Any) -> None:
@@ -168,7 +168,7 @@ class FixedTupleField(Field):
         self.__types = types
         self.__optional = optional
         self.__default_values = list(default_values) if default_values is not None else None
-        self.__fields = None
+        self.__fields: typing.Optional[typing.Tuple[Field, ...]] = None
         self.read(default_values)
 
     def close(self) -> None:
@@ -186,8 +186,6 @@ class FixedTupleField(Field):
         self.__clear()
         if isinstance(dict_value, (tuple, list)):
             self.__fields = tuple(type.create(v) for type, v in zip(self.__types, dict_value))
-        else:
-            self.__value = tuple()
         return self
 
     def write(self) -> DictValue:
@@ -198,7 +196,7 @@ class FixedTupleField(Field):
 
     @property
     def field_value(self) -> typing.Any:
-        return [field.field_value for field in self.__fields]
+        return [field.field_value for field in self.__fields] if self.__fields else None
 
     @field_value.setter
     def field_value(self, value: typing.Any) -> None:
@@ -209,19 +207,17 @@ class FixedTupleField(Field):
 class RecordField(Field):
     def __init__(self, field_type_map: typing.Mapping[str, FieldType]):
         self.__field_type_map = field_type_map
-        self.__field_map = dict()
+        self.__field_map: typing.Dict[str, Field] = dict()
 
     def close(self) -> None:
         for field in self.__field_map.values():
             field.close()
-        self.__field_map = None
+        self.__field_map = None  # type: ignore
         super().close()
 
     def read(self, dict_value: typing.Any) -> Field:
         if isinstance(dict_value, (dict)):
             self.__field_map = {k: type.create(dict_value.get(k)) for k, type in self.__field_type_map.items()}
-        else:
-            self.__value = tuple()
         return self
 
     def write(self) -> DictValue:
@@ -245,7 +241,7 @@ class ArrayField(Field):
     def __init__(self, type: FieldType, optional: bool):
         self.__type = type
         self.__optional = optional
-        self.__fields = list()
+        self.__fields: typing.List[Field] = list()
 
     def read(self, dict_value: typing.Any) -> Field:
         if isinstance(dict_value, (tuple, list)):
@@ -276,7 +272,7 @@ class MapField(Field):
         self.__key = key
         self.__value = value
         self.__optional = optional
-        self.__map = dict()
+        self.__map: typing.Dict[str, Field] = dict()
 
     def read(self, dict_value: typing.Any) -> Field:
         if isinstance(dict_value, dict):
@@ -294,7 +290,7 @@ class MapField(Field):
 
     @property
     def field_value(self) -> typing.Any:
-        return {k: field.field_value for k, field in self.__map}
+        return {k: field.field_value for k, field in self.__map.items()}
 
     @field_value.setter
     def field_value(self, value: typing.Any) -> None:
@@ -326,7 +322,7 @@ class ReferenceField(Field):
 class ComponentField(Field):
     def __init__(self, entity_id: str):
         self.__type = get_entity_type(entity_id)
-        self.__field = None
+        self.__field: typing.Optional[Entity] = None
 
     def close(self) -> None:
         if self.__field:
@@ -339,7 +335,7 @@ class ComponentField(Field):
         return self
 
     def write(self) -> DictValue:
-        return self.__field.write_to_dict()
+        return self.__field.write_to_dict() if self.__field else None
 
     @property
     def field_value(self) -> typing.Any:
@@ -433,7 +429,7 @@ class ComponentType(FieldType):
     def create(self, dict_value: DictValue) -> Field:
         assert isinstance(dict_value, dict)
         d = dict_value
-        entity_type = get_entity_type(d.get("type"))
+        entity_type = get_entity_type(d["type"])
         field_type = entity_type.entity_id if entity_type else self._args[0]
         return self._call(self._field_class, *((field_type, ) + self._args[1:]), **self._kwargs).read(dict_value)
 
@@ -462,7 +458,7 @@ class Entity(Observable.Observable):
         return self
 
     def write_to_dict(self) -> typing.Dict:
-        d = dict()
+        d: typing.Dict[str, DictValue] = dict()
         d["type"] = self.__entity_type.entity_id
         if self.__version:
             d["version"] = self.__version
@@ -498,16 +494,16 @@ class EntityType:
         self.__entity_id = entity_id
         self.__base = base
         self.__version = version
-        self.__renames = dict()
-        self.__field_type_map = dict()
+        self.__renames: typing.Dict[str, str] = dict()
+        self.__field_type_map: typing.Dict[str, FieldType] = dict()
         self.__field_type_map["uuid"] = prop(UUID)
         self.__field_type_map["modified"] = prop(TIMESTAMP)
         while base:
             for k, v in base._field_type_map.items():
                 if not k in ("uuid", "modified"):
                     self.__field_type_map[k] = v
-            for k, v in base._renames.items():
-                self.__renames[k] = v
+            for k2, v2 in base._renames.items():  # use '2' versions to satisfy mypy
+                self.__renames[k2] = v2
             base = base.base
         for k, v in field_type_map.items():
             self.__field_type_map[k] = v
@@ -536,7 +532,7 @@ class EntityType:
         self.__renames[field_name] = storage_field_name
 
     def is_subclass_of(self, entity_type: EntityType) -> bool:
-        return self.base and (self.base == entity_type or self.base.is_subclass_of(entity_type))
+        return self.base is not None and (self.base == entity_type or self.base.is_subclass_of(entity_type))
 
     @property
     def subclasses(self) -> typing.List[EntityType]:
@@ -565,8 +561,8 @@ def array(type: FieldType, optional: bool = False) -> ArrayType:
 def map(key: FieldType, value: FieldType, optional: bool = False) -> MapType:
     return MapType(key, value, optional)
 
-def reference(type: typing.Optional[EntityType] = None) -> ReferenceType:
-    return ReferenceType(type)
+def reference(type: typing.Optional[EntityType] = None) -> typing.Optional[ReferenceType]:
+    return ReferenceType(type) if type else None
 
 def component(type: typing.Union[EntityType, str]) -> ComponentType:
     if isinstance(type, EntityType):
