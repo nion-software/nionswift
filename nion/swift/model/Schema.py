@@ -416,7 +416,7 @@ class MapType(FieldType):
 
 
 class ReferenceType(FieldType):
-    def __init__(self, type: EntityType):
+    def __init__(self, type: typing.Optional[EntityType]):
         super().__init__(ReferenceField, type)
         self.type = type
 
@@ -561,8 +561,8 @@ def array(type: FieldType, optional: bool = False) -> ArrayType:
 def map(key: FieldType, value: FieldType, optional: bool = False) -> MapType:
     return MapType(key, value, optional)
 
-def reference(type: typing.Optional[EntityType] = None) -> typing.Optional[ReferenceType]:
-    return ReferenceType(type) if type else None
+def reference(type: typing.Optional[EntityType] = None) -> ReferenceType:
+    return ReferenceType(type)
 
 def component(type: typing.Union[EntityType, str]) -> ComponentType:
     if isinstance(type, EntityType):
