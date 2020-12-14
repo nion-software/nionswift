@@ -524,7 +524,6 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.__color_map_data = None
         self.modified_state = 0
 
-        self.property_changed_event = Event.Event()
         self.display_values_changed_event = Event.Event()
         self.display_data_will_change_event = Event.Event()
         self.data_item_proxy_changed_event = Event.Event()
@@ -580,13 +579,13 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
     def about_to_be_inserted(self, container):
         super().about_to_be_inserted(container)
-        self.notify_property_changed("display_item")
+        self.notify_property_changed("display_item")  # used for implicit connections
 
     def about_to_be_removed(self, container):
         # tell the data item that this display data channel is no longer referencing it
         if self.__data_item:
             self.__data_item.remove_display_data_channel(self)
-        self.notify_property_changed("display_item")
+        self.notify_property_changed("display_item")  # used for implicit connections
         super().about_to_be_removed(container)
 
     @property
