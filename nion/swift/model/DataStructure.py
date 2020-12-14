@@ -122,7 +122,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
             self.__entity = None
 
         if self.structure_type in DataStructure.entity_types:
-            self.__entity = DataStructure.entity_types[self.structure_type].create(self.__properties)
+            self.__entity = DataStructure.entity_types[self.structure_type].create(self.persistent_object_context, self.__properties)
 
             def entity_property_changed(name: str) -> None:
                 if name != "type":
