@@ -123,11 +123,12 @@ class Field(abc.ABC):
 
     # not abstract to avoid type checking issues until mypy supports abstract properties
     @property
-    def field_value(self) -> typing.Any: return None
+    def field_value(self) -> typing.Any:
+        return None
 
     # not abstract to avoid type checking issues until mypy supports abstract properties
-    @field_value.setter
-    def field_value(self, value: typing.Any) -> None: pass
+    def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
+        pass
 
 
 class PropertyField(Field):
@@ -149,8 +150,7 @@ class PropertyField(Field):
     def field_value(self) -> typing.Any:
         return self.__value
 
-    @field_value.setter
-    def field_value(self, value: typing.Any) -> None:
+    def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         self.__value = value
 
 
@@ -191,8 +191,7 @@ class TupleField(Field):
     def field_value(self) -> typing.Any:
         return [field.field_value for field in self.__fields] if self.__fields else None
 
-    @field_value.setter
-    def field_value(self, value: typing.Any) -> None:
+    def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         assert isinstance(value, (tuple, list))
         self.__fields = tuple(self.__type.create_and_read(self.__context, v) for v in value)
 
@@ -234,8 +233,7 @@ class FixedTupleField(Field):
     def field_value(self) -> typing.Any:
         return [field.field_value for field in self.__fields] if self.__fields else None
 
-    @field_value.setter
-    def field_value(self, value: typing.Any) -> None:
+    def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         assert isinstance(value, (tuple, list))
         self.__fields = tuple(type.create_and_read(self.__context, v) for type, v in zip(self.__types, value))
 
@@ -269,8 +267,7 @@ class RecordField(Field):
     def field_value(self) -> typing.Any:
         return None
 
-    @field_value.setter
-    def field_value(self, value: typing.Any) -> None:
+    def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         pass
 
 
@@ -305,10 +302,22 @@ class ArrayField(Field):
     def field_value(self) -> typing.Any:
         return [field.field_value for field in self.__fields]
 
-    @field_value.setter
-    def field_value(self, value: typing.Any) -> None:
+    def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         assert isinstance(value, (tuple, list))
         self.__fields = list(self.__type.create_and_read(self.__context, v) for v in value)
+
+    def insert_value(self, container: ItemProxyEntity, index: int, value: typing.Any) -> None:
+        if isinstance(value, Entity):
+            assert not value._container
+            field = self.__type.create(self.__context)
+            field.set_field_value(container, value)  # no container yet
+            self.__fields.insert(index, field)
+        else:
+            raise IndexError()
+
+    def remove_value_at_index(self, index: int) -> None:
+        field = self.__fields.pop(index)
+        field.set_field_value(None, field.field_value)  # no container
 
 
 class MapField(Field):
@@ -343,8 +352,7 @@ class MapField(Field):
     def field_value(self) -> typing.Any:
         return {k: field.field_value for k, field in self.__map.items()}
 
-    @field_value.setter
-    def field_value(self, value: typing.Any) -> None:
+    def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         assert isinstance(value, dict)
         self.__fields = {k: self.__value.create_and_read(self.__context, v) for k, v in value.items()}
 
@@ -372,8 +380,7 @@ class ReferenceField(Field):
     def field_value(self) -> typing.Any:
         return self.__proxy.item
 
-    @field_value.setter
-    def field_value(self, value: typing.Any) -> None:
+    def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         item = typing.cast(Entity, value)
         if item:
             item_uuid = item.uuid  # prefer _get_field_value; but use direct accessor for legacy Swift PersistentObject compatibility
@@ -389,6 +396,7 @@ class ComponentField(Field):
         self.__context = context
         self.__type = get_entity_type(entity_id)
         self.__field: typing.Optional[Entity] = None
+        self.__value: ItemProxyEntity = None
 
     def close(self) -> None:
         if self.__field:
@@ -406,11 +414,14 @@ class ComponentField(Field):
 
     @property
     def field_value(self) -> typing.Any:
-        return None
+        return self.__value
 
-    @field_value.setter
-    def field_value(self, value: typing.Any) -> None:
-        pass
+    def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
+        if self.__value:
+            self.__value._container = None
+        self.__value = value
+        if self.__value:
+            self.__value._container = container
 
 
 class FieldType(abc.ABC):
@@ -496,9 +507,6 @@ class ComponentType(FieldType):
         super().__init__(ComponentField, entity_id)
         self.entity_id = entity_id
 
-    def create(self, context: EntityContext) -> Field:
-        raise ReferenceError()
-
     def create_and_read(self, context: EntityContext, dict_value: DictValue) -> Field:
         assert isinstance(dict_value, dict)
         d = dict_value
@@ -525,6 +533,7 @@ class Entity(Observable.Observable):
         self.__field_type_map = field_type_map
         self.__field_dict : typing.Dict[str, Field] = dict()
         self.__renames = renames
+        self._container = None
         self._set_field_value("uuid", uuid.uuid4())
         self._set_field_value("modified", datetime.datetime.utcnow())
 
@@ -554,10 +563,9 @@ class Entity(Observable.Observable):
         return self.__entity_type
 
     def __getattr__(self, name: str) -> typing.Any:
-        field_dict = self.__dict__.get("_Entity__field_dict", dict())
-        if name in field_dict:
-            return field_dict[name].field_value
-        raise AttributeError()
+        if name in self.__dict__.get("_Entity__field_type_map", dict()):
+            return self._get_field_value(name)
+        raise AttributeError(f"Unknown attribute {name}")
 
     def __setattr__(self, name: str, value: typing.Any) -> None:
         field_dict = self.__dict__.get("_Entity__field_dict", dict())
@@ -566,19 +574,56 @@ class Entity(Observable.Observable):
         else:
             super().__setattr__(name, value)
 
-    def _get_field_value(self, name: str) -> typing.Any:
-        if name in self.__field_dict:
-            return self.__field_dict[name].field_value
-        if name in self.__field_type_map:
+    def __get_field(self, name: str) -> typing.Optional[Field]:
+        if not name in self.__field_dict and name in self.__field_type_map:
             self.__field_dict[name] = self.__field_type_map[name].create(self.__context)
-            return self.__field_dict[name].field_value
+        return self.__field_dict.get(name)
+
+    def _get_field_value(self, name: str) -> typing.Any:
+        field = self.__get_field(name)
+        if field:
+            return field.field_value
         raise AttributeError()
 
     def _set_field_value(self, name: str, value: typing.Any) -> None:
-        if not name in self.__field_dict:
-            self.__field_dict[name] = self.__field_type_map[name].create(self.__context)
-        self.__field_dict[name].field_value = value
-        self.property_changed_event.fire(name)
+        field = self.__get_field(name)
+        if field:
+            field.set_field_value(self, value)
+            self.property_changed_event.fire(name)
+        else:
+            raise AttributeError()
+
+    def _get_array_item(self, name: str, index: int) -> typing.Any:
+        array_field = typing.cast(typing.Optional[ArrayField], self.__get_field(name))
+        if array_field:
+            return array_field.field_value[index]
+        else:
+            raise AttributeError()
+
+    def _get_array_items(self, name: str) -> typing.Sequence[typing.Any]:
+        array_field = typing.cast(typing.Optional[ArrayField], self.__get_field(name))
+        if array_field:
+            return array_field.field_value
+        else:
+            raise AttributeError()
+
+    def _insert_item(self, name: str, index: int, item: ItemProxyEntity) -> None:
+        array_field = typing.cast(typing.Optional[ArrayField], self.__get_field(name))
+        if array_field:
+            array_field.insert_value(self, index, item)  # passing self for container
+        else:
+            raise AttributeError()
+
+    def _append_item(self, name: str, item: ItemProxyEntity) -> None:
+        self._insert_item(name, len(self._get_field_value(name)), item)
+
+    def _remove_item(self, name: str, item: ItemProxyEntity) -> None:
+        array_field = typing.cast(typing.Optional[ArrayField], self.__get_field(name))
+        if array_field:
+            index = typing.cast(typing.List, self._get_array_items(name)).index(item)
+            array_field.remove_value_at_index(index)  # passing self for container
+        else:
+            raise AttributeError()
 
 
 class EntityType:

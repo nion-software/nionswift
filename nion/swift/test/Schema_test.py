@@ -59,5 +59,35 @@ class TestSchemaClass(unittest.TestCase):
         ref._set_field_value("item", item)
         self.assertTrue(changed)
 
+    def test_component_container_is_set_when_inserting_item_and_cleared_when_removing(self):
+        ItemModel = Schema.entity("item", None, None, {"flag": Schema.prop(Schema.BOOLEAN)})
+        ContainerModel = Schema.entity("c", None, None, {
+            "c_items": Schema.array(Schema.component(ItemModel)),
+            "r_items": Schema.array(Schema.reference(ItemModel)),
+            "c_item": Schema.component(ItemModel),
+            "r_item": Schema.reference(ItemModel),
+        })
+        context = Schema.SimpleEntityContext()
+        c = ContainerModel.create(context)
+        c._append_item("c_items", ItemModel.create(context))
+        c._append_item("c_items", ItemModel.create(context))
+        c._append_item("r_items", ItemModel.create(context))
+        c._append_item("r_items", ItemModel.create(context))
+        c._set_field_value("c_item", ItemModel.create(context))
+        c._set_field_value("r_item", ItemModel.create(context))
+        self.assertEqual(c, c._get_array_item("c_items", 0)._container)
+        self.assertEqual(c, c._get_array_item("c_items", 1)._container)
+        self.assertIsNone(c._get_array_item("r_items", 0)._container)
+        self.assertIsNone(c._get_array_item("r_items", 1)._container)
+        self.assertEqual(c, c._get_field_value("c_item")._container)
+        self.assertIsNone(c._get_field_value("r_item")._container)
+        c_item0 = c._get_array_item("c_items", 0)
+        c._remove_item("c_items", c_item0)
+        self.assertIsNone(c_item0._container)
+        c_item = c._get_field_value("c_item")
+        c._set_field_value("c_item", None)
+        self.assertIsNone(c_item._container)
+
+    # modified gets updated when setting field or inserting/removing item
     # referenced items write and read
     # reading item uses custom entity class
