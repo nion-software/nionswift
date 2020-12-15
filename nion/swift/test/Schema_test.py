@@ -1,4 +1,5 @@
 # standard libraries
+import contextlib
 import unittest
 
 # third party libraries
@@ -55,9 +56,48 @@ class TestSchemaClass(unittest.TestCase):
             nonlocal changed
             changed = True
 
-        listener = ref.property_changed_event.listen(property_changed)
-        ref._set_field_value("item", item)
-        self.assertTrue(changed)
+        with contextlib.closing(ref.property_changed_event.listen(property_changed)) as listener:
+            ref._set_field_value("item", item)
+            self.assertTrue(changed)
+
+    def test_inserting_and_removing_array_components_and_references_trigger_events(self):
+        ItemModel = Schema.entity("item", None, None, {"flag": Schema.prop(Schema.BOOLEAN)})
+        ContainerModel = Schema.entity("c", None, None, {
+            "c_items": Schema.array(Schema.component(ItemModel)),
+            "r_items": Schema.array(Schema.reference(ItemModel)),
+        })
+        context = Schema.SimpleEntityContext()
+        c = ContainerModel.create(context)
+
+        inserted_count = 0
+        removed_count = 0
+
+        def item_inserted(key: str, value, index: int) -> None:
+            nonlocal inserted_count
+            inserted_count += 1
+
+        def item_removed(key: str, value, index: int) -> None:
+            nonlocal removed_count
+            removed_count += 1
+
+        with contextlib.closing(c.item_inserted_event.listen(item_inserted)):
+            with contextlib.closing(c.item_removed_event.listen(item_removed)):
+                # test components
+                c._append_item("c_items", ItemModel.create(context))
+                c._append_item("c_items", ItemModel.create(context))
+                self.assertEqual(2, inserted_count)
+                self.assertEqual(0, removed_count)
+                c._remove_item("c_items", c._get_array_item("c_items", 0))
+                self.assertEqual(2, inserted_count)
+                self.assertEqual(1, removed_count)
+                # test references
+                c._append_item("r_items", ItemModel.create(context))
+                c._append_item("r_items", ItemModel.create(context))
+                self.assertEqual(4, inserted_count)
+                self.assertEqual(1, removed_count)
+                c._remove_item("r_items", c._get_array_item("r_items", 0))
+                self.assertEqual(4, inserted_count)
+                self.assertEqual(2, removed_count)
 
     def test_component_container_is_set_when_inserting_item_and_cleared_when_removing(self):
         ItemModel = Schema.entity("item", None, None, {"flag": Schema.prop(Schema.BOOLEAN)})

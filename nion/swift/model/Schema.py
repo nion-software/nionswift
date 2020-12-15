@@ -611,6 +611,7 @@ class Entity(Observable.Observable):
         array_field = typing.cast(typing.Optional[ArrayField], self.__get_field(name))
         if array_field:
             array_field.insert_value(self, index, item)  # passing self for container
+            self.item_inserted_event.fire(name, item, index)
         else:
             raise AttributeError()
 
@@ -622,6 +623,7 @@ class Entity(Observable.Observable):
         if array_field:
             index = typing.cast(typing.List, self._get_array_items(name)).index(item)
             array_field.remove_value_at_index(index)  # passing self for container
+            self.item_removed_event.fire(name, item, index)
         else:
             raise AttributeError()
 
