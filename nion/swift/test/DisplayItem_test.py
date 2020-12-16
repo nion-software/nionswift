@@ -121,6 +121,32 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual(0, display_item.get_display_layer_property(0, "data_index"))
             self.assertEqual("B", display_item.get_display_layer_property(0, "ref"))
 
+    def test_removing_display_data_channel_updates_display_layer_data_indexes(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item1 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            data_item3 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            display_item = document_model.get_display_item_for_data_item(data_item1)
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            display_item.append_display_data_channel_for_data_item(data_item3)
+            display_item._set_display_layer_property(0, "ref", "A")
+            display_item._set_display_layer_property(1, "ref", "B")
+            display_item._set_display_layer_property(2, "ref", "C")
+            self.assertEqual(3, len(display_item.display_data_channels))
+            self.assertEqual(0, display_item.get_display_layer_property(0, "data_index"))
+            self.assertEqual(1, display_item.get_display_layer_property(1, "data_index"))
+            self.assertEqual(2, display_item.get_display_layer_property(2, "data_index"))
+            display_item.remove_display_data_channel(display_item.display_data_channels[1])
+            self.assertEqual(2, len(display_item.display_data_channels))
+            self.assertEqual(0, display_item.get_display_layer_property(0, "data_index"))
+            self.assertEqual(1, display_item.get_display_layer_property(1, "data_index"))
+            self.assertEqual("A", display_item.get_display_layer_property(0, "ref"))
+            self.assertEqual("C", display_item.get_display_layer_property(1, "ref"))
+
     def test_inserting_display_data_channel_updates_display_layer_data_indexes(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()

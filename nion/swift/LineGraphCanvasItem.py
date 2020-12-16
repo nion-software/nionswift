@@ -1127,8 +1127,6 @@ class LineGraphLegendCanvasItemDelegate:
 
     def create_move_display_layer_command(self, display_item: DisplayItem.DisplayItem, src_index: int, target_index: int) -> Undo.UndoableCommand: ...
 
-    def create_change_display_item_property_command(self, display_item: DisplayItem.DisplayItem, property_name: str, value) -> Inspector.ChangeDisplayItemPropertyCommand: ...
-
     def push_undo_command(self, command: Undo.UndoableCommand) -> None: ...
 
     def create_mime_data(self) -> UserInterface.MimeData: ...
@@ -1193,7 +1191,8 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         effective_entries = self.__legend_entries[:]
 
         if self.__mouse_dragging and self.__entry_to_insert is not None and self.__dragging_index is not None:
-            DisplayItem.shift_display_layers(effective_entries, self.__dragging_index, self.__entry_to_insert)
+            # move legend entry from dragging_index to entry_to_insert
+            effective_entries.insert(self.__entry_to_insert, effective_entries.pop(self.__dragging_index))
 
         self.__effective_entries = effective_entries
 
@@ -1372,10 +1371,9 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             if source_display_item == self.__delegate.get_display_item():
                 # if we're the source item, just shift the layers
                 if from_index != self.__entry_to_insert:
-                    new_display_layers = DisplayItem.shift_display_layers(self.__display_layers, from_index, self.__entry_to_insert)
-                    self.__entry_to_insert = None
-                    command = self.__delegate.create_change_display_item_property_command(source_display_item, "display_layers", new_display_layers)
+                    command = self.__delegate.create_move_display_layer_command(source_display_item, from_index, self.__entry_to_insert)
                     command.perform()
+                    self.__entry_to_insert = None
                     self.__delegate.push_undo_command(command)
             else:
                 # if we aren't the source item, move the display layer between display items

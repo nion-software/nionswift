@@ -2136,7 +2136,7 @@ class TestDisplayPanelClass(unittest.TestCase):
                 self.assertEqual(display_item, display_panel.display_item)
                 self.assertEqual(data_item, display_panel.data_item)
 
-    def test_move_display_layer_undo_redo(self):
+    def test_move_display_layer_from_display_to_display_undo_redo(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
@@ -2169,10 +2169,37 @@ class TestDisplayPanelClass(unittest.TestCase):
             command.undo()
             self.assertEqual(3, len(display_item1.display_layers))
             self.assertEqual(3, len(display_item1.display_data_channels))
-            self.assertEqual(data_item2, display_item1.display_data_channels[1].data_item)
+            self.assertEqual(data_item2, display_item1.display_data_channels[2].data_item)
             self.assertEqual(2, len(display_item4.display_layers))
             self.assertEqual(2, len(display_item4.display_data_channels))
             self.assertEqual(new_legend_position, display_item4.get_display_property("legend_position"))
+
+    def test_move_display_layer_within_display_undo_redo(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item1 = DataItem.DataItem(numpy.ones(8, ))
+            data_item2 = DataItem.DataItem(numpy.ones(8, ))
+            data_item3 = DataItem.DataItem(numpy.ones(8, ))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item1.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2), display_layer=dict())
+            display_item1.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item3), display_layer=dict())
+            self.assertEqual(3, len(display_item1.display_layers))
+            self.assertEqual(3, len(display_item1.display_data_channels))
+            self.assertEqual(0, display_item1.get_display_layer_property(0, "data_index"))
+            self.assertEqual(1, display_item1.get_display_layer_property(1, "data_index"))
+            self.assertEqual(2, display_item1.get_display_layer_property(2, "data_index"))
+            command = DisplayPanel.MoveDisplayLayerCommand(document_model, display_item1, 2, display_item1, 1)
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual(3, len(display_item1.display_layers))
+            self.assertEqual(3, len(display_item1.display_data_channels))
+            command.undo()
+            self.assertEqual(3, len(display_item1.display_layers))
+            self.assertEqual(3, len(display_item1.display_data_channels))
 
     def test_selection_updated_when_filter_is_updated(self):
         with TestContext.create_memory_context() as test_context:

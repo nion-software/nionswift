@@ -1424,16 +1424,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def move_display_layer_at_index_backward(self, index: int) -> None:
         self.display_layers = move_display_layer_backward(self.display_layers, index)
 
-    def copy_display_layer(self, before_index: int, display_item: "DisplayItem", display_layer: typing.Dict) -> None:
-        display_layer_copy = copy.deepcopy(display_layer)
-        display_data_channel_copy = copy.deepcopy(display_item.display_data_channels[display_layer_copy["data_index"]])
-        self.append_display_data_channel(display_data_channel_copy)
-        display_data_channel_copy_index = len(self.display_data_channels) - 1
-        display_layer_copy["data_index"] = display_data_channel_copy_index
-        display_layer_copy["fill_color"] = display_layer["fill_color"]
-        self.insert_display_layer(before_index, **display_layer_copy)
-        self.__auto_display_legend()
-
     def _add_display_layer_for_data_item(self, data_item: DataItem.DataItem, **kwargs) -> None:
         kwargs["data_index"] = self.data_items.index(data_item)
         self.add_display_layer(**kwargs)
@@ -1679,9 +1669,11 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
                 return color
         return '#1E90FF'
 
-    def __auto_display_legend(self) -> None:
+    def auto_display_legend(self) -> None:
         if len(self.display_layers) == 2 and self.get_display_property("legend_position") is None:
             self.set_display_property("legend_position", "top-right")
+        elif len(self.display_layers) == 1:
+            self.set_display_property("legend_position", None)
 
     def __add_display_layer_auto(self, display_layer: typing.Dict, data_index: int, data_row: typing.Optional[int] = 0) -> None:
         # this fill color code breaks encapsulation. i'm leaving it here as a convenience for now.
@@ -1692,7 +1684,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             display_layer["data_row"] = data_row
         display_layer.setdefault("fill_color", self.__get_unique_display_layer_color())
         self.add_display_layer(**display_layer)
-        self.__auto_display_legend()
+        self.auto_display_legend()
 
     def insert_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel) -> None:
         self.insert_model_item(self, "display_data_channels", before_index, display_data_channel)
@@ -2077,20 +2069,6 @@ def move_display_layer_forward(display_layers: list, index: int) -> list:
     if index > 0:
         display_layer = display_layers.pop(index)
         display_layers.insert(index - 1, display_layer)
-    return display_layers
-
-
-def shift_display_layers(display_layers: list, from_index: int, to_index: int) -> list:
-    assert 0 <= from_index < len(display_layers)
-    assert 0 <= to_index < len(display_layers)
-
-    if from_index == to_index:
-        return display_layers
-
-    moving_layer = display_layers.pop(from_index)
-
-    display_layers.insert(to_index, moving_layer)
-
     return display_layers
 
 

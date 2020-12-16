@@ -814,14 +814,13 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
                  *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Move Display Layer"), command_id=command_id, is_mergeable=is_mergeable)
         old_display_layer = old_display_item.display_layers[old_display_layer_index]
-        old_display_data_channel_index = old_display_layer["data_index"]
         self.__document_model = document_model
+        self.__old_legend_position = old_display_item.get_display_property("legend_position")
         self.__old_display_item_proxy = old_display_item.create_proxy()
         self.__old_display_layer_index = old_display_layer_index
-        self.__old_display_data_channel_index = old_display_data_channel_index
+        self.__new_legend_position = new_display_item.get_display_property("legend_position")
         self.__new_display_item_proxy = new_display_item.create_proxy()
         self.__new_display_layer_index = new_display_layer_index
-        self.__new_display_data_channel_index = None
         self.__undelete_logs = list()
         self.initialize()
 
@@ -838,18 +837,36 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         self.__new_display_item_proxy = None
         super().close()
 
-    def perform(self):
+    def __move_display_layer(self) -> None:
         # add display data channel and display layer to new display item
         old_display_item = self.__old_display_item_proxy.item
-        old_display_layer = old_display_item.display_layers[self.__old_display_layer_index]
+        old_display_layer_index = self.__old_display_layer_index
+        old_display_layer = copy.deepcopy(old_display_item.display_layers[self.__old_display_layer_index])
+        old_display_data_channel_index = old_display_layer["data_index"]
         new_display_item = self.__new_display_item_proxy.item
-        self.__new_original_legend_position = new_display_item.get_display_property("legend_position")
-        new_display_item.copy_display_layer(self.__new_display_layer_index, old_display_item, old_display_layer)
-        self.__new_display_data_channel_index = len(new_display_item.display_data_channels) - 1
-        # remove display layer and then display data channel from old display item
-        self.__old_display_layers = copy.deepcopy(old_display_item.display_layers)
-        old_display_item.remove_display_layer(self.__old_display_layer_index)
-        self.__undelete_logs.append(old_display_item.remove_display_data_channel(old_display_item.display_data_channels[self.__old_display_data_channel_index]))
+        new_display_layer_index = self.__new_display_layer_index
+        new_display_data_channel = copy.deepcopy(old_display_item.display_data_channels[old_display_layer["data_index"]])
+        new_display_item.append_display_data_channel(new_display_data_channel)
+        old_display_layer["data_index"] = len(new_display_item.display_data_channels) - 1
+        new_display_item.insert_display_layer(new_display_layer_index, **old_display_layer)
+        if old_display_item == new_display_item and new_display_layer_index <= old_display_layer_index:
+            old_display_layer_index += 1
+        old_display_item.remove_display_layer(old_display_layer_index)
+        self.__undelete_logs.append(old_display_item.remove_display_data_channel(old_display_item.display_data_channels[old_display_data_channel_index]))
+        # swap for undo
+        temp_display_item_proxy = self.__old_display_item_proxy
+        temp_display_layer_index = self.__old_display_layer_index
+        self.__old_display_item_proxy = self.__new_display_item_proxy
+        self.__old_display_layer_index = self.__new_display_layer_index
+        self.__new_display_item_proxy = temp_display_item_proxy
+        self.__new_display_layer_index = temp_display_layer_index
+
+    def perform(self):
+        old_display_item = self.__old_display_item_proxy.item
+        new_display_item = self.__new_display_item_proxy.item
+        self.__move_display_layer()
+        new_display_item.auto_display_legend()
+        old_display_item.auto_display_legend()
 
     def _get_modified_state(self):
         old_display_item = self.__old_display_item_proxy.item
@@ -866,18 +883,11 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         return state1[0] == state2[0] and state1[1] == state2[1]
 
     def _undo(self):
+        self.__move_display_layer()
         old_display_item = self.__old_display_item_proxy.item
         new_display_item = self.__new_display_item_proxy.item
-        # restore original display item display data channel, display layer
-        for undelete_log in reversed(self.__undelete_logs):
-            self.__document_model.undelete_all(undelete_log)
-            undelete_log.close()
-        self.__undelete_logs.clear()
-        old_display_item.display_layers = self.__old_display_layers
-        # remove new display item display layer, display data channel, and restore legend state
-        new_display_item.remove_display_layer(self.__new_display_layer_index)
-        new_display_item.remove_display_data_channel(new_display_item.display_data_channels[self.__new_display_data_channel_index])
-        new_display_item.set_display_property("legend_position", self.__new_original_legend_position)
+        old_display_item.set_display_property("legend_position", self.__old_legend_position)
+        new_display_item.set_display_property("legend_position", self.__new_legend_position)
 
 
 class ChangeDisplayCommand(Undo.UndoableCommand):
@@ -1942,9 +1952,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def create_move_display_layer_command(self, display_item: DisplayItem.DisplayItem, src_index: int, target_index: int) -> MoveDisplayLayerCommand:
         return MoveDisplayLayerCommand(self.__document_controller.document_model, display_item, src_index, self.__display_item, target_index)
-
-    def create_change_display_item_property_command(self, display_item: DisplayItem.DisplayItem, property_name: str, value) -> Inspector.ChangeDisplayItemPropertyCommand:
-        return Inspector.ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, display_item, property_name, value)
 
     def create_change_graphics_command(self) -> ChangeGraphicsCommand:
         all_graphics = self.__display_item.graphics
