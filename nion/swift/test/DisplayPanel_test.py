@@ -2072,8 +2072,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item2)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            original_display_layers = [{"data_index": 0, "label": "A"}]
-            display_item.display_layers = original_display_layers
+            display_item._set_display_layer_property(0, "label", "A")
             # check assumptions
             self.assertEqual(2, len(document_model.data_items))
             self.assertEqual(2, len(document_model.display_items))
@@ -2087,21 +2086,22 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(2, len(document_model.display_items))
             self.assertEqual(2, len(display_item.data_items))
             self.assertEqual(2, len(display_item.display_layers))
-            new_display_layers = display_item.display_layers
+            new_fill_color = display_item.get_display_layer_property(1, "fill_color")
             # try the undo
             document_controller.handle_undo()
             self.assertEqual(2, len(document_model.data_items))
             self.assertEqual(2, len(document_model.display_items))
             self.assertEqual(1, len(display_item.data_items))
             self.assertEqual(1, len(display_item.display_layers))
-            self.assertEqual(original_display_layers, display_item.display_layers)
+            self.assertEqual("A", display_item.get_display_layer_property(0, "label"))
             # try the redo
             document_controller.handle_redo()
             self.assertEqual(2, len(document_model.data_items))
             self.assertEqual(2, len(document_model.display_items))
             self.assertEqual(2, len(display_item.data_items))
             self.assertEqual(2, len(display_item.display_layers))
-            self.assertEqual(new_display_layers, display_item.display_layers)
+            self.assertEqual("A", display_item.get_display_layer_property(0, "label"))
+            self.assertEqual(new_fill_color, display_item.get_display_layer_property(1, "fill_color"))
 
     def test_setting_display_panel_data_item_to_none_clears_the_display(self):
         with TestContext.create_memory_context() as test_context:

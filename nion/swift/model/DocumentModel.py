@@ -1986,7 +1986,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             display_data_channel_copy.copy_display_data_properties_from(display_data_channel)
             display_item_copy.append_display_data_channel(display_data_channel_copy, display_layer=dict())
         # the display layers will be disrupted by appending data channels; so just recopy them here
-        display_item_copy.display_layers = display_item.display_layers
+        # this code can be simplified once display layers are objects
+        while len(display_item_copy.display_layers):
+            display_item_copy.remove_display_layer(0)
+        for i in range(len(display_item.display_layers)):
+            data_index = display_item.display_data_channels.index(display_item.get_display_layer_display_data_channel(i))
+            display_item_copy.add_display_layer_for_display_data_channel(display_item_copy.display_data_channels[data_index], **display_item.get_display_layer_properties(i))
         display_item_copy.title = _("Snapshot of ") + display_item.title
         self.append_display_item(display_item_copy)
         return display_item_copy

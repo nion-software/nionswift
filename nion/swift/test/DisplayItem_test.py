@@ -197,11 +197,9 @@ class TestDisplayItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_type = "line_plot"
-            display_item.display_layers = [
-                {"data_index": 0, "data_row": 2, "label": "Signal"},
-                {"data_index": 0, "data_row": 1, "label": "Background"},
-                {"data_index": 0, "data_row": 0, "label": "Data"},
-            ]
+            display_item.move_display_layer_backward(1)  # 0 1 2 -> 0 2 1
+            display_item.move_display_layer_backward(0)  # 0 2 1 -> 2 0 1
+            display_item.move_display_layer_backward(1)  # 2 0 1 -> 2 1 0
             self.assertEqual(1, len(document_model.display_items))
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(1, len(display_item.data_items))

@@ -1427,6 +1427,24 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         kwargs["data_index"] = self.data_items.index(data_item)
         self.add_display_layer(**kwargs)
 
+    def get_display_layer_display_data_channel(self, index: int) -> typing.Optional[DisplayDataChannel]:
+        assert 0 <= index < len(self.display_layers)
+        data_index = self.display_layers[index]["data_index"]
+        if 0 <= data_index < len(self.display_data_channels):
+            return self.display_data_channels[data_index]
+        return None
+
+    def add_display_layer_for_display_data_channel(self, display_data_channel: DisplayDataChannel, **kwargs) -> None:
+        assert display_data_channel in self.display_data_channels
+        data_index = self.display_data_channels.index(display_data_channel)
+        self.add_display_layer(data_index=data_index, **kwargs)
+
+    def get_display_layer_properties(self, index: int) -> typing.Dict:
+        assert 0 <= index < len(self.display_layers)
+        display_layer_properties = self.display_layers[index]
+        display_layer_properties.pop("data_index", None)
+        return display_layer_properties
+
     def append_display_data_channel_for_data_item(self, data_item: DataItem.DataItem) -> None:
         if not data_item in self.data_items:
             display_data_channel = DisplayDataChannel(data_item)
@@ -1636,8 +1654,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             else:
                 new_display_layers.append(display_layer)
         self.display_layers = new_display_layers
-        if len(self.display_layers) == 1:
-            self.set_display_property("legend_position", None)
+        self.auto_display_legend()
 
     def __disconnect_display_data_channel(self, display_data_channel: DisplayDataChannel, index: int) -> None:
         self.__display_data_channel_property_changed_event_listeners[index].close()

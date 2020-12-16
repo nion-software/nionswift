@@ -813,7 +813,6 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
                  new_display_item: DisplayItem.DisplayItem, new_display_layer_index: int,
                  *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
         super().__init__(title if title else _("Move Display Layer"), command_id=command_id, is_mergeable=is_mergeable)
-        old_display_layer = old_display_item.display_layers[old_display_layer_index]
         self.__document_model = document_model
         self.__old_legend_position = old_display_item.get_display_property("legend_position")
         self.__old_display_item_proxy = old_display_item.create_proxy()

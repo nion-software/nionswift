@@ -3177,6 +3177,60 @@ class TextPushButtonWidget(Widgets.CompositeWidgetBase):
         self.content_widget.add(text_button_canvas_widget)
 
 
+class RemoveDisplayDataChannelCommand(Undo.UndoableCommand):
+
+    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel):
+        super().__init__(_("Remove Data Item"))
+        self.__document_controller = document_controller
+        self.__display_item_proxy = display_item.create_proxy()
+        self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+        self.__new_workspace_layout = None
+        self.__display_data_channel_index = display_item.display_data_channels.index(display_data_channel)
+        self.__old_display_properties = display_item.save_properties()
+        self.__undelete_logs = list()
+        self.initialize()
+
+    def close(self):
+        self.__document_controller = None
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
+        self.__old_workspace_layout = None
+        self.__new_workspace_layout = None
+        self.__display_data_channel_index = None
+        self.__old_display_properties = None
+        for undelete_log in self.__undelete_logs:
+            undelete_log.close()
+        self.__undelete_logs = None
+        super().close()
+
+    def perform(self):
+        display_item = self.__display_item_proxy.item
+        display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
+        self.__undelete_logs.append(display_item.remove_display_data_channel(display_data_channel, safe=True))
+
+    def _get_modified_state(self):
+        display_item = self.__display_item_proxy.item
+        return display_item.modified_state, self.__document_controller.document_model.modified_state
+
+    def _set_modified_state(self, modified_state):
+        display_item = self.__display_item_proxy.item
+        display_item.modified_state, self.__document_controller.document_model.modified_state = modified_state
+
+    def _undo(self):
+        self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+        for undelete_log in reversed(self.__undelete_logs):
+            self.__document_controller.document_model.undelete_all(undelete_log)
+            undelete_log.close()
+        self.__undelete_logs.clear()
+        self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+        display_item = self.__display_item_proxy.item
+        display_item.restore_properties(self.__old_display_properties)
+
+    def _redo(self):
+        self.perform()
+        self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+
+
 class DataItemLabelWidget(Widgets.CompositeWidgetBase):
     def __init__(self, ui, document_controller, display_item: DisplayItem.DisplayItem, index: int):
         super().__init__(ui.create_column_widget())
@@ -3198,62 +3252,6 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
         self.content_widget.add_spacing(4)
 
         display_data_channel = display_item.display_data_channels[index]
-
-        class RemoveDisplayDataChannelCommand(Undo.UndoableCommand):
-
-            def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel):
-                super().__init__(_("Remove Data Item"))
-                self.__document_controller = document_controller
-                self.__display_item_proxy = display_item.create_proxy()
-                self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-                self.__new_workspace_layout = None
-                self.__display_data_channel_index = display_item.display_data_channels.index(display_data_channel)
-                self.__new_value = None
-                self.__old_value = display_item.display_layers
-                self.__undelete_logs = list()
-                self.initialize()
-
-            def close(self):
-                self.__document_controller = None
-                self.__display_item_proxy.close()
-                self.__display_item_proxy = None
-                self.__old_workspace_layout = None
-                self.__new_workspace_layout = None
-                self.__display_data_channel_index = None
-                self.__new_value = None
-                self.__old_value = None
-                for undelete_log in self.__undelete_logs:
-                    undelete_log.close()
-                self.__undelete_logs = None
-                super().close()
-
-            def perform(self):
-                display_item = self.__display_item_proxy.item
-                display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
-                self.__undelete_logs.append(display_item.remove_display_data_channel(display_data_channel, safe=True))
-                self.__new_value = display_item.display_layers
-
-            def _get_modified_state(self):
-                display_item = self.__display_item_proxy.item
-                return display_item.modified_state, self.__document_controller.document_model.modified_state
-
-            def _set_modified_state(self, modified_state):
-                display_item = self.__display_item_proxy.item
-                display_item.modified_state, self.__document_controller.document_model.modified_state = modified_state
-
-            def _undo(self):
-                self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-                for undelete_log in reversed(self.__undelete_logs):
-                    self.__document_controller.document_model.undelete_all(undelete_log)
-                    undelete_log.close()
-                self.__undelete_logs.clear()
-                self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
-                self.__new_value = display_item.display_layers
-                display_item.display_layers = self.__old_value
-
-            def _redo(self):
-                self.perform()
-                self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
         def remove_display_data_channel():
             command = RemoveDisplayDataChannelCommand(document_controller, display_item, display_data_channel)

@@ -1303,6 +1303,30 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.handle_redo()
             self.assertEqual("image", display_item.display_type)
 
+    def test_remove_display_layer_command(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, )))
+            data_item2 = DataItem.DataItem(numpy.zeros((8, )))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            self.assertEqual(2, len(display_item.display_data_channels))
+            self.assertEqual(2, len(display_item.display_layers))
+            command = Inspector.RemoveDisplayDataChannelCommand(document_controller, display_item, display_item.display_data_channels[1])
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual(1, len(display_item.display_data_channels))
+            self.assertEqual(1, len(display_item.display_layers))
+            command.undo()
+            self.assertEqual(2, len(display_item.display_data_channels))
+            self.assertEqual(2, len(display_item.display_layers))
+            command.redo()
+            self.assertEqual(1, len(display_item.display_data_channels))
+            self.assertEqual(1, len(display_item.display_layers))
+
     def test_graphic_property_binding_handles_removed_graphic(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
