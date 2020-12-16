@@ -518,6 +518,39 @@ class CSVImportExportHandler(ImportExportHandler):
             numpy.savetxt(path_str, data, delimiter=', ')
 
 
+
+def build_table(display_item: DisplayItem.DisplayItem) -> typing.Tuple[typing.List[str], typing.List[numpy.ndarray]]:
+    data_items = display_item.data_items
+    assert all([data_item.is_data_1d for data_item in data_items])
+
+    def calibrate(calibration: Calibration.Calibration, data: numpy.ndarray) -> numpy.ndarray:
+        return calibration.offset + data * calibration.scale
+
+    def make_x_data(calibration: Calibration.Calibration, length: int) -> numpy.ndarray:
+        return numpy.linspace(calibration.offset, calibration.offset + (length - 1) * calibration.scale, length)
+
+    calibration = data_items[0].xdata.dimensional_calibrations[0]
+    if all([calibration == data_item.xdata.dimensional_calibrations[0] for data_item in data_items]):
+        length = max([data_item.xdata.data_shape[0] for data_item in data_items])
+        data_list = [make_x_data(calibration, length)]
+        headers = [f"X ({calibration.units or 'pixel'})"]
+        for data_item, display_layer in zip(data_items, display_item.display_layers):
+            data_list.append(calibrate(data_item.xdata.intensity_calibration, data_item.xdata.data))
+            headers.append(display_layer.get("label",
+                                             f"Data {display_layer['data_index']}") + f" ({data_item.xdata.intensity_calibration.units or 'None'})")
+    else:
+        data_list = list()
+        headers = list()
+        for data_item, display_layer in zip(data_items, display_item.display_layers):
+            data_list.extend([make_x_data(data_item.dimensional_calibrations[0], data_item.xdata.data_shape[0]),
+                              calibrate(data_item.intensity_calibration, data_item.xdata.data)])
+            headers.extend(["X " + display_layer.get("label",
+                                                     f"Data {display_layer['data_index']}") + f" ({data_item.xdata.dimensional_calibrations[0].units or 'pixel'})",
+                            "Y " + display_layer.get("label",
+                                                     f"Data {display_layer['data_index']}") + f" ({data_item.xdata.intensity_calibration.units or 'None'})"])
+    return headers, data_list
+
+
 class CSV1ImportExportHandler(ImportExportHandler):
 
     def __init__(self, io_handler_id, name, extensions):
@@ -531,31 +564,7 @@ class CSV1ImportExportHandler(ImportExportHandler):
         return x_data and x_data.is_data_1d
 
     def write_display_item(self, ui, display_item: DisplayItem.DisplayItem, path_str: str, extension: str) -> None:
-        data_items = display_item.data_items
-        assert all([data_item.is_data_1d for data_item in data_items])
-
-        def calibrate(calibration, data):
-            return calibration.offset + data * calibration.scale
-
-        def make_x_data(calibration, length):
-            return numpy.linspace(calibration.offset, calibration.offset + (length - 1) * calibration.scale, length)
-
-        calibration = data_items[0].xdata.dimensional_calibrations[0]
-        if all([calibration == data_item.xdata.dimensional_calibrations[0] for data_item in data_items]):
-            length = max([data_item.xdata.data_shape[0] for data_item in data_items])
-            data_list = [make_x_data(calibration, length)]
-            headers = [f"X ({calibration.units or 'pixel'})"]
-            for data_item, display_layer in zip(data_items, display_item.display_layers):
-                data_list.append(calibrate(data_item.xdata.intensity_calibration, data_item.xdata.data))
-                headers.append(display_layer.get("label", f"Data {display_layer['data_index']}") + f" ({data_item.xdata.intensity_calibration.units or 'None'})")
-        else:
-            data_list = list()
-            headers = list()
-            for data_item, display_layer in zip(data_items, display_item.display_layers):
-                data_list.extend([make_x_data(data_item.dimensional_calibrations[0], data_item.xdata.data_shape[0]),
-                                  calibrate(data_item.intensity_calibration, data_item.xdata.data)])
-                headers.extend(["X " + display_layer.get("label", f"Data {display_layer['data_index']}") + f" ({data_item.xdata.dimensional_calibrations[0].units or 'pixel'})",
-                                "Y " + display_layer.get("label", f"Data {display_layer['data_index']}") + f" ({data_item.xdata.intensity_calibration.units or 'None'})"])
+        headers, data_list = build_table(display_item)
 
         newline = "\n"
         delimiter = ", "

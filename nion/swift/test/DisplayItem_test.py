@@ -6,10 +6,12 @@ import unittest
 import numpy
 
 # local libraries
+from nion.data import Calibration
 from nion.swift import Application
 from nion.swift import Facade
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
+from nion.swift.model import ImportExportManager
 from nion.swift.test import TestContext
 from nion.ui import TestUI
 
@@ -261,6 +263,79 @@ class TestDisplayItemClass(unittest.TestCase):
             fft_display_item = document_model.get_display_item_for_data_item(fft_data_item)
             document_model.get_fourier_filter_new(fft_display_item, fft_data_item)
             document_model.recompute_all()
+
+    def test_build_table_with_calibrated_1d_data(self):
+        with TestContext.create_memory_context() as test_context:
+            calibration = Calibration.Calibration(1.0, 2.0, "nm")
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.array([1.1, 1.2, 1.3, 1.4]))
+            data_item.set_dimensional_calibration(0, calibration)
+            data_item.set_intensity_calibration(Calibration.Calibration(0, 1, "e"))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item._set_display_layer_property(0, "label", "W")
+            headers, data = ImportExportManager.build_table(display_item)
+            self.assertEqual(2, len(headers))
+            self.assertEqual(2, len(data))
+            self.assertEqual("X (nm)", headers[0])
+            self.assertEqual("W (e)", headers[1])
+            self.assertTrue(numpy.array_equal(calibration.convert_to_calibrated_value(numpy.arange(0, data_item.data.shape[0])), data[0]))
+            self.assertTrue(numpy.array_equal(data_item.data, data[1]))
+
+    def test_build_table_with_two_display_layers_of_same_calibrated_1d_data(self):
+        with TestContext.create_memory_context() as test_context:
+            calibration = Calibration.Calibration(1.0, 2.0, "nm")
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.array([1.1, 1.2, 1.3, 1.4]))
+            data_item.set_dimensional_calibration(0, calibration)
+            data_item.set_intensity_calibration(Calibration.Calibration(0, 1, "e"))
+            data_item2 = DataItem.DataItem(numpy.array([2.1, 2.2, 2.3, 2.4]))
+            data_item2.set_dimensional_calibration(0, calibration)
+            data_item2.set_intensity_calibration(Calibration.Calibration(0, 1, "e"))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            display_item._set_display_layer_property(0, "label", "W")
+            display_item._set_display_layer_property(1, "label", "T")
+            headers, data = ImportExportManager.build_table(display_item)
+            self.assertEqual(3, len(headers))
+            self.assertEqual(3, len(data))
+            self.assertEqual("X (nm)", headers[0])
+            self.assertEqual("W (e)", headers[1])
+            self.assertEqual("T (e)", headers[2])
+            self.assertTrue(numpy.array_equal(calibration.convert_to_calibrated_value(numpy.arange(0, data_item.data.shape[0])), data[0]))
+            self.assertTrue(numpy.array_equal(data_item.data, data[1]))
+            self.assertTrue(numpy.array_equal(data_item2.data, data[2]))
+
+    def test_build_table_with_two_display_layers_of_different_calibrated_1d_data(self):
+        with TestContext.create_memory_context() as test_context:
+            calibration = Calibration.Calibration(1.0, 2.0, "nm")
+            calibration2 = Calibration.Calibration(1.5, 2.5, "nm")
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.array([1.1, 1.2, 1.3, 1.4]))
+            data_item.set_dimensional_calibration(0, calibration)
+            data_item.set_intensity_calibration(Calibration.Calibration(0, 1, "e"))
+            data_item2 = DataItem.DataItem(numpy.array([2.1, 2.2, 2.3, 2.4]))
+            data_item2.set_dimensional_calibration(0, calibration2)
+            data_item2.set_intensity_calibration(Calibration.Calibration(0, 1, "e"))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            display_item._set_display_layer_property(0, "label", "W")
+            display_item._set_display_layer_property(1, "label", "T")
+            headers, data = ImportExportManager.build_table(display_item)
+            self.assertEqual(4, len(headers))
+            self.assertEqual(4, len(data))
+            self.assertEqual("X W (nm)", headers[0])
+            self.assertEqual("Y W (e)", headers[1])
+            self.assertEqual("X T (nm)", headers[2])
+            self.assertEqual("Y T (e)", headers[3])
+            self.assertTrue(numpy.array_equal(calibration.convert_to_calibrated_value(numpy.arange(0, data_item.data.shape[0])), data[0]))
+            self.assertTrue(numpy.array_equal(data_item.data, data[1]))
+            self.assertTrue(numpy.array_equal(calibration2.convert_to_calibrated_value(numpy.arange(0, data_item.data.shape[0])), data[2]))
+            self.assertTrue(numpy.array_equal(data_item2.data, data[3]))
 
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs
