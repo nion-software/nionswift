@@ -516,6 +516,9 @@ class ComponentType(FieldType):
         return self._call(context, self._field_class, *((field_type, ) + self._args[1:]), **self._kwargs).read(dict_value)
 
 
+EntityTransforms = typing.Tuple[typing.Callable[[typing.Dict], typing.Dict], typing.Callable[[typing.Dict], typing.Dict]]
+
+
 class Entity(Observable.Observable):
     """An instance of an entity type.
 
@@ -525,7 +528,8 @@ class Entity(Observable.Observable):
                  version: typing.Optional[int],
                  context: EntityContext,
                  field_type_map: typing.Mapping[str, FieldType],
-                 renames: typing.Mapping[str, str]):
+                 renames: typing.Mapping[str, str],
+                 transforms: EntityTransforms):
         super().__init__()
         self.__context = context
         self.__entity_type = type
@@ -533,6 +537,7 @@ class Entity(Observable.Observable):
         self.__field_type_map = field_type_map
         self.__field_dict : typing.Dict[str, Field] = dict()
         self.__renames = renames
+        self.__transforms = transforms
         self._container = None
         self._set_field_value("uuid", uuid.uuid4())
         self._set_field_value("modified", datetime.datetime.utcnow())
@@ -541,6 +546,7 @@ class Entity(Observable.Observable):
         pass
 
     def read(self, properties: typing.Mapping) -> Entity:
+        properties = self.__transforms[0](dict(properties))  # transform forward
         self.__field_dict = dict()
         for field_name, field_type in self.__field_type_map.items():
             d = properties.get(self.__renames.get(field_name, field_name))
@@ -556,7 +562,7 @@ class Entity(Observable.Observable):
             dd = field.write()
             if dd is not None:
                 d[self.__renames.get(field_name, field_name)] = dd
-        return d
+        return self.__transforms[1](d)  # transform back
 
     @property
     def entity_type(self) -> EntityType:
@@ -634,6 +640,7 @@ class EntityType:
         self.__base = base
         self.__version = version
         self.__renames: typing.Dict[str, str] = dict()
+        self.__transforms: EntityTransforms = lambda x: x, lambda x: x
         self.__field_type_map: typing.Dict[str, FieldType] = dict()
         self.__field_type_map["uuid"] = prop(UUID)
         self.__field_type_map["modified"] = prop(TIMESTAMP)
@@ -669,6 +676,7 @@ class EntityType:
             "context": context,
             "field_type_map": self.__field_type_map,
             "renames": self.__renames,
+            "transforms": self.__transforms,
         }
 
     @property
@@ -681,6 +689,9 @@ class EntityType:
 
     def rename(self, field_name: str, storage_field_name: str) -> None:
         self.__renames[field_name] = storage_field_name
+
+    def transform(self, forward: typing.Callable[[typing.Dict], typing.Dict], backward: typing.Callable[[typing.Dict], typing.Dict]) -> None:
+        self.__transforms = (forward, backward)
 
     def is_subclass_of(self, entity_type: EntityType) -> bool:
         return self.base is not None and (self.base == entity_type or self.base.is_subclass_of(entity_type))
