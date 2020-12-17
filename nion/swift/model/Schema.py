@@ -112,8 +112,29 @@ class SimpleEntityContext(EntityContext):
 
 
 class Field(abc.ABC):
+    """A field in an entity or another field.
+
+    The context is used to resolve references and must be valid to read entities containing references.
+    """
+    def __init__(self, context: typing.Optional[EntityContext]):
+        self.__context = context
+
     def close(self) -> None:
         pass
+
+    @property
+    def _context(self) -> typing.Optional[EntityContext]:
+        return self.__context
+
+    def set_context(self, context: typing.Optional[EntityContext]) -> None:
+        """Set the context.
+
+        The context can be changed from None to a value or a value to None.
+
+        Subclasses should propagate the context to their sub fields.
+        """
+        assert (self.__context is None) != (context is None)  # one or the other is None
+        self.__context = context
 
     @abc.abstractmethod
     def read(self, dict_value: typing.Any) -> Field: ...
@@ -132,8 +153,8 @@ class Field(abc.ABC):
 
 
 class PropertyField(Field):
-    def __init__(self, context: EntityContext, type: str, optional: bool, default):
-        self.__context = context
+    def __init__(self, context: typing.Optional[EntityContext], type: str, optional: bool, default):
+        super().__init__(context)
         self.__type = type
         self.__optional = optional
         self.__default = default
@@ -155,10 +176,10 @@ class PropertyField(Field):
 
 
 class TupleField(Field):
-    def __init__(self, context: EntityContext, type: FieldType, optional: bool, default_values):
+    def __init__(self, context: typing.Optional[EntityContext], type: FieldType, optional: bool, default_values):
+        super().__init__(context)
         assert isinstance(type, FieldType)
         assert default_values is None or isinstance(default_values, (tuple, list))
-        self.__context = context
         self.__type = type
         self.__optional = optional
         self.__default_values = list(default_values) if default_values is not None else None
@@ -175,10 +196,16 @@ class TupleField(Field):
                 field.close()
             self.__fields = None
 
+    def set_context(self, context: typing.Optional[EntityContext]) -> None:
+        super().set_context(context)
+        if self.__fields:
+            for field in self.__fields:
+                field.set_context(context)
+
     def read(self, dict_value: typing.Any) -> Field:
         self.__clear()
         if isinstance(dict_value, (tuple, list)):
-            self.__fields = tuple(self.__type.create_and_read(self.__context, v) for v in dict_value)
+            self.__fields = tuple(self.__type.create_and_read(self._context, v) for v in dict_value)
         return self
 
     def write(self) -> DictValue:
@@ -193,13 +220,13 @@ class TupleField(Field):
 
     def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         assert isinstance(value, (tuple, list))
-        self.__fields = tuple(self.__type.create_and_read(self.__context, v) for v in value)
+        self.__fields = tuple(self.__type.create_and_read(self._context, v) for v in value)
 
 
 class FixedTupleField(Field):
-    def __init__(self, context: EntityContext, types: typing.Sequence[FieldType], optional: bool, default_values):
+    def __init__(self, context: typing.Optional[EntityContext], types: typing.Sequence[FieldType], optional: bool, default_values):
+        super().__init__(context)
         assert default_values is None or isinstance(default_values, (tuple, list))
-        self.__context = context
         self.__types = types
         self.__optional = optional
         self.__default_values = list(default_values) if default_values is not None else None
@@ -216,11 +243,17 @@ class FixedTupleField(Field):
                 field.close()
             self.__fields = None
 
+    def set_context(self, context: typing.Optional[EntityContext]) -> None:
+        super().set_context(context)
+        if self.__fields:
+            for field in self.__fields:
+                field.set_context(context)
+
     def read(self, dict_value: typing.Any) -> Field:
         # TODO: the fields should be fixed
         self.__clear()
         if isinstance(dict_value, (tuple, list)):
-            self.__fields = tuple(type.create_and_read(self.__context, v) for type, v in zip(self.__types, dict_value))
+            self.__fields = tuple(type.create_and_read(self._context, v) for type, v in zip(self.__types, dict_value))
         return self
 
     def write(self) -> DictValue:
@@ -235,14 +268,16 @@ class FixedTupleField(Field):
 
     def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         assert isinstance(value, (tuple, list))
-        self.__fields = tuple(type.create_and_read(self.__context, v) for type, v in zip(self.__types, value))
+        self.__fields = tuple(type.create_and_read(self._context, v) for type, v in zip(self.__types, value))
 
 
 class RecordField(Field):
-    def __init__(self, context: EntityContext, field_type_map: typing.Mapping[str, FieldType]):
-        self.__context = context
+    def __init__(self, context: typing.Optional[EntityContext], field_type_map: typing.Mapping[str, FieldType]):
+        super().__init__(context)
         self.__field_type_map = field_type_map
         self.__field_map: typing.Dict[str, Field] = dict()
+        for k, type in self.__field_type_map.items():
+            self.__field_map[k] = type.create(context)
 
     def close(self) -> None:
         for field in self.__field_map.values():
@@ -250,9 +285,15 @@ class RecordField(Field):
         self.__field_map = None  # type: ignore
         super().close()
 
+    def set_context(self, context: typing.Optional[EntityContext]) -> None:
+        super().set_context(context)
+        for field in self.__field_map.values():
+            field.set_context(context)
+
     def read(self, dict_value: typing.Any) -> Field:
         if isinstance(dict_value, (dict)):
-            self.__field_map = {k: type.create_and_read(self.__context, dict_value.get(k)) for k, type in self.__field_type_map.items()}
+            for k, field in self.__field_map.items():
+                field.read(dict_value.get(k))
         return self
 
     def write(self) -> DictValue:
@@ -272,8 +313,8 @@ class RecordField(Field):
 
 
 class ArrayField(Field):
-    def __init__(self, context: EntityContext, type: FieldType, optional: bool):
-        self.__context = context
+    def __init__(self, context: typing.Optional[EntityContext], type: FieldType, optional: bool):
+        super().__init__(context)
         self.__type = type
         self.__optional = optional
         self.__fields: typing.List[Field] = list()
@@ -284,9 +325,14 @@ class ArrayField(Field):
         self.__fields = None  # type: ignore
         super().close()
 
+    def set_context(self, context: typing.Optional[EntityContext]) -> None:
+        super().set_context(context)
+        for field in self.__fields:
+            field.set_context(context)
+
     def read(self, dict_value: typing.Any) -> Field:
         if isinstance(dict_value, (tuple, list)):
-            self.__fields = list(self.__type.create_and_read(self.__context, item) for item in dict_value)
+            self.__fields = list(self.__type.create_and_read(self._context, item) for item in dict_value)
         else:
             self.__fields = list()
         return self
@@ -304,12 +350,12 @@ class ArrayField(Field):
 
     def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         assert isinstance(value, (tuple, list))
-        self.__fields = list(self.__type.create_and_read(self.__context, v) for v in value)
+        self.__fields = list(self.__type.create_and_read(self._context, v) for v in value)
 
     def insert_value(self, container: ItemProxyEntity, index: int, value: typing.Any) -> None:
         if isinstance(value, Entity):
             assert not value._container
-            field = self.__type.create(self.__context)
+            field = self.__type.create(self._context)
             field.set_field_value(container, value)  # no container yet
             self.__fields.insert(index, field)
         else:
@@ -317,12 +363,12 @@ class ArrayField(Field):
 
     def remove_value_at_index(self, index: int) -> None:
         field = self.__fields.pop(index)
-        field.set_field_value(None, field.field_value)  # no container
+        field.set_field_value(None, None)  # no container
 
 
 class MapField(Field):
-    def __init__(self, context: EntityContext, key: FieldType, value: FieldType, optional: bool):
-        self.__context = context
+    def __init__(self, context: typing.Optional[EntityContext], key: FieldType, value: FieldType, optional: bool):
+        super().__init__(context)
         self.__key = key
         self.__value = value
         self.__optional = optional
@@ -334,9 +380,14 @@ class MapField(Field):
         self.__map = None  # type: ignore
         super().close()
 
+    def set_context(self, context: typing.Optional[EntityContext]) -> None:
+        super().set_context(context)
+        for field in self.__map.values():
+            field.set_context(context)
+
     def read(self, dict_value: typing.Any) -> Field:
         if isinstance(dict_value, dict):
-            self.__map = {k: self.__value.create_and_read(self.__context, v) for k, v in dict_value.items()}
+            self.__map = {k: self.__value.create_and_read(self._context, v) for k, v in dict_value.items()}
         else:
             self.__map = dict()
         return self
@@ -354,20 +405,34 @@ class MapField(Field):
 
     def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         assert isinstance(value, dict)
-        self.__fields = {k: self.__value.create_and_read(self.__context, v) for k, v in value.items()}
+        self.__fields = {k: self.__value.create_and_read(self._context, v) for k, v in value.items()}
 
 
 class ReferenceField(Field):
-    def __init__(self, context: EntityContext, type: EntityType):
-        self.__context = context
+    def __init__(self, context: typing.Optional[EntityContext], type: EntityType):
+        super().__init__(context)
         self.__type = type
         self.__reference: typing.Optional[str] = None
-        self.__proxy = context.create_item_proxy()
+        self.__proxy: typing.Optional[ItemProxy] = None  # proxy is only valid when context is valid
 
     def close(self) -> None:
-        self.__proxy.close()
-        self.__proxy = None  # type: ignore
+        if self.__proxy:
+            self.__proxy.close()
+            self.__proxy = None  # type: ignore
         super().close()
+
+    def __get_proxy(self) -> ItemProxy:
+        # return the proxy, creating a new one if it hasn't been created yet.
+        assert self._context
+        if not self.__proxy:
+            self.__proxy = self._context.create_item_proxy()
+        return self.__proxy
+
+    def set_context(self, context: typing.Optional[EntityContext]) -> None:
+        super().set_context(context)
+        if not context and self.__proxy:
+            self.__proxy.close()
+            self.__proxy = None
 
     def read(self, dict_value: typing.Any) -> Field:
         self.__reference = copy.deepcopy(dict_value)
@@ -378,39 +443,48 @@ class ReferenceField(Field):
 
     @property
     def field_value(self) -> typing.Any:
-        return self.__proxy.item
+        return self.__get_proxy().item
 
     def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         item = typing.cast(Entity, value)
+        proxy = self.__get_proxy()
         if item:
             item_uuid = item.uuid  # prefer _get_field_value; but use direct accessor for legacy Swift PersistentObject compatibility
             self.__reference = str(item_uuid)
-            self.__proxy.item = item
+            proxy.item = item
+            proxy.item._set_entity_context(self._context)
         else:
+            if proxy.item:
+                proxy.item._set_entity_context(None)
             self.__reference = None
-            self.__proxy.item = None
+            proxy.item = None
 
 
 class ComponentField(Field):
-    def __init__(self, context: EntityContext, entity_id: str):
-        self.__context = context
+    def __init__(self, context: typing.Optional[EntityContext], entity_id: str):
+        super().__init__(context)
         self.__type = get_entity_type(entity_id)
-        self.__field: typing.Optional[Entity] = None
+        self.__entity: typing.Optional[Entity] = None
         self.__value: ItemProxyEntity = None
 
     def close(self) -> None:
-        if self.__field:
-            self.__field.close()
-            self.__field = None
+        if self.__entity:
+            self.__entity.close()
+            self.__entity = None
         super().close()
 
+    def set_context(self, context: typing.Optional[EntityContext]) -> None:
+        super().set_context(context)
+        if self.__entity:
+            self.__entity._set_entity_context(context)
+
     def read(self, dict_value: typing.Any) -> Field:
-        self.__field = self.__type.create(self.__context)
-        self.__field.read(dict_value)
+        self.__entity = self.__type.create(self._context)
+        self.__entity.read(dict_value)
         return self
 
     def write(self) -> DictValue:
-        return self.__field.write_to_dict() if self.__field else None
+        return self.__entity.write_to_dict() if self.__entity else None
 
     @property
     def field_value(self) -> typing.Any:
@@ -419,9 +493,11 @@ class ComponentField(Field):
     def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         if self.__value:
             self.__value._container = None
+            self.__value._set_entity_context(None)
         self.__value = value
         if self.__value:
             self.__value._container = container
+            self.__value._set_entity_context(self._context)
 
 
 class FieldType(abc.ABC):
@@ -443,13 +519,13 @@ class FieldType(abc.ABC):
     def _kwargs(self):
         return self.__kwargs
 
-    def _call(self, context: EntityContext, field_class: typing.Callable[..., Field], *args, **kwargs) -> Field:
+    def _call(self, context: typing.Optional[EntityContext], field_class: typing.Callable[..., Field], *args, **kwargs) -> Field:
         return field_class(context, *args, **kwargs)
 
-    def create(self, context: EntityContext) -> Field:
+    def create(self, context: typing.Optional[EntityContext]) -> Field:
         return self._call(context, self.__field_class, *self.__args, **self.__kwargs)
 
-    def create_and_read(self, context: EntityContext, dict_value: DictValue) -> Field:
+    def create_and_read(self, context: typing.Optional[EntityContext], dict_value: DictValue) -> Field:
         return self.create(context).read(dict_value)
 
 
@@ -507,7 +583,7 @@ class ComponentType(FieldType):
         super().__init__(ComponentField, entity_id)
         self.entity_id = entity_id
 
-    def create_and_read(self, context: EntityContext, dict_value: DictValue) -> Field:
+    def create_and_read(self, context: typing.Optional[EntityContext], dict_value: DictValue) -> Field:
         assert isinstance(dict_value, dict)
         d = dict_value
         entity_type = get_entity_type(d["type"])
@@ -526,7 +602,7 @@ class Entity(Observable.Observable):
     def __init__(self, *,
                  type: EntityType,
                  version: typing.Optional[int],
-                 context: EntityContext,
+                 context: typing.Optional[EntityContext],
                  field_type_map: typing.Mapping[str, FieldType],
                  renames: typing.Mapping[str, str],
                  transforms: EntityTransforms):
@@ -539,18 +615,29 @@ class Entity(Observable.Observable):
         self.__renames = renames
         self.__transforms = transforms
         self._container = None
+        for field_name, field_type in self.__field_type_map.items():
+            self.__field_dict[field_name] = field_type.create(self.__context)
         self._set_field_value("uuid", uuid.uuid4())
         self._set_field_value("modified", datetime.datetime.utcnow())
 
     def close(self) -> None:
         pass
 
+    @property
+    def _entity_context(self) -> typing.Optional[EntityContext]:
+        return self.__context
+
+    def _set_entity_context(self, context: typing.Optional[EntityContext]) -> None:
+        assert (self.__context is None) != (context is None)  # one or the other is None
+        self.__context = context
+        for field in self.__field_dict.values():
+            field.set_context(context)
+
     def read(self, properties: typing.Mapping) -> Entity:
         properties = self.__transforms[0](dict(properties))  # transform forward
-        self.__field_dict = dict()
         for field_name, field_type in self.__field_type_map.items():
             d = properties.get(self.__renames.get(field_name, field_name))
-            self.__field_dict[field_name] = field_type.create_and_read(self.__context, d)
+            self.__field_dict[field_name].read(d)
         return self
 
     def write_to_dict(self) -> typing.Dict:
@@ -581,8 +668,6 @@ class Entity(Observable.Observable):
             super().__setattr__(name, value)
 
     def __get_field(self, name: str) -> typing.Optional[Field]:
-        if not name in self.__field_dict and name in self.__field_type_map:
-            self.__field_dict[name] = self.__field_type_map[name].create(self.__context)
         return self.__field_dict.get(name)
 
     def _get_field_value(self, name: str) -> typing.Any:
@@ -663,13 +748,13 @@ class EntityType:
     def _renames(self) -> typing.Mapping[str, str]:
         return self.__renames
 
-    def create(self, context: EntityContext, d: typing.Optional[typing.Dict] = None) -> Entity:
+    def create(self, context: typing.Optional[EntityContext] = None, d: typing.Optional[typing.Dict] = None) -> Entity:
         entity = Entity(**self.entity_init_kwargs(context))
         if d is not None:
             entity.read(d)
         return entity
 
-    def entity_init_kwargs(self, context: EntityContext) -> typing.Dict[str, typing.Any]:
+    def entity_init_kwargs(self, context: typing.Optional[EntityContext] = None) -> typing.Dict[str, typing.Any]:
         return {
             "type": self,
             "version": self.__version,
