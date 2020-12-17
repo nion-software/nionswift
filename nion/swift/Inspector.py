@@ -24,6 +24,7 @@ from nion.swift import Undo
 from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
+from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
@@ -631,6 +632,96 @@ class DataInfoInspectorSection(InspectorSection):
         self._unbinder.add([display_data_channel], [self.info_datetime_label.unbind_text, self.info_format_label.unbind_text])
 
 
+class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, display_layer_index: int, property_name: str, value):
+        super().__init__(_("Change Display Layer Info"), command_id="change_display_layer_" + property_name, is_mergeable=True)
+        self.__document_model = document_model
+        self.__display_item_proxy = display_item.create_proxy()
+        self.__display_layer_index = display_layer_index
+        self.__property_name = property_name
+        self.__value = value
+        self.__old_properties = display_item.save_properties()
+        self.initialize()
+
+    def close(self):
+        self.__document_model = None
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
+        self.__property_name = None
+        self.__value = None
+        self.__old_properties = None
+        super().close()
+
+    def perform(self):
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        display_item._set_display_layer_property(self.__display_layer_index, self.__property_name, self.__value)
+
+    def _get_modified_state(self):
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        return display_item.modified_state, self.__document_model.modified_state
+
+    def _set_modified_state(self, modified_state) -> None:
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        display_item.modified_state, self.__document_model.modified_state = modified_state
+
+    def _compare_modified_states(self, state1, state2) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0]
+
+    def _undo(self) -> None:
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        display_item.restore_properties(self.__old_properties)
+
+    def _redo(self) -> None:
+        self.perform()
+
+    def can_merge(self, command: Undo.UndoableCommand) -> bool:
+        return isinstance(command, ChangeDisplayLayerPropertyCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item
+
+
+class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, display_layer_index: int, display_data_channel: DisplayItem.DisplayDataChannel):
+        super().__init__(_("Change Display Layer Data"), command_id="change_display_layer_data", is_mergeable=True)
+        self.__document_model = document_model
+        self.__display_item_proxy = display_item.create_proxy()
+        self.__display_layer_index = display_layer_index
+        self.__display_data_channel_proxy = display_data_channel.create_proxy()
+        self.initialize()
+
+    def close(self):
+        self.__document_model = None
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
+        self.__display_data_channel_proxy.close()
+        self.__display_data_channel_proxy = None
+        super().close()
+
+    def perform(self):
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        display_data_channel = typing.cast(DisplayItem.DisplayItem, self.__display_data_channel_proxy.item)
+        old_display_data_channel = display_item.get_display_layer_display_data_channel(self.__display_layer_index)
+        display_item.set_display_layer_display_data_channel(self.__display_layer_index, display_data_channel)
+        self.__display_data_channel_proxy.item = old_display_data_channel
+
+    def _get_modified_state(self):
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        return display_item.modified_state, self.__document_model.modified_state
+
+    def _set_modified_state(self, modified_state) -> None:
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        display_item.modified_state, self.__document_model.modified_state = modified_state
+
+    def _compare_modified_states(self, state1, state2) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0]
+
+    def _undo(self) -> None:
+        self.perform()
+
+    def can_merge(self, command: Undo.UndoableCommand) -> bool:
+        return isinstance(command, ChangeDisplayLayerPropertyCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item
+
+
 class LinePlotDisplayLayersInspectorSection(InspectorSection):
     def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
         super().__init__(document_controller.ui, "line_plot_display_layer", _("Line Plot Display Layers"))
@@ -644,45 +735,65 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
             document_controller.push_undo_command(command)
 
         def change_label(label_edit_widget, index, label):
-            adjust_display_layers(DisplayItem.set_display_layer_property(display_item.display_layers, index, "label", label))
+            command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "label", label)
+            command.perform()
+            document_controller.push_undo_command(command)
             label_edit_widget.select_all()
 
         def move_layer_forward(index):
-            adjust_display_layers(DisplayItem.move_display_layer_forward(display_item.display_layers, index))
-            column.remove_all()
-            build_column()
+            if index > 0:
+                command = DisplayPanel.MoveDisplayLayerCommand(document_controller.document_model, display_item, index, display_item, index - 1)
+                command.perform()
+                document_controller.push_undo_command(command)
+                column.remove_all()
+                build_column()
 
         def move_layer_backward(index):
-            adjust_display_layers(DisplayItem.move_display_layer_backward(display_item.display_layers, index))
-            column.remove_all()
-            build_column()
+            if index < len(display_item.display_layers) - 1:
+                command = DisplayPanel.MoveDisplayLayerCommand(document_controller.document_model, display_item, index, display_item, index + 1)
+                command.perform()
+                document_controller.push_undo_command(command)
+                column.remove_all()
+                build_column()
 
         def add_layer(index):
-            adjust_display_layers(DisplayItem.insert_display_layer(display_item.display_layers, index))
+            command = DisplayPanel.AddDisplayLayerCommand(document_controller.document_model, display_item, index)
+            command.perform()
+            document_controller.push_undo_command(command)
             column.remove_all()
             build_column()
 
         def remove_layer(index):
-            adjust_display_layers(DisplayItem.remove_display_layer(display_item.display_layers, index))
+            command = DisplayPanel.RemoveDisplayLayerCommand(document_controller.document_model, display_item, index)
+            command.perform()
+            document_controller.push_undo_command(command)
             column.remove_all()
             build_column()
 
         def change_data_index(data_index_widget, index, data_index):
-            data_index = int(data_index) if data_index.isdigit() else 0
-            adjust_display_layers(DisplayItem.set_display_layer_property(display_item.display_layers, index, "data_index", data_index))
+            display_data_channel = display_item.display_data_channels[data_index] if data_index is not None else None
+            command = ChangeDisplayLayerDisplayDataChannelCommand(document_controller.document_model, display_item, index, display_data_channel)
+            command.perform()
+            document_controller.push_undo_command(command)
             data_index_widget.select_all()
 
         def change_data_row(data_row_widget, index, data_row):
             data_row = int(data_row) if data_row.isdigit() else 0
-            adjust_display_layers(DisplayItem.set_display_layer_property(display_item.display_layers, index, "data_row", data_row))
+            command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "data_row", data_row)
+            command.perform()
+            document_controller.push_undo_command(command)
             data_row_widget.select_all()
 
         def change_fill_color(color_widget, index, color):
-            adjust_display_layers(DisplayItem.set_display_layer_property(display_item.display_layers, index, "fill_color", color))
+            command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "fill_color", color)
+            command.perform()
+            document_controller.push_undo_command(command)
             color_widget.select_all()
 
         def change_stroke_color(color_widget, index, color):
-            adjust_display_layers(DisplayItem.set_display_layer_property(display_item.display_layers, index, "stroke_color", color))
+            command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "stroke_color", color)
+            command.perform()
+            document_controller.push_undo_command(command)
             color_widget.select_all()
 
         class DisplayLayerWidget(Widgets.CompositeWidgetBase):
@@ -744,8 +855,8 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 self.content_widget.add(fill_color_row)
                 self.content_widget.add(stroke_color_row)
                 # complex display type
-                data_index = display_item.display_layers[index].get("data_index")  # use layers to find data index to handle various data groupings, e.g. 1 x (2, 32) or 2 x (32, )
-                complex_display_type_row, self.__complex_display_type_changed_listener = make_complex_display_type_chooser(document_controller, display_item.display_data_channels[data_index])
+                display_data_channel = display_item.get_display_layer_display_data_channel(index)
+                complex_display_type_row, self.__complex_display_type_changed_listener = make_complex_display_type_chooser(document_controller, display_data_channel)
                 if complex_display_type_row:
                     self.content_widget.add(complex_display_type_row)
                 # save for populate
@@ -774,7 +885,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 self.__stroke_color_widget.text = str(display_layer.get("stroke_color"))
 
         def build_column():
-            display_layers = display_item.display_layers
+            display_layers = display_item.display_layers_list
             for index, display_layer in enumerate(display_layers):
                 display_layer_widget = DisplayLayerWidget(index)
                 display_layer_widget.populate(display_layer)
@@ -794,7 +905,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                     column.add(display_layer_widget)
                 while len(column.children) > len(display_item.display_layers):
                     column.remove(-1)
-                for index, display_layer in enumerate(display_item.display_layers):
+                for index, display_layer in enumerate(display_item.display_layers_list):
                     column.children[index].populate(display_layer)
 
         self.__display_item_property_changed = display_item.property_changed_event.listen(display_item_property_changed)

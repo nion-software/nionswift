@@ -562,7 +562,7 @@ class DisplayTracker:
             # this notification does not cover the rgba data, which is handled in the function below.
             # thread safe
             with self.__closing_lock:
-                self.__display_canvas_item.update_display_properties_and_layers(DisplayItem.DisplayCalibrationInfo(display_item), display_item.display_properties, display_item.display_layers)
+                self.__display_canvas_item.update_display_properties_and_layers(DisplayItem.DisplayCalibrationInfo(display_item), display_item.display_properties, display_item.display_layers_list)
 
         def display_property_changed(property: str) -> None:
             if property in ("y_min", "y_max", "y_style", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode"):
@@ -825,8 +825,6 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
 
     def close(self):
         self.__document_model = None
-        self.__display_data_channel_uuid = None
-        self.__properties = None
         for undelete_log in self.__undelete_logs:
             undelete_log.close()
         self.__undelete_logs = None
@@ -838,16 +836,15 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
 
     def __move_display_layer(self) -> None:
         # add display data channel and display layer to new display item
-        old_display_item = self.__old_display_item_proxy.item
+        old_display_item = typing.cast(DisplayItem.DisplayItem, self.__old_display_item_proxy.item)
         old_display_layer_index = self.__old_display_layer_index
-        old_display_layer = copy.deepcopy(old_display_item.display_layers[self.__old_display_layer_index])
-        old_display_data_channel_index = old_display_layer["data_index"]
+        old_display_layer_properties = old_display_item.get_display_layer_properties(self.__old_display_layer_index)
+        old_display_data_channel_index = old_display_item.display_data_channels.index(old_display_item.get_display_layer_display_data_channel(old_display_layer_index))
         new_display_item = self.__new_display_item_proxy.item
         new_display_layer_index = self.__new_display_layer_index
-        new_display_data_channel = copy.deepcopy(old_display_item.display_data_channels[old_display_layer["data_index"]])
+        new_display_data_channel = copy.deepcopy(old_display_item.display_data_channels[old_display_data_channel_index])
         new_display_item.append_display_data_channel(new_display_data_channel)
-        old_display_layer["data_index"] = len(new_display_item.display_data_channels) - 1
-        new_display_item.insert_display_layer(new_display_layer_index, **old_display_layer)
+        new_display_item.insert_display_layer_for_display_data_channel(new_display_layer_index, new_display_data_channel, **old_display_layer_properties)
         if old_display_item == new_display_item and new_display_layer_index <= old_display_layer_index:
             old_display_layer_index += 1
         old_display_item.remove_display_layer(old_display_layer_index)
@@ -887,6 +884,91 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         new_display_item = self.__new_display_item_proxy.item
         old_display_item.set_display_property("legend_position", self.__old_legend_position)
         new_display_item.set_display_property("legend_position", self.__new_legend_position)
+
+
+class AddDisplayLayerCommand(Undo.UndoableCommand):
+
+    def __init__(self, document_model, display_item: DisplayItem.DisplayItem, index: int,
+                 *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+        super().__init__(title if title else _("Add Display Layer"), command_id=command_id, is_mergeable=is_mergeable)
+        self.__document_model = document_model
+        self.__old_properties = display_item.save_properties()
+        self.__display_item_proxy = display_item.create_proxy()
+        self.__index = index
+        self.initialize()
+
+    def close(self):
+        self.__document_model = None
+        self.__old_properties = None
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
+        super().close()
+
+    def perform(self):
+        # add display data channel and display layer to new display item
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        display_item.insert_display_layer_for_display_data_channel(self.__index, display_item.display_data_channels[0])
+        display_item.auto_display_legend()
+
+    def _get_modified_state(self):
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        return display_item.modified_state, self.__document_model.modified_state
+
+    def _set_modified_state(self, modified_state):
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        display_item.modified_state, self.__document_model.modified_state = modified_state
+
+    def _undo(self):
+        # remove the new display layer and restore properties
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        display_item.remove_display_layer(self.__index)
+        display_item.restore_properties(self.__old_properties)
+
+    def _redo(self) -> None:
+        self.perform()
+
+
+class RemoveDisplayLayerCommand(Undo.UndoableCommand):
+
+    def __init__(self, document_model, display_item: DisplayItem.DisplayItem, index: int,
+                 *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+        super().__init__(title if title else _("Remove Display Layer"), command_id=command_id, is_mergeable=is_mergeable)
+        self.__document_model = document_model
+        self.__old_properties = display_item.save_properties()
+        self.__display_item_proxy = display_item.create_proxy()
+        self.__index = index
+        self.initialize()
+
+    def close(self):
+        self.__document_model = None
+        self.__old_properties = None
+        self.__display_item_proxy.close()
+        self.__display_item_proxy = None
+        super().close()
+
+    def perform(self):
+        # add display data channel and display layer to new display item
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        display_item.remove_display_layer(self.__index)
+        display_item.auto_display_legend()
+
+    def _get_modified_state(self):
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        return display_item.modified_state, self.__document_model.modified_state
+
+    def _set_modified_state(self, modified_state):
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        display_item.modified_state, self.__document_model.modified_state = modified_state
+
+    def _undo(self):
+        # remove the new display layer and restore properties
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        # TODO: restore the removed layer. implement once display_layers are items.
+        #display_item.restore_display_layer(self.__index)
+        display_item.restore_properties(self.__old_properties)
+
+    def _redo(self) -> None:
+        self.perform()
 
 
 class ChangeDisplayCommand(Undo.UndoableCommand):
@@ -2175,7 +2257,7 @@ def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.Displa
         with contextlib.closing(display_canvas_item):
             display_calibration_info = DisplayItem.DisplayCalibrationInfo(display_item)
             display_canvas_item.update_display_values(display_values_list)
-            display_canvas_item.update_display_properties_and_layers(display_calibration_info, display_item.display_properties, display_item.display_layers)
+            display_canvas_item.update_display_properties_and_layers(display_calibration_info, display_item.display_properties, display_item.display_layers_list)
             display_canvas_item.update_graphics_coordinate_system(display_item.graphics, DisplayItem.GraphicSelection(), display_calibration_info)
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)

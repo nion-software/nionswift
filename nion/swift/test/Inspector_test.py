@@ -421,9 +421,9 @@ class TestInspectorClass(unittest.TestCase):
             display_item.display_type = "line_plot"
             self.assertEqual(2, len(display_item.display_layers))
             # check for unique data rows and fill colors
-            self.assertEqual(1, len({display_layer["data_index"] for display_layer in display_item.display_layers}))
-            self.assertEqual(2, len({display_layer["data_row"] for display_layer in display_item.display_layers}))
-            self.assertEqual(2, len({display_layer["fill_color"] for display_layer in display_item.display_layers}))
+            self.assertEqual(display_item.get_display_layer_display_data_channel(0), display_item.get_display_layer_display_data_channel(1))
+            self.assertNotEqual(display_item.get_display_layer_property(0, "data_row"), display_item.get_display_layer_property(1, "data_row"))
+            self.assertNotEqual(display_item.get_display_layer_property(0, "fill_color"), display_item.get_display_layer_property(1, "fill_color"))
             display_item.display_type = "image"
             self.assertEqual(1, len(display_item.display_layers))
 
@@ -438,9 +438,9 @@ class TestInspectorClass(unittest.TestCase):
             display_item.display_type = "line_plot"
             self.assertEqual(3, len(display_item.display_layers))
             # check for unique data rows and fill colors
-            self.assertEqual(1, len({display_layer["data_index"] for display_layer in display_item.display_layers}))
-            self.assertEqual(3, len({display_layer["data_row"] for display_layer in display_item.display_layers}))
-            self.assertEqual(3, len({display_layer["fill_color"] for display_layer in display_item.display_layers}))
+            self.assertEqual(1, len({display_item.get_display_layer_display_data_channel(i) for i in range(len(display_item.display_layers))}))
+            self.assertEqual(3, len({display_item.get_display_layer_property(i, "data_row") for i in range(len(display_item.display_layers))}))
+            self.assertEqual(3, len({display_item.get_display_layer_property(i, "fill_color") for i in range(len(display_item.display_layers))}))
 
     def test_line_plot_with_one_data_items_and_two_rows_and_two_layers_displays_inspector(self):
         with TestContext.create_memory_context() as test_context:
@@ -1326,6 +1326,51 @@ class TestInspectorClass(unittest.TestCase):
             command.redo()
             self.assertEqual(1, len(display_item.display_data_channels))
             self.assertEqual(1, len(display_item.display_layers))
+
+    def test_change_display_layer_property_command(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, )))
+            data_item2 = DataItem.DataItem(numpy.zeros((8, )))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            self.assertIsNone(display_item.get_display_layer_property(1, "label"))
+            command = Inspector.ChangeDisplayLayerPropertyCommand(document_model, display_item, 1, "label", "A")
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual("A", display_item.get_display_layer_property(1, "label"))
+            command.undo()
+            self.assertIsNone(display_item.get_display_layer_property(1, "label"))
+            command.redo()
+            self.assertEqual("A", display_item.get_display_layer_property(1, "label"))
+
+    def test_change_display_layer_data_command(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, )))
+            data_item2 = DataItem.DataItem(numpy.zeros((8, )))
+            data_item3 = DataItem.DataItem(numpy.zeros((8, )))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item3))
+            self.assertEqual(3, len(display_item.display_data_channels))
+            self.assertEqual(2, len(display_item.display_layers))
+            self.assertEqual(display_item.display_data_channels[1], display_item.get_display_layer_display_data_channel(1))
+            command = Inspector.ChangeDisplayLayerDisplayDataChannelCommand(document_model, display_item, 1, display_item.display_data_channels[2])
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual(display_item.display_data_channels[2], display_item.get_display_layer_display_data_channel(1))
+            command.undo()
+            self.assertEqual(display_item.display_data_channels[1], display_item.get_display_layer_display_data_channel(1))
+            command.redo()
+            self.assertEqual(display_item.display_data_channels[2], display_item.get_display_layer_display_data_channel(1))
 
     def test_graphic_property_binding_handles_removed_graphic(self):
         with TestContext.create_memory_context() as test_context:

@@ -190,7 +190,7 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual(2, len(document_model.display_items))
             self.assertEqual(2, len(display_item_copy.data_items))
             self.assertEqual(2, len(display_item_copy.display_layers))
-            self.assertEqual(display_item.display_layers, display_item_copy.display_layers)
+            self.assertTrue(display_item.display_layers_match(display_item_copy))
 
     def test_snapshot_display_item_with_data_item_and_multiple_display_layers(self):
         with TestContext.create_memory_context() as test_context:
@@ -211,7 +211,7 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual(2, len(document_model.data_items))
             self.assertEqual(1, len(display_item_copy.data_items))
             self.assertEqual(3, len(display_item_copy.display_layers))
-            self.assertEqual(display_item.display_layers, display_item_copy.display_layers)
+            self.assertTrue(display_item.display_layers_match(display_item_copy))
 
     def test_add_layer_to_line_plot_with_auto_layer_color_sets_both_colors(self):
         with TestContext.create_memory_context() as test_context:
@@ -224,10 +224,10 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual(1, len(display_item.display_layers))
             display_item.append_display_data_channel_for_data_item(data_item2)
             self.assertEqual(2, len(display_item.display_layers))
-            self.assertIn("data_index", display_item.display_layers[0])
-            self.assertIn("data_index", display_item.display_layers[1])
-            self.assertIn("fill_color", display_item.display_layers[0])
-            self.assertIn("fill_color", display_item.display_layers[1])
+            self.assertIsNotNone(display_item.get_display_layer_display_data_channel(0))
+            self.assertIsNotNone(display_item.get_display_layer_display_data_channel(1))
+            self.assertIsNotNone(display_item.get_display_layer_property(0, "fill_color"))
+            self.assertIsNotNone(display_item.get_display_layer_property(1, "fill_color"))
 
     def test_second_layer_to_line_plot_enables_caption(self):
         with TestContext.create_memory_context() as test_context:

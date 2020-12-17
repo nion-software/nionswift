@@ -523,31 +523,35 @@ def build_table(display_item: DisplayItem.DisplayItem) -> typing.Tuple[typing.Li
     data_items = display_item.data_items
     assert all([data_item.is_data_1d for data_item in data_items])
 
-    def calibrate(calibration: Calibration.Calibration, data: numpy.ndarray) -> numpy.ndarray:
-        return calibration.offset + data * calibration.scale
-
     def make_x_data(calibration: Calibration.Calibration, length: int) -> numpy.ndarray:
         return numpy.linspace(calibration.offset, calibration.offset + (length - 1) * calibration.scale, length)
 
-    calibration = data_items[0].xdata.dimensional_calibrations[0]
-    if all([calibration == data_item.xdata.dimensional_calibrations[0] for data_item in data_items]):
+    calibration0 = data_items[0].xdata.dimensional_calibrations[0]
+    if all([calibration0 == data_item.xdata.dimensional_calibrations[0] for data_item in data_items]):
         length = max([data_item.xdata.data_shape[0] for data_item in data_items])
-        data_list = [make_x_data(calibration, length)]
-        headers = [f"X ({calibration.units or 'pixel'})"]
-        for data_item, display_layer in zip(data_items, display_item.display_layers):
-            data_list.append(calibrate(data_item.xdata.intensity_calibration, data_item.xdata.data))
-            headers.append(display_layer.get("label",
-                                             f"Data {display_layer['data_index']}") + f" ({data_item.xdata.intensity_calibration.units or 'None'})")
+        data_list = [make_x_data(calibration0, length)]
+        headers = [f"X ({calibration0.units or 'pixel'})"]
+        for index in range(len(display_item.display_layers)):
+            display_data_channel = display_item.get_display_layer_display_data_channel(index)
+            xdata = display_data_channel.get_calculated_display_values(True).display_data_and_metadata
+            data_list.append(xdata.intensity_calibration.convert_to_calibrated_value(xdata.data))
+            label = display_item.get_display_layer_property(index, "label") or f"Data {index}"
+            label = label + f" ({xdata.intensity_calibration.units or 'None'})"
+            headers.append(label)
     else:
         data_list = list()
         headers = list()
-        for data_item, display_layer in zip(data_items, display_item.display_layers):
-            data_list.extend([make_x_data(data_item.dimensional_calibrations[0], data_item.xdata.data_shape[0]),
-                              calibrate(data_item.intensity_calibration, data_item.xdata.data)])
-            headers.extend(["X " + display_layer.get("label",
-                                                     f"Data {display_layer['data_index']}") + f" ({data_item.xdata.dimensional_calibrations[0].units or 'pixel'})",
-                            "Y " + display_layer.get("label",
-                                                     f"Data {display_layer['data_index']}") + f" ({data_item.xdata.intensity_calibration.units or 'None'})"])
+        for index in range(len(display_item.display_layers)):
+            display_data_channel = display_item.get_display_layer_display_data_channel(index)
+            xdata = display_data_channel.get_calculated_display_values(True).display_data_and_metadata
+            data_list.append(make_x_data(xdata.dimensional_calibrations[0], xdata.data_shape[0]))
+            data_list.append(xdata.intensity_calibration.convert_to_calibrated_value(xdata.data))
+            label = display_item.get_display_layer_property(index, "label") or f"Data {index}"
+            x_label = "X " + label + f" ({xdata.dimensional_calibrations[0].units or 'pixel'})"
+            y_label = "Y " + label + f" ({xdata.intensity_calibration.units or 'None'})"
+            headers.append(x_label)
+            headers.append(y_label)
+
     return headers, data_list
 
 

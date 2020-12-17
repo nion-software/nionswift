@@ -1394,6 +1394,10 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             return display_layers[index].get(property_name, default_value)
         return None
 
+    @property
+    def display_layers_list(self) -> typing.List[typing.Dict[str, typing.Any]]:
+        return copy.deepcopy(self.display_layers)
+
     def _set_display_layer_property(self, index: int, property_name: str, value) -> None:
         self.display_layers = set_display_layer_property(self.display_layers, index, property_name, value)
 
@@ -1434,16 +1438,38 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
             return self.display_data_channels[data_index]
         return None
 
-    def add_display_layer_for_display_data_channel(self, display_data_channel: DisplayDataChannel, **kwargs) -> None:
+    def set_display_layer_display_data_channel(self, index: int, display_data_channel: typing.Optional[DisplayDataChannel]) -> None:
+        assert 0 <= index < len(self.display_layers)
+        if display_data_channel in self.display_data_channels:
+            self._set_display_layer_property(index, "data_index", self.display_data_channels.index(display_data_channel))
+        else:
+            self._set_display_layer_property(index, "data_index", None)
+
+    def insert_display_layer_for_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel, **kwargs) -> None:
         assert display_data_channel in self.display_data_channels
         data_index = self.display_data_channels.index(display_data_channel)
-        self.add_display_layer(data_index=data_index, **kwargs)
+        self.insert_display_layer(before_index, data_index=data_index, **kwargs)
+
+    def add_display_layer_for_display_data_channel(self, display_data_channel: DisplayDataChannel, **kwargs) -> None:
+        self.insert_display_layer_for_display_data_channel(len(self.display_layers), display_data_channel, **kwargs)
 
     def get_display_layer_properties(self, index: int) -> typing.Dict:
         assert 0 <= index < len(self.display_layers)
-        display_layer_properties = self.display_layers[index]
+        display_layer_properties = dict(self.display_layers[index])
         display_layer_properties.pop("data_index", None)
         return display_layer_properties
+
+    def display_layers_match(self, display_item: "DisplayItem") -> bool:
+        if len(self.display_layers) != len(display_item.display_layers):
+            return False
+        for i in range(len(self.display_layers)):
+            if self.get_display_layer_properties(i) != display_item.get_display_layer_properties(i):
+                return False
+            if self.display_data_channels.index(
+                    self.get_display_layer_display_data_channel(i)) != display_item.display_data_channels.index(
+                    display_item.get_display_layer_display_data_channel(i)):
+                return False
+        return True
 
     def append_display_data_channel_for_data_item(self, data_item: DataItem.DataItem) -> None:
         if not data_item in self.data_items:
