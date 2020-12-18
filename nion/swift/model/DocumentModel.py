@@ -648,7 +648,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__computations = list()
         self.__connections = list()
         self.__data_items_to_append_lock = threading.RLock()
-        self.__data_items_to_append = list()
+        self.__data_items_to_append: typing.List[typing.Tuple[str, DataItem.DataItem]] = list()
         self.session_id = None
         self.start_new_session()
         self.__prune()
@@ -756,7 +756,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         # close data items left to append that haven't been appended
         with self.__data_items_to_append_lock:
-            for data_item in self.__data_items_to_append:
+            for key, data_item in self.__data_items_to_append:
                 data_item.close()
 
         # r_vars
@@ -1908,13 +1908,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
                 def append_data_items():
                     with self.__data_items_to_append_lock:
-                        for data_item in self.__data_items_to_append:
+                        for key, data_item in self.__data_items_to_append:
                             self.append_data_item(data_item)
                             self._update_data_item_reference(key, data_item)
                         self.__data_items_to_append.clear()
 
                 with self.__data_items_to_append_lock:
-                    self.__data_items_to_append.append(data_item)
+                    self.__data_items_to_append.append((key, data_item))
 
                 self.__call_soon(append_data_items)
 
