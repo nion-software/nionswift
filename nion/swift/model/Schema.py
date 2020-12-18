@@ -733,13 +733,17 @@ class Entity(Observable.Observable):
             raise AttributeError()
 
 
+def no_transform(x: typing.Dict) -> typing.Dict:
+    return x
+
+
 class EntityType:
     def __init__(self, entity_id: str, base: typing.Optional[EntityType], version: typing.Optional[int], field_type_map: typing.Mapping[str, FieldType]):
         self.__entity_id = entity_id
         self.__base = base
         self.__version = version
         self.__renames: typing.Dict[str, str] = dict()
-        self.__transforms: EntityTransforms = lambda x: x, lambda x: x
+        self.__transforms: EntityTransforms = no_transform, no_transform
         self.__field_type_map: typing.Dict[str, FieldType] = dict()
         self.__field_type_map["uuid"] = prop(UUID)
         self.__field_type_map["modified"] = prop(TIMESTAMP)
