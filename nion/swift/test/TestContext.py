@@ -29,8 +29,6 @@ def end_leaks(test_case: unittest.TestCase) -> None:
     test_case.assertEqual(0, NDataHandler.NDataHandler.count)
     test_case.assertEqual(0, HDF5Handler.HDF5Handler.count)
     test_case.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.items()))
-    if Persistence.PersistentObjectProxy.count > 0:
-        Persistence.PersistentObjectProxy.print_leftovers()
     test_case.assertEqual(0, Persistence.PersistentObjectProxy.count)
 
 
