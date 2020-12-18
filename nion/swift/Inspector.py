@@ -877,20 +877,21 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                     self.__complex_display_type_changed_listener = None
                 super().close()
 
-            def populate(self, display_layer: dict) -> None:
-                self.__label_edit_widget.text = display_layer.get("label", str())
-                self.__display_data_channel_index_widget.text = str(display_layer.get("data_index", 0))
-                self.__display_data_channel_row_widget.text = str(display_layer.get("data_row", 0))
-                self.__fill_color_widget.text = str(display_layer.get("fill_color"))
-                self.__stroke_color_widget.text = str(display_layer.get("stroke_color"))
+            def populate(self, display_item: DisplayItem.DisplayItem, index: int) -> None:
+                self.__label_edit_widget.text = display_item.get_display_layer_property(index, "label", str())
+                display_data_channel = display_item.get_display_layer_display_data_channel(index)
+                data_index = display_item.display_data_channels.index(display_data_channel) if display_data_channel else None
+                self.__display_data_channel_index_widget.text = str(data_index) if data_index is not None else str()
+                self.__display_data_channel_row_widget.text = display_item.get_display_layer_property(index, "data_row", 0)
+                self.__fill_color_widget.text = display_item.get_display_layer_property(index, "fill_color", str())
+                self.__stroke_color_widget.text = display_item.get_display_layer_property(index, "stroke_color", str())
 
         def build_column():
-            display_layers = display_item.display_layers_list
-            for index, display_layer in enumerate(display_layers):
+            for index in range(len(display_item.display_layers)):
                 display_layer_widget = DisplayLayerWidget(index)
-                display_layer_widget.populate(display_layer)
+                display_layer_widget.populate(display_item, index)
                 column.add(display_layer_widget)
-            if len(display_layers) == 0:
+            if len(display_item.display_layers) == 0:
                 add_layer_button_widget = ui.create_push_button_widget("\N{PLUS SIGN}")
                 button_row = ui.create_row_widget()
                 button_row.add(add_layer_button_widget)
@@ -905,8 +906,8 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                     column.add(display_layer_widget)
                 while len(column.children) > len(display_item.display_layers):
                     column.remove(-1)
-                for index, display_layer in enumerate(display_item.display_layers_list):
-                    column.children[index].populate(display_layer)
+                for index in range(len(display_item.display_layers)):
+                    column.children[index].populate(display_item, index)
 
         self.__display_item_property_changed = display_item.property_changed_event.listen(display_item_property_changed)
 

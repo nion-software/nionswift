@@ -4172,14 +4172,14 @@ class TestStorageClass(unittest.TestCase):
                 display_item._set_display_layer_property(0, "ref", "A")
                 display_item._set_display_layer_property(1, "ref", "B")
                 self.assertEqual(2, len(display_item.display_data_channels))
-                self.assertEqual(0, display_item.get_display_layer_property(0, "data_index"))
-                self.assertEqual(1, display_item.get_display_layer_property(1, "data_index"))
+                self.assertEqual(display_item.display_data_channels[0], display_item.get_display_layer_display_data_channel(0))
+                self.assertEqual(display_item.display_data_channels[1], display_item.get_display_layer_display_data_channel(1))
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 display_item = document_model.display_items[0]
                 self.assertEqual(2, len(display_item.display_data_channels))
-                self.assertEqual(0, display_item.get_display_layer_property(0, "data_index"))
-                self.assertEqual(1, display_item.get_display_layer_property(1, "data_index"))
+                self.assertEqual(display_item.display_data_channels[0], display_item.get_display_layer_display_data_channel(0))
+                self.assertEqual(display_item.display_data_channels[1], display_item.get_display_layer_display_data_channel(1))
 
     def test_data_item_variable_reloads(self):
         with create_memory_profile_context() as profile_context:
