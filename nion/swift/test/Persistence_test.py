@@ -7,15 +7,16 @@ import unittest
 
 # local libraries
 from nion.swift.model import Persistence
+from nion.swift.test import TestContext
 
 
 class TestPersistentObjectContextClass(unittest.TestCase):
 
     def setUp(self):
-        pass
+        TestContext.end_leaks(self)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_persistent_object_context_does_not_trigger_event_on_already_registered_object(self):
         persistent_object_context = Persistence.PersistentObjectContext()

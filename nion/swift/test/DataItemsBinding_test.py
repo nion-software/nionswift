@@ -38,6 +38,8 @@ class TestDataItemsModelModule(unittest.TestCase):
             list_model.insert_item(0, data_item)
             data_items.append(data_item)
         self.assertEqual([d.title for d in filtered_data_items.items], sorted([d.title for d in filtered_data_items.items]))
+        for data_item in data_items:
+            data_item.close()
 
     def test_inserting_items_into_model_with_sort_key_reversed_puts_them_in_correct_order(self):
         list_model = ListModel.ListModel("data_items")
@@ -52,6 +54,8 @@ class TestDataItemsModelModule(unittest.TestCase):
             list_model.insert_item(0, data_item)
             data_items.append(data_item)
         self.assertListEqual([d.title for d in filtered_data_items.items], list(reversed(sorted([d.title for d in filtered_data_items.items]))))
+        for data_item in data_items:
+            data_item.close()
 
     def test_inserting_items_into_model_with_sort_key_and_filter_puts_them_in_correct_order(self):
         list_model = ListModel.ListModel("data_items")
@@ -66,6 +70,8 @@ class TestDataItemsModelModule(unittest.TestCase):
             list_model.insert_item(0, data_item)
             data_items.append(data_item)
         self.assertEqual([d.title for d in filtered_data_items.items], sorted([d.title for d in filtered_data_items.items]))
+        for data_item in data_items:
+            data_item.close()
 
     def test_inserting_items_into_model_index0_without_sort_key_puts_them_in_same_order(self):
         list_model = ListModel.ListModel("data_items")
@@ -78,6 +84,8 @@ class TestDataItemsModelModule(unittest.TestCase):
             list_model.insert_item(TestDataItemsModelModule.indexes[index], data_item)
             data_items.append(data_item)
         self.assertEqual([d.title for d in filtered_data_items.items], TestDataItemsModelModule.result)
+        for data_item in data_items:
+            data_item.close()
 
     def test_inserting_items_into_model_index0_without_sort_key__but_with_filter_puts_them_in_same_order(self):
         values = ["DEF", "ABC", "GHI", "DFG", "ACD", "GIJ"]
@@ -94,6 +102,8 @@ class TestDataItemsModelModule(unittest.TestCase):
             list_model.insert_item(indexes[index], data_item)
             data_items.append(data_item)
         self.assertEqual([d.title for d in filtered_data_items.items], [v for v in result if not v.startswith("D")])
+        for data_item in data_items:
+            data_item.close()
 
     def test_filter_model_follows_model(self):
         list_model = ListModel.ListModel("data_items")
@@ -110,6 +120,8 @@ class TestDataItemsModelModule(unittest.TestCase):
             data_items.append(data_item)
         self.assertEqual([d.title for d in filtered_data_items.items], sorted([d.title for d in filtered_data_items.items]))
         self.assertEqual([d.title for d in filtered_data_items.items], [d.title for d in filtered_data_items2.items])
+        for data_item in data_items:
+            data_item.close()
 
     def test_filter_model_inits_with_source_model(self):
         list_model = ListModel.ListModel("data_items")
@@ -126,6 +138,8 @@ class TestDataItemsModelModule(unittest.TestCase):
         selection = Selection.IndexedSelection()
         filtered_data_items2 = ListModel.FilteredListModel(items_key="data_items", container=filtered_data_items, selection=selection)
         self.assertEqual([d.title for d in filtered_data_items.items], [d.title for d in filtered_data_items2.items])
+        for data_item in data_items:
+            data_item.close()
 
     def test_sorted_model_updates_when_transaction_started(self):
         def sort_by_date_key(data_item):
@@ -246,6 +260,8 @@ class TestDataItemsModelModule(unittest.TestCase):
                 filtered_data_items.filter = ListModel.PredicateFilter(is_live_filter)
                 filtered_data_items.filter = ListModel.PredicateFilter(is_live_filter2)
             self.assertEqual(set(c2), set([data_items.index(d) for d in filtered_data_items2.items]))
+        for data_item in data_items:
+            data_item.close()
 
     def slow_test_threaded_filtered_model_updates(self):
         for _ in range(1000):

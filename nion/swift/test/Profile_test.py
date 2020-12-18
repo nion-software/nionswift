@@ -34,10 +34,11 @@ def press_ok_cancel_and_cancel_complete(*args, **kwargs):
 class TestProfileClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_closing_window_unloads_project_referemnce(self):
         with create_memory_profile_context() as profile_context:
@@ -90,6 +91,7 @@ class TestProfileClass(unittest.TestCase):
             document_controller = self.app.open_project_window(profile.project_references[0])
             document_controller.document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
             document_controller._perform_processing(document_controller.document_model.display_items[0], document_controller.document_model.display_items[0].data_item, None, document_controller.document_model.get_fft_new)
+            document_controller.document_model.recompute_all()
             self.assertEqual("loaded", profile.project_references[0].project_state)
             self.assertEqual("unloaded", profile.project_references[1].project_state)
             self.assertEqual(2, len(document_controller.document_model.data_items))

@@ -28,11 +28,12 @@ def create_memory_profile_context() -> TestContext.MemoryProfileContext:
 class TestFacadeClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=True)
         self.app.workspace_dir = str()
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_basic_api_methods(self):
         with create_memory_profile_context() as profile_context:

@@ -60,10 +60,11 @@ def construct_test_document(document_controller: DocumentController.DocumentCont
 class TestDocumentControllerClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_delete_document_controller(self):
         with TestContext.create_memory_context() as test_context:
@@ -416,7 +417,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_display_item = document_model.get_display_item_for_data_item(source_data_item)
             target_data_item = document_model.get_line_profile_new(source_display_item, source_display_item.data_item, None)
             self.assertIn(target_data_item, document_model.data_items)
-            source_display_item.remove_graphic(source_display_item.graphics[0])
+            source_display_item.remove_graphic(source_display_item.graphics[0]).close()
             self.assertNotIn(target_data_item, document_model.data_items)
 
     def test_delete_source_data_item_of_computation_deletes_target_data_item(self):
@@ -487,7 +488,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertIn(source_data_item, document_model.data_items)
             self.assertIn(intermediate_data_item, document_model.data_items)
             self.assertIn(target_data_item, document_model.data_items)
-            intermediate_display_item.remove_graphic(interval_region2)  # this will cascade delete target and then interval_region1
+            intermediate_display_item.remove_graphic(interval_region2).close()  # this will cascade delete target and then interval_region1
             self.assertIn(source_data_item, document_model.data_items)
             self.assertIn(intermediate_data_item, document_model.data_items)
             self.assertNotIn(target_data_item, document_model.data_items)
@@ -507,7 +508,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             target_data_item2 = document_model.get_invert_new(source_display_item, source_display_item.data_item, crop_region)
             self.assertIn(target_data_item1, document_model.data_items)
             self.assertIn(target_data_item2, document_model.data_items)
-            source_display_item.remove_graphic(crop_region)
+            source_display_item.remove_graphic(crop_region).close()
             self.assertNotIn(target_data_item1, document_model.data_items)
             self.assertNotIn(target_data_item2, document_model.data_items)
 

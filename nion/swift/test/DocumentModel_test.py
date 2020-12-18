@@ -37,10 +37,11 @@ def create_memory_profile_context() -> TestContext.MemoryProfileContext:
 class TestDocumentModelClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_remove_data_items_on_document_model(self):
         with TestContext.create_memory_context() as test_context:
@@ -233,7 +234,7 @@ class TestDocumentModelClass(unittest.TestCase):
             interval = Graphics.IntervalGraphic()
             display_item.add_graphic(interval)
             with document_model.item_transaction(data_item):
-                display_item.remove_graphic(interval)
+                display_item.remove_graphic(interval).close()
             self.assertEqual(0, document_model.transaction_count)
 
     def test_transaction_handles_added_dependent_data_item(self):
@@ -717,9 +718,9 @@ class TestDocumentModelClass(unittest.TestCase):
             computation.create_input_item("graphics", Symbolic.make_item_list([graphic, graphic2]))
             document_model.append_computation(computation)
             self.assertEqual(1, len(document_model.computations))
-            display_item.remove_graphic(graphic2)
+            display_item.remove_graphic(graphic2).close()
             self.assertEqual(1, len(document_model.computations))
-            display_item.remove_graphic(graphic)
+            display_item.remove_graphic(graphic).close()
             self.assertEqual(0, len(document_model.computations))
 
     def test_new_computation_creates_dependency_when_result_created_during_computation(self):
@@ -950,7 +951,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(computation.is_resolved)
             document_model.recompute_all()
             self.assertFalse(computation.needs_update)
-            display_item.remove_graphic(graphic)
+            display_item.remove_graphic(graphic).close()
             self.assertIn(computation, document_model.computations)
             self.assertFalse(computation.is_resolved)
             self.assertTrue(computation.needs_update)
@@ -1048,7 +1049,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 1)
             self.assertEqual(len(display_item.graphics), 3)
             self.assertEqual(len(document_model.get_dependent_items(data_item)), 3)
-            display_item.remove_graphic(display_item.graphics[0])
+            display_item.remove_graphic(display_item.graphics[0]).close()
             self.assertEqual(len(document_model.get_dependent_items(data_item)), 0)
             self.assertEqual(len(document_model.data_items), 1)
             self.assertEqual(len(document_model.computations), 0)
@@ -1426,15 +1427,16 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
             data_item3 = DataItem.DataItem()
-            document_model.append_data_item(data_item)
-            # document_model.append_data_item(data_item3)  # purposely not added
-            computation = document_model.create_computation()
-            computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
-            computation.create_output_item("dst", Symbolic.make_item(data_item3), _item_specifier=DataStructure.get_object_specifier(data_item3))
-            computation.processing_id = "pass_thru"
-            document_model.append_computation(computation)
-            document_model.recompute_all()
-            self.assertEqual(1, len(document_model.data_items))
+            with contextlib.closing(data_item3):
+                document_model.append_data_item(data_item)
+                # document_model.append_data_item(data_item3)  # purposely not added
+                computation = document_model.create_computation()
+                computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
+                computation.create_output_item("dst", Symbolic.make_item(data_item3), _item_specifier=DataStructure.get_object_specifier(data_item3))
+                computation.processing_id = "pass_thru"
+                document_model.append_computation(computation)
+                document_model.recompute_all()
+                self.assertEqual(1, len(document_model.data_items))
 
     def test_new_computation_with_missing_input_which_subsequently_appears_does_evaluate(self):
         Symbolic.register_computation_type("pass_thru", self.PassThru)
@@ -2086,6 +2088,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.display_items[0].graphics))
             # undelete and verify
             document_model.undelete_all(undelete_log)
+            undelete_log.close()
             line_profile_data_item = document_model.data_items[1]
             self.assertEqual(1, len(document_model.computations))
             self.assertEqual(2, len(document_model.data_items))
@@ -2109,8 +2112,9 @@ class TestDocumentModelClass(unittest.TestCase):
             undelete_log = display_item.remove_graphic(display_item.graphics[0], safe=True)
             # undelete and verify
             document_model.undelete_all(undelete_log)
+            undelete_log.close()
             # delete again
-            display_item.remove_graphic(display_item.graphics[0], safe=True)
+            display_item.remove_graphic(display_item.graphics[0], safe=True).close()
 
     def test_undelete_data_item(self):
         with TestContext.create_memory_context() as test_context:
@@ -2255,7 +2259,7 @@ class TestDocumentModelClass(unittest.TestCase):
             # is not displayed anywhere and should be cascade deleted. the correct result
             # should be two display items, both displaying the 2nd data item. the first data
             # item should be removed from the document.
-            display_item1.remove_display_data_channel(display_item1.display_data_channels[0])
+            display_item1.remove_display_data_channel(display_item1.display_data_channels[0]).close()
             self.assertNotIn(data_item1, document_model.data_items)
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(2, len(document_model.get_display_items_for_data_item(data_item2)))

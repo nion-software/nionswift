@@ -89,7 +89,7 @@ class TestRegionClass(unittest.TestCase):
             point_region = Graphics.PointGraphic()
             display_item.add_graphic(point_region)
             self.assertFalse(point_region._closed)
-            display_item.remove_graphic(point_region)
+            display_item.remove_graphic(point_region).close()
             self.assertTrue(point_region._closed)
 
     def test_removing_data_item_closes_point_region(self):

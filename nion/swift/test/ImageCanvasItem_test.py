@@ -18,10 +18,11 @@ from nion.ui import TestUI
 class TestImageCanvasItemClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_mapping_widget_to_image_on_2d_data_stack_uses_signal_dimensions(self):
         with TestContext.create_memory_context() as test_context:

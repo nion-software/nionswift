@@ -16,6 +16,7 @@ from nion.ui import TestUI
 class TestFilterPanelClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
         self.t = FilterPanel.TreeNode()
         self.t.insert_value(["1969", "02"], "Chris")
@@ -27,7 +28,7 @@ class TestFilterPanelClass(unittest.TestCase):
         self.t.insert_value(["2000", "06"], "Skywalker")
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_basic_tree_construction(self):
         self.assertEqual(self.t.count, 7)

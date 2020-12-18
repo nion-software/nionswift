@@ -473,6 +473,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__display_latency = False
 
     def close(self):
+        if self.__undo_command:
+            self.__undo_command.close()
+            self.__undo_command = None
         with self.__closing_lock:
             with self.__update_layout_handle_lock:
                 update_layout_handle = self.__update_layout_handle
@@ -972,6 +975,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                     else:
                         self.delegate.add_index_to_selection(graphic_index)
             self.delegate.end_mouse_tracking(self.__undo_command)
+            self.__undo_command = None
         self.__graphic_drag_items = []
         self.__graphic_drag_item = None
         self.__graphic_part_data = {}

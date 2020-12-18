@@ -174,6 +174,8 @@ class DocumentController(Window.Window):
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
+        self.__undo_stack.close()
+        self.__undo_stack = None
         self.__selection_changed_listener.close()
         self.__selection_changed_listener = None
         self.__call_soon_event_listener.close()
@@ -384,8 +386,8 @@ class DocumentController(Window.Window):
         else:
             self.__undo_stack.clear()
 
-    def pop_undo_command(self) -> typing.Optional[Undo.UndoableCommand]:
-        return self.__undo_stack.pop_command()
+    def pop_undo_command(self) -> None:
+        self.__undo_stack.pop_command()
 
     @property
     def workspace_controller(self):

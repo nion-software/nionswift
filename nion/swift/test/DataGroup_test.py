@@ -18,10 +18,11 @@ from nion.ui import TestUI
 class TestDataGroupClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_deep_copy_should_deep_copy_child_data_groups(self):
         with TestContext.create_memory_context() as test_context:

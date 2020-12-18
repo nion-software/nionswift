@@ -755,7 +755,7 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
     def _undo(self):
         display_item = self.__display_item_proxy.item
         display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
-        display_item.remove_display_data_channel(display_data_channel, safe=True)
+        display_item.remove_display_data_channel(display_data_channel, safe=True).close()
         display_item.restore_properties(self.__old_properties)
 
     def _redo(self):

@@ -26,10 +26,11 @@ Facade.initialize()
 class TestDisplayClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_setting_inverted_display_limits_reverses_them(self):
         with TestContext.create_memory_context() as test_context:
@@ -197,6 +198,7 @@ class TestDisplayClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             source_data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))
+            document_model.append_data_item(source_data_item)
             data_item = copy.deepcopy(source_data_item)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)

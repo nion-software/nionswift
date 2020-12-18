@@ -34,10 +34,11 @@ Facade.initialize()
 class TestSymbolicClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=True)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_unary_inversion_returns_inverted_data(self):
         with TestContext.create_memory_context() as test_context:
@@ -136,6 +137,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata[2:2, :, :]"))
             computation.create_input_item("a", Symbolic.make_item(data_item))
             self.assertIsNone(DocumentModel.evaluate_data(computation))
+            computation.close()
 
     def test_ability_to_take_slice_with_ellipses_produces_correct_data(self):
         with TestContext.create_memory_context() as test_context:
@@ -497,6 +499,7 @@ class TestSymbolicClass(unittest.TestCase):
             display_item.add_graphic(Graphics.PointGraphic())
             computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
             computation.create_input_item("a", Symbolic.make_item(data_item))
+            document_model.append_computation(computation)
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
@@ -540,15 +543,16 @@ class TestSymbolicClass(unittest.TestCase):
             region.size = 0.52, 0.42
             display_item.add_graphic(region)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + n"))
+            document_model.append_computation(computation)
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
-            needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
-            computation.create_input_item("a", Symbolic.make_item(data_item))
-            self.assertTrue(needs_update_ref[0])
-            needs_update_ref[0] = False
-            computation.create_variable("x", value_type="integral", value=5)
-            self.assertTrue(needs_update_ref[0])
+            with contextlib.closing(computation.computation_mutated_event.listen(needs_update)) as needs_update_event_listener:
+                computation.create_input_item("a", Symbolic.make_item(data_item))
+                self.assertTrue(needs_update_ref[0])
+                needs_update_ref[0] = False
+                computation.create_variable("x", value_type="integral", value=5)
+                self.assertTrue(needs_update_ref[0])
 
     def test_computation_handles_data_lookups(self):
         with TestContext.create_memory_context() as test_context:
@@ -558,6 +562,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("-api.library.get_data_item_by_uuid(uuid.UUID('{}')).xdata".format(str(data_item.uuid))))
+            document_model.append_computation(computation)
             data_and_metadata = DocumentModel.evaluate_data(computation)
             assert numpy.array_equal(data_and_metadata.data, -d)
 
@@ -620,6 +625,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation.create_input_item("a", Symbolic.make_item(data_item))
             data_and_metadata = DocumentModel.evaluate_data(computation)
             self.assertIsNone(data_and_metadata)
+            computation.close()
 
     def test_evaluate_computation_with_invalid_source_gives_sensible_response(self):
         with TestContext.create_memory_context() as test_context:
@@ -631,6 +637,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation.create_input_item("a", Symbolic.make_item(data_item))
             data_and_metadata = DocumentModel.evaluate_data(computation)
             self.assertIsNone(data_and_metadata)
+            computation.close()
 
     def test_evaluate_computation_with_invalid_function_in_document_fails_cleanly(self):
         with TestContext.create_memory_context() as test_context:
@@ -694,6 +701,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_expression = Symbolic.data_expression("numpy.sin(a.data)")
             computation = document_model.create_computation(data_expression)
             computation.create_input_item("a", Symbolic.make_item(data_item))
+            document_model.append_computation(computation)
             self.assertEqual(computation.expression, data_expression)
 
     def test_computation_stores_error_and_original_text(self):
@@ -705,6 +713,7 @@ class TestSymbolicClass(unittest.TestCase):
             xdata_expression = Symbolic.xdata_expression("xyz(a.xdata)")
             computation = document_model.create_computation(xdata_expression)
             computation.create_input_item("a", Symbolic.make_item(data_item))
+            document_model.append_computation(computation)
             data_and_metadata = DocumentModel.evaluate_data(computation)
             self.assertIsNone(data_and_metadata)
             self.assertTrue(computation.error_text is not None and len(computation.error_text) > 0)
@@ -719,11 +728,13 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("numpy.average(a.data)"))
             computation.create_input_item("a", Symbolic.make_item(data_item))
+            document_model.append_computation(computation)
             data_node_dict = computation.write_to_dict()
             data_node_dict['original_expression'] = "missing(a.xdata)"
             computation2 = document_model.create_computation()
             computation2.read_from_dict(data_node_dict)
             self.assertIsNone(DocumentModel.evaluate_data(computation2))
+            computation2.close()
 
     def test_computation_can_extract_item_from_scalar_tuple(self):
         with TestContext.create_memory_context() as test_context:
@@ -1159,10 +1170,12 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + 4"))
             a_specifier = computation.create_input_item("a", Symbolic.make_item(data_item))._specifier
             d = computation.write_to_dict()
+            document_model.append_computation(computation)
             read_computation = document_model.create_computation()
             read_computation.read_from_dict(d)
             self.assertEqual(read_computation.variables[0].name, "a")
             self.assertEqual(read_computation.variables[0]._specifier, a_specifier)
+            read_computation.close()
 
     def test_computation_with_object_reloads(self):
         with TestContext.create_memory_context() as test_context:
@@ -1305,7 +1318,7 @@ class TestSymbolicClass(unittest.TestCase):
             a = computation.create_input_item("a", Symbolic.make_item(data_item))
             document_model.append_computation(computation)
             computation.remove_variable(a)
-            copy.deepcopy(computation)
+            copy.deepcopy(computation).close()
 
     def test_evaluation_error_recovers_gracefully(self):
         with TestContext.create_memory_context() as test_context:
@@ -1657,7 +1670,7 @@ class TestSymbolicClass(unittest.TestCase):
             graphic = Graphics.PointGraphic()
             display_item.add_graphic(graphic)
             document_model.get_fft_new(display_item, display_item.data_item, crop_region)
-            display_item.remove_graphic(graphic)
+            display_item.remove_graphic(graphic).close()
             document_model.recompute_all()
             graphic = Graphics.PointGraphic()
             display_item.add_graphic(graphic)

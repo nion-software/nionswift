@@ -28,10 +28,11 @@ Facade.initialize()
 class TestDataStructureClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_changing_entity_field_updates_data_structure(self):
         TestModel = Schema.entity("test_model", None, None, {"flag": Schema.prop(Schema.BOOLEAN)})
@@ -40,6 +41,7 @@ class TestDataStructureClass(unittest.TestCase):
             try:
                 document_model = test_context.create_document_model()
                 data_structure = DataStructure.DataStructure(structure_type="test_model")
+                document_model.append_data_structure(data_structure)
                 self.assertIsNotNone(data_structure.entity)
                 data_structure.entity.flag = False
                 self.assertEqual(data_structure.flag, False)

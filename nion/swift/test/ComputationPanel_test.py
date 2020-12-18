@@ -27,10 +27,11 @@ def create_memory_profile_context() -> TestContext.MemoryProfileContext:
 class TestComputationPanelClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_expression_updates_when_node_is_changed(self):
         with TestContext.create_memory_context() as test_context:
@@ -282,7 +283,7 @@ class TestComputationPanelClass(unittest.TestCase):
             display_item.append_display_data_channel_for_data_item(data_item3)
 
             with contextlib.closing(ComputationPanel.InspectComputationDialog(document_controller, computation)):
-                display_item.remove_graphic(interval)
+                display_item.remove_graphic(interval).close()
 
     def disabled_test_expression_updates_when_variable_is_assigned(self):
         raise Exception()

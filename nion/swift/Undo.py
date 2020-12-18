@@ -142,6 +142,9 @@ class UndoStack:
         self.__undo_stack = list()
         self.__redo_stack = list()
 
+    def close(self) -> None:
+        self.clear()
+
     @property
     def can_redo(self) -> bool:
         return len(self.__redo_stack) > 0 and self.__redo_stack[-1].is_redo_valid
@@ -154,8 +157,8 @@ class UndoStack:
     def last_command(self) -> typing.Optional[UndoableCommand]:
         return self.__undo_stack[-1] if self.__undo_stack else None
 
-    def pop_command(self) -> typing.Optional[UndoableCommand]:
-        return self.__undo_stack.pop() if self.__undo_stack else None
+    def pop_command(self) -> None:
+        self.__undo_stack.pop().close() if self.__undo_stack else None
 
     def validate(self) -> None:
         if len(self.__undo_stack) > 0 and not self.__undo_stack[-1].is_undo_valid:
@@ -205,6 +208,7 @@ class UndoStack:
         last_undo_command = self.__undo_stack[-1] if self.__undo_stack else None
         if last_undo_command and last_undo_command.is_mergeable and undo_command.is_mergeable and last_undo_command.command_id == undo_command.command_id:
             last_undo_command.merge(undo_command)
+            undo_command.close()
         else:
             self.__undo_stack.append(undo_command)
         while len(self.__redo_stack) > 0:

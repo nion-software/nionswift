@@ -27,10 +27,11 @@ def create_memory_profile_context() -> TestContext.MemoryProfileContext:
 class TestLineGraphCanvasItem(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_data_values_give_pretty_limits_when_auto(self):
 

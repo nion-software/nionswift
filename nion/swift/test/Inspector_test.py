@@ -32,10 +32,11 @@ Facade.initialize()
 class TestInspectorClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_info_inspector_section_follows_title_change(self):
         with TestContext.create_memory_context() as test_context:
@@ -110,6 +111,7 @@ class TestInspectorClass(unittest.TestCase):
             size_width_binding = Inspector.CalibratedSizeBinding(0, display_item, Binding.TuplePropertyBinding(rect_graphic, "size", 0))
             size_width_binding.update_source("0.6")
             self.assertEqual(center, rect_graphic.center)
+            rect_graphic.close()
 
     def test_calibration_inspector_section_binds(self):
         with TestContext.create_memory_context() as test_context:
@@ -1405,7 +1407,7 @@ class TestInspectorClass(unittest.TestCase):
 
             binding = Inspector.CalibratedValueBinding(-1, display_item, Inspector.ChangeGraphicPropertyBinding(document_controller, display_item, interval2, "start"))
             with contextlib.closing(binding):
-                display_item.remove_graphic(interval)
+                display_item.remove_graphic(interval).close()
 
 
 if __name__ == '__main__':

@@ -24,6 +24,7 @@ Facade.initialize()
 class TestProcessingClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.test_context = TestContext.create_memory_context()
         self.document_controller = self.test_context.create_document_controller_with_application()
         self.document_model = self.document_controller.document_model
@@ -35,6 +36,7 @@ class TestProcessingClass(unittest.TestCase):
 
     def tearDown(self):
         self.test_context.close()
+        TestContext.end_leaks(self)
 
     # test processing against 1d data. doesn't test for correctness of the processing.
     def test_processing_1d(self):
@@ -501,6 +503,7 @@ class TestProcessingClass(unittest.TestCase):
             data_item_rgba2_copy = copy.deepcopy(data_item_rgba2)
             # make sure the computation was not copied
             self.assertNotEqual(document_model.get_data_item_computation(data_item_rgba2), document_model.get_data_item_computation(data_item_rgba2_copy))
+            data_item_rgba2_copy.close()
 
     def test_snapshot_of_processing_should_copy_data(self):
         with TestContext.create_memory_context() as test_context:

@@ -7,15 +7,16 @@ import unittest
 # local libraries
 from nion.swift import SessionPanel
 from nion.swift.model import ApplicationData
+from nion.swift.test import TestContext
 
 
 class TestPanelClass(unittest.TestCase):
 
     def setUp(self):
-        pass
+        TestContext.end_leaks(self)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_session_panel_controller_notifies_fields_changed(self):
         session_panel_controller = SessionPanel.SessionPanelController()

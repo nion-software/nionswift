@@ -25,10 +25,11 @@ def create_memory_profile_context() -> TestContext.MemoryProfileContext:
 class TestConnectionClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_connection_updates_target_when_source_changes(self):
         # setup document model
@@ -151,7 +152,7 @@ class TestConnectionClass(unittest.TestCase):
             interval_descriptors = line_profile_graphic.interval_descriptors
             self.assertEqual(1, len(interval_descriptors))
             self.assertEqual(interval, interval_descriptors[0]["interval"])
-            line_profile_display_item.remove_graphic(interval_region)
+            line_profile_display_item.remove_graphic(interval_region).close()
             self.assertEqual(0, len(line_profile_graphic.interval_descriptors))
 
     def test_connection_updates_interval_descriptors_when_interval_mutates(self):
@@ -340,7 +341,7 @@ class TestConnectionClass(unittest.TestCase):
             graphic1 = display_item1.graphics[0]
             graphic2 = display_item2.graphics[0]
             document_model.append_connection(Connection.PropertyConnection(graphic1, "interval", graphic2, "interval", parent=data_item1))
-            display_item1.remove_graphic(graphic1)
+            display_item1.remove_graphic(graphic1).close()
             # the document must have a consistent state for item transaction to work
             with document_model.item_transaction(data_item1):
                 pass
@@ -361,7 +362,7 @@ class TestConnectionClass(unittest.TestCase):
             graphic1 = display_item1.graphics[0]
             graphic2 = display_item2.graphics[0]
             document_model.append_connection(Connection.PropertyConnection(graphic1, "interval", graphic2, "interval", parent=data_item1))
-            display_item1.remove_graphic(graphic2)
+            display_item1.remove_graphic(graphic2).close()
             # the document must have a consistent state for item transaction to work
             with document_model.item_transaction(data_item1):
                 pass

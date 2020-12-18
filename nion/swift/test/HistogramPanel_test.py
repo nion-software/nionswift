@@ -16,6 +16,7 @@ from nion.swift.test import TestContext
 class TestHistogramPanelClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.test_context = TestContext.create_memory_context()
         self.document_controller = self.test_context.create_document_controller_with_application()
         self.document_model = self.document_controller.document_model
@@ -32,6 +33,7 @@ class TestHistogramPanelClass(unittest.TestCase):
     def tearDown(self):
         self.histogram_panel.close()
         self.test_context.close()
+        TestContext.end_leaks(self)
 
     def test_drag_to_set_limits(self):
         display_data_channel = self.display_item.display_data_channels[0]

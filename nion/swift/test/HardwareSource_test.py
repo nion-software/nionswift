@@ -488,11 +488,13 @@ def _test_record_starts_and_finishes_in_reasonable_time(testcase, hardware_sourc
 class TestHardwareSourceClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
         HardwareSource.HardwareSourceManager()._reset()
 
     def tearDown(self):
         HardwareSource.HardwareSourceManager().close()
+        TestContext.end_leaks(self)
 
     def __acquire_one(self, document_controller, hardware_source):
         hardware_source.start_playing(sync_timeout=3.0)
@@ -802,6 +804,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         data_element = ScanAcquisitionTask(False, 0).make_data_element()
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         self.assertTrue(isinstance(data_item.metadata.get("hardware_source"), dict))
+        data_item.close()
 
     def test_updating_existing_data_item_updates_creation_even_if_an_updated_date_is_not_supplied(self):
         with TestContext.create_memory_context() as test_context:
@@ -939,9 +942,9 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.__acquire_one(document_controller, hardware_source)
             self.assertEqual(len(document_model.data_items), 2)
         # reload
-        document_model = simple_test_context.create_document_model()
-        self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
-        self.assertEqual(len(document_model.data_items), 2)
+        with contextlib.closing(simple_test_context.create_document_model()) as document_model:
+            self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
+            self.assertEqual(len(document_model.data_items), 2)
 
     def test_single_frame_acquisition_generates_single_canvas_repaint_event_for_image(self):
         with self.__simple_test_context() as simple_test_context:

@@ -77,6 +77,7 @@ class TestDisplayPanel:
 class TestDisplayPanelClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.test_context = TestContext.create_memory_context()
         self.document_controller = self.test_context.create_document_controller_with_application()
         self.document_model = self.document_controller.document_model
@@ -90,6 +91,7 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def tearDown(self):
         self.test_context.close()
+        TestContext.end_leaks(self)
 
     def setup_line_plot(self, canvas_shape=None, data_min=0.0, data_max=1.0):
         canvas_shape = canvas_shape if canvas_shape else (480, 640)  # yes I know these are backwards
@@ -488,7 +490,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_item.insert_graphic(0, graphic)
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
         self.assertTrue(1 in self.display_item.graphic_selection.indexes)
-        self.display_item.remove_graphic(self.display_item.graphics[0])
+        self.display_item.remove_graphic(self.display_item.graphics[0]).close()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.display_item.graphic_selection.indexes)
 
@@ -1594,7 +1596,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(2, len(document_model.get_dependent_items(data_item)))
             display_panel.set_display_panel_display_item(display_item)
             self.assertEqual(2, len(display_panel._related_icons_canvas_item._dependent_thumbnails.canvas_items))
-            display_item.remove_graphic(display_item.graphics[1])
+            display_item.remove_graphic(display_item.graphics[1]).close()
             self.assertEqual(1, len(display_panel._related_icons_canvas_item._dependent_thumbnails.canvas_items))
 
     def test_dragging_to_create_interval_undo_redo_cycle(self):

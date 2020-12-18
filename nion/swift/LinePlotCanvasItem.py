@@ -236,7 +236,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__pending_interval = None
 
     def close(self):
-        # call super
+        if self.__undo_command:
+            self.__undo_command.close()
+            self.__undo_command = None
         with self.__closing_lock:
             self.__closed = True
         super().close()
@@ -754,6 +756,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             return False
         self.end_tracking(modifiers)
         self.delegate.end_mouse_tracking(self.__undo_command)
+        self.__undo_command = None
         return False
 
     def _mouse_dragged(self, start: float, end: float, modifiers=None) -> None:

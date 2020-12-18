@@ -91,10 +91,11 @@ class MimeData:
 class TestWorkspaceClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_basic_change_layout_results_in_correct_image_panel_count(self):
         with TestContext.create_memory_context() as test_context:

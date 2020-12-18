@@ -23,10 +23,11 @@ from nion.utils import Geometry
 class TestGraphicsClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def __get_mapping(self):
         return ImageCanvasItem.ImageCanvasItemMapping((1000, 1000), Geometry.FloatRect.from_tlbr(0, 0, 1000, 1000),
@@ -35,11 +36,14 @@ class TestGraphicsClass(unittest.TestCase):
 
     def test_copy_graphic(self):
         rect_graphic = Graphics.RectangleGraphic()
-        copy.deepcopy(rect_graphic)
+        copy.deepcopy(rect_graphic).close()
+        rect_graphic.close()
         ellipse_graphic = Graphics.EllipseGraphic()
-        copy.deepcopy(ellipse_graphic)
+        copy.deepcopy(ellipse_graphic).close()
+        ellipse_graphic.close()
         line_graphic = Graphics.LineGraphic()
-        copy.deepcopy(line_graphic)
+        copy.deepcopy(line_graphic).close()
+        line_graphic.close()
 
     def test_rect_test(self):
         mapping = self.__get_mapping()
@@ -56,6 +60,7 @@ class TestGraphicsClass(unittest.TestCase):
         self.assertEqual(rect_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((500, 250)), move_only=False), ("all", True))
         self.assertEqual(rect_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((500, 750)), move_only=False), ("all", True))
         self.assertIsNone(rect_graphic.test(mapping, ui_settings, Geometry.FloatPoint(), move_only=False)[0])
+        rect_graphic.close()
 
     def test_line_test(self):
         mapping = self.__get_mapping()
@@ -71,6 +76,7 @@ class TestGraphicsClass(unittest.TestCase):
         self.assertIsNone(line_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((240, 240)), move_only=False)[0])
         self.assertIsNone(line_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((760, 760)), move_only=False)[0])
         self.assertIsNone(line_graphic.test(mapping, ui_settings, Geometry.FloatPoint(), move_only=False)[0])
+        line_graphic.close()
 
     def test_point_test(self):
         mapping = self.__get_mapping()
@@ -81,6 +87,7 @@ class TestGraphicsClass(unittest.TestCase):
         self.assertEqual(point_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((250 - 18, 250)), move_only=True)[0], None)
         point_graphic.label = "Test"
         self.assertEqual(point_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((250 - 18 - 6, 250)), move_only=True)[0], "all")
+        point_graphic.close()
 
     def test_spot_test(self):
         mapping = self.__get_mapping()
@@ -96,6 +103,7 @@ class TestGraphicsClass(unittest.TestCase):
         self.assertEqual(spot_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((700, 700)), move_only=False), ("inverted-bottom-right", True))
         self.assertEqual(spot_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((800, 700)), move_only=False), ("inverted-top-right", True))
         self.assertIsNone(spot_graphic.test(mapping, ui_settings, Geometry.FloatPoint(), move_only=False)[0])
+        spot_graphic.close()
 
     def test_create_all_graphic_by_dragging(self):
         with TestContext.create_memory_context() as test_context:
@@ -125,7 +133,7 @@ class TestGraphicsClass(unittest.TestCase):
                 self.assertEqual(1, len(display_item.graphics))
                 graphic = display_item.graphics[0]
                 self.assertIsInstance(graphic, graphic_type)
-                display_item.remove_graphic(graphic)
+                display_item.remove_graphic(graphic).close()
 
     def test_spot_mask_inverted(self):
         with TestContext.create_memory_context() as test_context:
@@ -153,6 +161,7 @@ class TestGraphicsClass(unittest.TestCase):
         mask_data = spot_graphic.get_mask((10, 10), Geometry.FloatPoint(y=5.5, x=5.5))
         self.assertEqual(mask_data.shape, (10, 10))
         self.assertTrue(numpy.array_equal(mask_data, numpy.zeros((10, 10))))
+        spot_graphic.close()
 
     def test_spot_mask_is_sensible_when_outside_bounds(self):
         spot_graphic = Graphics.SpotGraphic()
@@ -164,6 +173,7 @@ class TestGraphicsClass(unittest.TestCase):
         spot_graphic.bounds = (-0.5, -0.5), (0.1, 0.1)
         self.assertEqual(mask_data.shape, (10, 10))
         self.assertTrue(numpy.array_equal(mask_data, numpy.zeros((10, 10))))
+        spot_graphic.close()
 
     def test_spot_mask_is_sensible_when_partially_outside_bounds(self):
         spot_graphic = Graphics.SpotGraphic()
@@ -175,6 +185,7 @@ class TestGraphicsClass(unittest.TestCase):
         mask_data = spot_graphic.get_mask((10, 10))
         self.assertEqual(mask_data.shape, (10, 10))
         self.assertFalse(numpy.array_equal(mask_data, numpy.zeros((10, 10))))
+        spot_graphic.close()
 
     def assertAlmostEqualPoint(self, p1, p2, e=0.00001):
         if not(Geometry.distance(p1, p2) < e):
@@ -360,7 +371,7 @@ class TestGraphicsClass(unittest.TestCase):
                             self.assertAlmostEqual(actual_value, expected_value.value)
                         else:
                             raise Exception("Unknown value type %s", type(actual_value))
-                display_item.remove_graphic(region)
+                display_item.remove_graphic(region).close()
 
             def rotate(p, o, angle):
                 origin = Geometry.FloatPoint.make(o)
@@ -1029,7 +1040,7 @@ class TestGraphicsClass(unittest.TestCase):
             graphic = Graphics.PointGraphic()
             display_item.add_graphic(graphic)
             self.assertFalse(graphic._closed)
-            display_item.remove_graphic(graphic)
+            display_item.remove_graphic(graphic).close()
             self.assertTrue(graphic._closed)
 
     def test_removing_data_item_closes_graphic_attached_to_display(self):
@@ -1058,7 +1069,7 @@ class TestGraphicsClass(unittest.TestCase):
             display_item.add_graphic(point_region)
             drawn_graphic = display_item.graphics[0]
             self.assertFalse(drawn_graphic._closed)
-            display_item.remove_graphic(point_region)
+            display_item.remove_graphic(point_region).close()
             self.assertTrue(drawn_graphic._closed)
 
     def test_removing_data_item_closes_associated_drawn_graphic(self):
@@ -1084,7 +1095,7 @@ class TestGraphicsClass(unittest.TestCase):
             display_item.add_graphic(crop_region)
             cropped_data_item = document_model.get_crop_new(display_item, display_item.data_item, crop_region)
             self.assertIn(cropped_data_item, document_model.data_items)
-            display_item.remove_graphic(crop_region)
+            display_item.remove_graphic(crop_region).close()
             self.assertNotIn(cropped_data_item, document_model.data_items)
 
     def test_removing_one_of_two_graphics_with_dependent_data_only_removes_the_one(self):
@@ -1101,7 +1112,7 @@ class TestGraphicsClass(unittest.TestCase):
             document_model.get_crop_new(display_item, display_item.data_item, crop_region2)
             self.assertIn(crop_region1, display_item.graphics)
             self.assertIn(crop_region2, display_item.graphics)
-            display_item.remove_graphic(crop_region1)
+            display_item.remove_graphic(crop_region1).close()
             self.assertIn(crop_region2, display_item.graphics)
 
     def test_changing_data_length_does_not_update_graphics(self):

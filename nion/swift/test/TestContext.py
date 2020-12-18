@@ -1,16 +1,37 @@
 # system libraries
 import typing
+import unittest
 import uuid
 
 # local libraries
-from nion.swift import DocumentController, Application
+from nion.swift import Application
+from nion.swift import DocumentController
 from nion.swift.model import Cache
 from nion.swift.model import DocumentModel
 from nion.swift.model import FileStorageSystem
+from nion.swift.model import HDF5Handler
+from nion.swift.model import NDataHandler
+from nion.swift.model import Persistence
 from nion.swift.model import Profile
-from nion.swift.model import Project
 from nion.ui import TestUI
 from nion.utils import Event
+
+
+def begin_leaks() -> None:
+    Cache.DbStorageCache.count = 0
+    NDataHandler.NDataHandler.count = 0
+    HDF5Handler.HDF5Handler.count = 0
+    Persistence.PersistentObjectProxy.count = 0
+
+
+def end_leaks(test_case: unittest.TestCase) -> None:
+    test_case.assertEqual(0, Cache.DbStorageCache.count)
+    test_case.assertEqual(0, NDataHandler.NDataHandler.count)
+    test_case.assertEqual(0, HDF5Handler.HDF5Handler.count)
+    test_case.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.items()))
+    if Persistence.PersistentObjectProxy.count > 0:
+        Persistence.PersistentObjectProxy.print_leftovers()
+    test_case.assertEqual(0, Persistence.PersistentObjectProxy.count)
 
 
 class MemoryProfileContext:

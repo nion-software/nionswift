@@ -28,10 +28,11 @@ def create_memory_profile_context() -> TestContext.MemoryProfileContext:
 class TestProjectClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_projects_with_duplicate_uuid_are_not_loaded(self):
         with create_memory_profile_context() as profile_context:

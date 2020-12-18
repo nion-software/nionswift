@@ -256,6 +256,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                     data_item.finish_reading()
                     if not self.get_item_by_uuid("data_items", data_item.uuid):
                         self.load_item("data_items", len(self.data_items), data_item)
+                    else:
+                        data_item.close()
                 for item_d in properties.get("display_items", list()):
                     display_item = DisplayItem.DisplayItem()
                     display_item.begin_reading()
@@ -263,6 +265,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                     display_item.finish_reading()
                     if not self.get_item_by_uuid("display_items", display_item.uuid):
                         self.load_item("display_items", len(self.display_items), display_item)
+                    else:
+                        display_item.close()
                 for item_d in properties.get("data_structures", list()):
                     data_structure = DataStructure.DataStructure()
                     data_structure.begin_reading()
@@ -270,6 +274,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                     data_structure.finish_reading()
                     if not self.get_item_by_uuid("data_structures", data_structure.uuid):
                         self.load_item("data_structures", len(self.data_structures), data_structure)
+                    else:
+                        data_structure.close()
                 for item_d in properties.get("computations", list()):
                     computation = Symbolic.Computation()
                     computation.begin_reading()
@@ -279,6 +285,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                         self.load_item("computations", len(self.computations), computation)
                         # TODO: handle update script and bind after reload in document model
                         computation.update_script(Project._processing_descriptions)
+                    else:
+                        computation.close()
                 for item_d in properties.get("connections", list()):
                     connection = Connection.connection_factory(item_d.get)
                     connection.begin_reading()
@@ -286,6 +294,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                     connection.finish_reading()
                     if not self.get_item_by_uuid("connections", connection.uuid):
                         self.load_item("connections", len(self.connections), connection)
+                    else:
+                        connection.close()
                 for item_d in properties.get("data_groups", list()):
                     data_group = DataGroup.data_group_factory(item_d.get)
                     data_group.begin_reading()
@@ -293,6 +303,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                     data_group.finish_reading()
                     if not self.get_item_by_uuid("data_groups", data_group.uuid):
                         self.load_item("data_groups", len(self.data_groups), data_group)
+                    else:
+                        data_group.close()
                 for item_d in properties.get("workspaces", list()):
                     workspace = WorkspaceLayout.factory(item_d.get)
                     workspace.begin_reading()
@@ -300,6 +312,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                     workspace.finish_reading()
                     if not self.get_item_by_uuid("workspaces", workspace.uuid):
                         self.load_item("workspaces", len(self.workspaces), workspace)
+                    else:
+                        workspace.close()
                 workspace_uuid_str = properties.get("workspace_uuid", None)
                 if workspace_uuid_str:
                     self._set_persistent_property_value("workspace_uuid", uuid.UUID(workspace_uuid_str))

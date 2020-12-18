@@ -302,8 +302,10 @@ class PersistentObjectSpecifier:
 
 
 class PersistentObjectProxy:
+    count = 0  # useful for detecting leaks in tests
 
     def __init__(self, persistent_object: PersistentObject, item_specifier: typing.Optional[PersistentObjectSpecifier], item: typing.Optional[PersistentObject]):
+        PersistentObjectProxy.count += 1
         self.__persistent_object = persistent_object
         self.__item_specifier = item_specifier if item_specifier else PersistentObjectSpecifier(item=item) if item else None
         self.__item = item
@@ -315,9 +317,6 @@ class PersistentObjectProxy:
 
         self.__persistent_object_context_changed_listener = persistent_object.persistent_object_context_changed_event.listen(self.__persistent_object_context_changed)
 
-        # watch for our context being removed
-        self.__persistent_object_about_to_be_removed_listener = persistent_object.about_to_be_removed_event.listen(self.close)
-
         self.__persistent_object_context_changed()
 
     def close(self):
@@ -327,15 +326,13 @@ class PersistentObjectProxy:
         if self.__persistent_object_context_changed_listener:
             self.__persistent_object_context_changed_listener.close()
             self.__persistent_object_context_changed_listener = None
-        if self.__persistent_object_about_to_be_removed_listener:
-            self.__persistent_object_about_to_be_removed_listener.close()
-            self.__persistent_object_about_to_be_removed_listener = None
         self.__item = None
         self.__item_specifier = None
         self.__update_persistent_object_context()
         self.__persistent_object = None
         self.on_item_registered = None
         self.on_item_unregistered = None
+        PersistentObjectProxy.count -= 1
 
     @property
     def item(self) -> typing.Optional[PersistentObject]:

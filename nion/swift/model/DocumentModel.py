@@ -4,6 +4,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import collections
+import contextlib
 import copy
 import datetime
 import functools
@@ -60,16 +61,31 @@ def insert_item_order(uuid_order: typing.List[typing.Tuple[Project.Project, Pers
     uuid_order.insert(index, item.item_specifier)
 
 
+class ComputationMerge:
+    def __init__(self, computation: Symbolic.Computation, fn: typing.Optional[typing.Callable[[], None]] = None, closeables: typing.Optional[typing.List] = None):
+        self.computation = computation
+        self.fn = fn
+        self.closeables = closeables or list()
+
+    def close(self) -> None:
+        for closeable in self.closeables:
+            closeable.close()
+
+    def exec(self) -> None:
+        if callable(self.fn):
+            self.fn()
+
+
 class ComputationQueueItem:
     def __init__(self, *, computation=None):
         self.computation = computation
         self.valid = True
 
-    def recompute(self) -> typing.Optional[typing.Tuple[Symbolic.Computation, typing.Callable[[], None]]]:
+    def recompute(self) -> typing.Optional[ComputationMerge]:
         # evaluate the computation in a thread safe manner
         # returns a list of functions that must be called on the main thread to finish the recompute action
         # threadsafe
-        pending_data_item_merge = None
+        pending_data_item_merge: typing.Optional[ComputationMerge] = None
         data_item = None
         computation = self.computation
         if computation.expression:
@@ -84,14 +100,14 @@ class ComputationQueueItem:
                     if error_text and computation.error_text != error_text:
                         def update_error_text():
                             computation.error_text = error_text
-                        pending_data_item_merge = (computation, update_error_text)
+                        pending_data_item_merge = ComputationMerge(computation, update_error_text)
                         return pending_data_item_merge
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, min(eval_time * DocumentModel.computation_min_factor, 1.0)))
                     if self.valid and compute_obj:  # TODO: race condition for 'valid'
-                        pending_data_item_merge = (computation, functools.partial(compute_obj.commit))
+                        pending_data_item_merge = ComputationMerge(computation, functools.partial(compute_obj.commit))
                     else:
-                        pending_data_item_merge = (computation, None)
+                        pending_data_item_merge = ComputationMerge(computation)
                 else:
                     start_time = time.perf_counter()
                     data_item_clone = data_item.clone()
@@ -113,7 +129,7 @@ class ComputationQueueItem:
                                 data_item_clone_recorder.apply(data_item)
                                 if computation.error_text != error_text:
                                     computation.error_text = error_text
-                        pending_data_item_merge = (computation, functools.partial(data_item_merge, data_item, data_item_clone, data_item_clone_recorder))
+                        pending_data_item_merge = ComputationMerge(computation, functools.partial(data_item_merge, data_item, data_item_clone, data_item_clone_recorder), [data_item_clone, data_item_clone_recorder])
             except Exception as e:
                 import traceback
                 traceback.print_exc()
@@ -631,6 +647,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__data_structures = list()
         self.__computations = list()
         self.__connections = list()
+        self.__data_items_to_append_lock = threading.RLock()
+        self.__data_items_to_append = list()
         self.session_id = None
         self.start_new_session()
         self.__prune()
@@ -698,10 +716,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for mapped_item in self._project.mapped_items:
             item_proxy = self._project.create_item_proxy(
                 item_specifier=Persistence.PersistentObjectSpecifier.read(mapped_item))
-            if isinstance(item_proxy.item, DisplayItem.DisplayItem):
-                display_item = typing.cast(Persistence.PersistentObject, item_proxy.item)
-                if not display_item in MappedItemManager().item_map.values():
-                    MappedItemManager().register(self, item_proxy.item)
+            with contextlib.closing(item_proxy):
+                if isinstance(item_proxy.item, DisplayItem.DisplayItem):
+                    display_item = typing.cast(Persistence.PersistentObject, item_proxy.item)
+                    if not display_item in MappedItemManager().item_map.values():
+                        MappedItemManager().register(self, item_proxy.item)
 
     def __resolve_data_item_references(self):
         # update the data item references
@@ -710,7 +729,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             persistent_object_specifier = Persistence.PersistentObjectSpecifier.read(data_item_specifier)
             if key in self.__data_item_references:
                 self.__data_item_references[key].set_data_item_specifier(self._project, persistent_object_specifier)
-            self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self._project, persistent_object_specifier))
+            else:
+                self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self._project, persistent_object_specifier))
 
     def __prune(self):
         self._project.prune()
@@ -728,6 +748,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             if self.__computation_active_item:
                 self.__computation_active_item.valid = False
                 self.__computation_active_item = None
+
+        with self.__pending_data_item_merge_lock:
+            if self.__pending_data_item_merge:
+                self.__pending_data_item_merge.close()
+            self.__pending_data_item_merge = None
+
+        # close data items left to append that haven't been appended
+        with self.__data_items_to_append_lock:
+            for data_item in self.__data_items_to_append:
+                data_item.close()
 
         # r_vars
         MappedItemManager().unregister_document(self)
@@ -752,7 +782,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         HardwareSource.HardwareSourceManager().abort_all_and_close()
 
         # make sure the data item references shut down cleanly
-        for k, data_item_reference in self.__data_item_references.items():
+        for data_item_reference in self.__data_item_references.values():
             data_item_reference.close()
         self.__data_item_references = None
 
@@ -1623,6 +1653,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 pending_data_item_merge = computation_queue_item.recompute()
                 if pending_data_item_merge is not None:
                     with self.__pending_data_item_merge_lock:
+                        if self.__pending_data_item_merge:
+                            self.__pending_data_item_merge.close()
                         self.__pending_data_item_merge = pending_data_item_merge
                     self.__call_soon(self.perform_data_item_merge)
                 else:
@@ -1635,17 +1667,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         with self.__pending_data_item_merge_lock:
             pending_data_item_merge = self.__pending_data_item_merge
             self.__pending_data_item_merge = None
-        if pending_data_item_merge is not None:
-            computation, pending_data_item_merge_fn = pending_data_item_merge
+        if pending_data_item_merge:
+            computation = pending_data_item_merge.computation
             self.__current_computation = computation
             try:
-                if callable(pending_data_item_merge_fn):
-                    pending_data_item_merge_fn()
+                pending_data_item_merge.exec()
             finally:
                 self.__current_computation = None
                 with self.__computation_queue_lock:
                     self.__computation_active_item = None
                 computation.is_initial_computation_complete.set()
+                pending_data_item_merge.close()
         self.dispatch_task(self.__recompute)
 
     async def compute_immediate(self, event_loop: asyncio.AbstractEventLoop, computation: Symbolic.Computation, timeout: float=None) -> None:
@@ -1874,11 +1906,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 data_item.category = "temporary"
                 data_item_reference.data_item = data_item
 
-                def append_data_item():
-                    self.append_data_item(data_item)
-                    self._update_data_item_reference(key, data_item)
+                def append_data_items():
+                    with self.__data_items_to_append_lock:
+                        for data_item in self.__data_items_to_append:
+                            self.append_data_item(data_item)
+                            self._update_data_item_reference(key, data_item)
+                        self.__data_items_to_append.clear()
 
-                self.__call_soon(append_data_item)
+                with self.__data_items_to_append_lock:
+                    self.__data_items_to_append.append(data_item)
+
+                self.__call_soon(append_data_items)
 
             def update_session():
                 # since this is a delayed call, the data item might have disappeared. check it.
@@ -2116,6 +2154,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for output in output_items:
             self.__get_deep_dependent_item_set(output, output_set)
         if input_set.intersection(output_set):
+            computation.close()
             raise Exception("Computation would result in duplicate dependency.")
         self._project.append_computation(computation)
 
@@ -3042,13 +3081,15 @@ DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_proces
 
 def evaluate_data(computation) -> DataAndMetadata.DataAndMetadata:
     api = PlugInManager.api_broker_fn("~1.0", None)
-    api_data_item = api._new_api_object(DataItem.new_data_item(None))
-    if computation.expression:
-        error_text = computation.evaluate_with_target(api, api_data_item)
-        computation.error_text = error_text
-        return api_data_item.data_and_metadata
-    else:
-        compute_obj, error_text = computation.evaluate(api)
-        compute_obj.commit()
-        computation.error_text = error_text
-        return computation.get_output("target").xdata
+    data_item = DataItem.new_data_item(None)
+    with contextlib.closing(data_item):
+        api_data_item = api._new_api_object(data_item)
+        if computation.expression:
+            error_text = computation.evaluate_with_target(api, api_data_item)
+            computation.error_text = error_text
+            return api_data_item.data_and_metadata
+        else:
+            compute_obj, error_text = computation.evaluate(api)
+            compute_obj.commit()
+            computation.error_text = error_text
+            return computation.get_output("target").xdata

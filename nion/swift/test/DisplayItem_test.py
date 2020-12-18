@@ -1,4 +1,5 @@
 # standard libraries
+import contextlib
 import copy
 import unittest
 
@@ -22,10 +23,11 @@ Facade.initialize()
 class TestDisplayItemClass(unittest.TestCase):
 
     def setUp(self):
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
-        pass
+        TestContext.end_leaks(self)
 
     def test_display_item_with_multiple_display_data_channels_has_sensible_properties(self):
         with TestContext.create_memory_context() as test_context:
@@ -50,10 +52,10 @@ class TestDisplayItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_type = "line_plot"
-            snapshot_display_item = display_item.snapshot()
-            self.assertEqual("line_plot", snapshot_display_item.display_type)
-            copy_display_item = copy.deepcopy(display_item)
-            self.assertEqual("line_plot", copy_display_item.display_type)
+            with contextlib.closing(display_item.snapshot()) as snapshot_display_item:
+                self.assertEqual("line_plot", snapshot_display_item.display_type)
+                with contextlib.closing(copy.deepcopy(display_item)) as copy_display_item:
+                    self.assertEqual("line_plot", copy_display_item.display_type)
 
     def test_appending_display_data_channel_does_nothing_if_display_data_channel_already_exists(self):
         with TestContext.create_memory_context() as test_context:
@@ -97,7 +99,7 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual(1, len(display_item.display_layers))
             display_item.append_display_data_channel_for_data_item(data_item2)
             self.assertEqual(2, len(display_item.display_data_channels))
-            display_item.remove_display_data_channel(display_item.display_data_channels[-1])
+            display_item.remove_display_data_channel(display_item.display_data_channels[-1]).close()
             self.assertEqual(1, len(display_item.display_data_channels))
             self.assertEqual(1, len(display_item.display_layers))
             self.assertEqual(data_item1, display_item.display_data_channel.data_item)
@@ -142,7 +144,7 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertEqual(display_item.display_data_channels[0], display_item.get_display_layer_display_data_channel(0))
             self.assertEqual(display_item.display_data_channels[1], display_item.get_display_layer_display_data_channel(1))
             self.assertEqual(display_item.display_data_channels[2], display_item.get_display_layer_display_data_channel(2))
-            display_item.remove_display_data_channel(display_item.display_data_channels[1])
+            display_item.remove_display_data_channel(display_item.display_data_channels[1]).close()
             self.assertEqual(2, len(display_item.display_data_channels))
             self.assertEqual(display_item.display_data_channels[0], display_item.get_display_layer_display_data_channel(0))
             self.assertEqual(display_item.display_data_channels[1], display_item.get_display_layer_display_data_channel(1))

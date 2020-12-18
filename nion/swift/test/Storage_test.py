@@ -36,7 +36,6 @@ from nion.swift.model import HDF5Handler
 from nion.swift.model import NDataHandler
 from nion.swift.model import Persistence
 from nion.swift.model import Profile
-from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
 from nion.ui import TestUI
@@ -155,9 +154,7 @@ def create_memory_profile_context() -> TestContext.MemoryProfileContext:
 class TestStorageClass(unittest.TestCase):
 
     def setUp(self):
-        NDataHandler.NDataHandler.count = 0
-        HDF5Handler.HDF5Handler.count = 0
-        Cache.DbStorageCache.count = 0
+        TestContext.begin_leaks()
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
         # self.__memory_start = memory_usage_resource()
 
@@ -166,10 +163,7 @@ class TestStorageClass(unittest.TestCase):
         # memory_usage = memory_usage_resource() - self.__memory_start
         # if memory_usage > 0.5:
         #     logging.debug("{} {}".format(self.id(), memory_usage))
-        self.assertEqual(0, Cache.DbStorageCache.count)
-        self.assertEqual(0, NDataHandler.NDataHandler.count)
-        self.assertEqual(0, HDF5Handler.HDF5Handler.count)
-        self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.items()))
+        TestContext.end_leaks(self)
 
     """
     document
@@ -3320,14 +3314,15 @@ class TestStorageClass(unittest.TestCase):
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # write a newer item with same uuid
             data_item = DataItem.DataItem(numpy.zeros((8,8)), item_uuid=uuid.UUID(src_uuid_str))
-            data_item.title = "Title"
-            profile = profile_context.create_profile()
-            profile.read_profile()
-            document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
-                with contextlib.closing(document_model._project.project_storage_system._make_storage_handler(data_item)) as handler:
-                    handler.write_properties(data_item.write_to_dict(), datetime.datetime.utcnow())
-                    handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+            with contextlib.closing(data_item):
+                data_item.title = "Title"
+                profile = profile_context.create_profile()
+                profile.read_profile()
+                document_model = profile_context.create_document_model(auto_close=False)
+                with contextlib.closing(document_model):
+                    with contextlib.closing(document_model._project.project_storage_system._make_storage_handler(data_item)) as handler:
+                        handler.write_properties(data_item.write_to_dict(), datetime.datetime.utcnow())
+                        handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
             # read the document and migrate
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
@@ -3539,25 +3534,27 @@ class TestStorageClass(unittest.TestCase):
 
     def test_suspendable_storage_cache_caches_removes(self):
         data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-        storage_cache = Cache.DictStorageCache()
-        suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
-        suspendable_storage_cache.set_cached_value(data_item, "key", 1.0)
-        self.assertEqual(storage_cache.cache[data_item.uuid]["key"], 1.0)
-        suspendable_storage_cache.suspend_cache()
-        suspendable_storage_cache.remove_cached_value(data_item, "key")
-        self.assertEqual(storage_cache.cache[data_item.uuid]["key"], 1.0)
-        suspendable_storage_cache.spill_cache()
-        self.assertIsNone(storage_cache.cache.get(data_item.uuid, dict()).get("key"))
+        with contextlib.closing(data_item):
+            storage_cache = Cache.DictStorageCache()
+            suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
+            suspendable_storage_cache.set_cached_value(data_item, "key", 1.0)
+            self.assertEqual(storage_cache.cache[data_item.uuid]["key"], 1.0)
+            suspendable_storage_cache.suspend_cache()
+            suspendable_storage_cache.remove_cached_value(data_item, "key")
+            self.assertEqual(storage_cache.cache[data_item.uuid]["key"], 1.0)
+            suspendable_storage_cache.spill_cache()
+            self.assertIsNone(storage_cache.cache.get(data_item.uuid, dict()).get("key"))
 
     def test_suspendable_storage_cache_is_null_for_add_followed_by_remove(self):
         data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-        storage_cache = Cache.DictStorageCache()
-        suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
-        suspendable_storage_cache.suspend_cache()
-        suspendable_storage_cache.set_cached_value(data_item, "key", 1.0)
-        suspendable_storage_cache.remove_cached_value(data_item, "key")
-        suspendable_storage_cache.spill_cache()
-        self.assertIsNone(storage_cache.cache.get(data_item.uuid, dict()).get("key"))
+        with contextlib.closing(data_item):
+            storage_cache = Cache.DictStorageCache()
+            suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
+            suspendable_storage_cache.suspend_cache()
+            suspendable_storage_cache.set_cached_value(data_item, "key", 1.0)
+            suspendable_storage_cache.remove_cached_value(data_item, "key")
+            suspendable_storage_cache.spill_cache()
+            self.assertIsNone(storage_cache.cache.get(data_item.uuid, dict()).get("key"))
 
     def test_writing_properties_with_numpy_float32_succeeds(self):
         with create_temp_profile_context() as profile_context:

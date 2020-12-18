@@ -70,15 +70,30 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         self.define_property("specifier", specifier, hidden=True, changed=self.__property_changed)
         self.define_property("specifiers", specifiers, hidden=True, changed=self.__property_changed)
         self.needs_rebind_event = Event.Event()  # an event to be fired when the computation needs to rebind
-        self.bound_item = None
+        self.__bound_item = None
         self.__needs_rebind_event_listeners = list()
 
     def close(self):
-        # TODO: this is not called
+        self.bound_item = None
         for needs_rebind_event_listener in self.__needs_rebind_event_listeners:
             needs_rebind_event_listener.close()
         self.__needs_rebind_event_listeners = None
         super().close()
+
+    @property
+    def bound_item(self):
+        return self.__bound_item
+
+    @bound_item.setter
+    def bound_item(self, value):
+        if self.__bound_item:
+            if isinstance(self.__bound_item, (list, tuple)):
+                for item in self.__bound_item:
+                    item.close()
+            else:
+                self.__bound_item.close()
+            self.__bound_item = None
+        self.__bound_item = value
 
     @property
     def _specifier(self):
@@ -1166,7 +1181,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__is_bound = False
 
     def close(self) -> None:
-        self.unbind()
+        if self.__is_bound:
+            self.unbind()
         self.__source_proxy.close()
         self.__source_proxy = None
         super().close()
@@ -1657,6 +1673,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.__unbind_variable(variable)
         for result in self.results:
             self.__unbind_result(result)
+
+        self.__is_bound = False
 
     def get_preliminary_input_items(self) -> typing.Set:
         input_items = set()

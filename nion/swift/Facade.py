@@ -1317,7 +1317,7 @@ class DataItem(metaclass=SharedInstance):
         return Graphic(graphic)
 
     def remove_region(self, graphic: Graphic) -> None:
-        self.__display_item.remove_graphic(graphic._graphic)
+        self.__display_item.remove_graphic(graphic._graphic).close()
 
     def mask_xdata(self) -> DataAndMetadata.DataAndMetadata:
         """Return the mask by combining any mask graphics on this data item as extended data.
